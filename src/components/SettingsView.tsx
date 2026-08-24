@@ -1,0 +1,295 @@
+import React, { useState } from 'react';
+import { usePlayerStore } from '../store/usePlayerStore';
+import { open } from '@tauri-apps/plugin-dialog';
+import {
+  FolderPlus,
+  FolderMinus,
+  Folder,
+  FolderGit2,
+  Trash2,
+  RefreshCw,
+  Settings2,
+  Sliders,
+  Sparkles,
+  Mic2,
+  Languages,
+  Info,
+} from 'lucide-react';
+
+export const SettingsView: React.FC = () => {
+  const includedDirectories = usePlayerStore((s) => s.includedDirectories);
+  const excludedDirectories = usePlayerStore((s) => s.excludedDirectories);
+  const addIncludedDirectory = usePlayerStore((s) => s.addIncludedDirectory);
+  const removeIncludedDirectory = usePlayerStore((s) => s.removeIncludedDirectory);
+  const addExcludedDirectory = usePlayerStore((s) => s.addExcludedDirectory);
+  const removeExcludedDirectory = usePlayerStore((s) => s.removeExcludedDirectory);
+  const rescanConfiguredLibraries = usePlayerStore((s) => s.rescanConfiguredLibraries);
+
+  const lrclibAutoFetch = usePlayerStore((s) => s.lrclibAutoFetch);
+  const setLrclibAutoFetch = usePlayerStore((s) => s.setLrclibAutoFetch);
+  const isRomanizationEnabled = usePlayerStore((s) => s.isRomanizationEnabled);
+  const toggleRomanization = usePlayerStore((s) => s.toggleRomanization);
+  const showAudioSpecs = usePlayerStore((s) => s.showAudioSpecs);
+  const toggleShowAudioSpecs = usePlayerStore((s) => s.toggleShowAudioSpecs);
+  const autoHideLyricsControls = usePlayerStore((s) => s.autoHideLyricsControls);
+  const toggleAutoHideLyricsControls = usePlayerStore((s) => s.toggleAutoHideLyricsControls);
+
+  const [isScanning, setIsScanning] = useState(false);
+
+  const handleAddIncludedDir = async () => {
+    try {
+      if (window.__TAURI_INTERNALS__) {
+        const selected = await open({
+          directory: true,
+          multiple: false,
+          title: 'Select Music Library Folder to Include',
+        });
+        if (selected && typeof selected === 'string') {
+          setIsScanning(true);
+          await addIncludedDirectory(selected);
+          setIsScanning(false);
+        }
+      }
+    } catch (e) {
+      console.warn('Dialog error:', e);
+      setIsScanning(false);
+    }
+  };
+
+  const handleAddExcludedDir = async () => {
+    try {
+      if (window.__TAURI_INTERNALS__) {
+        const selected = await open({
+          directory: true,
+          multiple: false,
+          title: 'Select Folder to Exclude from Library',
+        });
+        if (selected && typeof selected === 'string') {
+          setIsScanning(true);
+          await addExcludedDirectory(selected);
+          setIsScanning(false);
+        }
+      }
+    } catch (e) {
+      console.warn('Dialog error:', e);
+      setIsScanning(false);
+    }
+  };
+
+  const handleRescan = async () => {
+    setIsScanning(true);
+    await rescanConfiguredLibraries();
+    setIsScanning(false);
+  };
+
+  return (
+    <div className="w-full max-w-4xl mx-auto flex flex-col gap-8 pb-12">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-white/10 pb-5">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-600/30 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shadow-lg shadow-indigo-950/30">
+            <Settings2 className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-white tracking-wide">Settings & Library Folders</h2>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Manage watched music directories, subfolder exclusions, audio specs, and lyrics fetching.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleRescan}
+          disabled={isScanning || includedDirectories.length === 0}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-xs transition-all shadow-md ${
+            isScanning || includedDirectories.length === 0
+              ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
+              : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98]'
+          }`}
+        >
+          <RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
+          <span>{isScanning ? 'Scanning...' : 'Rescan All Folders'}</span>
+        </button>
+      </div>
+
+      {/* 1. Included Music Folders */}
+      <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <FolderPlus className="w-5 h-5 text-indigo-400" />
+            <div>
+              <h3 className="text-base font-bold text-white">Included Music Directories</h3>
+              <p className="text-xs text-zinc-400">
+                Prism automatically indexes FLAC tracks from these folders. Album cover art and lyrics are lazy-loaded on demand.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleAddIncludedDir}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 text-white text-xs font-semibold transition-all hover:scale-105"
+          >
+            <FolderPlus className="w-4 h-4" />
+            <span>Add Folder</span>
+          </button>
+        </div>
+
+        {includedDirectories.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center gap-2 border border-dashed border-white/10 rounded-xl bg-white/5">
+            <Folder className="w-8 h-8 text-zinc-600" />
+            <span className="text-xs font-semibold text-zinc-300">No included directories configured</span>
+            <p className="text-[11px] text-zinc-500 max-w-xs">
+              Click "Add Folder" above to choose directories containing your FLAC audio library.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {includedDirectories.map((dir) => (
+              <div
+                key={`inc-${dir}`}
+                className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0 pr-4">
+                  <Folder className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span className="text-xs font-mono text-white truncate">{dir}</span>
+                </div>
+                <button
+                  onClick={() => removeIncludedDirectory(dir)}
+                  className="p-1.5 text-zinc-500 hover:text-red-400 rounded-lg hover:bg-white/10 transition-colors shrink-0"
+                  title="Remove folder from library"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 2. Excluded Subfolders */}
+      <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <FolderMinus className="w-5 h-5 text-amber-400" />
+            <div>
+              <h3 className="text-base font-bold text-white">Excluded Subfolders</h3>
+              <p className="text-xs text-zinc-400">
+                Any subfolders added here will be skipped during audio scanning.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleAddExcludedDir}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white text-xs font-semibold transition-all border border-white/10 hover:scale-105"
+          >
+            <FolderMinus className="w-4 h-4 text-amber-400" />
+            <span>Exclude Folder</span>
+          </button>
+        </div>
+
+        {excludedDirectories.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-6 text-center gap-1 border border-dashed border-white/5 rounded-xl bg-white/5">
+            <span className="text-xs font-medium text-zinc-500">No excluded subfolders configured</span>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {excludedDirectories.map((dir) => (
+              <div
+                key={`exc-${dir}`}
+                className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0 pr-4">
+                  <FolderGit2 className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="text-xs font-mono text-zinc-300 truncate">{dir}</span>
+                </div>
+                <button
+                  onClick={() => removeExcludedDirectory(dir)}
+                  className="p-1.5 text-zinc-500 hover:text-red-400 rounded-lg hover:bg-white/10 transition-colors shrink-0"
+                  title="Remove exclusion rule"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 3. Audio Specs & Lyrics Preferences */}
+      <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-5">
+        <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
+          <Sliders className="w-5 h-5 text-indigo-400" />
+          <div>
+            <h3 className="text-base font-bold text-white">Playback & Lyrics Preferences</h3>
+            <p className="text-xs text-zinc-400">Configure online lyrics auto-fetch and display options.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-3">
+              <Mic2 className="w-4 h-4 text-indigo-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Auto-fetch Online Lyrics</span>
+                <span className="text-[11px] text-zinc-400">Fetch synced lyrics from LRCLIB if embedded lyrics missing</span>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={lrclibAutoFetch}
+              onChange={(e) => setLrclibAutoFetch(e.target.checked)}
+              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-3">
+              <Languages className="w-4 h-4 text-indigo-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Lyric Romanization / Translation</span>
+                <span className="text-[11px] text-zinc-400">Romanize non-Latin script lyrics automatically</span>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={isRomanizationEnabled}
+              onChange={toggleRomanization}
+              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-3">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Show Audio Specs Badge</span>
+                <span className="text-[11px] text-zinc-400">Display sample rate (kHz) and bit rate in player bar</span>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={showAudioSpecs}
+              onChange={toggleShowAudioSpecs}
+              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-3">
+              <Info className="w-4 h-4 text-indigo-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Auto-hide Lyrics Controls</span>
+                <span className="text-[11px] text-zinc-400">Fade overlay controls after mouse stops moving</span>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={autoHideLyricsControls}
+              onChange={toggleAutoHideLyricsControls}
+              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

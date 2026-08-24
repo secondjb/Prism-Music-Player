@@ -1,11 +1,12 @@
 import React from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { Search } from 'lucide-react';
+import { Search, Settings } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const searchQuery = usePlayerStore((s) => s.searchQuery);
   const setSearchQuery = usePlayerStore((s) => s.setSearchQuery);
   const activeTab = usePlayerStore((s) => s.activeTab);
+  const setActiveTab = usePlayerStore((s) => s.setActiveTab);
 
   const getTitle = () => {
     switch (activeTab) {
@@ -21,6 +22,8 @@ export const Header: React.FC = () => {
         return 'Local Folders';
       case 'lyrics':
         return 'Karaoke & Lyrics';
+      case 'settings':
+        return 'Library & Settings';
       default:
         return 'Music Library';
     }
@@ -47,6 +50,19 @@ export const Header: React.FC = () => {
             className="w-full bg-white/5 border border-white/10 focus:border-indigo-500 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none transition-colors"
           />
         </div>
+
+        {/* Settings Button */}
+        <button
+          onClick={() => setActiveTab('settings')}
+          className={`p-2 rounded-xl transition-all border ${
+            activeTab === 'settings'
+              ? 'bg-indigo-600 text-white border-indigo-500 shadow-md'
+              : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
+          }`}
+          title="Library Folders & Settings"
+        >
+          <Settings className="w-5 h-5" />
+        </button>
       </div>
     </header>
   );

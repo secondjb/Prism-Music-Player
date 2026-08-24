@@ -1,43 +1,30 @@
 import React from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { ActiveTab } from '../types/player';
-import { Library, Heart, Disc, Folder, Music, Mic2, FolderPlus, Sparkles } from 'lucide-react';
+import { Library, Heart, Disc, Folder, Music, Mic2, FolderPlus, Sparkles, Settings } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { invoke } from '@tauri-apps/api/core';
 
 export const Sidebar: React.FC = () => {
   const activeTab = usePlayerStore((s) => s.activeTab);
   const setActiveTab = usePlayerStore((s) => s.setActiveTab);
-  const setTracks = usePlayerStore((s) => s.setTracks);
+  const addIncludedDirectory = usePlayerStore((s) => s.addIncludedDirectory);
   const tracks = usePlayerStore((s) => s.tracks);
 
-  const handleScanDirectory = async () => {
+  const handleQuickAddDirectory = async () => {
     try {
       if (window.__TAURI_INTERNALS__) {
         const selected = await open({
           directory: true,
           multiple: false,
-          title: 'Select Music Directory',
+          title: 'Select Music Library Folder',
         });
         if (selected && typeof selected === 'string') {
-          const scannedTracks: any = await invoke('scan_directory', { dirPath: selected });
-          if (scannedTracks && Array.isArray(scannedTracks)) {
-            setTracks(scannedTracks);
-            return;
-          }
+          await addIncludedDirectory(selected);
+          setActiveTab('settings');
         }
       }
     } catch (e) {
-      console.warn('Dialog error or scan error:', e);
-    }
-    // Fallback to sample folder scan
-    try {
-      const sampleTracks: any = await invoke('scan_sample_folder');
-      if (sampleTracks && Array.isArray(sampleTracks)) {
-        setTracks(sampleTracks);
-      }
-    } catch (err) {
-      console.error('Scan sample folder error:', err);
+      console.warn('Dialog error:', e);
     }
   };
 
@@ -48,13 +35,14 @@ export const Sidebar: React.FC = () => {
     { id: 'playlists', label: 'Playlists', icon: <Music className="w-5 h-5" /> },
     { id: 'folders', label: 'Folders', icon: <Folder className="w-5 h-5" /> },
     { id: 'lyrics', label: 'Karaoke & Lyrics', icon: <Mic2 className="w-5 h-5" /> },
+    { id: 'settings', label: 'Library & Settings', icon: <Settings className="w-5 h-5" /> },
   ];
 
   return (
     <aside className="w-64 h-full glass border-r border-white/10 flex flex-col justify-between p-4 z-20 shrink-0">
       <div className="flex flex-col gap-6">
         {/* App Logo */}
-        <div className="flex items-center gap-3 px-2 pt-2">
+        <div className="flex items-center gap-3 px-2 pt-2 cursor-pointer" onClick={() => setActiveTab('library')}>
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
             <Sparkles className="w-6 h-6 text-white" />
           </div>
@@ -64,13 +52,13 @@ export const Sidebar: React.FC = () => {
           </div>
         </div>
 
-        {/* Action Button: Scan Folder */}
+        {/* Action Button: Manage Library Folders */}
         <button
-          onClick={handleScanDirectory}
+          onClick={handleQuickAddDirectory}
           className="flex items-center justify-center gap-2.5 w-full py-2.5 px-4 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 text-white font-medium text-sm transition-all duration-200 shadow-md shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98]"
         >
           <FolderPlus className="w-4 h-4" />
-          <span>Import Directory</span>
+          <span>Add Library Folder</span>
         </button>
 
         {/* Navigation Items */}

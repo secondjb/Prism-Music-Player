@@ -175,24 +175,59 @@ fn md5_hash(input: &str) -> u128 {
     hash
 }
 
-pub fn scan_directory_for_tracks(dir_path: &str) -> Vec<TrackMetadata> {
-    let flac_paths: Vec<PathBuf> = WalkDir::new(dir_path)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().is_file())
-        .filter(|e| {
-            e.path()
-                .extension()
-                .map(|ext| ext.to_string_lossy().to_lowercase() == "flac")
-                .unwrap_or(false)
-        })
-        .map(|e| e.path().to_path_buf())
-        .collect();
+pub fn scan_configured_directories(
+    included_dirs: &[String],
+    excluded_dirs: &[String],
+) -> Vec<TrackMetadata> {
+    let mut all_flac_paths: Vec<PathBuf> = Vec::new();
+    let excluded_paths: Vec<PathBuf> = excluded_dirs.iter().map(PathBuf::from).collect();
 
-    flac_paths
+    for dir_path in included_dirs {
+        let p = Path::new(dir_path);
+        if !p.exists() {
+            continue;
+        }
+
+        let paths: Vec<PathBuf> = WalkDir::new(dir_path)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().is_file())
+            .filter(|e| {
+                let is_flac = e
+                    .path()
+                    .extension()
+                    .map(|ext| ext.to_string_lossy().to_lowercase() == "flac")
+                    .unwrap_or(false);
+                if !is_flac {
+                    return false;
+                }
+
+                let file_path = e.path();
+                for exc in &excluded_paths {
+                    if file_path.starts_with(exc) {
+                        return false;
+                    }
+                }
+
+                true
+            })
+            .map(|e| e.path().to_path_buf())
+            .collect();
+
+        all_flac_paths.extend(paths);
+    }
+
+    all_flac_paths.sort();
+    all_flac_paths.dedup();
+
+    all_flac_paths
         .into_par_iter()
         .filter_map(|path| parse_flac_file(&path))
         .collect()
+}
+
+pub fn scan_directory_for_tracks(dir_path: &str) -> Vec<TrackMetadata> {
+    scan_configured_directories(&[dir_path.to_string()], &[])
 }
 
 pub fn save_library_to_disk(app_data_path: &Path, tracks: &[TrackMetadata]) -> Result<(), String> {

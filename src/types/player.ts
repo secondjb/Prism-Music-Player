@@ -15,7 +15,7 @@ export interface Track {
   unsynced_lyrics?: string | null;
 }
 
-export type ActiveTab = 'library' | 'playlists' | 'liked' | 'albums' | 'folders' | 'lyrics';
+export type ActiveTab = 'library' | 'playlists' | 'liked' | 'albums' | 'folders' | 'lyrics' | 'settings';
 
 export interface SleepTimer {
   active: boolean;

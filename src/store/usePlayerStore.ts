@@ -23,6 +23,15 @@ interface PlayerState {
   isRomanizationEnabled: boolean;
   showAudioSpecs: boolean;
   autoHideLyricsControls: boolean;
+  includedDirectories: string[];
+  excludedDirectories: string[];
+
+  // Library folder actions
+  addIncludedDirectory: (dir: string) => Promise<void>;
+  removeIncludedDirectory: (dir: string) => Promise<void>;
+  addExcludedDirectory: (dir: string) => Promise<void>;
+  removeExcludedDirectory: (dir: string) => Promise<void>;
+  rescanConfiguredLibraries: () => Promise<void>;
 
   // Actions
   setTracks: (tracks: Track[]) => void;
@@ -85,6 +94,58 @@ export const usePlayerStore = create<PlayerState>()(
       isRomanizationEnabled: true,
       showAudioSpecs: true,
       autoHideLyricsControls: true,
+      includedDirectories: [],
+      excludedDirectories: [],
+
+      addIncludedDirectory: async (dir) => {
+        const { includedDirectories, rescanConfiguredLibraries } = get();
+        if (!includedDirectories.includes(dir)) {
+          const updated = [...includedDirectories, dir];
+          set({ includedDirectories: updated });
+          await rescanConfiguredLibraries();
+        }
+      },
+
+      removeIncludedDirectory: async (dir) => {
+        const { includedDirectories, rescanConfiguredLibraries } = get();
+        const updated = includedDirectories.filter((d) => d !== dir);
+        set({ includedDirectories: updated });
+        await rescanConfiguredLibraries();
+      },
+
+      addExcludedDirectory: async (dir) => {
+        const { excludedDirectories, rescanConfiguredLibraries } = get();
+        if (!excludedDirectories.includes(dir)) {
+          const updated = [...excludedDirectories, dir];
+          set({ excludedDirectories: updated });
+          await rescanConfiguredLibraries();
+        }
+      },
+
+      removeExcludedDirectory: async (dir) => {
+        const { excludedDirectories, rescanConfiguredLibraries } = get();
+        const updated = excludedDirectories.filter((d) => d !== dir);
+        set({ excludedDirectories: updated });
+        await rescanConfiguredLibraries();
+      },
+
+      rescanConfiguredLibraries: async () => {
+        const { includedDirectories, excludedDirectories, setTracks } = get();
+        if (includedDirectories.length === 0) return;
+        try {
+          if (window.__TAURI_INTERNALS__) {
+            const scannedTracks: any = await invoke('scan_libraries', {
+              includedDirs: includedDirectories,
+              excludedDirs: excludedDirectories,
+            });
+            if (scannedTracks && Array.isArray(scannedTracks)) {
+              setTracks(scannedTracks);
+            }
+          }
+        } catch (e) {
+          console.warn('Rescan libraries error:', e);
+        }
+      },
 
       // ... rest of implementation stays identical ...
       setTracks: (tracks) => set({ tracks }),
@@ -378,6 +439,8 @@ export const usePlayerStore = create<PlayerState>()(
         isRomanizationEnabled: state.isRomanizationEnabled,
         autoHideLyricsControls: state.autoHideLyricsControls,
         lrclibAutoFetch: state.lrclibAutoFetch,
+        includedDirectories: state.includedDirectories,
+        excludedDirectories: state.excludedDirectories,
         queue: state.queue,
         userQueue: state.userQueue,
         currentIndex: state.currentIndex,

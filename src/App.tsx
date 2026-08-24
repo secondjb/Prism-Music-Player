@@ -5,6 +5,7 @@ import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { TrackList } from './components/TrackList';
 import { AlbumGrid } from './components/AlbumGrid';
+import { SettingsView } from './components/SettingsView';
 import { BottomBar } from './components/BottomBar';
 import { LyricsView } from './components/LyricsView';
 import { QueueDrawer } from './components/QueueDrawer';
@@ -85,7 +86,9 @@ export const App: React.FC = () => {
           <Header />
 
           <div className="flex-1 overflow-y-auto px-8 py-2 custom-scrollbar">
-            {activeTab === 'albums' ? (
+            {activeTab === 'settings' ? (
+              <SettingsView />
+            ) : activeTab === 'albums' ? (
               <AlbumGrid tracks={filteredTracks} />
             ) : (
               <TrackList tracks={filteredTracks} />

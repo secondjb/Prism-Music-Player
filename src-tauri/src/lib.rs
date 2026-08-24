@@ -3,8 +3,8 @@ mod metadata;
 
 use audio::GlobalAudioEngine;
 use metadata::{
-    extract_track_art, load_library_from_disk, save_library_to_disk, scan_directory_for_tracks,
-    TrackMetadata,
+    extract_track_art, load_library_from_disk, save_library_to_disk, scan_configured_directories,
+    scan_directory_for_tracks, TrackMetadata,
 };
 use std::env;
 use std::path::PathBuf;
@@ -13,6 +13,19 @@ use tauri::{AppHandle, Manager, State};
 #[tauri::command]
 fn scan_directory(app_handle: AppHandle, dir_path: String) -> Result<Vec<TrackMetadata>, String> {
     let tracks = scan_directory_for_tracks(&dir_path);
+    if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
+        let _ = save_library_to_disk(&app_data_dir, &tracks);
+    }
+    Ok(tracks)
+}
+
+#[tauri::command]
+fn scan_libraries(
+    app_handle: AppHandle,
+    included_dirs: Vec<String>,
+    excluded_dirs: Vec<String>,
+) -> Result<Vec<TrackMetadata>, String> {
+    let tracks = scan_configured_directories(&included_dirs, &excluded_dirs);
     if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
         let _ = save_library_to_disk(&app_data_dir, &tracks);
     }
@@ -93,6 +106,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             scan_directory,
+            scan_libraries,
             scan_sample_folder,
             save_library,
             load_library,

@@ -32,6 +32,21 @@ fn parse_replay_gain_peak(peak_str: &str) -> Option<f32> {
     peak_str.trim().parse::<f32>().ok()
 }
 
+pub fn extract_track_art(path_str: &str) -> Option<String> {
+    let path = Path::new(path_str);
+    let tag = Tag::read_from_path(path).ok()?;
+    for pic in tag.pictures() {
+        let mime = if pic.mime_type.is_empty() {
+            "image/jpeg".to_string()
+        } else {
+            pic.mime_type.clone()
+        };
+        let encoded = STANDARD.encode(&pic.data);
+        return Some(format!("data:{};base64,{}", mime, encoded));
+    }
+    None
+}
+
 pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
     let tag = Tag::read_from_path(path).ok()?;
     let comments = tag.vorbis_comments();
@@ -101,7 +116,6 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
 
     let mut embedded_art_base64 = None;
     for pic in tag.pictures() {
-        // Cap artwork payload size to max 250KB per track to prevent IPC freezing on 1000+ tracks
         if pic.data.len() <= 350_000 {
             let mime = if pic.mime_type.is_empty() {
                 "image/jpeg".to_string()
@@ -157,9 +171,37 @@ pub fn scan_directory_for_tracks(dir_path: &str) -> Vec<TrackMetadata> {
         .map(|e| e.path().to_path_buf())
         .collect();
 
-    // Parallel processing using Rayon multi-threading
     flac_paths
         .into_par_iter()
         .filter_map(|path| parse_flac_file(&path))
         .collect()
+}
+
+pub fn save_library_to_disk(app_data_path: &Path, tracks: &[TrackMetadata]) -> Result<(), String> {
+    std::fs::create_dir_all(app_data_path).map_err(|e| e.to_string())?;
+    let file_path = app_data_path.join("library.json");
+    
+    // Strip heavy artwork from library.json to ensure disk file is tiny (<1MB)
+    let lightweight_tracks: Vec<TrackMetadata> = tracks
+        .iter()
+        .map(|t| {
+            let mut clone = t.clone();
+            clone.embedded_art_base64 = None;
+            clone
+        })
+        .collect();
+
+    let json = serde_json::to_string(&lightweight_tracks).map_err(|e| e.to_string())?;
+    std::fs::write(file_path, json).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub fn load_library_from_disk(app_data_path: &Path) -> Result<Vec<TrackMetadata>, String> {
+    let file_path = app_data_path.join("library.json");
+    if !file_path.exists() {
+        return Ok(Vec::new());
+    }
+    let json = std::fs::read_to_string(file_path).map_err(|e| e.to_string())?;
+    let tracks: Vec<TrackMetadata> = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+    Ok(tracks)
 }

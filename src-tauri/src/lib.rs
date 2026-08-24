@@ -2,30 +2,58 @@ mod audio;
 mod metadata;
 
 use audio::GlobalAudioEngine;
-use metadata::{scan_directory_for_tracks, TrackMetadata};
+use metadata::{
+    extract_track_art, load_library_from_disk, save_library_to_disk, scan_directory_for_tracks,
+    TrackMetadata,
+};
 use std::env;
 use std::path::PathBuf;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
-fn scan_directory(dir_path: String) -> Vec<TrackMetadata> {
-    scan_directory_for_tracks(&dir_path)
+fn scan_directory(app_handle: AppHandle, dir_path: String) -> Result<Vec<TrackMetadata>, String> {
+    let tracks = scan_directory_for_tracks(&dir_path);
+    if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
+        let _ = save_library_to_disk(&app_data_dir, &tracks);
+    }
+    Ok(tracks)
 }
 
 #[tauri::command]
 fn scan_sample_folder() -> Vec<TrackMetadata> {
     let mut path = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     path.push("Sample Music Folder");
-    
+
     if !path.exists() {
         path = PathBuf::from("./Sample Music Folder");
     }
-    
+
     scan_directory_for_tracks(&path.to_string_lossy())
 }
 
 #[tauri::command]
-fn play_audio(audio_engine: State<'_, GlobalAudioEngine>, path: String, replay_gain_db: Option<f32>) -> Result<(), String> {
+fn save_library(app_handle: AppHandle, tracks: Vec<TrackMetadata>) -> Result<(), String> {
+    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    save_library_to_disk(&app_data_dir, &tracks)
+}
+
+#[tauri::command]
+fn load_library(app_handle: AppHandle) -> Result<Vec<TrackMetadata>, String> {
+    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    load_library_from_disk(&app_data_dir)
+}
+
+#[tauri::command]
+fn get_track_art(path: String) -> Option<String> {
+    extract_track_art(&path)
+}
+
+#[tauri::command]
+fn play_audio(
+    audio_engine: State<'_, GlobalAudioEngine>,
+    path: String,
+    replay_gain_db: Option<f32>,
+) -> Result<(), String> {
     let gain = replay_gain_db.unwrap_or(0.0);
     audio_engine.play(path, gain)
 }
@@ -66,6 +94,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             scan_directory,
             scan_sample_folder,
+            save_library,
+            load_library,
+            get_track_art,
             play_audio,
             pause_audio,
             resume_audio,
@@ -76,5 +107,3 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-
-

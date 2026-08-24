@@ -21,23 +21,26 @@ export const App: React.FC = () => {
     isQueueOpen,
   } = usePlayerStore();
 
-  // Auto-scan sample music folder on startup if library is empty
+  // Load saved library.json from AppData on startup
   useEffect(() => {
-    const initScan = async () => {
+    const initLoad = async () => {
       try {
         if (window.__TAURI_INTERNALS__) {
+          const savedTracks: any = await invoke('load_library');
+          if (savedTracks && Array.isArray(savedTracks) && savedTracks.length > 0) {
+            setTracks(savedTracks);
+            return;
+          }
           const sampleTracks: any = await invoke('scan_sample_folder');
           if (sampleTracks && Array.isArray(sampleTracks) && sampleTracks.length > 0) {
             setTracks(sampleTracks);
           }
         }
       } catch (e) {
-        console.warn('Auto init scan notice:', e);
+        console.warn('Auto init load notice:', e);
       }
     };
-    if (tracks.length === 0) {
-      initScan();
-    }
+    initLoad();
   }, []);
 
   // Filter tracks based on search query

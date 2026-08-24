@@ -42,7 +42,7 @@ export const BottomBar: React.FC = () => {
 
   // Poll playback position from Rust audio engine
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying || !window.__TAURI_INTERNALS__) return;
     const interval = setInterval(async () => {
       try {
         const pos: number = await invoke('get_playback_position');

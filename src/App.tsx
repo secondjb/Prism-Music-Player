@@ -25,9 +25,11 @@ export const App: React.FC = () => {
   useEffect(() => {
     const initScan = async () => {
       try {
-        const sampleTracks: any = await invoke('scan_sample_folder');
-        if (sampleTracks && Array.isArray(sampleTracks) && sampleTracks.length > 0) {
-          setTracks(sampleTracks);
+        if (window.__TAURI_INTERNALS__) {
+          const sampleTracks: any = await invoke('scan_sample_folder');
+          if (sampleTracks && Array.isArray(sampleTracks) && sampleTracks.length > 0) {
+            setTracks(sampleTracks);
+          }
         }
       } catch (e) {
         console.warn('Auto init scan notice:', e);

@@ -10,28 +10,31 @@ export const Sidebar: React.FC = () => {
 
   const handleScanDirectory = async () => {
     try {
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: 'Select Music Directory',
-      });
-      if (selected && typeof selected === 'string') {
-        const scannedTracks: any = await invoke('scan_directory', { dirPath: selected });
-        if (scannedTracks && Array.isArray(scannedTracks)) {
-          setTracks(scannedTracks);
+      if (window.__TAURI_INTERNALS__) {
+        const selected = await open({
+          directory: true,
+          multiple: false,
+          title: 'Select Music Directory',
+        });
+        if (selected && typeof selected === 'string') {
+          const scannedTracks: any = await invoke('scan_directory', { dirPath: selected });
+          if (scannedTracks && Array.isArray(scannedTracks)) {
+            setTracks(scannedTracks);
+            return;
+          }
         }
       }
     } catch (e) {
       console.warn('Dialog error or scan error:', e);
-      // Fallback to sample folder scan
-      try {
-        const sampleTracks: any = await invoke('scan_sample_folder');
-        if (sampleTracks && Array.isArray(sampleTracks)) {
-          setTracks(sampleTracks);
-        }
-      } catch (err) {
-        console.error('Scan sample folder error:', err);
+    }
+    // Fallback to sample folder scan
+    try {
+      const sampleTracks: any = await invoke('scan_sample_folder');
+      if (sampleTracks && Array.isArray(sampleTracks)) {
+        setTracks(sampleTracks);
       }
+    } catch (err) {
+      console.error('Scan sample folder error:', err);
     }
   };
 

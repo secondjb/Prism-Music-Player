@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { ListMusic, X, Trash2, GripVertical, Play } from 'lucide-react';
+import { ListMusic, X, Trash2, GripVertical, Play, ChevronDown, ChevronRight, History } from 'lucide-react';
 
 interface QueueDrawerProps {
   isOpen: boolean;
@@ -10,8 +10,11 @@ interface QueueDrawerProps {
 export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => {
   const { queue, currentIndex, currentTrack, playIndex, clearQueue } = usePlayerStore();
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [showPreviousSongs, setShowPreviousSongs] = useState(false);
 
   if (!isOpen) return null;
+
+  const previousSongs = queue.slice(0, Math.max(0, currentIndex));
 
   const handleDragStart = (idx: number) => {
     setDraggedIdx(idx);
@@ -25,7 +28,6 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
     const [movedItem] = updatedQueue.splice(draggedIdx, 1);
     updatedQueue.splice(targetIdx, 0, movedItem);
 
-    // Adjust currentIndex if necessary
     let newCurrentIdx = currentIndex;
     if (currentIndex === draggedIdx) {
       newCurrentIdx = targetIdx;
@@ -82,8 +84,43 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
         </div>
       </div>
 
-      {/* Queue items list with HTML5 Drag and Drop */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar my-4 flex flex-col gap-2">
+      {/* Queue Area */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar my-4 flex flex-col gap-3">
+        {/* Collapsible Previous Songs History Section */}
+        {previousSongs.length > 0 && (
+          <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
+            <button
+              onClick={() => setShowPreviousSongs(!showPreviousSongs)}
+              className="w-full flex items-center justify-between p-3 text-xs font-semibold text-zinc-300 hover:text-white hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-indigo-400" />
+                <span>Previous Songs ({previousSongs.length})</span>
+              </div>
+              {showPreviousSongs ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
+
+            {showPreviousSongs && (
+              <div className="flex flex-col gap-1 p-2 pt-0 border-t border-white/5 max-h-48 overflow-y-auto custom-scrollbar">
+                {previousSongs.map((track, idx) => (
+                  <div
+                    key={`prev-${track.id}-${idx}`}
+                    onClick={() => playIndex(idx)}
+                    className="flex items-center justify-between p-2 rounded-lg hover:bg-white/10 cursor-pointer text-zinc-400 hover:text-white transition-colors"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[10px] font-mono text-zinc-500">{idx + 1}</span>
+                      <span className="text-xs font-medium truncate">{track.title}</span>
+                    </div>
+                    <span className="text-[10px] text-zinc-500 truncate ml-2">{track.artist}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Current & Upcoming Queue Items */}
         {queue.length === 0 ? (
           <div className="flex flex-col items-center justify-center my-auto text-zinc-500 text-center gap-2">
             <ListMusic className="w-8 h-8 text-zinc-600" />
@@ -101,7 +138,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                 onClick={() => playIndex(idx)}
                 className={`group flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
                   isPlayingThis
-                    ? 'bg-indigo-600/25 border-indigo-500/40 text-white'
+                    ? 'bg-indigo-600/25 border-indigo-500/40 text-white shadow-md'
                     : 'bg-white/5 hover:bg-white/10 border-transparent text-zinc-300'
                 }`}
               >

@@ -65,7 +65,7 @@ export const TrackList: React.FC<TrackListProps> = ({ tracks }) => {
           return (
             <div
               key={track.id}
-              onClick={() => playTrack(track)}
+              onClick={() => playTrack(track, tracks)}
               className={`group grid grid-cols-[48px_1fr_1fr_120px_90px_60px] items-center px-4 py-3 rounded-xl cursor-pointer transition-all duration-150 relative ${
                 isSelected
                   ? 'bg-indigo-600/20 border border-indigo-500/30 text-white shadow-lg shadow-indigo-950/40'

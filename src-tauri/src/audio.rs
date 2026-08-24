@@ -193,7 +193,8 @@ fn run_audio_thread(
     let stream_config: StreamConfig = default_config.clone().into();
     let sample_format = default_config.sample_format();
 
-    let ring_buffer_capacity = (target_sample_rate as usize * target_channels * 2).max(8192);
+    // Limit ring buffer to ~100ms to completely eliminate Play/Pause and Seek lag!
+    let ring_buffer_capacity = (target_sample_rate as usize * target_channels / 10).max(8192);
     let (tx, rx) = crossbeam_channel::bounded::<f32>(ring_buffer_capacity);
 
     let err_fn = |err| eprintln!("CPAL Stream error: {}", err);

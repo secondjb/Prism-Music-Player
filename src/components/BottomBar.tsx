@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { invoke } from '@tauri-apps/api/core';
 import {
   Play,
   Pause,
@@ -37,6 +38,25 @@ export const BottomBar: React.FC = () => {
   const [isTimerModalOpen, setIsTimerModalOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [prevVol, setPrevVol] = useState(volume);
+
+  // Poll playback position from Rust audio engine
+  useEffect(() => {
+    if (!isPlaying) return;
+    const interval = setInterval(async () => {
+      try {
+        const pos: number = await invoke('get_playback_position');
+        if (typeof pos === 'number' && !isNaN(pos) && pos >= 0) {
+          usePlayerStore.setState({ currentTime: pos });
+          if (duration > 0 && pos >= duration - 0.3) {
+            nextTrack();
+          }
+        }
+      } catch (e) {
+        // Ignored
+      }
+    }, 250);
+    return () => clearInterval(interval);
+  }, [isPlaying, duration, nextTrack]);
 
   // Sleep timer interval tick
   useEffect(() => {

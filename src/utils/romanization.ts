@@ -1,5 +1,4 @@
 import { pinyin } from 'pinyin-pro';
-import Aromanize from 'aromanize';
 
 // Japanese kana to romaji dictionary map for fast offline romanization
 const KANA_ROMAJI_MAP: Record<string, string> = {
@@ -70,15 +69,25 @@ export function romanizeJapanese(text: string): string {
   return result;
 }
 
+const CHO = ['g', 'kk', 'n', 'd', 'tt', 'r', 'm', 'b', 'pp', 's', 'ss', '', 'j', 'jj', 'ch', 'k', 't', 'p', 'h'];
+const JUNG = ['a', 'ae', 'ya', 'yae', 'eo', 'e', 'yeo', 'ye', 'o', 'wa', 'wae', 'oe', 'yo', 'u', 'wo', 'we', 'wi', 'yu', 'eu', 'ui', 'i'];
+const JONG = ['', 'k', 'kk', 'gs', 'n', 'nj', 'nh', 'd', 'l', 'lg', 'lm', 'lb', 'ls', 'lt', 'lp', 'lh', 'm', 'b', 'bs', 's', 'ss', 'ng', 'j', 'ch', 'k', 't', 'p', 'h'];
+
 export function romanizeKorean(text: string): string {
-  try {
-    if (Aromanize && typeof Aromanize.toLatin === 'function') {
-      return Aromanize.toLatin(text);
+  let result = '';
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code >= 0xac00 && code <= 0xd7a3) {
+      const offset = code - 0xac00;
+      const jong = offset % 28;
+      const jung = ((offset - jong) / 28) % 21;
+      const cho = (((offset - jong) / 28) - jung) / 21;
+      result += CHO[cho] + JUNG[jung] + JONG[jong];
+    } else {
+      result += text[i];
     }
-  } catch (e) {
-    // Fallback
   }
-  return text;
+  return result;
 }
 
 export function romanizeChinese(text: string): string {

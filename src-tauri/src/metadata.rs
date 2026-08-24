@@ -107,22 +107,40 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
             }
         }
 
+        let mut best_lyrics = None;
+        let mut best_score = 0;
+
         for (key, values) in &c.comments {
             let key_upper = key.to_uppercase();
-            if key_upper.contains("LYRIC")
-                || key_upper.contains("USLT")
-                || key_upper.contains("UNSYNCED")
-                || key_upper.contains("SYNCED")
-                || key_upper.contains("TEXT")
-            {
+            
+            let score = if key_upper == "SYNCEDLYRICS" {
+                10
+            } else if key_upper.contains("SYNCED") && !key_upper.contains("UNSYNCED") {
+                9
+            } else if key_upper == "USLT" {
+                5
+            } else if key_upper.contains("LYRIC") {
+                4
+            } else if key_upper.contains("UNSYNCED") {
+                3
+            } else if key_upper.contains("TEXT") {
+                1
+            } else {
+                0
+            };
+
+            if score > best_score {
                 if let Some(l) = values.first() {
                     let cleaned = l.trim_matches('\0').trim();
                     if !cleaned.is_empty() {
-                        unsynced_lyrics = Some(cleaned.to_string());
-                        break;
+                        best_score = score;
+                        best_lyrics = Some(cleaned.to_string());
                     }
                 }
             }
+        }
+        if best_lyrics.is_some() {
+            unsynced_lyrics = best_lyrics;
         }
     }
 
@@ -137,22 +155,38 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
             if let Ok(probed) = symphonia::default::get_probe().format(&hint, mss, &Default::default(), &Default::default()) {
                 let mut reader = probed.format;
                 if let Some(metadata) = reader.metadata().current() {
+                    let mut best_lyrics = None;
+                    let mut best_score = 0;
+
                     for t in metadata.tags() {
                         let std_key_str = format!("{:?}", t.std_key).to_uppercase();
                         let key_name = t.key.to_uppercase();
-                        if std_key_str.contains("LYRICS")
-                            || key_name.contains("LYRIC")
-                            || key_name.contains("USLT")
-                            || key_name.contains("UNSYNCED")
-                            || key_name.contains("SYNCED")
-                        {
+                        
+                        let score = if key_name == "SYNCEDLYRICS" || std_key_str.contains("SYNCED") {
+                            10
+                        } else if key_name.contains("SYNCED") && !key_name.contains("UNSYNCED") {
+                            9
+                        } else if key_name == "USLT" {
+                            5
+                        } else if key_name.contains("LYRIC") || std_key_str.contains("LYRICS") {
+                            4
+                        } else if key_name.contains("UNSYNCED") {
+                            3
+                        } else {
+                            0
+                        };
+
+                        if score > best_score {
                             let val = t.value.to_string();
                             let cleaned = val.trim_matches('\0').trim();
                             if !cleaned.is_empty() {
-                                unsynced_lyrics = Some(cleaned.to_string());
-                                break;
+                                best_score = score;
+                                best_lyrics = Some(cleaned.to_string());
                             }
                         }
+                    }
+                    if best_lyrics.is_some() {
+                        unsynced_lyrics = best_lyrics;
                     }
                 }
             }

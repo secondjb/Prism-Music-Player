@@ -133,11 +133,23 @@ export const LyricsView: React.FC = () => {
         item.type === 'lyric' && Boolean(item.content?.trim())
     );
 
-    const formatted: SyncedLine[] = lyricLines.map((item, idx) => ({
+    let formatted: SyncedLine[] = lyricLines.map((item, idx) => ({
       id: `${idx}-${item.startMillisecond}`,
       startSecs: item.startMillisecond / 1000,
       content: item.content.trim(),
     }));
+
+    // Fallback: If no synced lines were found but we have raw text, treat it as unsynced lines
+    if (formatted.length === 0 && rawLrc.trim()) {
+      formatted = rawLrc
+        .split(/\r?\n/)
+        .map((line, idx) => ({
+          id: `unsynced-${idx}`,
+          startSecs: -1,
+          content: line.trim(),
+        }))
+        .filter((line) => line.content);
+    }
 
     setLines(formatted);
 
@@ -168,7 +180,7 @@ export const LyricsView: React.FC = () => {
 
   // 3. Determine active line index
   let activeIndex = -1;
-  if (lines.length > 0) {
+  if (lines.length > 0 && lines[0].startSecs !== -1) {
     for (let i = 0; i < lines.length; i++) {
       if (lines[i].startSecs <= currentTime) {
         activeIndex = i;
@@ -178,7 +190,7 @@ export const LyricsView: React.FC = () => {
 
   // 4. Smooth scroll active line to center
   useEffect(() => {
-    if (activeLineRef.current) {
+    if (activeLineRef.current && activeIndex !== -1) {
       activeLineRef.current.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
@@ -252,7 +264,9 @@ export const LyricsView: React.FC = () => {
             <Mic2 className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-bold text-white text-base">Synced Lyrics</h3>
+            <h3 className="font-bold text-white text-base">
+              {lines.length > 0 && lines[0].startSecs === -1 ? 'Unsynced Lyrics' : 'Synced Lyrics'}
+            </h3>
           </div>
         </div>
 
@@ -365,7 +379,8 @@ export const LyricsView: React.FC = () => {
           </div>
         ) : (
           lines.map((line, idx) => {
-            const isActive = idx === activeIndex;
+            const isUnsynced = line.startSecs === -1;
+            const isActive = isUnsynced || idx === activeIndex;
             const showRom = isRomanizationEnabled && line.romanized;
             const mainText = showRom && romanizationMode === 'replace' ? line.romanized : line.content;
             const subText = showRom && romanizationMode === 'below' ? line.romanized : null;
@@ -373,19 +388,21 @@ export const LyricsView: React.FC = () => {
             return (
               <motion.div
                 key={line.id}
-                ref={isActive ? activeLineRef : null}
+                ref={isActive && !isUnsynced ? activeLineRef : null}
                 animate={{
                   opacity: isActive ? 1 : 0.35,
-                  scale: isActive ? 1.05 : 0.98,
+                  scale: isActive ? (isUnsynced ? 1 : 1.05) : 0.98,
                 }}
                 transition={{ duration: 0.2 }}
                 className={`text-center cursor-pointer max-w-3xl px-6 py-2 rounded-2xl transition-colors ${
-                  isActive
+                  isActive && !isUnsynced
                     ? 'text-white font-extrabold text-2xl md:text-3xl drop-shadow-[0_0_25px_rgba(99,102,241,0.6)]'
+                    : isUnsynced
+                    ? 'text-zinc-200 font-medium text-lg md:text-xl'
                     : 'text-zinc-400 hover:text-zinc-200 font-medium text-lg md:text-xl'
                 }`}
                 onClick={() => {
-                  if (typeof line.startSecs === 'number' && !isNaN(line.startSecs)) {
+                  if (typeof line.startSecs === 'number' && !isNaN(line.startSecs) && !isUnsynced) {
                     seek(line.startSecs);
                   }
                 }}

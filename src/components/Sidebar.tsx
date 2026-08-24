@@ -6,7 +6,10 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 
 export const Sidebar: React.FC = () => {
-  const { activeTab, setActiveTab, setTracks, tracks } = usePlayerStore();
+  const activeTab = usePlayerStore((s) => s.activeTab);
+  const setActiveTab = usePlayerStore((s) => s.setActiveTab);
+  const setTracks = usePlayerStore((s) => s.setTracks);
+  const tracks = usePlayerStore((s) => s.tracks);
 
   const handleScanDirectory = async () => {
     try {

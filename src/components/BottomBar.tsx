@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { useTrackArt } from '../utils/useTrackArt';
 import { invoke } from '@tauri-apps/api/core';
 import {
   Play,
@@ -17,28 +18,32 @@ import {
 import { SleepTimerModal } from './SleepTimerModal';
 
 export const BottomBar: React.FC = () => {
-  const {
-    currentTrack,
-    isPlaying,
-    togglePlay,
-    nextTrack,
-    previousTrack,
-    currentTime,
-    duration,
-    seek,
-    volume,
-    setVolume,
-    likedTrackIds,
-    toggleLikeTrack,
-    sleepTimer,
-    tickSleepTimerSecond,
-    showLyricsFullscreen,
-    setShowLyricsFullscreen,
-  } = usePlayerStore();
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const togglePlay = usePlayerStore((s) => s.togglePlay);
+  const nextTrack = usePlayerStore((s) => s.nextTrack);
+  const previousTrack = usePlayerStore((s) => s.previousTrack);
+  const currentTime = usePlayerStore((s) => s.currentTime);
+  const duration = usePlayerStore((s) => s.duration);
+  const seek = usePlayerStore((s) => s.seek);
+  const volume = usePlayerStore((s) => s.volume);
+  const setVolume = usePlayerStore((s) => s.setVolume);
+  const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
+  const toggleLikeTrack = usePlayerStore((s) => s.toggleLikeTrack);
+  const sleepTimer = usePlayerStore((s) => s.sleepTimer);
+  const tickSleepTimerSecond = usePlayerStore((s) => s.tickSleepTimerSecond);
+  const showLyricsFullscreen = usePlayerStore((s) => s.showLyricsFullscreen);
+  const setShowLyricsFullscreen = usePlayerStore((s) => s.setShowLyricsFullscreen);
+
+  const trackArt = useTrackArt(currentTrack);
 
   const [isTimerModalOpen, setIsTimerModalOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [prevVol, setPrevVol] = useState(volume);
+
+  // Local drag state for butter-smooth seeking
+  const [isDraggingSeek, setIsDraggingSeek] = useState(false);
+  const [dragSeekVal, setDragSeekVal] = useState<number | null>(null);
 
   // Poll playback position from Rust audio engine
   useEffect(() => {
@@ -88,6 +93,11 @@ export const BottomBar: React.FC = () => {
 
   const isLiked = currentTrack ? likedTrackIds.includes(currentTrack.id) : false;
 
+  const currentSeekDisplay = isDraggingSeek && dragSeekVal !== null ? dragSeekVal : currentTime;
+  const seekPercent = duration > 0 ? Math.min(100, Math.max(0, (currentSeekDisplay / duration) * 100)) : 0;
+  const effectiveVol = isMuted ? 0 : volume;
+  const volPercent = Math.min(100, Math.max(0, effectiveVol * 100));
+
   return (
     <footer className="h-24 glass border-t border-white/10 px-6 flex items-center justify-between z-30 shrink-0 relative">
       {/* 1. Track Info (Left) */}
@@ -95,9 +105,9 @@ export const BottomBar: React.FC = () => {
         {currentTrack ? (
           <>
             <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-zinc-800 border border-white/10 relative shadow-lg">
-              {currentTrack.embedded_art_base64 ? (
+              {trackArt ? (
                 <img
-                  src={currentTrack.embedded_art_base64}
+                  src={trackArt}
                   alt={currentTrack.title}
                   className="w-full h-full object-cover"
                 />
@@ -157,17 +167,35 @@ export const BottomBar: React.FC = () => {
           </button>
         </div>
 
-        {/* Seek Bar */}
+        {/* Material 3 Expressive Filled Seek Bar */}
         <div className="w-full flex items-center gap-3 text-xs font-mono text-zinc-400">
-          <span>{formatTime(currentTime)}</span>
-          <input
-            type="range"
-            min={0}
-            max={duration || 100}
-            value={currentTime}
-            onChange={(e) => seek(parseFloat(e.target.value))}
-            className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400"
-          />
+          <span>{formatTime(currentSeekDisplay)}</span>
+          <div className="relative flex-1 h-3 flex items-center group">
+            <input
+              type="range"
+              min={0}
+              max={duration || 100}
+              step={0.1}
+              value={currentSeekDisplay}
+              onMouseDown={() => setIsDraggingSeek(true)}
+              onMouseUp={(e) => {
+                setIsDraggingSeek(false);
+                seek(parseFloat((e.target as HTMLInputElement).value));
+                setDragSeekVal(null);
+              }}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                setDragSeekVal(val);
+                if (!isDraggingSeek) {
+                  seek(val);
+                }
+              }}
+              style={{
+                background: `linear-gradient(to right, #6366f1 ${seekPercent}%, #27272a ${seekPercent}%)`,
+              }}
+              className="w-full h-2 group-hover:h-2.5 rounded-full appearance-none cursor-pointer transition-all duration-150 slider-m3"
+            />
+          </div>
           <span>{formatTime(duration)}</span>
         </div>
       </div>
@@ -213,23 +241,29 @@ export const BottomBar: React.FC = () => {
           )}
         </button>
 
-        {/* Volume */}
+        {/* Material 3 Expressive Volume Slider */}
         <div className="flex items-center gap-2">
           <button onClick={handleMuteToggle} className="text-zinc-400 hover:text-white transition-colors">
             {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
           </button>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={isMuted ? 0 : volume}
-            onChange={(e) => {
-              setVolume(parseFloat(e.target.value));
-              if (isMuted) setIsMuted(false);
-            }}
-            className="w-24 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400"
-          />
+          <div className="relative w-24 h-3 flex items-center group">
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={effectiveVol}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                setVolume(val);
+                if (isMuted) setIsMuted(false);
+              }}
+              style={{
+                background: `linear-gradient(to right, #6366f1 ${volPercent}%, #27272a ${volPercent}%)`,
+              }}
+              className="w-full h-2 group-hover:h-2.5 rounded-full appearance-none cursor-pointer transition-all duration-150 slider-m3"
+            />
+          </div>
         </div>
       </div>
 

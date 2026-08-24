@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { usePlayerStore } from './store/usePlayerStore';
+import { useTrackArt } from './utils/useTrackArt';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { TrackList } from './components/TrackList';
@@ -10,16 +11,16 @@ import { QueueDrawer } from './components/QueueDrawer';
 import { invoke } from '@tauri-apps/api/core';
 
 export const App: React.FC = () => {
-  const {
-    tracks,
-    setTracks,
-    activeTab,
-    searchQuery,
-    likedTrackIds,
-    currentTrack,
-    showLyricsFullscreen,
-    isQueueOpen,
-  } = usePlayerStore();
+  const tracks = usePlayerStore((s) => s.tracks);
+  const setTracks = usePlayerStore((s) => s.setTracks);
+  const activeTab = usePlayerStore((s) => s.activeTab);
+  const searchQuery = usePlayerStore((s) => s.searchQuery);
+  const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const showLyricsFullscreen = usePlayerStore((s) => s.showLyricsFullscreen);
+  const isQueueOpen = usePlayerStore((s) => s.isQueueOpen);
+
+  const trackArt = useTrackArt(currentTrack);
 
   // Load saved library.json from AppData on startup
   useEffect(() => {
@@ -63,10 +64,10 @@ export const App: React.FC = () => {
     <div className="w-screen h-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden relative selection:bg-indigo-500/30 selection:text-indigo-200">
       {/* Background Ambient Glassmorphism Glow */}
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-        {currentTrack?.embedded_art_base64 ? (
+        {trackArt ? (
           <div
             className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] opacity-25 blur-[120px] transition-all duration-700 bg-cover bg-center scale-110"
-            style={{ backgroundImage: `url(${currentTrack.embedded_art_base64})` }}
+            style={{ backgroundImage: `url(${trackArt})` }}
           />
         ) : (
           <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none" />

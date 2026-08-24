@@ -34,15 +34,37 @@ fn parse_replay_gain_peak(peak_str: &str) -> Option<f32> {
 
 pub fn extract_track_art(path_str: &str) -> Option<String> {
     let path = Path::new(path_str);
-    let tag = Tag::read_from_path(path).ok()?;
-    for pic in tag.pictures() {
-        let mime = if pic.mime_type.is_empty() {
-            "image/jpeg".to_string()
-        } else {
-            pic.mime_type.clone()
-        };
-        let encoded = STANDARD.encode(&pic.data);
-        return Some(format!("data:{};base64,{}", mime, encoded));
+    if let Ok(tag) = Tag::read_from_path(path) {
+        for pic in tag.pictures() {
+            let mime = if pic.mime_type.is_empty() {
+                "image/jpeg".to_string()
+            } else {
+                pic.mime_type.clone()
+            };
+            let encoded = STANDARD.encode(&pic.data);
+            return Some(format!("data:{};base64,{}", mime, encoded));
+        }
+    }
+
+    // Fallback: Check folder for cover image
+    if let Some(parent) = path.parent() {
+        for name in &[
+            "cover.jpg", "cover.png", "folder.jpg", "folder.png", "album.jpg", "album.png",
+            "Cover.jpg", "Folder.jpg", "Album.jpg", "art.jpg", "art.png",
+        ] {
+            let img_path = parent.join(name);
+            if img_path.exists() {
+                if let Ok(bytes) = std::fs::read(&img_path) {
+                    let mime = if name.to_lowercase().ends_with(".png") {
+                        "image/png"
+                    } else {
+                        "image/jpeg"
+                    };
+                    let encoded = STANDARD.encode(&bytes);
+                    return Some(format!("data:{};base64,{}", mime, encoded));
+                }
+            }
+        }
     }
     None
 }
@@ -85,9 +107,19 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
             }
         }
 
-        for key in &["LYRICS", "UNSYNCEDLYRICS", "UNSYNCED LYRICS", "LYRIC"] {
-            if let Some(val) = c.get(key) {
-                if let Some(l) = val.first() {
+        for (key, values) in &c.comments {
+            let key_upper = key.to_uppercase();
+            if matches!(
+                key_upper.as_str(),
+                "LYRICS"
+                    | "UNSYNCEDLYRICS"
+                    | "UNSYNCED LYRICS"
+                    | "LYRIC"
+                    | "USLT"
+                    | "SYNCEDLYRICS"
+                    | "SYNCED LYRICS"
+            ) {
+                if let Some(l) = values.first() {
                     if !l.trim().is_empty() {
                         unsynced_lyrics = Some(l.clone());
                         break;
@@ -114,20 +146,6 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
         None
     };
 
-    let mut embedded_art_base64 = None;
-    for pic in tag.pictures() {
-        if pic.data.len() <= 350_000 {
-            let mime = if pic.mime_type.is_empty() {
-                "image/jpeg".to_string()
-            } else {
-                pic.mime_type.clone()
-            };
-            let encoded = STANDARD.encode(&pic.data);
-            embedded_art_base64 = Some(format!("data:{};base64,{}", mime, encoded));
-        }
-        break;
-    }
-
     let id = format!("{:x}", md5_hash(&path_str));
 
     Some(TrackMetadata {
@@ -143,7 +161,7 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
         bit_rate_kbps,
         replay_gain_db,
         replay_gain_peak,
-        embedded_art_base64,
+        embedded_art_base64: None, // On-demand art fetching keeps library tiny and ultra-fast
         unsynced_lyrics,
     })
 }

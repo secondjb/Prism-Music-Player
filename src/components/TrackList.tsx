@@ -8,8 +8,14 @@ interface TrackListProps {
 }
 
 export const TrackList: React.FC<TrackListProps> = ({ tracks }) => {
-  const { currentTrack, isPlaying, playTrack, togglePlay, likedTrackIds, toggleLikeTrack, addToQueue, playNext } =
-    usePlayerStore();
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const playTrack = usePlayerStore((s) => s.playTrack);
+  const togglePlay = usePlayerStore((s) => s.togglePlay);
+  const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
+  const toggleLikeTrack = usePlayerStore((s) => s.toggleLikeTrack);
+  const addToQueue = usePlayerStore((s) => s.addToQueue);
+  const playNext = usePlayerStore((s) => s.playNext);
   const [activeMenuTrackId, setActiveMenuTrackId] = useState<string | null>(null);
 
   const formatDuration = (secs: number) => {

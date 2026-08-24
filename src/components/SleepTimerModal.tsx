@@ -8,7 +8,9 @@ interface SleepTimerModalProps {
 }
 
 export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({ isOpen, onClose }) => {
-  const { sleepTimer, startSleepTimer, cancelSleepTimer } = usePlayerStore();
+  const sleepTimer = usePlayerStore((s) => s.sleepTimer);
+  const startSleepTimer = usePlayerStore((s) => s.startSleepTimer);
+  const cancelSleepTimer = usePlayerStore((s) => s.cancelSleepTimer);
   const [tab, setTab] = useState<'time' | 'tracks'>('time');
   const [customTime, setCustomTime] = useState<number>(30);
   const [customTracks, setCustomTracks] = useState<number>(3);

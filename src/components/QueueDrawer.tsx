@@ -8,7 +8,11 @@ interface QueueDrawerProps {
 }
 
 export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => {
-  const { queue, currentIndex, currentTrack, playIndex, clearQueue } = usePlayerStore();
+  const queue = usePlayerStore((s) => s.queue);
+  const currentIndex = usePlayerStore((s) => s.currentIndex);
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const playIndex = usePlayerStore((s) => s.playIndex);
+  const clearQueue = usePlayerStore((s) => s.clearQueue);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [showPreviousSongs, setShowPreviousSongs] = useState(false);
 

@@ -54,3 +54,25 @@ body {
   overflow: hidden;
 }
 
+.slider-m3::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.slider-m3:hover::-webkit-slider-thumb {
+  transform: scale(1.25);
+  background: #ffffff;
+}
+
+.slider-m3:active::-webkit-slider-thumb {
+  transform: scale(1.4);
+  background: #e0e7ff;
+}
+

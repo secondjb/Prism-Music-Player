@@ -3,7 +3,9 @@ import { usePlayerStore } from '../store/usePlayerStore';
 import { Search } from 'lucide-react';
 
 export const Header: React.FC = () => {
-  const { searchQuery, setSearchQuery, activeTab } = usePlayerStore();
+  const searchQuery = usePlayerStore((s) => s.searchQuery);
+  const setSearchQuery = usePlayerStore((s) => s.setSearchQuery);
+  const activeTab = usePlayerStore((s) => s.activeTab);
 
   const getTitle = () => {
     switch (activeTab) {

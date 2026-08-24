@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { useTrackArt } from '../utils/useTrackArt';
 import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
 import { parse } from 'clrc';
 import { createRomanizer } from 'lyric-romanizer';
@@ -52,6 +53,8 @@ export const LyricsView: React.FC = () => {
     seek,
   } = usePlayerStore();
 
+  const trackArt = useTrackArt(currentTrack);
+
   const [rawLrc, setRawLrc] = useState<string>('');
   const [lines, setLines] = useState<SyncedLine[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -87,7 +90,7 @@ export const LyricsView: React.FC = () => {
     };
   }, [autoHideLyricsControls]);
 
-  // 1. Fetch raw lyrics when currentTrack or lrclibAutoFetch changes
+  // 1. Fetch raw lyrics when currentTrack changes or when initializing
   useEffect(() => {
     if (!currentTrack) {
       setRawLrc('');
@@ -108,12 +111,12 @@ export const LyricsView: React.FC = () => {
         currentTrack.duration_secs
       ).then((fetched) => {
         setIsLoading(false);
-        setRawLrc(fetched || '');
+        if (fetched) {
+          setRawLrc(fetched);
+        }
       });
-    } else {
-      setRawLrc('');
     }
-  }, [currentTrack?.id, lrclibAutoFetch]);
+  }, [currentTrack?.id]);
 
   // 2. Parse & Romanize lines locally whenever rawLrc or isRomanizationEnabled changes
   useEffect(() => {
@@ -224,10 +227,10 @@ export const LyricsView: React.FC = () => {
   return (
     <div className="fixed inset-0 z-40 bg-zinc-950/95 backdrop-blur-3xl flex flex-col justify-between p-8 overflow-hidden select-none">
       {/* Background Cover Art Glow */}
-      {currentTrack?.embedded_art_base64 && (
+      {trackArt && (
         <div
           className="absolute inset-0 pointer-events-none opacity-20 blur-[140px] scale-125 bg-cover bg-center transition-all duration-1000"
-          style={{ backgroundImage: `url(${currentTrack.embedded_art_base64})` }}
+          style={{ backgroundImage: `url(${trackArt})` }}
         />
       )}
 
@@ -262,7 +265,7 @@ export const LyricsView: React.FC = () => {
             }`}
             title={isRomanizationEnabled ? 'Translation Enabled' : 'Translation Disabled'}
           >
-            <Languages className={`w-5 h-5 ${isRomanizationEnabled ? 'fill-current' : ''}`} />
+            <Languages className="w-5 h-5" />
           </button>
 
           <button

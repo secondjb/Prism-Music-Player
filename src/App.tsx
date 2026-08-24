@@ -6,6 +6,7 @@ import { TrackList } from './components/TrackList';
 import { AlbumGrid } from './components/AlbumGrid';
 import { BottomBar } from './components/BottomBar';
 import { LyricsView } from './components/LyricsView';
+import { QueueDrawer } from './components/QueueDrawer';
 import { invoke } from '@tauri-apps/api/core';
 
 export const App: React.FC = () => {
@@ -17,6 +18,7 @@ export const App: React.FC = () => {
     likedTrackIds,
     currentTrack,
     showLyricsFullscreen,
+    isQueueOpen,
   } = usePlayerStore();
 
   // Auto-scan sample music folder on startup if library is empty
@@ -91,6 +93,12 @@ export const App: React.FC = () => {
 
       {/* Fullscreen Karaoke / Lyrics View Overlay */}
       {(showLyricsFullscreen || activeTab === 'lyrics') && <LyricsView />}
+
+      {/* Queue Drawer Overlay */}
+      <QueueDrawer
+        isOpen={isQueueOpen}
+        onClose={() => usePlayerStore.setState({ isQueueOpen: false })}
+      />
     </div>
   );
 };

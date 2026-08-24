@@ -16,6 +16,7 @@ interface PlayerState {
   likedTrackIds: string[];
   sleepTimer: SleepTimer;
   showLyricsFullscreen: boolean;
+  isQueueOpen: boolean;
   lrclibAutoFetch: boolean;
   romanizationMode: 'none' | 'romaji' | 'pinyin' | 'aromanize';
 
@@ -67,6 +68,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     remainingTracks: 0,
   },
   showLyricsFullscreen: false,
+  isQueueOpen: false,
   lrclibAutoFetch: true,
   romanizationMode: 'romaji',
 

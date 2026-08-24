@@ -11,6 +11,7 @@ import {
   Heart,
   Mic2,
   Timer,
+  ListMusic,
   Sparkles,
 } from 'lucide-react';
 import { SleepTimerModal } from './SleepTimerModal';
@@ -169,6 +170,20 @@ export const BottomBar: React.FC = () => {
 
       {/* 3. Volume & Extra Controls (Right) */}
       <div className="flex items-center justify-end gap-3 w-1/4 min-w-[200px]">
+        {/* Queue Drawer Button */}
+        <button
+          onClick={() => usePlayerStore.setState((s) => ({ isQueueOpen: !s.isQueueOpen }))}
+          className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-all relative"
+          title="Play Queue"
+        >
+          <ListMusic className="w-5 h-5" />
+          {usePlayerStore.getState().queue.length > 0 && (
+            <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-indigo-600 text-[9px] font-mono font-bold text-white">
+              {usePlayerStore.getState().queue.length}
+            </span>
+          )}
+        </button>
+
         {/* Karaoke / Lyrics Toggle */}
         <button
           onClick={() => setShowLyricsFullscreen(!showLyricsFullscreen)}

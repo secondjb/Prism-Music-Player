@@ -1,21 +1,9 @@
 import React from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { Search, FolderDown } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
+import { Search } from 'lucide-react';
 
 export const Header: React.FC = () => {
-  const { searchQuery, setSearchQuery, activeTab, tracks, setTracks } = usePlayerStore();
-
-  const handleScanSampleFolder = async () => {
-    try {
-      const sampleTracks: any = await invoke('scan_sample_folder');
-      if (sampleTracks && Array.isArray(sampleTracks)) {
-        setTracks(sampleTracks);
-      }
-    } catch (e) {
-      console.error('Failed to scan sample folder:', e);
-    }
-  };
+  const { searchQuery, setSearchQuery, activeTab } = usePlayerStore();
 
   const getTitle = () => {
     switch (activeTab) {
@@ -57,18 +45,6 @@ export const Header: React.FC = () => {
             className="w-full bg-white/5 border border-white/10 focus:border-indigo-500 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none transition-colors"
           />
         </div>
-
-        {/* Scan Sample Folder Button if empty */}
-        {tracks.length === 0 && (
-          <button
-            onClick={handleScanSampleFolder}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 text-xs font-semibold transition-all"
-          >
-            <FolderDown className="w-4 h-4" />
-            Load Sample Folder
-          </button>
-        )}
-
       </div>
     </header>
   );

@@ -245,14 +245,14 @@ fn run_audio_thread(
         }
 
         if let Some(target_secs) = seek_secs.lock().take() {
-            if let Some(tb) = time_base {
-                let ts = (target_secs / tb.calc_time(1).seconds as f64) as u64;
-                let _ = format.seek(
-                    symphonia::core::formats::SeekMode::Accurate,
-                    symphonia::core::formats::SeekTo::TimeStamp { ts, track_id },
-                );
-                *current_position_secs.lock() = target_secs;
-            }
+            let _ = format.seek(
+                symphonia::core::formats::SeekMode::Accurate,
+                symphonia::core::formats::SeekTo::Time {
+                    time: symphonia::core::units::Time::from(target_secs),
+                    track_id: Some(track_id),
+                },
+            );
+            *current_position_secs.lock() = target_secs;
         }
 
         if !is_playing.load(Ordering::SeqCst) {

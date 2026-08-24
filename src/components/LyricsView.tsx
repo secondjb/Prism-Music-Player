@@ -29,57 +29,25 @@ export const LyricsView: React.FC = () => {
     seek,
   } = usePlayerStore();
 
+  const [rawLrc, setRawLrc] = useState<string>('');
   const [lines, setLines] = useState<SyncedLine[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const activeLineRef = useRef<HTMLDivElement | null>(null);
 
-  // 1. Parse LRC using clrc library
+  // 1. Fetch raw lyrics when currentTrack or lrclibAutoFetch changes
   useEffect(() => {
     if (!currentTrack) {
-      setLines([]);
+      setRawLrc('');
       return;
     }
 
-    const loadLyrics = async (lrcText: string) => {
-      if (!lrcText.trim()) {
-        setLines([]);
-        return;
-      }
-
-      const parsed = parse(lrcText);
-      const lyricLines = parsed.filter((item): item is Extract<typeof item, { type: 'lyric' }> => item.type === 'lyric' && Boolean(item.content?.trim()));
-
-      const formatted: SyncedLine[] = lyricLines.map((item, idx) => ({
-        id: `${idx}-${item.startMillisecond}`,
-        startSecs: item.startMillisecond / 1000,
-        content: item.content.trim(),
-      }));
-
-      setLines(formatted);
-
-      // Async batch romanization with lyric-romanizer
-      if (isRomanizationEnabled) {
-        const updated = await Promise.all(
-          formatted.map(async (line) => {
-            try {
-              const rom = await romanizer.romanizeLine(line.content);
-              return {
-                ...line,
-                romanized: rom !== line.content ? rom : undefined,
-              };
-            } catch {
-              return line;
-            }
-          })
-        );
-        setLines(updated);
-      }
-    };
-
     if (currentTrack.unsynced_lyrics) {
-      loadLyrics(currentTrack.unsynced_lyrics);
-    } else if (lrclibAutoFetch) {
+      setRawLrc(currentTrack.unsynced_lyrics);
+      return;
+    }
+
+    if (lrclibAutoFetch) {
       setIsLoading(true);
       fetchLrclibLyrics(
         currentTrack.title,
@@ -88,14 +56,60 @@ export const LyricsView: React.FC = () => {
         currentTrack.duration_secs
       ).then((fetched) => {
         setIsLoading(false);
-        loadLyrics(fetched || '');
+        setRawLrc(fetched || '');
       });
     } else {
-      setLines([]);
+      setRawLrc('');
     }
-  }, [currentTrack?.id, lrclibAutoFetch, isRomanizationEnabled]);
+  }, [currentTrack?.id, lrclibAutoFetch]);
 
-  // 2. Determine active line index
+  // 2. Parse & Romanize lines locally whenever rawLrc or isRomanizationEnabled changes (NO NETWORK REFETCH)
+  useEffect(() => {
+    if (!rawLrc.trim()) {
+      setLines([]);
+      return;
+    }
+
+    const parsed = parse(rawLrc);
+    const lyricLines = parsed.filter(
+      (item): item is Extract<typeof item, { type: 'lyric' }> =>
+        item.type === 'lyric' && Boolean(item.content?.trim())
+    );
+
+    const formatted: SyncedLine[] = lyricLines.map((item, idx) => ({
+      id: `${idx}-${item.startMillisecond}`,
+      startSecs: item.startMillisecond / 1000,
+      content: item.content.trim(),
+    }));
+
+    setLines(formatted);
+
+    if (isRomanizationEnabled) {
+      let isMounted = true;
+      Promise.all(
+        formatted.map(async (line) => {
+          try {
+            const rom = await romanizer.romanizeLine(line.content);
+            return {
+              ...line,
+              romanized: rom !== line.content ? rom : undefined,
+            };
+          } catch {
+            return line;
+          }
+        })
+      ).then((updated) => {
+        if (isMounted) {
+          setLines(updated);
+        }
+      });
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [rawLrc, isRomanizationEnabled]);
+
+  // 3. Determine active line index
   let activeIndex = -1;
   if (lines.length > 0) {
     for (let i = 0; i < lines.length; i++) {
@@ -105,7 +119,7 @@ export const LyricsView: React.FC = () => {
     }
   }
 
-  // 3. Smooth scroll active line to center
+  // 4. Smooth scroll active line to center
   useEffect(() => {
     if (activeLineRef.current) {
       activeLineRef.current.scrollIntoView({
@@ -126,20 +140,13 @@ export const LyricsView: React.FC = () => {
     );
     setIsLoading(false);
     if (fetched) {
-      const parsed = parse(fetched);
-      const lyricLines = parsed.filter((item): item is Extract<typeof item, { type: 'lyric' }> => item.type === 'lyric' && Boolean(item.content?.trim()));
-      const formatted: SyncedLine[] = lyricLines.map((item, idx) => ({
-        id: `${idx}-${item.startMillisecond}`,
-        startSecs: item.startMillisecond / 1000,
-        content: item.content.trim(),
-      }));
-      setLines(formatted);
+      setRawLrc(fetched);
     }
   };
 
   return (
     <div className="fixed inset-0 z-40 bg-zinc-950/95 backdrop-blur-3xl flex flex-col justify-between p-8 overflow-hidden select-none">
-      {/* Background Cover Glow */}
+      {/* Background Cover Art Glow */}
       {currentTrack?.embedded_art_base64 && (
         <div
           className="absolute inset-0 pointer-events-none opacity-20 blur-[140px] scale-125 bg-cover bg-center transition-all duration-1000"
@@ -147,7 +154,7 @@ export const LyricsView: React.FC = () => {
         />
       )}
 
-      {/* Header Bar */}
+      {/* Top Bar Controls */}
       <div className="flex items-center justify-between z-10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-indigo-600/30 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
@@ -159,23 +166,22 @@ export const LyricsView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Single Translate / Romanization Toggle Button */}
+          {/* Icon-Only Translation Toggle Button */}
           <button
             onClick={toggleRomanization}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
+            className={`p-2.5 rounded-xl transition-all ${
               isRomanizationEnabled
-                ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30'
-                : 'bg-white/5 text-zinc-400 border-white/10 hover:text-white hover:bg-white/10'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/40 border border-indigo-500'
+                : 'p-2.5 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 border border-white/10'
             }`}
-            title="Toggle Automatic Translation / Romanization (JP, KR, CN)"
+            title={isRomanizationEnabled ? 'Translation / Romanization Enabled' : 'Translation / Romanization Disabled'}
           >
-            <Languages className="w-4 h-4" />
-            <span>{isRomanizationEnabled ? 'Translation On' : 'Translation Off'}</span>
+            <Languages className={`w-5 h-5 ${isRomanizationEnabled ? 'fill-current' : ''}`} />
           </button>
 
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 border border-white/10"
+            className="p-2.5 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 border border-white/10"
             title="Settings"
           >
             <Settings2 className="w-5 h-5" />
@@ -183,7 +189,7 @@ export const LyricsView: React.FC = () => {
 
           <button
             onClick={() => setShowLyricsFullscreen(false)}
-            className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 border border-white/10"
+            className="p-2.5 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 border border-white/10"
             title="Close"
           >
             <X className="w-5 h-5" />
@@ -237,7 +243,7 @@ export const LyricsView: React.FC = () => {
             <Mic2 className="w-12 h-12 text-zinc-600" />
             <h4 className="text-lg font-bold text-white">No lyrics found</h4>
             <p className="text-xs text-zinc-400">
-              No synced lyrics were found for this song. You can click refresh to search online.
+              No synced lyrics were found for this song. Click refresh to search online.
             </p>
             <button
               onClick={handleManualRefresh}
@@ -264,7 +270,11 @@ export const LyricsView: React.FC = () => {
                     ? 'text-white font-extrabold text-2xl md:text-3xl drop-shadow-[0_0_25px_rgba(99,102,241,0.6)]'
                     : 'text-zinc-400 hover:text-zinc-200 font-medium text-lg md:text-xl'
                 }`}
-                onClick={() => seek(line.startSecs)}
+                onClick={() => {
+                  if (typeof line.startSecs === 'number' && !isNaN(line.startSecs)) {
+                    seek(line.startSecs);
+                  }
+                }}
               >
                 <div>{line.content}</div>
                 {isRomanizationEnabled && line.romanized && (

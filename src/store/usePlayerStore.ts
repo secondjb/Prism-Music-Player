@@ -324,7 +324,6 @@ export const usePlayerStore = create<PlayerState>()(
     {
       name: 'prism-music-player-store',
       partialize: (state) => ({
-        tracks: state.tracks,
         likedTrackIds: state.likedTrackIds,
         volume: state.volume,
         showAudioSpecs: state.showAudioSpecs,

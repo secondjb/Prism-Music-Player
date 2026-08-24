@@ -14,7 +14,9 @@
       {
         "title": "Prism Music Player",
         "width": 1200,
-        "height": 800
+        "height": 800,
+        "label": "main",
+        "devtools": true
       }
     ],
     "security": {

@@ -1,0 +1,24 @@
+export interface Track {
+  id: string;
+  path: string;
+  title: string;
+  artist: string;
+  album: string;
+  duration_secs: number;
+  sample_rate: number;
+  bit_depth: number;
+  channels: number;
+  replay_gain_db?: number | null;
+  replay_gain_peak?: number | null;
+  embedded_art_base64?: string | null;
+  unsynced_lyrics?: string | null;
+}
+
+export type ActiveTab = 'library' | 'playlists' | 'liked' | 'albums' | 'folders' | 'lyrics';
+
+export interface SleepTimer {
+  active: boolean;
+  mode: 'time' | 'tracks';
+  remainingSeconds: number;
+  remainingTracks: number;
+}

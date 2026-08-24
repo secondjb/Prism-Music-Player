@@ -5,6 +5,7 @@ import { Header } from './components/Header';
 import { TrackList } from './components/TrackList';
 import { AlbumGrid } from './components/AlbumGrid';
 import { BottomBar } from './components/BottomBar';
+import { LyricsView } from './components/LyricsView';
 import { invoke } from '@tauri-apps/api/core';
 
 export const App: React.FC = () => {
@@ -15,6 +16,7 @@ export const App: React.FC = () => {
     searchQuery,
     likedTrackIds,
     currentTrack,
+    showLyricsFullscreen,
   } = usePlayerStore();
 
   // Auto-scan sample music folder on startup if library is empty
@@ -86,6 +88,9 @@ export const App: React.FC = () => {
 
       {/* Bottom Audio Player Bar */}
       <BottomBar />
+
+      {/* Fullscreen Karaoke / Lyrics View Overlay */}
+      {(showLyricsFullscreen || activeTab === 'lyrics') && <LyricsView />}
     </div>
   );
 };

@@ -21,6 +21,7 @@ interface PlayerState {
   isQueueOpen: boolean;
   lrclibAutoFetch: boolean;
   isRomanizationEnabled: boolean;
+  romanizationMode: 'below' | 'replace';
   showAudioSpecs: boolean;
   autoHideLyricsControls: boolean;
   includedDirectories: string[];
@@ -57,6 +58,7 @@ interface PlayerState {
   setShowLyricsFullscreen: (show: boolean) => void;
   setLrclibAutoFetch: (enabled: boolean) => void;
   toggleRomanization: () => void;
+  setRomanizationMode: (mode: 'below' | 'replace') => void;
   toggleShowAudioSpecs: () => void;
   toggleAutoHideLyricsControls: () => void;
   
@@ -95,6 +97,7 @@ export const usePlayerStore = create<PlayerState>()(
       isQueueOpen: false,
       lrclibAutoFetch: true,
       isRomanizationEnabled: true,
+      romanizationMode: 'below',
       showAudioSpecs: true,
       autoHideLyricsControls: true,
       includedDirectories: [],
@@ -350,6 +353,8 @@ export const usePlayerStore = create<PlayerState>()(
 
       toggleRomanization: () => set((state) => ({ isRomanizationEnabled: !state.isRomanizationEnabled })),
 
+      setRomanizationMode: (mode) => set({ romanizationMode: mode }),
+
       toggleShowAudioSpecs: () => set((state) => ({ showAudioSpecs: !state.showAudioSpecs })),
 
       toggleAutoHideLyricsControls: () => set((state) => ({ autoHideLyricsControls: !state.autoHideLyricsControls })),
@@ -471,6 +476,7 @@ export const usePlayerStore = create<PlayerState>()(
         volume: state.volume,
         showAudioSpecs: state.showAudioSpecs,
         isRomanizationEnabled: state.isRomanizationEnabled,
+        romanizationMode: state.romanizationMode,
         autoHideLyricsControls: state.autoHideLyricsControls,
         lrclibAutoFetch: state.lrclibAutoFetch,
         includedDirectories: state.includedDirectories,

@@ -109,20 +109,50 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
 
         for (key, values) in &c.comments {
             let key_upper = key.to_uppercase();
-            if matches!(
-                key_upper.as_str(),
-                "LYRICS"
-                    | "UNSYNCEDLYRICS"
-                    | "UNSYNCED LYRICS"
-                    | "LYRIC"
-                    | "USLT"
-                    | "SYNCEDLYRICS"
-                    | "SYNCED LYRICS"
-            ) {
+            if key_upper.contains("LYRIC")
+                || key_upper.contains("USLT")
+                || key_upper.contains("UNSYNCED")
+                || key_upper.contains("SYNCED")
+                || key_upper.contains("TEXT")
+            {
                 if let Some(l) = values.first() {
-                    if !l.trim().is_empty() {
-                        unsynced_lyrics = Some(l.clone());
+                    let cleaned = l.trim_matches('\0').trim();
+                    if !cleaned.is_empty() {
+                        unsynced_lyrics = Some(cleaned.to_string());
                         break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Secondary fallback: Probe via Symphonia for ID3v2 / embedded metadata
+    if unsynced_lyrics.is_none() {
+        if let Ok(file) = std::fs::File::open(path) {
+            let mss = symphonia::core::io::MediaSourceStream::new(Box::new(file), Default::default());
+            let mut hint = symphonia::core::probe::Hint::new();
+            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                hint.with_extension(ext);
+            }
+            if let Ok(probed) = symphonia::default::get_probe().format(&hint, mss, &Default::default(), &Default::default()) {
+                let mut reader = probed.format;
+                if let Some(metadata) = reader.metadata().current() {
+                    for t in metadata.tags() {
+                        let std_key_str = format!("{:?}", t.std_key).to_uppercase();
+                        let key_name = t.key.to_uppercase();
+                        if std_key_str.contains("LYRICS")
+                            || key_name.contains("LYRIC")
+                            || key_name.contains("USLT")
+                            || key_name.contains("UNSYNCED")
+                            || key_name.contains("SYNCED")
+                        {
+                            let val = t.value.to_string();
+                            let cleaned = val.trim_matches('\0').trim();
+                            if !cleaned.is_empty() {
+                                unsynced_lyrics = Some(cleaned.to_string());
+                                break;
+                            }
+                        }
                     }
                 }
             }

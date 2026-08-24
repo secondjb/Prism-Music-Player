@@ -31,6 +31,8 @@ export const SettingsView: React.FC = () => {
   const setLrclibAutoFetch = usePlayerStore((s) => s.setLrclibAutoFetch);
   const isRomanizationEnabled = usePlayerStore((s) => s.isRomanizationEnabled);
   const toggleRomanization = usePlayerStore((s) => s.toggleRomanization);
+  const romanizationMode = usePlayerStore((s) => s.romanizationMode);
+  const setRomanizationMode = usePlayerStore((s) => s.setRomanizationMode);
   const showAudioSpecs = usePlayerStore((s) => s.showAudioSpecs);
   const toggleShowAudioSpecs = usePlayerStore((s) => s.toggleShowAudioSpecs);
   const autoHideLyricsControls = usePlayerStore((s) => s.autoHideLyricsControls);
@@ -260,6 +262,39 @@ export const SettingsView: React.FC = () => {
             />
           </div>
 
+          {/* Romanization Mode Setting */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
+            <div className="flex items-center gap-3">
+              <Languages className="w-4 h-4 text-indigo-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Romanization Display Mode</span>
+                <span className="text-[11px] text-zinc-400">Choose whether romanization is shown below or replaces original text</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10 shrink-0 self-start sm:self-auto">
+              <button
+                onClick={() => setRomanizationMode('below')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  romanizationMode === 'below'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                Add Below Original
+              </button>
+              <button
+                onClick={() => setRomanizationMode('replace')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  romanizationMode === 'replace'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                Replace Original
+              </button>
+            </div>
+          </div>
+
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3">
               <Sparkles className="w-4 h-4 text-amber-400" />
@@ -296,21 +331,21 @@ export const SettingsView: React.FC = () => {
 
       {/* 4. Privacy, App Reset & Storage (Danger Zone) */}
       <div className="glass-card rounded-2xl p-6 border border-rose-500/20 bg-rose-950/10 flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start md:items-center gap-3 flex-1 min-w-0 pr-2">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30 shrink-0">
               <AlertTriangle className="w-5 h-5" />
             </div>
-            <div>
+            <div className="flex flex-col min-w-0">
               <h3 className="text-base font-bold text-white">Reset App Data & Synced Folders</h3>
-              <p className="text-xs text-zinc-400">
+              <p className="text-xs text-zinc-400 leading-relaxed mt-0.5">
                 Removes all synced directory paths, clears app cache, and resets settings. Your audio files on disk will NOT be deleted or modified.
               </p>
             </div>
           </div>
           <button
             onClick={() => setShowWipeModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-semibold transition-all hover:scale-105 shadow-md shadow-rose-950/50 shrink-0"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-semibold transition-all hover:scale-105 shadow-md shadow-rose-950/50 shrink-0 self-start md:self-auto"
           >
             <Trash2 className="w-4 h-4" />
             <span>Wipe Personal Data</span>

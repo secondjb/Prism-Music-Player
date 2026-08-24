@@ -42,6 +42,8 @@ export const LyricsView: React.FC = () => {
     lrclibAutoFetch,
     setLrclibAutoFetch,
     isRomanizationEnabled,
+    romanizationMode,
+    setRomanizationMode,
     toggleRomanization,
     showAudioSpecs,
     toggleShowAudioSpecs,
@@ -319,6 +321,17 @@ export const LyricsView: React.FC = () => {
               className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
             />
           </div>
+          <div className="flex items-center justify-between text-xs pt-1 border-t border-white/10">
+            <span className="text-zinc-300 font-medium">Romanization Mode</span>
+            <select
+              value={romanizationMode}
+              onChange={(e) => setRomanizationMode(e.target.value as 'below' | 'replace')}
+              className="bg-zinc-900 border border-white/10 text-xs text-white rounded-lg px-2 py-1 focus:outline-none"
+            >
+              <option value="below">Add Below</option>
+              <option value="replace">Replace Original</option>
+            </select>
+          </div>
           <button
             onClick={handleManualRefresh}
             className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 text-white text-xs font-medium transition-colors mt-1"
@@ -353,6 +366,9 @@ export const LyricsView: React.FC = () => {
         ) : (
           lines.map((line, idx) => {
             const isActive = idx === activeIndex;
+            const showRom = isRomanizationEnabled && line.romanized;
+            const mainText = showRom && romanizationMode === 'replace' ? line.romanized : line.content;
+            const subText = showRom && romanizationMode === 'below' ? line.romanized : null;
 
             return (
               <motion.div
@@ -374,10 +390,10 @@ export const LyricsView: React.FC = () => {
                   }
                 }}
               >
-                <div>{line.content}</div>
-                {isRomanizationEnabled && line.romanized && (
+                <div>{mainText}</div>
+                {subText && (
                   <div className="text-xs md:text-sm font-mono text-indigo-300/80 font-normal mt-1">
-                    {line.romanized}
+                    {subText}
                   </div>
                 )}
               </motion.div>

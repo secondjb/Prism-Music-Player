@@ -4,7 +4,19 @@ import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
 import { parse } from 'clrc';
 import { createRomanizer } from 'lyric-romanizer';
 import { motion } from 'framer-motion';
-import { Mic2, Settings2, RefreshCw, X, Languages } from 'lucide-react';
+import {
+  Mic2,
+  Settings2,
+  RefreshCw,
+  X,
+  Languages,
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 
 const romanizer = createRomanizer();
 
@@ -19,13 +31,24 @@ export const LyricsView: React.FC = () => {
   const {
     currentTrack,
     currentTime,
+    duration,
+    isPlaying,
+    togglePlay,
+    nextTrack,
+    previousTrack,
+    volume,
+    setVolume,
     lrclibAutoFetch,
     setLrclibAutoFetch,
     isRomanizationEnabled,
     toggleRomanization,
     showAudioSpecs,
     toggleShowAudioSpecs,
+    autoHideLyricsControls,
+    toggleAutoHideLyricsControls,
     setShowLyricsFullscreen,
+    activeTab,
+    setActiveTab,
     seek,
   } = usePlayerStore();
 
@@ -33,7 +56,36 @@ export const LyricsView: React.FC = () => {
   const [lines, setLines] = useState<SyncedLine[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
+  const [prevVol, setPrevVol] = useState(volume);
+
   const activeLineRef = useRef<HTMLDivElement | null>(null);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-hide controls logic on mouse idle
+  useEffect(() => {
+    if (!autoHideLyricsControls) {
+      setControlsVisible(true);
+      return;
+    }
+
+    const resetIdleTimer = () => {
+      setControlsVisible(true);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        setControlsVisible(false);
+      }, 3500);
+    };
+
+    resetIdleTimer();
+    window.addEventListener('mousemove', resetIdleTimer);
+
+    return () => {
+      window.removeEventListener('mousemove', resetIdleTimer);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, [autoHideLyricsControls]);
 
   // 1. Fetch raw lyrics when currentTrack or lrclibAutoFetch changes
   useEffect(() => {
@@ -63,7 +115,7 @@ export const LyricsView: React.FC = () => {
     }
   }, [currentTrack?.id, lrclibAutoFetch]);
 
-  // 2. Parse & Romanize lines locally whenever rawLrc or isRomanizationEnabled changes (NO NETWORK REFETCH)
+  // 2. Parse & Romanize lines locally whenever rawLrc or isRomanizationEnabled changes
   useEffect(() => {
     if (!rawLrc.trim()) {
       setLines([]);
@@ -129,6 +181,13 @@ export const LyricsView: React.FC = () => {
     }
   }, [activeIndex]);
 
+  const handleClose = () => {
+    setShowLyricsFullscreen(false);
+    if (activeTab === 'lyrics') {
+      setActiveTab('library');
+    }
+  };
+
   const handleManualRefresh = async () => {
     if (!currentTrack) return;
     setIsLoading(true);
@@ -144,6 +203,24 @@ export const LyricsView: React.FC = () => {
     }
   };
 
+  const formatTime = (secs: number) => {
+    if (!secs || isNaN(secs)) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const handleMuteToggle = () => {
+    if (isMuted) {
+      setVolume(prevVol);
+      setIsMuted(false);
+    } else {
+      setPrevVol(volume);
+      setVolume(0);
+      setIsMuted(true);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-40 bg-zinc-950/95 backdrop-blur-3xl flex flex-col justify-between p-8 overflow-hidden select-none">
       {/* Background Cover Art Glow */}
@@ -154,8 +231,17 @@ export const LyricsView: React.FC = () => {
         />
       )}
 
-      {/* Top Bar Controls */}
-      <div className="flex items-center justify-between z-10">
+      {/* Top Bar Controls (Fades on idle) */}
+      <motion.div
+        animate={{
+          opacity: controlsVisible ? 1 : 0,
+          y: controlsVisible ? 0 : -20,
+        }}
+        transition={{ duration: 0.3 }}
+        className={`flex items-center justify-between z-10 ${
+          controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+        }`}
+      >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-indigo-600/30 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
             <Mic2 className="w-5 h-5" />
@@ -166,7 +252,7 @@ export const LyricsView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Icon-Only Translation Toggle Button */}
+          {/* Translation Toggle Button */}
           <button
             onClick={toggleRomanization}
             className={`p-2.5 rounded-xl transition-all ${
@@ -174,7 +260,7 @@ export const LyricsView: React.FC = () => {
                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/40 border border-indigo-500'
                 : 'p-2.5 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 border border-white/10'
             }`}
-            title={isRomanizationEnabled ? 'Translation / Romanization Enabled' : 'Translation / Romanization Disabled'}
+            title={isRomanizationEnabled ? 'Translation Enabled' : 'Translation Disabled'}
           >
             <Languages className={`w-5 h-5 ${isRomanizationEnabled ? 'fill-current' : ''}`} />
           </button>
@@ -188,14 +274,14 @@ export const LyricsView: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setShowLyricsFullscreen(false)}
+            onClick={handleClose}
             className="p-2.5 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 border border-white/10"
-            title="Close"
+            title="Close Lyrics View"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Settings Popup */}
       {showSettings && (
@@ -203,6 +289,15 @@ export const LyricsView: React.FC = () => {
           <h4 className="text-sm font-semibold text-white border-b border-white/10 pb-2">
             Lyrics & Display Settings
           </h4>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-zinc-300">Auto-hide controls on idle</span>
+            <input
+              type="checkbox"
+              checked={autoHideLyricsControls}
+              onChange={toggleAutoHideLyricsControls}
+              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+            />
+          </div>
           <div className="flex items-center justify-between text-xs">
             <span className="text-zinc-300">Auto-fetch online lyrics</span>
             <input
@@ -232,7 +327,7 @@ export const LyricsView: React.FC = () => {
       )}
 
       {/* Main Lyrics Display Area */}
-      <div className="flex-1 overflow-y-auto my-6 px-4 custom-scrollbar flex flex-col items-center justify-start gap-6 pt-[35vh] pb-[35vh] z-10">
+      <div className="flex-1 overflow-y-auto my-4 px-4 custom-scrollbar flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-10">
         {isLoading ? (
           <div className="flex flex-col items-center gap-3 my-auto">
             <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
@@ -288,37 +383,113 @@ export const LyricsView: React.FC = () => {
         )}
       </div>
 
-      {/* Footer Track Info */}
-      {currentTrack && (
-        <div className="flex items-center justify-between border-t border-white/10 pt-4 z-10">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl overflow-hidden bg-zinc-800 border border-white/10 shadow-md">
-              {currentTrack.embedded_art_base64 ? (
-                <img
-                  src={currentTrack.embedded_art_base64}
-                  alt={currentTrack.title}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-indigo-900 flex items-center justify-center">
-                  <Mic2 className="w-6 h-6 text-indigo-300" />
+      {/* Footer Playback Controls & Track Info (Fades on idle) */}
+      <motion.div
+        animate={{
+          opacity: controlsVisible ? 1 : 0,
+          y: controlsVisible ? 0 : 20,
+        }}
+        transition={{ duration: 0.3 }}
+        className={`border-t border-white/10 pt-4 z-10 flex flex-col gap-3 ${
+          controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+        }`}
+      >
+        {/* Seek Bar */}
+        <div className="w-full flex items-center gap-3 text-xs font-mono text-zinc-400 max-w-2xl mx-auto">
+          <span>{formatTime(currentTime)}</span>
+          <input
+            type="range"
+            min={0}
+            max={duration || 100}
+            value={currentTime}
+            onChange={(e) => seek(parseFloat(e.target.value))}
+            className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400"
+          />
+          <span>{formatTime(duration)}</span>
+        </div>
+
+        {/* Track Details & Playback Controls */}
+        <div className="flex items-center justify-between">
+          {/* Left Track Info */}
+          <div className="flex items-center gap-4 w-1/3 min-w-[200px]">
+            {currentTrack ? (
+              <>
+                <div className="w-12 h-12 rounded-xl overflow-hidden bg-zinc-800 border border-white/10 shadow-md shrink-0">
+                  {currentTrack.embedded_art_base64 ? (
+                    <img
+                      src={currentTrack.embedded_art_base64}
+                      alt={currentTrack.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-indigo-900 flex items-center justify-center">
+                      <Mic2 className="w-6 h-6 text-indigo-300" />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <div>
-              <h4 className="font-bold text-sm text-white">{currentTrack.title}</h4>
-              <p className="text-xs text-zinc-400">{currentTrack.artist}</p>
-            </div>
+                <div className="min-w-0">
+                  <h4 className="font-bold text-sm text-white truncate">{currentTrack.title}</h4>
+                  <p className="text-xs text-zinc-400 truncate">{currentTrack.artist}</p>
+                </div>
+              </>
+            ) : (
+              <span className="text-xs text-zinc-500 italic">No track playing</span>
+            )}
           </div>
 
-          {showAudioSpecs && (
-            <div className="text-xs font-mono text-zinc-400 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
-              {currentTrack.bit_rate_kbps ? `${currentTrack.bit_rate_kbps} kb/s • ` : ''}
-              {(currentTrack.sample_rate / 1000).toFixed(1)} kHz
+          {/* Center Transport Controls */}
+          <div className="flex items-center gap-6 justify-center w-1/3">
+            <button
+              onClick={previousTrack}
+              className="text-zinc-400 hover:text-white transition-colors p-1"
+            >
+              <SkipBack className="w-5 h-5" />
+            </button>
+
+            <button
+              onClick={togglePlay}
+              className="w-11 h-11 rounded-full bg-white text-zinc-950 flex items-center justify-center shadow-lg shadow-white/10 hover:scale-105 active:scale-95 transition-transform"
+            >
+              {isPlaying ? <Pause className="w-5 h-5 fill-zinc-950" /> : <Play className="w-5 h-5 fill-zinc-950 ml-0.5" />}
+            </button>
+
+            <button
+              onClick={nextTrack}
+              className="text-zinc-400 hover:text-white transition-colors p-1"
+            >
+              <SkipForward className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Right Volume & Audio Specs */}
+          <div className="flex items-center justify-end gap-4 w-1/3 min-w-[200px]">
+            {showAudioSpecs && currentTrack && (
+              <div className="text-xs font-mono text-zinc-400 bg-white/5 px-3 py-1 rounded-xl border border-white/10">
+                {currentTrack.bit_rate_kbps ? `${currentTrack.bit_rate_kbps} kb/s • ` : ''}
+                {(currentTrack.sample_rate / 1000).toFixed(1)} kHz
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <button onClick={handleMuteToggle} className="text-zinc-400 hover:text-white transition-colors">
+                {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={isMuted ? 0 : volume}
+                onChange={(e) => {
+                  setVolume(parseFloat(e.target.value));
+                  if (isMuted) setIsMuted(false);
+                }}
+                className="w-20 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400"
+              />
             </div>
-          )}
+          </div>
         </div>
-      )}
+      </motion.div>
     </div>
   );
 };

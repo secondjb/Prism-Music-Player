@@ -21,6 +21,7 @@ interface PlayerState {
   lrclibAutoFetch: boolean;
   isRomanizationEnabled: boolean;
   showAudioSpecs: boolean;
+  autoHideLyricsControls: boolean;
 
   // Actions
   setTracks: (tracks: Track[]) => void;
@@ -44,6 +45,7 @@ interface PlayerState {
   setLrclibAutoFetch: (enabled: boolean) => void;
   toggleRomanization: () => void;
   toggleShowAudioSpecs: () => void;
+  toggleAutoHideLyricsControls: () => void;
   
   // Sleep timer actions
   startSleepTimer: (mode: 'time' | 'tracks', value: number) => void;
@@ -77,6 +79,7 @@ export const usePlayerStore = create<PlayerState>()(
       lrclibAutoFetch: true,
       isRomanizationEnabled: true,
       showAudioSpecs: true,
+      autoHideLyricsControls: true,
 
       // ... rest of implementation stays identical ...
       setTracks: (tracks) => set({ tracks }),
@@ -234,13 +237,19 @@ export const usePlayerStore = create<PlayerState>()(
 
       setSearchQuery: (query) => set({ searchQuery: query }),
 
-      setShowLyricsFullscreen: (show) => set({ showLyricsFullscreen: show }),
+      setShowLyricsFullscreen: (show) =>
+        set((state) => ({
+          showLyricsFullscreen: show,
+          activeTab: !show && state.activeTab === 'lyrics' ? 'library' : state.activeTab,
+        })),
 
       setLrclibAutoFetch: (enabled) => set({ lrclibAutoFetch: enabled }),
 
       toggleRomanization: () => set((state) => ({ isRomanizationEnabled: !state.isRomanizationEnabled })),
 
       toggleShowAudioSpecs: () => set((state) => ({ showAudioSpecs: !state.showAudioSpecs })),
+
+      toggleAutoHideLyricsControls: () => set((state) => ({ autoHideLyricsControls: !state.autoHideLyricsControls })),
 
       startSleepTimer: (mode, value) => {
         if (mode === 'time') {
@@ -328,6 +337,7 @@ export const usePlayerStore = create<PlayerState>()(
         volume: state.volume,
         showAudioSpecs: state.showAudioSpecs,
         isRomanizationEnabled: state.isRomanizationEnabled,
+        autoHideLyricsControls: state.autoHideLyricsControls,
         lrclibAutoFetch: state.lrclibAutoFetch,
         queue: state.queue,
         currentIndex: state.currentIndex,

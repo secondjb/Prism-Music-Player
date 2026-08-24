@@ -18,7 +18,8 @@ interface PlayerState {
   showLyricsFullscreen: boolean;
   isQueueOpen: boolean;
   lrclibAutoFetch: boolean;
-  romanizationMode: 'none' | 'romaji' | 'pinyin' | 'aromanize';
+  isRomanizationEnabled: boolean;
+  showAudioSpecs: boolean;
 
   // Actions
   setTracks: (tracks: Track[]) => void;
@@ -40,7 +41,8 @@ interface PlayerState {
   setSearchQuery: (query: string) => void;
   setShowLyricsFullscreen: (show: boolean) => void;
   setLrclibAutoFetch: (enabled: boolean) => void;
-  setRomanizationMode: (mode: 'none' | 'romaji' | 'pinyin' | 'aromanize') => void;
+  toggleRomanization: () => void;
+  toggleShowAudioSpecs: () => void;
   
   // Sleep timer actions
   startSleepTimer: (mode: 'time' | 'tracks', value: number) => void;
@@ -70,7 +72,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   showLyricsFullscreen: false,
   isQueueOpen: false,
   lrclibAutoFetch: true,
-  romanizationMode: 'romaji',
+  isRomanizationEnabled: true,
+  showAudioSpecs: true,
 
   setTracks: (tracks) => set({ tracks }),
 
@@ -232,7 +235,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   setLrclibAutoFetch: (enabled) => set({ lrclibAutoFetch: enabled }),
 
-  setRomanizationMode: (mode) => set({ romanizationMode: mode }),
+  toggleRomanization: () => set((state) => ({ isRomanizationEnabled: !state.isRomanizationEnabled })),
+
+  toggleShowAudioSpecs: () => set((state) => ({ showAudioSpecs: !state.showAudioSpecs })),
 
   startSleepTimer: (mode, value) => {
     if (mode === 'time') {

@@ -16,6 +16,7 @@ pub struct TrackMetadata {
     pub sample_rate: u32,
     pub bit_depth: u32,
     pub channels: u16,
+    pub bit_rate_kbps: Option<u32>,
     pub replay_gain_db: Option<f32>,
     pub replay_gain_peak: Option<f32>,
     pub embedded_art_base64: Option<String>,
@@ -91,6 +92,13 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
         0.0
     };
 
+    let file_size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    let bit_rate_kbps = if duration_secs > 0.0 && file_size > 0 {
+        Some((file_size as f64 * 8.0 / duration_secs / 1000.0) as u32)
+    } else {
+        None
+    };
+
     let mut embedded_art_base64 = None;
     for pic in tag.pictures() {
         // Cap artwork payload size to max 250KB per track to prevent IPC freezing on 1000+ tracks
@@ -118,6 +126,7 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
         sample_rate,
         bit_depth,
         channels,
+        bit_rate_kbps,
         replay_gain_db,
         replay_gain_peak,
         embedded_art_base64,

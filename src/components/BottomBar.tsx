@@ -110,9 +110,13 @@ export const BottomBar: React.FC = () => {
             <div className="flex flex-col min-w-0">
               <span className="font-semibold text-sm text-white truncate">{currentTrack.title}</span>
               <span className="text-xs text-zinc-400 truncate mt-0.5">{currentTrack.artist}</span>
-              <span className="text-[10px] text-amber-400/90 font-mono mt-0.5 flex items-center gap-1">
-                {(currentTrack.sample_rate / 1000).toFixed(1)}kHz / {currentTrack.bit_depth}bit FLAC
-              </span>
+              {usePlayerStore.getState().showAudioSpecs && (
+                <span className="text-[10px] text-zinc-400 font-mono mt-0.5 flex items-center gap-1.5">
+                  {currentTrack.bit_rate_kbps ? `${currentTrack.bit_rate_kbps} kb/s` : ''}
+                  {currentTrack.bit_rate_kbps ? ' • ' : ''}
+                  {(currentTrack.sample_rate / 1000).toFixed(1)} kHz
+                </span>
+              )}
             </div>
             <button
               onClick={() => toggleLikeTrack(currentTrack.id)}

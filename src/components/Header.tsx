@@ -1,6 +1,6 @@
 import React from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { Search, Sparkles, FolderDown } from 'lucide-react';
+import { Search, FolderDown } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 
 export const Header: React.FC = () => {
@@ -69,11 +69,6 @@ export const Header: React.FC = () => {
           </button>
         )}
 
-        {/* High-res indicator badge */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl glass-card text-xs font-mono text-amber-300 border border-amber-500/20">
-          <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-          <span>FLAC 192kHz/24b Ready</span>
-        </div>
       </div>
     </header>
   );

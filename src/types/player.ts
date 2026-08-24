@@ -8,6 +8,7 @@ export interface Track {
   sample_rate: number;
   bit_depth: number;
   channels: number;
+  bit_rate_kbps?: number | null;
   replay_gain_db?: number | null;
   replay_gain_peak?: number | null;
   embedded_art_base64?: string | null;

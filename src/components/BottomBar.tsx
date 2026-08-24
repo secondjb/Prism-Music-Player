@@ -48,7 +48,7 @@ export const BottomBar: React.FC = () => {
         const pos: number = await invoke('get_playback_position');
         if (typeof pos === 'number' && !isNaN(pos) && pos >= 0) {
           usePlayerStore.setState({ currentTime: pos });
-          if (duration > 0 && pos >= duration - 0.3) {
+          if (duration > 2 && pos > 0.5 && pos >= duration - 0.5) {
             nextTrack();
           }
         }

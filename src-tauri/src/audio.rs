@@ -56,7 +56,7 @@ impl GlobalAudioEngine {
 
         // Signal existing thread to stop
         state_guard.stop_signal.store(true, Ordering::SeqCst);
-        thread::sleep(Duration::from_millis(50));
+        thread::sleep(Duration::from_millis(60));
 
         let stop_signal = Arc::new(AtomicBool::new(false));
         let is_playing = Arc::new(AtomicBool::new(true));
@@ -142,7 +142,7 @@ fn run_audio_thread(
     current_position_secs: Arc<Mutex<f64>>,
     current_duration_secs: Arc<Mutex<f64>>,
 ) -> Result<(), String> {
-    let file = File::open(Path::new(path_str)).map_err(|e| format!("Failed to open file: {}", e))?;
+    let file = File::open(Path::new(path_str)).map_err(|e| format!("Failed to open file '{}': {}", path_str, e))?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
     let mut hint = Hint::new();
@@ -155,7 +155,7 @@ fn run_audio_thread(
 
     let probed = symphonia::default::get_probe()
         .format(&hint, mss, &fmt_opts, &meta_opts)
-        .map_err(|e| format!("Unsupported format: {}", e))?;
+        .map_err(|e| format!("Unsupported format for '{}': {}", path_str, e))?;
 
     let mut format = probed.format;
     let track = format
@@ -164,11 +164,11 @@ fn run_audio_thread(
 
     let track_id = track.id;
     let time_base = track.codec_params.time_base;
-    let sample_rate = track.codec_params.sample_rate.unwrap_or(44100);
-    let channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(2);
+    let input_sample_rate = track.codec_params.sample_rate.unwrap_or(44100);
+    let input_channels = track.codec_params.channels.map(|c| c.count()).unwrap_or(2);
 
     if let Some(n_frames) = track.codec_params.n_frames {
-        let duration = n_frames as f64 / sample_rate as f64;
+        let duration = n_frames as f64 / input_sample_rate as f64;
         *current_duration_secs.lock() = duration;
     }
 
@@ -182,17 +182,36 @@ fn run_audio_thread(
         .default_output_device()
         .ok_or_else(|| "No output audio device found".to_string())?;
 
-    let config = StreamConfig {
-        channels: channels as u16,
-        sample_rate: cpal::SampleRate(sample_rate),
+    let default_config = device
+        .default_output_config()
+        .map_err(|e| format!("Failed to get default output config: {}", e))?;
+
+    // Determine target sample rate and channel count safely
+    let (target_sample_rate, target_channels) = {
+        let req_config = StreamConfig {
+            channels: input_channels as u16,
+            sample_rate: cpal::SampleRate(input_sample_rate),
+            buffer_size: cpal::BufferSize::Default,
+        };
+        if device.build_output_stream(&req_config, move |_: &mut [f32], _| {}, move |_| {}, None).is_ok() {
+            (input_sample_rate, input_channels)
+        } else {
+            (default_config.sample_rate().0, default_config.channels() as usize)
+        }
+    };
+
+    let stream_config = StreamConfig {
+        channels: target_channels as u16,
+        sample_rate: cpal::SampleRate(target_sample_rate),
         buffer_size: cpal::BufferSize::Default,
     };
 
-    let (tx, rx) = crossbeam_channel::bounded::<f32>(sample_rate as usize * channels * 2);
+    let ring_buffer_capacity = (target_sample_rate as usize * target_channels * 2).max(8192);
+    let (tx, rx) = crossbeam_channel::bounded::<f32>(ring_buffer_capacity);
 
     let stream = device
         .build_output_stream(
-            &config,
+            &stream_config,
             move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
                 for sample in data.iter_mut() {
                     *sample = rx.try_recv().unwrap_or(0.0);
@@ -203,7 +222,7 @@ fn run_audio_thread(
         )
         .map_err(|e| format!("Failed to build output stream: {}", e))?;
 
-    stream.play().map_err(|e| format!("Failed to play stream: {}", e))?;
+    stream.play().map_err(|e| format!("Failed to play audio stream: {}", e))?;
 
     let mut sample_buf = None;
 
@@ -260,9 +279,40 @@ fn run_audio_thread(
 
                 if let Some(ref mut buf) = sample_buf {
                     buf.copy_interleaved_ref(decoded);
-                    for &sample in buf.samples() {
-                        let gain_adjusted = sample * linear_gain;
-                        let _ = tx.send(gain_adjusted);
+                    let raw_samples = buf.samples();
+
+                    if input_sample_rate == target_sample_rate && input_channels == target_channels {
+                        for &sample in raw_samples {
+                            if stop_signal.load(Ordering::SeqCst) { break; }
+                            let gain_adjusted = (sample * linear_gain).clamp(-1.0, 1.0);
+                            let _ = tx.send(gain_adjusted);
+                        }
+                    } else {
+                        // Linear sample rate & channel adaptation
+                        let num_frames = raw_samples.len() / input_channels;
+                        let resample_ratio = target_sample_rate as f64 / input_sample_rate as f64;
+                        let target_frames = (num_frames as f64 * resample_ratio) as usize;
+
+                        for f in 0..target_frames {
+                            if stop_signal.load(Ordering::SeqCst) { break; }
+                            let src_frame_f = f as f64 / resample_ratio;
+                            let src_frame_idx = src_frame_f.floor() as usize;
+                            let frac = (src_frame_f - src_frame_idx as f64) as f32;
+
+                            for c in 0..target_channels {
+                                let input_c = c % input_channels;
+                                let sample_curr = if src_frame_idx < num_frames {
+                                    raw_samples[src_frame_idx * input_channels + input_c]
+                                } else { 0.0 };
+                                let sample_next = if src_frame_idx + 1 < num_frames {
+                                    raw_samples[(src_frame_idx + 1) * input_channels + input_c]
+                                } else { sample_curr };
+
+                                let interp = sample_curr + frac * (sample_next - sample_curr);
+                                let gain_adjusted = (interp * linear_gain).clamp(-1.0, 1.0);
+                                let _ = tx.send(gain_adjusted);
+                            }
+                        }
                     }
                 }
             }

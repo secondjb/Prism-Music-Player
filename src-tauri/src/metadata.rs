@@ -1,7 +1,8 @@
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use metaflac::Tag;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,7 +23,6 @@ pub struct TrackMetadata {
 }
 
 fn parse_replay_gain_db(gain_str: &str) -> Option<f32> {
-    // String typically formatted as "-3.50 dB" or "1.2 dB"
     let clean = gain_str.trim().replace("dB", "").replace("DB", "");
     clean.trim().parse::<f32>().ok()
 }
@@ -69,7 +69,6 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
             }
         }
 
-        // Try various lyrics Vorbis tags
         for key in &["LYRICS", "UNSYNCEDLYRICS", "UNSYNCED LYRICS", "LYRIC"] {
             if let Some(val) = c.get(key) {
                 if let Some(l) = val.first() {
@@ -94,17 +93,19 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
 
     let mut embedded_art_base64 = None;
     for pic in tag.pictures() {
-        let mime = if pic.mime_type.is_empty() {
-            "image/jpeg".to_string()
-        } else {
-            pic.mime_type.clone()
-        };
-        let encoded = STANDARD.encode(&pic.data);
-        embedded_art_base64 = Some(format!("data:{};base64,{}", mime, encoded));
-        break; // Use first picture (front cover)
+        // Cap artwork payload size to max 250KB per track to prevent IPC freezing on 1000+ tracks
+        if pic.data.len() <= 350_000 {
+            let mime = if pic.mime_type.is_empty() {
+                "image/jpeg".to_string()
+            } else {
+                pic.mime_type.clone()
+            };
+            let encoded = STANDARD.encode(&pic.data);
+            embedded_art_base64 = Some(format!("data:{};base64,{}", mime, encoded));
+        }
+        break;
     }
 
-    // Generate stable ID based on path hash or string
     let id = format!("{:x}", md5_hash(&path_str));
 
     Some(TrackMetadata {
@@ -125,7 +126,6 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
 }
 
 fn md5_hash(input: &str) -> u128 {
-    // Simple fast hashing for ID generation
     let mut hash: u128 = 0xcbf29ce484222325;
     for byte in input.bytes() {
         hash ^= byte as u128;
@@ -135,18 +135,22 @@ fn md5_hash(input: &str) -> u128 {
 }
 
 pub fn scan_directory_for_tracks(dir_path: &str) -> Vec<TrackMetadata> {
-    let mut tracks = Vec::new();
-    for entry in WalkDir::new(dir_path).into_iter().filter_map(|e| e.ok()) {
-        let path = entry.path();
-        if path.is_file() {
-            if let Some(ext) = path.extension() {
-                if ext.to_string_lossy().to_lowercase() == "flac" {
-                    if let Some(meta) = parse_flac_file(path) {
-                        tracks.push(meta);
-                    }
-                }
-            }
-        }
-    }
-    tracks
+    let flac_paths: Vec<PathBuf> = WalkDir::new(dir_path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().is_file())
+        .filter(|e| {
+            e.path()
+                .extension()
+                .map(|ext| ext.to_string_lossy().to_lowercase() == "flac")
+                .unwrap_or(false)
+        })
+        .map(|e| e.path().to_path_buf())
+        .collect();
+
+    // Parallel processing using Rayon multi-threading
+    flac_paths
+        .into_par_iter()
+        .filter_map(|path| parse_flac_file(&path))
+        .collect()
 }

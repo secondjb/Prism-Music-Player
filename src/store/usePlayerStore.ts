@@ -60,6 +60,9 @@ interface PlayerState {
   toggleShowAudioSpecs: () => void;
   toggleAutoHideLyricsControls: () => void;
   
+  // Reset & Wipe Action
+  wipeDataAndReset: () => Promise<void>;
+
   // Sleep timer actions
   startSleepTimer: (mode: 'time' | 'tracks', value: number) => void;
   cancelSleepTimer: () => void;
@@ -427,6 +430,37 @@ export const usePlayerStore = create<PlayerState>()(
               remainingTracks: sleepTimer.remainingTracks - 1,
             },
           });
+        }
+      },
+
+      wipeDataAndReset: async () => {
+        set({
+          tracks: [],
+          queue: [],
+          userQueue: [],
+          currentIndex: -1,
+          currentTrack: null,
+          isPlaying: false,
+          currentTime: 0,
+          duration: 0,
+          likedTrackIds: [],
+          includedDirectories: [],
+          excludedDirectories: [],
+          searchQuery: '',
+          sleepTimer: {
+            active: false,
+            mode: 'time',
+            remainingSeconds: 0,
+            remainingTracks: 0,
+          },
+        });
+        try {
+          if (window.__TAURI_INTERNALS__) {
+            await invoke('save_library', { tracks: [] });
+            await invoke('pause_audio');
+          }
+        } catch (e) {
+          console.warn('Wipe data error:', e);
         }
       },
     }),

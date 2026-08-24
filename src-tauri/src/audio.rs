@@ -1,5 +1,5 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::StreamConfig;
+use cpal::{SampleFormat, StreamConfig};
 use parking_lot::Mutex;
 use std::fs::File;
 use std::path::Path;
@@ -67,6 +67,7 @@ impl GlobalAudioEngine {
         let current_duration_secs = Arc::clone(&state_guard.current_duration_secs);
 
         *state_guard.replay_gain_db.lock() = replay_gain_db;
+        *current_position_secs.lock() = 0.0;
         state_guard.is_playing.store(true, Ordering::SeqCst);
 
         let path_clone = file_path.clone();
@@ -182,45 +183,56 @@ fn run_audio_thread(
         .default_output_device()
         .ok_or_else(|| "No output audio device found".to_string())?;
 
+    // We ALWAYS use the device's exact default output config to prevent WASAPI Stream creation failure.
     let default_config = device
         .default_output_config()
         .map_err(|e| format!("Failed to get default output config: {}", e))?;
 
-    // Determine target sample rate and channel count safely
-    let (target_sample_rate, target_channels) = {
-        let req_config = StreamConfig {
-            channels: input_channels as u16,
-            sample_rate: cpal::SampleRate(input_sample_rate),
-            buffer_size: cpal::BufferSize::Default,
-        };
-        if device.build_output_stream(&req_config, move |_: &mut [f32], _| {}, move |_| {}, None).is_ok() {
-            (input_sample_rate, input_channels)
-        } else {
-            (default_config.sample_rate().0, default_config.channels() as usize)
-        }
-    };
-
-    let stream_config = StreamConfig {
-        channels: target_channels as u16,
-        sample_rate: cpal::SampleRate(target_sample_rate),
-        buffer_size: cpal::BufferSize::Default,
-    };
+    let target_sample_rate = default_config.sample_rate().0;
+    let target_channels = default_config.channels() as usize;
+    let stream_config: StreamConfig = default_config.clone().into();
+    let sample_format = default_config.sample_format();
 
     let ring_buffer_capacity = (target_sample_rate as usize * target_channels * 2).max(8192);
     let (tx, rx) = crossbeam_channel::bounded::<f32>(ring_buffer_capacity);
 
-    let stream = device
-        .build_output_stream(
+    let err_fn = |err| eprintln!("CPAL Stream error: {}", err);
+
+    let stream = match sample_format {
+        SampleFormat::F32 => device.build_output_stream(
             &stream_config,
-            move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+            move |data: &mut [f32], _| {
                 for sample in data.iter_mut() {
                     *sample = rx.try_recv().unwrap_or(0.0);
                 }
             },
-            move |err| eprintln!("CPAL Stream error: {}", err),
+            err_fn,
             None,
-        )
-        .map_err(|e| format!("Failed to build output stream: {}", e))?;
+        ),
+        SampleFormat::I16 => device.build_output_stream(
+            &stream_config,
+            move |data: &mut [i16], _| {
+                for sample in data.iter_mut() {
+                    let f_sample = rx.try_recv().unwrap_or(0.0);
+                    *sample = (f_sample * i16::MAX as f32) as i16;
+                }
+            },
+            err_fn,
+            None,
+        ),
+        SampleFormat::U16 => device.build_output_stream(
+            &stream_config,
+            move |data: &mut [u16], _| {
+                for sample in data.iter_mut() {
+                    let f_sample = rx.try_recv().unwrap_or(0.0);
+                    *sample = ((f_sample + 1.0) * 0.5 * u16::MAX as f32) as u16;
+                }
+            },
+            err_fn,
+            None,
+        ),
+        _ => return Err("Unsupported sample format".into()),
+    }.map_err(|e| format!("Failed to build output stream: {}", e))?;
 
     stream.play().map_err(|e| format!("Failed to play audio stream: {}", e))?;
 

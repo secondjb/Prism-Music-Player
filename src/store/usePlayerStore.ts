@@ -49,6 +49,7 @@ interface PlayerState {
   playNext: (track: Track) => void;
   removeFromUserQueue: (index: number) => void;
   reorderUserQueue: (fromIndex: number, toIndex: number) => void;
+  reorderContextQueue: (fromOffset: number, toOffset: number) => void;
   clearUserQueue: () => void;
   clearQueue: () => void;
   setQueue: (queue: Track[]) => void;
@@ -319,6 +320,24 @@ export const usePlayerStore = create<PlayerState>()(
           newUserQueue.splice(toIndex, 0, moved);
           return { userQueue: newUserQueue };
         });
+      },
+
+      reorderContextQueue: (fromOffset, toOffset) => {
+        const { queue, currentIndex } = get();
+        const absoluteFrom = currentIndex + 1 + fromOffset;
+        const absoluteTo = currentIndex + 1 + toOffset;
+        if (
+          absoluteFrom < 0 ||
+          absoluteFrom >= queue.length ||
+          absoluteTo < 0 ||
+          absoluteTo >= queue.length
+        ) {
+          return;
+        }
+        const updated = [...queue];
+        const [moved] = updated.splice(absoluteFrom, 1);
+        updated.splice(absoluteTo, 0, moved);
+        set({ queue: updated });
       },
 
       clearUserQueue: () => set({ userQueue: [] }),

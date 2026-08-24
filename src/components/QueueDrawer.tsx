@@ -3,17 +3,25 @@ import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { Track } from '../types/player';
 import { invoke } from '@tauri-apps/api/core';
-import { ListMusic, X, Trash2, GripVertical, Play, ChevronDown, ChevronRight, History, Sparkles } from 'lucide-react';
+import { ListMusic, X, Trash2, GripVertical, Play, ChevronDown, ChevronRight, History } from 'lucide-react';
 
 interface QueueDrawerProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+const formatTotalDuration = (seconds: number): string => {
+  if (!seconds || seconds <= 0) return '0s';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  if (mins === 0) return `${secs}s`;
+  if (secs === 0) return `${mins}m`;
+  return `${mins}m ${secs}s`;
+};
+
 const QueueItemRow: React.FC<{
   track: Track;
   idx: number;
-  isUserQueue: boolean;
   isPlaying: boolean;
   onPlay: () => void;
   onRemove: () => void;
@@ -25,7 +33,6 @@ const QueueItemRow: React.FC<{
 }> = ({
   track,
   idx,
-  isUserQueue,
   isPlaying,
   onPlay,
   onRemove,
@@ -36,10 +43,11 @@ const QueueItemRow: React.FC<{
   isDragOver,
 }) => {
   const art = useTrackArt(track);
+  const isDraggable = Boolean(onDragStart);
 
   return (
     <div
-      draggable={isUserQueue}
+      draggable={isDraggable}
       onDragStart={(e) => onDragStart && onDragStart(e, idx)}
       onDragOver={(e) => onDragOver && onDragOver(e, idx)}
       onDrop={(e) => onDrop && onDrop(e, idx)}
@@ -55,11 +63,8 @@ const QueueItemRow: React.FC<{
       }`}
     >
       <div className="flex items-center gap-3 min-w-0">
-        {isUserQueue && (
-          <span
-            className="cursor-grab active:cursor-grabbing text-zinc-500 group-hover:text-indigo-400 shrink-0 p-0.5 transition-colors"
-            title="Drag to reorder"
-          >
+        {isDraggable && (
+          <span className="cursor-grab active:cursor-grabbing text-zinc-500 group-hover:text-indigo-400 shrink-0 p-0.5 transition-colors">
             <GripVertical className="w-4 h-4" />
           </span>
         )}
@@ -105,9 +110,16 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
   const clearQueue = usePlayerStore((s) => s.clearQueue);
   const removeFromUserQueue = usePlayerStore((s) => s.removeFromUserQueue);
   const reorderUserQueue = usePlayerStore((s) => s.reorderUserQueue);
+  const reorderContextQueue = usePlayerStore((s) => s.reorderContextQueue);
 
-  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  // User Queue drag state
+  const [userDraggedIdx, setUserDraggedIdx] = useState<number | null>(null);
+  const [userDragOverIdx, setUserDragOverIdx] = useState<number | null>(null);
+
+  // Context Queue drag state
+  const [ctxDraggedIdx, setCtxDraggedIdx] = useState<number | null>(null);
+  const [ctxDragOverIdx, setCtxDragOverIdx] = useState<number | null>(null);
+
   const [showPreviousSongs, setShowPreviousSongs] = useState(false);
 
   if (!isOpen) return null;
@@ -115,27 +127,52 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
   const previousSongs = queue.slice(0, Math.max(0, currentIndex));
   const upcomingContext = queue.slice(Math.max(0, currentIndex + 1));
 
-  const handleDragStart = (e: React.DragEvent, idx: number) => {
-    e.dataTransfer.setData('text/plain', idx.toString());
+  // User Queue Drag Handlers
+  const handleUserDragStart = (e: React.DragEvent, idx: number) => {
+    e.dataTransfer.setData('text/plain', `usr-${idx}`);
     e.dataTransfer.effectAllowed = 'move';
-    setDraggedIdx(idx);
+    setUserDraggedIdx(idx);
   };
 
-  const handleDragOver = (e: React.DragEvent, idx: number) => {
+  const handleUserDragOver = (e: React.DragEvent, idx: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (draggedIdx !== null && draggedIdx !== idx) {
-      setDragOverIdx(idx);
+    if (userDraggedIdx !== null && userDraggedIdx !== idx) {
+      setUserDragOverIdx(idx);
     }
   };
 
-  const handleDrop = (e: React.DragEvent, targetIdx: number) => {
+  const handleUserDrop = (e: React.DragEvent, targetIdx: number) => {
     e.preventDefault();
-    if (draggedIdx !== null && draggedIdx !== targetIdx) {
-      reorderUserQueue(draggedIdx, targetIdx);
+    if (userDraggedIdx !== null && userDraggedIdx !== targetIdx) {
+      reorderUserQueue(userDraggedIdx, targetIdx);
     }
-    setDraggedIdx(null);
-    setDragOverIdx(null);
+    setUserDraggedIdx(null);
+    setUserDragOverIdx(null);
+  };
+
+  // Context Queue Drag Handlers
+  const handleCtxDragStart = (e: React.DragEvent, idx: number) => {
+    e.dataTransfer.setData('text/plain', `ctx-${idx}`);
+    e.dataTransfer.effectAllowed = 'move';
+    setCtxDraggedIdx(idx);
+  };
+
+  const handleCtxDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (ctxDraggedIdx !== null && ctxDraggedIdx !== idx) {
+      setCtxDragOverIdx(idx);
+    }
+  };
+
+  const handleCtxDrop = (e: React.DragEvent, targetIdx: number) => {
+    e.preventDefault();
+    if (ctxDraggedIdx !== null && ctxDraggedIdx !== targetIdx) {
+      reorderContextQueue(ctxDraggedIdx, targetIdx);
+    }
+    setCtxDraggedIdx(null);
+    setCtxDragOverIdx(null);
   };
 
   const handlePlayUserQueueIndex = (index: number) => {
@@ -159,6 +196,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
   };
 
   const totalUpcoming = userQueue.length + upcomingContext.length;
+  const userQueueDuration = userQueue.reduce((acc, t) => acc + (t.duration_secs || 0), 0);
 
   return (
     <div className="fixed inset-y-0 right-0 w-80 md:w-96 glass-panel border-l border-white/10 shadow-2xl z-50 flex flex-col p-6 transition-all duration-300">
@@ -201,7 +239,6 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
             <QueueItemRow
               track={currentTrack}
               idx={-1}
-              isUserQueue={false}
               isPlaying={true}
               onPlay={() => {}}
               onRemove={() => {}}
@@ -213,11 +250,12 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
         {userQueue.length > 0 && (
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                Next Up (Added by You)
+              <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
+                Next Up
               </h4>
-              <span className="text-[10px] text-zinc-500 font-mono">Drag handle to reorder</span>
+              <span className="text-xs font-mono font-medium text-zinc-400">
+                {formatTotalDuration(userQueueDuration)}
+              </span>
             </div>
             <div className="flex flex-col gap-1.5">
               {userQueue.map((track, idx) => (
@@ -225,15 +263,14 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                   key={`user-q-${track.id}-${idx}`}
                   track={track}
                   idx={idx}
-                  isUserQueue={true}
                   isPlaying={false}
                   onPlay={() => handlePlayUserQueueIndex(idx)}
                   onRemove={() => removeFromUserQueue(idx)}
-                  onDragStart={handleDragStart}
-                  onDragOver={handleDragOver}
-                  onDrop={handleDrop}
-                  isDragging={draggedIdx === idx}
-                  isDragOver={dragOverIdx === idx}
+                  onDragStart={handleUserDragStart}
+                  onDragOver={handleUserDragOver}
+                  onDrop={handleUserDrop}
+                  isDragging={userDraggedIdx === idx}
+                  isDragOver={userDragOverIdx === idx}
                 />
               ))}
             </div>
@@ -250,7 +287,6 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                   key={`ctx-q-${track.id}-${idx}`}
                   track={track}
                   idx={idx}
-                  isUserQueue={false}
                   isPlaying={false}
                   onPlay={() => handlePlayUpcomingIndex(idx)}
                   onRemove={() => {
@@ -258,6 +294,11 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                     const newQ = queue.filter((_, i) => i !== actualIdx);
                     usePlayerStore.setState({ queue: newQ });
                   }}
+                  onDragStart={handleCtxDragStart}
+                  onDragOver={handleCtxDragOver}
+                  onDrop={handleCtxDrop}
+                  isDragging={ctxDraggedIdx === idx}
+                  isDragOver={ctxDragOverIdx === idx}
                 />
               ))}
             </div>

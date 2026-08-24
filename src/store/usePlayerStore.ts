@@ -6,6 +6,7 @@ import { invoke } from '@tauri-apps/api/core';
 interface PlayerState {
   tracks: Track[];
   queue: Track[];
+  userQueue: Track[];
   currentIndex: number;
   currentTrack: Track | null;
   isPlaying: boolean;
@@ -36,6 +37,9 @@ interface PlayerState {
   previousTrack: () => void;
   addToQueue: (track: Track) => void;
   playNext: (track: Track) => void;
+  removeFromUserQueue: (index: number) => void;
+  reorderUserQueue: (fromIndex: number, toIndex: number) => void;
+  clearUserQueue: () => void;
   clearQueue: () => void;
   setQueue: (queue: Track[]) => void;
   toggleLikeTrack: (trackId: string) => void;
@@ -59,6 +63,7 @@ export const usePlayerStore = create<PlayerState>()(
     (set, get) => ({
       tracks: [],
       queue: [],
+      userQueue: [],
       currentIndex: -1,
       currentTrack: null,
       isPlaying: false,
@@ -183,9 +188,29 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
-      nextTrack: () => {
-        const { currentIndex, queue, playIndex, onTrackFinished } = get();
+      nextTrack: async () => {
+        const { userQueue, currentIndex, queue, playIndex, onTrackFinished } = get();
         onTrackFinished();
+
+        // Priority User Queue takes precedence over context queue
+        if (userQueue.length > 0) {
+          const nextUserTrack = userQueue[0];
+          const remainingUserQueue = userQueue.slice(1);
+          set({
+            userQueue: remainingUserQueue,
+            currentTrack: nextUserTrack,
+            duration: nextUserTrack.duration_secs,
+            currentTime: 0,
+            isPlaying: true,
+          });
+          try {
+            await invoke('play_audio', { path: nextUserTrack.path, replayGainDb: nextUserTrack.replay_gain_db || 0 });
+          } catch (e) {
+            console.warn('Rust play_audio error:', e);
+          }
+          return;
+        }
+
         if (queue.length === 0) return;
         const nextIdx = (currentIndex + 1) % queue.length;
         playIndex(nextIdx);
@@ -204,21 +229,35 @@ export const usePlayerStore = create<PlayerState>()(
 
       addToQueue: (track) => {
         set((state) => ({
-          queue: [...state.queue, track],
+          userQueue: [...state.userQueue, track],
         }));
       },
 
       playNext: (track) => {
+        set((state) => ({
+          userQueue: [track, ...state.userQueue],
+        }));
+      },
+
+      removeFromUserQueue: (index) => {
+        set((state) => ({
+          userQueue: state.userQueue.filter((_, i) => i !== index),
+        }));
+      },
+
+      reorderUserQueue: (fromIndex, toIndex) => {
         set((state) => {
-          const nextIndex = state.currentIndex + 1;
-          const newQueue = [...state.queue];
-          newQueue.splice(nextIndex, 0, track);
-          return { queue: newQueue };
+          const newUserQueue = [...state.userQueue];
+          const [moved] = newUserQueue.splice(fromIndex, 1);
+          newUserQueue.splice(toIndex, 0, moved);
+          return { userQueue: newUserQueue };
         });
       },
 
+      clearUserQueue: () => set({ userQueue: [] }),
+
       clearQueue: () => {
-        set({ queue: [], currentIndex: -1, currentTrack: null, isPlaying: false });
+        set({ queue: [], userQueue: [], currentIndex: -1, currentTrack: null, isPlaying: false });
       },
 
       setQueue: (newQueue) => set({ queue: newQueue }),
@@ -340,6 +379,7 @@ export const usePlayerStore = create<PlayerState>()(
         autoHideLyricsControls: state.autoHideLyricsControls,
         lrclibAutoFetch: state.lrclibAutoFetch,
         queue: state.queue,
+        userQueue: state.userQueue,
         currentIndex: state.currentIndex,
         currentTrack: state.currentTrack,
       }),

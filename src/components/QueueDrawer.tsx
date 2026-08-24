@@ -1,60 +1,164 @@
 import React, { useState } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { ListMusic, X, Trash2, GripVertical, Play, ChevronDown, ChevronRight, History } from 'lucide-react';
+import { useTrackArt } from '../utils/useTrackArt';
+import { Track } from '../types/player';
+import { invoke } from '@tauri-apps/api/core';
+import { ListMusic, X, Trash2, GripVertical, Play, ChevronDown, ChevronRight, History, Sparkles } from 'lucide-react';
 
 interface QueueDrawerProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+const QueueItemRow: React.FC<{
+  track: Track;
+  idx: number;
+  isUserQueue: boolean;
+  isPlaying: boolean;
+  onPlay: () => void;
+  onRemove: () => void;
+  onDragStart?: (e: React.DragEvent, index: number) => void;
+  onDragOver?: (e: React.DragEvent, index: number) => void;
+  onDrop?: (e: React.DragEvent, index: number) => void;
+  isDragging?: boolean;
+  isDragOver?: boolean;
+}> = ({
+  track,
+  idx,
+  isUserQueue,
+  isPlaying,
+  onPlay,
+  onRemove,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  isDragging,
+  isDragOver,
+}) => {
+  const art = useTrackArt(track);
+
+  return (
+    <div
+      draggable={isUserQueue}
+      onDragStart={(e) => onDragStart && onDragStart(e, idx)}
+      onDragOver={(e) => onDragOver && onDragOver(e, idx)}
+      onDrop={(e) => onDrop && onDrop(e, idx)}
+      onClick={onPlay}
+      className={`group flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
+        isDragging ? 'opacity-40 border-dashed border-indigo-400' : ''
+      } ${
+        isDragOver ? 'bg-indigo-600/30 border-indigo-400 scale-[1.02]' : ''
+      } ${
+        isPlaying
+          ? 'bg-indigo-600/25 border-indigo-500/40 text-white shadow-md'
+          : 'bg-white/5 hover:bg-white/10 border-transparent text-zinc-300'
+      }`}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        {isUserQueue && (
+          <span
+            className="cursor-grab active:cursor-grabbing text-zinc-500 group-hover:text-indigo-400 shrink-0 p-0.5 transition-colors"
+            title="Drag to reorder"
+          >
+            <GripVertical className="w-4 h-4" />
+          </span>
+        )}
+
+        <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-zinc-800 border border-white/10">
+          {art ? (
+            <img src={art} alt={track.title} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-indigo-900/60 flex items-center justify-center">
+              <Play className="w-3.5 h-3.5 text-indigo-300" />
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col min-w-0">
+          <span className={`text-xs font-semibold truncate ${isPlaying ? 'text-indigo-400' : 'text-white'}`}>
+            {track.title}
+          </span>
+          <span className="text-[11px] text-zinc-400 truncate">{track.artist}</span>
+        </div>
+      </div>
+
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
+        className="p-1 text-zinc-500 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity"
+        title="Remove"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+};
+
 export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => {
   const queue = usePlayerStore((s) => s.queue);
+  const userQueue = usePlayerStore((s) => s.userQueue);
   const currentIndex = usePlayerStore((s) => s.currentIndex);
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const playIndex = usePlayerStore((s) => s.playIndex);
   const clearQueue = usePlayerStore((s) => s.clearQueue);
+  const removeFromUserQueue = usePlayerStore((s) => s.removeFromUserQueue);
+  const reorderUserQueue = usePlayerStore((s) => s.reorderUserQueue);
+
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [showPreviousSongs, setShowPreviousSongs] = useState(false);
 
   if (!isOpen) return null;
 
   const previousSongs = queue.slice(0, Math.max(0, currentIndex));
+  const upcomingContext = queue.slice(Math.max(0, currentIndex + 1));
 
-  const handleDragStart = (idx: number) => {
+  const handleDragStart = (e: React.DragEvent, idx: number) => {
+    e.dataTransfer.setData('text/plain', idx.toString());
+    e.dataTransfer.effectAllowed = 'move';
     setDraggedIdx(idx);
   };
 
-  const handleDragOver = (e: React.DragEvent, targetIdx: number) => {
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
     e.preventDefault();
-    if (draggedIdx === null || draggedIdx === targetIdx) return;
-
-    const updatedQueue = [...queue];
-    const [movedItem] = updatedQueue.splice(draggedIdx, 1);
-    updatedQueue.splice(targetIdx, 0, movedItem);
-
-    let newCurrentIdx = currentIndex;
-    if (currentIndex === draggedIdx) {
-      newCurrentIdx = targetIdx;
-    } else if (draggedIdx < currentIndex && targetIdx >= currentIndex) {
-      newCurrentIdx -= 1;
-    } else if (draggedIdx > currentIndex && targetIdx <= currentIndex) {
-      newCurrentIdx += 1;
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedIdx !== null && draggedIdx !== idx) {
+      setDragOverIdx(idx);
     }
-
-    usePlayerStore.setState({ queue: updatedQueue, currentIndex: newCurrentIdx });
-    setDraggedIdx(targetIdx);
   };
 
-  const handleRemoveTrack = (idx: number) => {
-    const updatedQueue = queue.filter((_, i) => i !== idx);
-    let newIdx = currentIndex;
-    if (idx < currentIndex) {
-      newIdx -= 1;
-    } else if (idx === currentIndex) {
-      newIdx = Math.min(currentIndex, updatedQueue.length - 1);
+  const handleDrop = (e: React.DragEvent, targetIdx: number) => {
+    e.preventDefault();
+    if (draggedIdx !== null && draggedIdx !== targetIdx) {
+      reorderUserQueue(draggedIdx, targetIdx);
     }
-    usePlayerStore.setState({ queue: updatedQueue, currentIndex: newIdx });
+    setDraggedIdx(null);
+    setDragOverIdx(null);
   };
+
+  const handlePlayUserQueueIndex = (index: number) => {
+    const targetTrack = userQueue[index];
+    if (targetTrack) {
+      const remainingUserQueue = userQueue.filter((_, i) => i !== index);
+      usePlayerStore.setState({
+        userQueue: remainingUserQueue,
+        currentTrack: targetTrack,
+        duration: targetTrack.duration_secs,
+        currentTime: 0,
+        isPlaying: true,
+      });
+      invoke('play_audio', { path: targetTrack.path, replayGainDb: targetTrack.replay_gain_db || 0 });
+    }
+  };
+
+  const handlePlayUpcomingIndex = (offsetIndex: number) => {
+    const absoluteIndex = currentIndex + 1 + offsetIndex;
+    playIndex(absoluteIndex);
+  };
+
+  const totalUpcoming = userQueue.length + upcomingContext.length;
 
   return (
     <div className="fixed inset-y-0 right-0 w-80 md:w-96 glass-panel border-l border-white/10 shadow-2xl z-50 flex flex-col p-6 transition-all duration-300">
@@ -66,11 +170,11 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
           </div>
           <div>
             <h3 className="font-bold text-white text-base">Play Queue</h3>
-            <p className="text-xs text-zinc-400">{queue.length} track(s)</p>
+            <p className="text-xs text-zinc-400">{totalUpcoming} track(s) next</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {queue.length > 0 && (
+          {(queue.length > 0 || userQueue.length > 0) && (
             <button
               onClick={clearQueue}
               className="p-1.5 text-zinc-400 hover:text-red-400 rounded-lg hover:bg-white/10 text-xs font-semibold flex items-center gap-1 transition-colors"
@@ -89,8 +193,78 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
       </div>
 
       {/* Queue Area */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar my-4 flex flex-col gap-3">
-        {/* Collapsible Previous Songs History Section */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar my-4 flex flex-col gap-5">
+        {/* Now Playing Section */}
+        {currentTrack && (
+          <div className="flex flex-col gap-2">
+            <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Now Playing</h4>
+            <QueueItemRow
+              track={currentTrack}
+              idx={-1}
+              isUserQueue={false}
+              isPlaying={true}
+              onPlay={() => {}}
+              onRemove={() => {}}
+            />
+          </div>
+        )}
+
+        {/* Priority User Queue Section ("Next Up") */}
+        {userQueue.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                Next Up (Added by You)
+              </h4>
+              <span className="text-[10px] text-zinc-500 font-mono">Drag handle to reorder</span>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {userQueue.map((track, idx) => (
+                <QueueItemRow
+                  key={`user-q-${track.id}-${idx}`}
+                  track={track}
+                  idx={idx}
+                  isUserQueue={true}
+                  isPlaying={false}
+                  onPlay={() => handlePlayUserQueueIndex(idx)}
+                  onRemove={() => removeFromUserQueue(idx)}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  isDragging={draggedIdx === idx}
+                  isDragOver={dragOverIdx === idx}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Upcoming Context Queue Section */}
+        {upcomingContext.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Next from Playlist / Album</h4>
+            <div className="flex flex-col gap-1.5">
+              {upcomingContext.map((track, idx) => (
+                <QueueItemRow
+                  key={`ctx-q-${track.id}-${idx}`}
+                  track={track}
+                  idx={idx}
+                  isUserQueue={false}
+                  isPlaying={false}
+                  onPlay={() => handlePlayUpcomingIndex(idx)}
+                  onRemove={() => {
+                    const actualIdx = currentIndex + 1 + idx;
+                    const newQ = queue.filter((_, i) => i !== actualIdx);
+                    usePlayerStore.setState({ queue: newQ });
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Previous Songs History Section */}
         {previousSongs.length > 0 && (
           <div className="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
             <button
@@ -124,63 +298,11 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
           </div>
         )}
 
-        {/* Current & Upcoming Queue Items */}
-        {queue.length === 0 ? (
+        {!currentTrack && userQueue.length === 0 && queue.length === 0 && (
           <div className="flex flex-col items-center justify-center my-auto text-zinc-500 text-center gap-2">
             <ListMusic className="w-8 h-8 text-zinc-600" />
             <span className="text-xs font-medium">Queue is empty</span>
           </div>
-        ) : (
-          queue.map((track, idx) => {
-            const isPlayingThis = currentTrack?.id === track.id && idx === currentIndex;
-            return (
-              <div
-                key={`${track.id}-${idx}`}
-                draggable
-                onDragStart={() => handleDragStart(idx)}
-                onDragOver={(e) => handleDragOver(e, idx)}
-                onClick={() => playIndex(idx)}
-                className={`group flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
-                  isPlayingThis
-                    ? 'bg-indigo-600/25 border-indigo-500/40 text-white shadow-md'
-                    : 'bg-white/5 hover:bg-white/10 border-transparent text-zinc-300'
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="cursor-grab text-zinc-600 group-hover:text-zinc-400 shrink-0">
-                    <GripVertical className="w-4 h-4" />
-                  </span>
-
-                  <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-zinc-800 border border-white/10">
-                    {track.embedded_art_base64 ? (
-                      <img src={track.embedded_art_base64} alt={track.title} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full bg-indigo-900/60 flex items-center justify-center">
-                        <Play className="w-3.5 h-3.5 text-indigo-300" />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col min-w-0">
-                    <span className={`text-xs font-semibold truncate ${isPlayingThis ? 'text-indigo-400' : 'text-white'}`}>
-                      {track.title}
-                    </span>
-                    <span className="text-[11px] text-zinc-400 truncate">{track.artist}</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRemoveTrack(idx);
-                  }}
-                  className="p-1 text-zinc-500 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            );
-          })
         )}
       </div>
     </div>

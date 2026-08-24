@@ -98,52 +98,70 @@ export const BottomBar: React.FC = () => {
   const effectiveVol = isMuted ? 0 : volume;
   const volPercent = Math.min(100, Math.max(0, effectiveVol * 100));
 
+  const [hoverSeekPos, setHoverSeekPos] = useState<{ x: number; time: number } | null>(null);
+  const [hoverVolPos, setHoverVolPos] = useState<{ x: number; percent: number } | null>(null);
+
   return (
-    <footer className="h-24 glass border-t border-white/10 px-6 flex items-center justify-between z-30 shrink-0 relative">
+    <footer className="w-full h-24 glass border-t border-white/10 flex items-center justify-between px-6 z-20 shrink-0">
       {/* 1. Track Info (Left) */}
-      <div className="flex items-center gap-4 w-1/4 min-w-[200px]">
+      <div className="flex items-center gap-4 w-1/4 min-w-[220px]">
         {currentTrack ? (
           <>
-            <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-zinc-800 border border-white/10 relative shadow-lg">
+            <div className="relative w-14 h-14 rounded-xl overflow-hidden shadow-md shrink-0 group border border-white/10 bg-zinc-900">
               {trackArt ? (
-                <img
-                  src={trackArt}
-                  alt={currentTrack.title}
-                  className="w-full h-full object-cover"
-                />
+                <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-indigo-900 to-purple-900 flex items-center justify-center">
-                  <Sparkles className="w-6 h-6 text-indigo-300" />
+                <div className="w-full h-full bg-gradient-to-tr from-indigo-900 to-purple-900 flex items-center justify-center">
+                  <Sparkles className="w-6 h-6 text-indigo-400" />
                 </div>
               )}
             </div>
+
             <div className="flex flex-col min-w-0">
-              <span className="font-semibold text-sm text-white truncate">{currentTrack.title}</span>
-              <span className="text-xs text-zinc-400 truncate mt-0.5">{currentTrack.artist}</span>
-              {usePlayerStore.getState().showAudioSpecs && (
-                <span className="text-[10px] text-zinc-400 font-mono mt-0.5 flex items-center gap-1.5">
-                  {currentTrack.bit_rate_kbps ? `${currentTrack.bit_rate_kbps} kb/s` : ''}
-                  {currentTrack.bit_rate_kbps ? ' • ' : ''}
-                  {(currentTrack.sample_rate / 1000).toFixed(1)} kHz
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm text-white truncate max-w-[140px]" title={currentTrack.title}>
+                  {currentTrack.title}
                 </span>
+                <button
+                  onClick={() => toggleLikeTrack(currentTrack.id)}
+                  className="text-zinc-400 hover:text-red-500 transition-colors p-0.5"
+                >
+                  <Heart className={`w-4 h-4 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
+                </button>
+              </div>
+              <span className="text-xs text-zinc-400 truncate max-w-[140px]" title={currentTrack.artist}>
+                {currentTrack.artist}
+              </span>
+              
+              {/* High-Res Audio Specs Badge */}
+              {usePlayerStore.getState().showAudioSpecs && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="px-1.5 py-0.2 text-[9px] font-mono font-bold rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    FLAC
+                  </span>
+                  <span className="text-[10px] font-mono text-zinc-400">
+                    {(currentTrack.sample_rate / 1000).toFixed(1)}kHz / {currentTrack.bit_depth}bit
+                  </span>
+                </div>
               )}
             </div>
-            <button
-              onClick={() => toggleLikeTrack(currentTrack.id)}
-              className={`ml-2 p-2 rounded-lg transition-colors ${
-                isLiked ? 'text-pink-500' : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              <Heart className={`w-5 h-5 ${isLiked ? 'fill-pink-500' : ''}`} />
-            </button>
           </>
         ) : (
-          <div className="text-xs text-zinc-500 italic">No track playing</div>
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-14 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-zinc-600">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold text-zinc-500">No track playing</span>
+              <span className="text-xs text-zinc-600">Select a song to start listening</span>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* 2. Playback Controls & Progress Bar (Center) */}
-      <div className="flex flex-col items-center gap-2 w-2/4 max-w-xl">
+      {/* 2. Audio Controls & Material 3 Expressive Seek Bar (Center) */}
+      <div className="flex flex-col items-center gap-1.5 w-2/4 max-w-2xl px-4">
+        {/* Playback Buttons */}
         <div className="flex items-center gap-6">
           <button
             onClick={previousTrack}
@@ -167,10 +185,28 @@ export const BottomBar: React.FC = () => {
           </button>
         </div>
 
-        {/* Material 3 Expressive Filled Seek Bar */}
+        {/* Material 3 Expressive Filled Seek Bar with Hover Tooltip */}
         <div className="w-full flex items-center gap-3 text-xs font-mono text-zinc-400">
           <span>{formatTime(currentSeekDisplay)}</span>
-          <div className="relative flex-1 h-3 flex items-center group">
+          <div
+            className="relative flex-1 h-4 flex items-center group cursor-pointer"
+            onMouseMove={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+              setHoverSeekPos({ x: e.clientX - rect.left, time: pct * (duration || 0) });
+            }}
+            onMouseLeave={() => setHoverSeekPos(null)}
+          >
+            {/* Floating Time Preview Tooltip */}
+            {hoverSeekPos && (
+              <div
+                className="absolute -top-7 transform -translate-x-1/2 px-2 py-0.5 rounded-md bg-indigo-600 text-[10px] font-mono font-bold text-white shadow-lg shadow-indigo-950/80 pointer-events-none z-30 transition-all border border-indigo-400/30"
+                style={{ left: `${hoverSeekPos.x}px` }}
+              >
+                {formatTime(hoverSeekPos.time)}
+              </div>
+            )}
+
             <input
               type="range"
               min={0}
@@ -191,9 +227,9 @@ export const BottomBar: React.FC = () => {
                 }
               }}
               style={{
-                background: `linear-gradient(to right, #6366f1 ${seekPercent}%, #27272a ${seekPercent}%)`,
+                background: `linear-gradient(to right, #818cf8 0%, #c084fc ${seekPercent}%, #27272a ${seekPercent}%)`,
               }}
-              className="w-full h-2 group-hover:h-2.5 rounded-full appearance-none cursor-pointer transition-all duration-150 slider-m3"
+              className="w-full h-2 group-hover:h-3 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3 shadow-sm"
             />
           </div>
           <span>{formatTime(duration)}</span>
@@ -241,12 +277,30 @@ export const BottomBar: React.FC = () => {
           )}
         </button>
 
-        {/* Material 3 Expressive Volume Slider */}
+        {/* Material 3 Expressive Volume Slider with Percentage Tooltip */}
         <div className="flex items-center gap-2">
           <button onClick={handleMuteToggle} className="text-zinc-400 hover:text-white transition-colors">
             {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
           </button>
-          <div className="relative w-24 h-3 flex items-center group">
+          <div
+            className="relative w-24 h-4 flex items-center group cursor-pointer"
+            onMouseMove={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * 100;
+              setHoverVolPos({ x: e.clientX - rect.left, percent: pct });
+            }}
+            onMouseLeave={() => setHoverVolPos(null)}
+          >
+            {/* Floating Volume Percentage Tooltip */}
+            {hoverVolPos && (
+              <div
+                className="absolute -top-7 transform -translate-x-1/2 px-1.5 py-0.5 rounded-md bg-cyan-600 text-[10px] font-mono font-bold text-white shadow-lg shadow-cyan-950/80 pointer-events-none z-30 transition-all border border-cyan-400/30"
+                style={{ left: `${hoverVolPos.x}px` }}
+              >
+                {Math.round(hoverVolPos.percent)}%
+              </div>
+            )}
+
             <input
               type="range"
               min={0}
@@ -259,9 +313,9 @@ export const BottomBar: React.FC = () => {
                 if (isMuted) setIsMuted(false);
               }}
               style={{
-                background: `linear-gradient(to right, #6366f1 ${volPercent}%, #27272a ${volPercent}%)`,
+                background: `linear-gradient(to right, #38bdf8 0%, #818cf8 ${volPercent}%, #27272a ${volPercent}%)`,
               }}
-              className="w-full h-2 group-hover:h-2.5 rounded-full appearance-none cursor-pointer transition-all duration-150 slider-m3"
+              className="w-full h-2 group-hover:h-3 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3 shadow-sm"
             />
           </div>
         </div>

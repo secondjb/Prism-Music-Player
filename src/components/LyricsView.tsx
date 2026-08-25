@@ -48,6 +48,8 @@ export const LyricsView: React.FC = () => {
 
   const trackArt = useTrackArt(currentTrack);
 
+
+
   const [rawLrc, setRawLrc] = useState<string>('');
   const [lines, setLines] = useState<SyncedLine[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -70,8 +72,7 @@ export const LyricsView: React.FC = () => {
   }, []);
 
   // Compute dynamic font sizes based on window height
-  // Goal: show ~5 lines (prev 2, current, next 2) comfortably
-  const lyricsAreaHeight = windowHeight * 0.55; // rough middle area height
+  const lyricsAreaHeight = windowHeight * 0.55;
   const lineHeight = lyricsAreaHeight / 5;
   const activeFontSize = Math.max(28, Math.min(52, lineHeight * 0.5));
   const inactiveFontSize = Math.max(18, Math.min(32, lineHeight * 0.35));
@@ -107,29 +108,41 @@ export const LyricsView: React.FC = () => {
       return;
     }
 
-    // First: try embedded lyrics from track metadata
-    if (currentTrack.unsynced_lyrics) {
+    const hasLrcTimestamps = (text: string) => /\[\d{1,2}:\d{2}/.test(text);
+
+    // If embedded lyrics contain synced LRC timestamps, use them immediately
+    if (currentTrack.unsynced_lyrics && hasLrcTimestamps(currentTrack.unsynced_lyrics)) {
       setRawLrc(currentTrack.unsynced_lyrics);
       return;
     }
 
-    // Second: try on-demand lyrics extraction from the FLAC file directly
-    const fetchFromFile = async () => {
+    // Set unsynced fallback if available while searching for synced lyrics
+    if (currentTrack.unsynced_lyrics) {
+      setRawLrc(currentTrack.unsynced_lyrics);
+    } else {
+      setRawLrc('');
+    }
+
+    const loadLyrics = async () => {
       setIsLoading(true);
       try {
         if (window.__TAURI_INTERNALS__) {
           const lyrics: string | null = await invoke('get_track_lyrics', { path: currentTrack.path });
           if (lyrics && lyrics.trim()) {
-            setRawLrc(lyrics);
-            setIsLoading(false);
-            return;
+            if (hasLrcTimestamps(lyrics) || !currentTrack.unsynced_lyrics) {
+              setRawLrc(lyrics);
+              if (hasLrcTimestamps(lyrics)) {
+                setIsLoading(false);
+                return;
+              }
+            }
           }
         }
       } catch (e) {
         console.warn('On-demand lyrics fetch error:', e);
       }
 
-      // Third: try LRCLIB online fetch
+      // Try LRCLIB online fetch for synced lyrics
       if (lrclibAutoFetch) {
         const fetched = await fetchLrclibLyrics(
           currentTrack.title,
@@ -137,14 +150,14 @@ export const LyricsView: React.FC = () => {
           currentTrack.album,
           currentTrack.duration_secs
         );
-        if (fetched) {
+        if (fetched && fetched.trim()) {
           setRawLrc(fetched);
         }
       }
       setIsLoading(false);
     };
 
-    fetchFromFile();
+    loadLyrics();
   }, [currentTrack?.id]);
 
   // 2. Parse & Romanize lines locally whenever rawLrc or isRomanizationEnabled changes
@@ -241,8 +254,6 @@ export const LyricsView: React.FC = () => {
       setActiveTab('library');
     }
   };
-
-
 
   const handleManualRefresh = async () => {
     if (!currentTrack) return;

@@ -250,7 +250,7 @@ export const PlaylistView: React.FC = () => {
         </div>
 
         {/* Track list */}
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5" onDragOver={(e) => e.preventDefault()}>
           {playlistTracks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
               <Music className="w-10 h-10 text-zinc-600" />

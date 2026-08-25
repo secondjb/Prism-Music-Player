@@ -266,7 +266,7 @@ export const BottomBar: React.FC = () => {
           <span>{formatTime(currentSeekDisplay)}</span>
           <div
             ref={seekContainerRef}
-            className="relative flex-1 h-4 flex items-center group cursor-pointer"
+            className="relative flex-1 h-4 flex items-center group cursor-pointer drop-shadow-[0_0_8px_rgba(192,132,252,0.3)]"
             onMouseMove={handleSeekMouseMove}
             onMouseLeave={handleSeekMouseLeave}
           >
@@ -274,7 +274,7 @@ export const BottomBar: React.FC = () => {
             <div
               ref={seekTooltipRef}
               className="absolute -top-7 transform -translate-x-1/2 px-2 py-0.5 rounded-md bg-indigo-600 text-[10px] font-mono font-bold text-white shadow-lg shadow-indigo-950/80 pointer-events-none z-30 border border-indigo-400/30 whitespace-nowrap"
-              style={{ opacity: 0, transition: 'opacity 0.1s' }}
+              style={{ opacity: 0 }}
             />
 
             <input
@@ -322,32 +322,23 @@ export const BottomBar: React.FC = () => {
           )}
         </button>
 
-        {/* Karaoke / Lyrics Toggle */}
-        <button
-          onClick={() => setShowLyricsFullscreen(!showLyricsFullscreen)}
-          className={`p-2 rounded-xl transition-all ${
-            showLyricsFullscreen ? 'bg-indigo-600 text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-white/5'
-          }`}
-          title="Karaoke / Fullscreen Lyrics"
-        >
-          <Mic2 className="w-5 h-5" />
-        </button>
-
         {/* Sleep Timer Button */}
-        <button
-          onClick={() => setIsTimerModalOpen(true)}
-          className={`p-2 rounded-xl transition-all relative ${
-            sleepTimer.active ? 'bg-indigo-600/30 text-indigo-400 border border-indigo-500/40' : 'text-zinc-400 hover:text-white hover:bg-white/5'
-          }`}
-          title="Sleep Timer"
-        >
-          <Timer className="w-5 h-5" />
-          {sleepTimer.active && (
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
-          )}
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setIsTimerModalOpen(!isTimerModalOpen)}
+            className={`p-2 rounded-xl transition-all relative ${
+              sleepTimer.active ? 'bg-indigo-600/30 text-indigo-400 border border-indigo-500/40' : 'text-zinc-400 hover:text-white hover:bg-white/5'
+            }`}
+            title="Sleep Timer"
+          >
+            <Timer className="w-5 h-5" />
+            {sleepTimer.active && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
+            )}
+          </button>
+          <SleepTimerModal isOpen={isTimerModalOpen} onClose={() => setIsTimerModalOpen(false)} />
+        </div>
 
-        {/* Material 3 Expressive Volume Slider with Percentage Tooltip */}
         <div className="flex items-center gap-2">
           <button onClick={handleMuteToggle} className="text-zinc-400 hover:text-white transition-colors">
             {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
@@ -362,7 +353,7 @@ export const BottomBar: React.FC = () => {
             <div
               ref={volTooltipRef}
               className="absolute -top-7 transform -translate-x-1/2 px-1.5 py-0.5 rounded-md bg-cyan-600 text-[10px] font-mono font-bold text-white shadow-lg shadow-cyan-950/80 pointer-events-none z-30 border border-cyan-400/30 whitespace-nowrap"
-              style={{ opacity: 0, transition: 'opacity 0.1s' }}
+              style={{ opacity: 0 }}
             />
 
             <input
@@ -383,9 +374,18 @@ export const BottomBar: React.FC = () => {
             />
           </div>
         </div>
-      </div>
 
-      <SleepTimerModal isOpen={isTimerModalOpen} onClose={() => setIsTimerModalOpen(false)} />
+        {/* Karaoke / Lyrics Toggle (Moved to far right) */}
+        <button
+          onClick={() => setShowLyricsFullscreen(!showLyricsFullscreen)}
+          className={`p-2 rounded-xl transition-all ${
+            showLyricsFullscreen ? 'bg-indigo-600 text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-white/5'
+          }`}
+          title="Karaoke / Fullscreen Lyrics"
+        >
+          <Mic2 className="w-5 h-5" />
+        </button>
+      </div>
     </footer>
   );
 };

@@ -13,14 +13,30 @@ const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () 
   albumTracks,
   onPlay,
 }) => {
+  const [isVisible, setIsVisible] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setIsVisible(true);
+      },
+      { rootMargin: '200px' }
+    );
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
   const firstTrack = albumTracks[0];
   const artist = firstTrack?.artist || 'Unknown Artist';
-  const art = useTrackArt(firstTrack);
+  // Only fetch art if it has come into view once
+  const art = useTrackArt(isVisible ? firstTrack : null);
 
   return (
     <div
+      ref={ref}
       onClick={onPlay}
-      className="group glass-card rounded-2xl p-4 flex flex-col gap-3 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-950/30"
+      className="group glass-card rounded-2xl p-4 flex flex-col gap-3 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-950/30 h-[280px]"
     >
       {/* Album Cover Art */}
       <div className="w-full aspect-square rounded-xl overflow-hidden bg-zinc-800 border border-white/10 relative shadow-md">
@@ -42,8 +58,8 @@ const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () 
 
       {/* Album Details */}
       <div className="flex flex-col min-w-0">
-        <h4 className="font-bold text-sm text-white truncate">{albumName}</h4>
-        <p className="text-xs text-zinc-400 truncate mt-0.5">{artist}</p>
+        <h4 className="font-bold text-sm text-white truncate">{isVisible ? albumName : '...'}</h4>
+        <p className="text-xs text-zinc-400 truncate mt-0.5">{isVisible ? artist : '...'}</p>
         <span className="text-[11px] text-zinc-500 font-mono mt-1">
           {albumTracks.length} track{albumTracks.length > 1 ? 's' : ''}
         </span>

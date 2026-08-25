@@ -85,22 +85,23 @@ pub fn extract_track_lyrics(path_str: &str) -> Option<String> {
 
                 let score = if key_upper == "SYNCEDLYRICS" {
                     10
-                } else if key_upper.contains("SYNCED") && !key_upper.contains("UNSYNCED") {
-                    9
+                } else if key_upper == "LYRICS" {
+                    8
+                } else if key_upper == "UNSYNCEDLYRICS" {
+                    7
                 } else if key_upper == "USLT" {
                     5
-                } else if key_upper.contains("LYRIC") {
-                    4
-                } else if key_upper.contains("UNSYNCED") {
-                    3
-                } else if key_upper.contains("TEXT") {
+                } else if key_upper.contains("SYNCED") && !key_upper.contains("UNSYNCED") {
+                    9
+                } else if key_upper == "TEXT" {
                     1
                 } else {
                     0
                 };
 
                 if score > best_score {
-                    if let Some(l) = values.first() {
+                    if !values.is_empty() {
+                        let l = values.join("\n");
                         let cleaned = l.trim_matches('\0').trim();
                         if !cleaned.is_empty() {
                             best_score = score;
@@ -134,14 +135,14 @@ pub fn extract_track_lyrics(path_str: &str) -> Option<String> {
 
                     let score = if key_name == "SYNCEDLYRICS" || std_key_str.contains("SYNCED") {
                         10
-                    } else if key_name.contains("SYNCED") && !key_name.contains("UNSYNCED") {
-                        9
+                    } else if key_name == "LYRICS" || std_key_str.contains("LYRICS") {
+                        8
+                    } else if key_name == "UNSYNCEDLYRICS" {
+                        7
                     } else if key_name == "USLT" {
                         5
-                    } else if key_name.contains("LYRIC") || std_key_str.contains("LYRICS") {
-                        4
-                    } else if key_name.contains("UNSYNCED") {
-                        3
+                    } else if key_name.contains("SYNCED") && !key_name.contains("UNSYNCED") {
+                        9
                     } else {
                         0
                     };
@@ -211,22 +212,23 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
             
             let score = if key_upper == "SYNCEDLYRICS" {
                 10
-            } else if key_upper.contains("SYNCED") && !key_upper.contains("UNSYNCED") {
-                9
+            } else if key_upper == "LYRICS" {
+                8
+            } else if key_upper == "UNSYNCEDLYRICS" {
+                7
             } else if key_upper == "USLT" {
                 5
-            } else if key_upper.contains("LYRIC") {
-                4
-            } else if key_upper.contains("UNSYNCED") {
-                3
-            } else if key_upper.contains("TEXT") {
+            } else if key_upper.contains("SYNCED") && !key_upper.contains("UNSYNCED") {
+                9
+            } else if key_upper == "TEXT" {
                 1
             } else {
                 0
             };
 
             if score > best_score {
-                if let Some(l) = values.first() {
+                if !values.is_empty() {
+                    let l = values.join("\n");
                     let cleaned = l.trim_matches('\0').trim();
                     if !cleaned.is_empty() {
                         best_score = score;
@@ -260,14 +262,14 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
                         
                         let score = if key_name == "SYNCEDLYRICS" || std_key_str.contains("SYNCED") {
                             10
-                        } else if key_name.contains("SYNCED") && !key_name.contains("UNSYNCED") {
-                            9
+                        } else if key_name == "LYRICS" || std_key_str.contains("LYRICS") {
+                            8
+                        } else if key_name == "UNSYNCEDLYRICS" {
+                            7
                         } else if key_name == "USLT" {
                             5
-                        } else if key_name.contains("LYRIC") || std_key_str.contains("LYRICS") {
-                            4
-                        } else if key_name.contains("UNSYNCED") {
-                            3
+                        } else if key_name.contains("SYNCED") && !key_name.contains("UNSYNCED") {
+                            9
                         } else {
                             0
                         };

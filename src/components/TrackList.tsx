@@ -260,6 +260,8 @@ const TrackRow: React.FC<{
   );
 };
 
+import { useVirtualizer } from '@tanstack/react-virtual';
+
 export const TrackList: React.FC<TrackListProps> = ({ tracks }) => {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -272,14 +274,23 @@ export const TrackList: React.FC<TrackListProps> = ({ tracks }) => {
   const showAudioSpecsInLibrary = usePlayerStore((s) => s.showAudioSpecsInLibrary);
   const [activeMenuTrackId, setActiveMenuTrackId] = useState<string | null>(null);
 
+  const parentRef = React.useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: tracks.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 68,
+    overscan: 5,
+  });
+
   const gridCols = showAudioSpecsInLibrary
     ? 'grid-cols-[48px_1fr_1fr_120px_90px_80px]'
     : 'grid-cols-[48px_1fr_1fr_90px_80px]';
 
   return (
-    <div className="w-full flex flex-col gap-2">
+    <div className="w-full h-full flex flex-col gap-2 overflow-hidden">
       {/* Table Header */}
-      <div className={`grid ${gridCols} items-center px-4 py-2 text-xs font-semibold text-zinc-400 uppercase tracking-wider border-b border-white/5`}>
+      <div className={`grid ${gridCols} items-center px-4 py-2 text-xs font-semibold text-zinc-400 uppercase tracking-wider border-b border-white/5 shrink-0 pr-6`}>
         <span className="text-center">#</span>
         <span>Title</span>
         <span>Album</span>
@@ -288,40 +299,66 @@ export const TrackList: React.FC<TrackListProps> = ({ tracks }) => {
         <span className="text-right">Actions</span>
       </div>
 
-      {/* Track Rows */}
-      {tracks.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center gap-3 glass-card rounded-2xl border border-dashed border-white/10 my-4">
-          <div className="w-14 h-14 rounded-full bg-zinc-800/80 flex items-center justify-center text-zinc-500">
-            <Music className="w-7 h-7" />
+      {/* Track Rows Virtualized */}
+      <div ref={parentRef} className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+        {tracks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center gap-3 glass-card rounded-2xl border border-dashed border-white/10 my-4">
+            <div className="w-14 h-14 rounded-full bg-zinc-800/80 flex items-center justify-center text-zinc-500">
+              <Music className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-white">No tracks loaded yet</h3>
+              <p className="text-xs text-zinc-400 mt-1 max-w-sm">
+                Import a directory with FLAC files using the sidebar button to get started.
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-base font-semibold text-white">No tracks loaded yet</h3>
-            <p className="text-xs text-zinc-400 mt-1 max-w-sm">
-              Import a directory with FLAC files using the sidebar button to get started.
-            </p>
+        ) : (
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const idx = virtualRow.index;
+              const track = tracks[idx];
+              return (
+                <div
+                  key={virtualRow.key}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                    paddingBottom: '4px', // small gap
+                  }}
+                >
+                  <TrackRow
+                    track={track}
+                    idx={idx}
+                    isSelected={currentTrack?.id === track.id}
+                    isLiked={likedTrackIds.includes(track.id)}
+                    isPlaying={isPlaying}
+                    activeMenuTrackId={activeMenuTrackId}
+                    setActiveMenuTrackId={setActiveMenuTrackId}
+                    playTrack={playTrack}
+                    togglePlay={togglePlay}
+                    toggleLikeTrack={toggleLikeTrack}
+                    addToQueue={addToQueue}
+                    playNext={playNext}
+                    allTracks={tracks}
+                    showAudioSpecsInLibrary={showAudioSpecsInLibrary}
+                  />
+                </div>
+              );
+            })}
           </div>
-        </div>
-      ) : (
-        tracks.map((track, idx) => (
-          <TrackRow
-            key={`${track.id}-${idx}`}
-            track={track}
-            idx={idx}
-            isSelected={currentTrack?.id === track.id}
-            isLiked={likedTrackIds.includes(track.id)}
-            isPlaying={isPlaying}
-            activeMenuTrackId={activeMenuTrackId}
-            setActiveMenuTrackId={setActiveMenuTrackId}
-            playTrack={playTrack}
-            togglePlay={togglePlay}
-            toggleLikeTrack={toggleLikeTrack}
-            addToQueue={addToQueue}
-            playNext={playNext}
-            allTracks={tracks}
-            showAudioSpecsInLibrary={showAudioSpecsInLibrary}
-          />
-        ))
-      )}
+        )}
+      </div>
     </div>
   );
 };

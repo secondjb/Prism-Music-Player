@@ -8,32 +8,10 @@ export const Header: React.FC = () => {
   const activeTab = usePlayerStore((s) => s.activeTab);
   const setActiveTab = usePlayerStore((s) => s.setActiveTab);
 
-  // Local input value for instant response + debounced store update
-  const [inputValue, setInputValue] = useState(searchQuery);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Sync local value when the store query changes externally (e.g. clear)
-  useEffect(() => {
-    setInputValue(searchQuery);
-  }, [searchQuery]);
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
-    setInputValue(val);
-
-    // Debounce the store update to avoid re-rendering the entire track list on every keystroke
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setSearchQuery(val);
-    }, 200);
+    setSearchQuery(val);
   };
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
 
   const getTitle = () => {
     switch (activeTab) {
@@ -66,12 +44,11 @@ export const Header: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-4">
-        {/* Search Input */}
         <div className="relative w-72">
           <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            value={inputValue}
+            value={searchQuery}
             onChange={handleChange}
             placeholder="Search tracks, artists, albums..."
             className="w-full bg-white/5 border border-white/10 focus:border-indigo-500 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none transition-colors"

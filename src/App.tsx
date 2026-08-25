@@ -32,11 +32,27 @@ export const App: React.FC = () => {
           const savedTracks: any = await invoke('load_library');
           if (savedTracks && Array.isArray(savedTracks) && savedTracks.length > 0) {
             setTracks(savedTracks);
-            return;
+          } else {
+            const sampleTracks: any = await invoke('scan_sample_folder');
+            if (sampleTracks && Array.isArray(sampleTracks) && sampleTracks.length > 0) {
+              setTracks(sampleTracks);
+            }
           }
-          const sampleTracks: any = await invoke('scan_sample_folder');
-          if (sampleTracks && Array.isArray(sampleTracks) && sampleTracks.length > 0) {
-            setTracks(sampleTracks);
+          
+          // Restore playback state
+          const store = usePlayerStore.getState();
+          if (store.currentTrack) {
+            // Force pause state on startup for safety
+            usePlayerStore.setState({ isPlaying: false });
+            // Pre-load track in rust backend and seek to saved time
+            await invoke('play_audio', { 
+              path: store.currentTrack.path, 
+              replayGainDb: store.currentTrack.replay_gain_db || 0 
+            });
+            await invoke('pause_audio');
+            if (store.currentTime > 0) {
+              await invoke('seek_audio', { positionSecs: store.currentTime });
+            }
           }
         }
       } catch (e) {
@@ -47,12 +63,14 @@ export const App: React.FC = () => {
   }, []);
 
   // Filter tracks based on search query
+  const deferredSearchQuery = React.useDeferredValue(searchQuery);
+
   const filteredTracks = tracks.filter((t) => {
     const matchesSearch =
-      !searchQuery ||
-      t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.artist.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.album.toLowerCase().includes(searchQuery.toLowerCase());
+      !deferredSearchQuery ||
+      t.title.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
+      t.artist.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
+      t.album.toLowerCase().includes(deferredSearchQuery.toLowerCase());
 
     if (!matchesSearch) return false;
 
@@ -99,7 +117,7 @@ export const App: React.FC = () => {
         <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <Header />
 
-          <div className="flex-1 overflow-y-auto px-8 py-2 custom-scrollbar">
+          <div className="flex-1 overflow-hidden px-8 py-2 flex flex-col">
             {renderContent()}
           </div>
         </main>

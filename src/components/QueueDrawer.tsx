@@ -291,7 +291,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                 {formatTotalDuration(userQueueDuration)}
               </span>
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5" onDragOver={(e) => e.preventDefault()}>
               {userQueue.map((track, idx) => (
                 <QueueItemRow
                   key={`user-q-${track.id}-${idx}`}
@@ -316,7 +316,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
         {upcomingContext.length > 0 && (
           <div className="flex flex-col gap-2">
             <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Next from Playlist / Album</h4>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5" onDragOver={(e) => e.preventDefault()}>
               {upcomingContext.map((track, idx) => (
                 <QueueItemRow
                   key={`ctx-q-${track.id}-${idx}`}

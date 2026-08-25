@@ -178,68 +178,120 @@ fn run_audio_thread(
         .make(&track.codec_params, &dec_opts)
         .map_err(|e| format!("Decoder creation error: {}", e))?;
 
-    let host = cpal::default_host();
-    let device = host
-        .default_output_device()
-        .ok_or_else(|| "No output audio device found".to_string())?;
+    // Helper to create stream and channel
+    let create_stream_fn = || -> Result<(cpal::Stream, crossbeam_channel::Sender<f32>, Arc<AtomicBool>), String> {
+        let host = cpal::default_host();
+        let device = host
+            .default_output_device()
+            .ok_or_else(|| "No output audio device found".to_string())?;
 
-    // We ALWAYS use the device's exact default output config to prevent WASAPI Stream creation failure.
-    let default_config = device
-        .default_output_config()
-        .map_err(|e| format!("Failed to get default output config: {}", e))?;
+        let default_config = device
+            .default_output_config()
+            .map_err(|e| format!("Failed to get default output config: {}", e))?;
 
-    let target_sample_rate = default_config.sample_rate().0;
-    let target_channels = default_config.channels() as usize;
-    let stream_config: StreamConfig = default_config.clone().into();
-    let sample_format = default_config.sample_format();
+        let target_sample_rate = default_config.sample_rate().0;
+        let target_channels = default_config.channels() as usize;
+        let stream_config: StreamConfig = default_config.clone().into();
+        let sample_format = default_config.sample_format();
 
-    // Limit ring buffer to ~100ms to completely eliminate Play/Pause and Seek lag!
-    let ring_buffer_capacity = (target_sample_rate as usize * target_channels / 10).max(8192);
-    let (tx, rx) = crossbeam_channel::bounded::<f32>(ring_buffer_capacity);
+        let ring_buffer_capacity = (target_sample_rate as usize * target_channels / 10).max(8192);
+        let (tx, rx) = crossbeam_channel::bounded::<f32>(ring_buffer_capacity);
 
-    let err_fn = |err| eprintln!("CPAL Stream error: {}", err);
+        let device_changed = Arc::new(AtomicBool::new(false));
+        let dc_clone = Arc::clone(&device_changed);
 
-    let stream = match sample_format {
-        SampleFormat::F32 => device.build_output_stream(
-            &stream_config,
-            move |data: &mut [f32], _| {
-                for sample in data.iter_mut() {
-                    *sample = rx.try_recv().unwrap_or(0.0);
-                }
-            },
-            err_fn,
-            None,
-        ),
-        SampleFormat::I16 => device.build_output_stream(
-            &stream_config,
-            move |data: &mut [i16], _| {
-                for sample in data.iter_mut() {
-                    let f_sample = rx.try_recv().unwrap_or(0.0);
-                    *sample = (f_sample * i16::MAX as f32) as i16;
-                }
-            },
-            err_fn,
-            None,
-        ),
-        SampleFormat::U16 => device.build_output_stream(
-            &stream_config,
-            move |data: &mut [u16], _| {
-                for sample in data.iter_mut() {
-                    let f_sample = rx.try_recv().unwrap_or(0.0);
-                    *sample = ((f_sample + 1.0) * 0.5 * u16::MAX as f32) as u16;
-                }
-            },
-            err_fn,
-            None,
-        ),
-        _ => return Err("Unsupported sample format".into()),
-    }.map_err(|e| format!("Failed to build output stream: {}", e))?;
+        let err_fn = move |err| {
+            eprintln!("CPAL Stream error: {}", err);
+            dc_clone.store(true, Ordering::SeqCst);
+        };
 
-    stream.play().map_err(|e| format!("Failed to play audio stream: {}", e))?;
+        let stream = match sample_format {
+            SampleFormat::F32 => device.build_output_stream(
+                &stream_config,
+                move |data: &mut [f32], _| {
+                    for sample in data.iter_mut() {
+                        *sample = rx.try_recv().unwrap_or(0.0);
+                    }
+                },
+                err_fn,
+                None,
+            ),
+            SampleFormat::I16 => device.build_output_stream(
+                &stream_config,
+                move |data: &mut [i16], _| {
+                    for sample in data.iter_mut() {
+                        let f_sample = rx.try_recv().unwrap_or(0.0);
+                        *sample = (f_sample * i16::MAX as f32) as i16;
+                    }
+                },
+                err_fn,
+                None,
+            ),
+            SampleFormat::U16 => device.build_output_stream(
+                &stream_config,
+                move |data: &mut [u16], _| {
+                    for sample in data.iter_mut() {
+                        let f_sample = rx.try_recv().unwrap_or(0.0);
+                        *sample = ((f_sample + 1.0) * 0.5 * u16::MAX as f32) as u16;
+                    }
+                },
+                err_fn,
+                None,
+            ),
+            _ => return Err("Unsupported sample format".into()),
+        }.map_err(|e| format!("Failed to build output stream: {}", e))?;
+
+        stream.play().map_err(|e| format!("Failed to play audio stream: {}", e))?;
+
+        Ok((stream, tx, device_changed))
+    };
+
+    let (mut stream, mut tx, mut device_changed) = create_stream_fn()?;
+    
+    // Track target config for resampling logic in loop
+    let mut target_sample_rate;
+    let mut target_channels;
+    {
+        let host = cpal::default_host();
+        let device = host.default_output_device().unwrap();
+        let default_config = device.default_output_config().unwrap();
+        target_sample_rate = default_config.sample_rate().0;
+        target_channels = default_config.channels() as usize;
+    }
 
     let mut sample_buf = None;
 
     loop {
+        if device_changed.load(Ordering::SeqCst) {
+            println!("Audio device changed! Recreating stream...");
+            // Drop current stream to release resources
+            drop(stream);
+            
+            // Wait briefly for new device to settle (Windows usually needs a tiny delay)
+            thread::sleep(Duration::from_millis(500));
+
+            match create_stream_fn() {
+                Ok((new_stream, new_tx, new_dc)) => {
+                    stream = new_stream;
+                    tx = new_tx;
+                    device_changed = new_dc;
+
+                    // Update target config
+                    if let Some(device) = cpal::default_host().default_output_device() {
+                        if let Ok(config) = device.default_output_config() {
+                            target_sample_rate = config.sample_rate().0;
+                            target_channels = config.channels() as usize;
+                        }
+                    }
+                    println!("Successfully restarted audio stream on new device!");
+                }
+                Err(e) => {
+                    eprintln!("Failed to recreate stream after device change: {}", e);
+                    break;
+                }
+            }
+        }
+
         if stop_signal.load(Ordering::SeqCst) {
             break;
         }

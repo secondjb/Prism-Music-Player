@@ -4,7 +4,7 @@ import { useTrackArt } from '../utils/useTrackArt';
 import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
 import { parse } from 'clrc';
 import { createRomanizer } from 'lyric-romanizer';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import {
   Mic2,
@@ -15,6 +15,13 @@ import {
   Languages,
   ChevronRight,
   ChevronLeft,
+  Play,
+  Pause,
+  SkipBack,
+  SkipForward,
+  Shuffle,
+  Repeat,
+  Repeat1,
 } from 'lucide-react';
 
 const romanizer = createRomanizer();
@@ -30,6 +37,15 @@ export const LyricsView: React.FC = () => {
   const {
     currentTrack,
     currentTime,
+    duration,
+    isPlaying,
+    togglePlay,
+    nextTrack,
+    previousTrack,
+    shuffleEnabled,
+    toggleShuffle,
+    repeatMode,
+    cycleRepeatMode,
     lrclibAutoFetch,
     setLrclibAutoFetch,
     isRomanizationEnabled,
@@ -230,11 +246,14 @@ export const LyricsView: React.FC = () => {
 
   // 4. Smooth scroll active line to center
   const scrollToActive = () => {
-    if (activeLineRef.current) {
+    if (activeLineRef.current && containerRef.current) {
       isProgrammaticScrollRef.current = true;
-      activeLineRef.current.scrollIntoView({
+      const lineEl = activeLineRef.current;
+      const containerEl = containerRef.current;
+      const targetTop = lineEl.offsetTop - containerEl.clientHeight / 2 + lineEl.clientHeight / 2;
+      containerEl.scrollTo({
+        top: targetTop,
         behavior: 'smooth',
-        block: 'center',
       });
       setTimeout(() => {
         isProgrammaticScrollRef.current = false;
@@ -270,8 +289,18 @@ export const LyricsView: React.FC = () => {
     }
   };
 
+  const formatTime = (secs: number) => {
+    if (!secs || isNaN(secs)) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const seekPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
+  const RepeatIcon = repeatMode === 'one' ? Repeat1 : Repeat;
+
   return (
-    <div className="fixed top-0 left-0 right-0 bottom-24 z-40 bg-zinc-950/95 backdrop-blur-3xl flex flex-col justify-between p-8 overflow-hidden select-none">
+    <div className="fixed inset-0 z-50 bg-zinc-950/95 backdrop-blur-3xl flex flex-col justify-between p-8 overflow-hidden select-none">
       {/* Background Cover Art Glow */}
       {trackArt && (
         <div
@@ -453,7 +482,7 @@ export const LyricsView: React.FC = () => {
                   scale: isActive ? (isUnsynced ? 1 : 1.05) : 0.98,
                 }}
                 transition={{ duration: 0.25, ease: 'easeOut' }}
-                className={`text-center cursor-pointer max-w-4xl px-6 py-2 rounded-2xl transition-colors ${
+                className={`text-center cursor-pointer max-w-5xl w-full px-8 py-3 rounded-2xl transition-colors ${
                   isActive && !isUnsynced
                     ? 'text-white font-extrabold drop-shadow-[0_0_25px_rgba(99,102,241,0.6)]'
                     : isUnsynced
@@ -486,40 +515,136 @@ export const LyricsView: React.FC = () => {
         )}
       </div>
 
-      {/* Expandable Album Art (Bottom Left) */}
-      {trackArt && currentTrack && (
-        <AnimatePresence>
-          <motion.div
-            className="fixed bottom-32 left-8 z-50 group cursor-pointer"
-            initial={false}
-            animate={{
-              width: artExpanded ? 320 : 160,
-              height: artExpanded ? 320 : 160,
-            }}
-            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          >
-            <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-              <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setArtExpanded(!artExpanded);
-                }}
-                className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/30 transition-colors"
-                title={artExpanded ? 'Collapse' : 'Expand'}
+      {/* Integrated Bottom Bar Controls (Fades out on mouse idle) */}
+      <motion.div
+        animate={{
+          opacity: controlsVisible ? 1 : 0,
+          y: controlsVisible ? 0 : 20,
+        }}
+        transition={{ duration: 0.3 }}
+        className={`flex items-center justify-between z-20 pt-4 border-t border-white/10 ${
+          controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+        }`}
+      >
+        {/* Left: Track Info & Expandable Artwork */}
+        <div className="flex items-center gap-4 w-1/4 min-w-[220px]">
+          {currentTrack && (
+            <>
+              <div
+                onClick={() => setArtExpanded(!artExpanded)}
+                className={`relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 shrink-0 group cursor-pointer transition-all duration-300 ${
+                  artExpanded ? 'w-24 h-24' : 'w-14 h-14'
+                }`}
               >
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-2">
-                  {artExpanded ? (
-                    <ChevronLeft className="w-5 h-5 text-white" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 text-white" />
-                  )}
+                {trackArt ? (
+                  <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-zinc-500">
+                    <Mic2 className="w-6 h-6" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-1">
+                    {artExpanded ? (
+                      <ChevronLeft className="w-4 h-4 text-white" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-white" />
+                    )}
+                  </div>
                 </div>
-              </button>
+              </div>
+
+              <div className="flex flex-col min-w-0">
+                <span className="font-bold text-white text-base truncate">{currentTrack.title}</span>
+                <span className="text-xs text-zinc-400 truncate mt-0.5">{currentTrack.artist}</span>
+                {currentTrack.album && (
+                  <span className="text-[11px] text-zinc-500 truncate mt-0.5">{currentTrack.album}</span>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Center: Transport Controls & Seek Bar */}
+        <div className="flex flex-col items-center gap-2 w-1/2 max-w-xl">
+          <div className="flex items-center gap-6">
+            <button
+              onClick={toggleShuffle}
+              className={`p-2 rounded-xl transition-colors ${
+                shuffleEnabled ? 'text-indigo-400' : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Shuffle"
+            >
+              <Shuffle className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={previousTrack}
+              className="p-2 text-zinc-400 hover:text-white transition-colors"
+              title="Previous"
+            >
+              <SkipBack className="w-5 h-5" />
+            </button>
+
+            <button
+              onClick={togglePlay}
+              className="w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-600/30 transition-transform active:scale-95 cursor-pointer"
+              title={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? <Pause className="w-6 h-6 fill-white" /> : <Play className="w-6 h-6 fill-white ml-0.5" />}
+            </button>
+
+            <button
+              onClick={nextTrack}
+              className="p-2 text-zinc-400 hover:text-white transition-colors"
+              title="Next"
+            >
+              <SkipForward className="w-5 h-5" />
+            </button>
+
+            <button
+              onClick={cycleRepeatMode}
+              className={`p-2 rounded-xl transition-colors ${
+                repeatMode !== 'off' ? 'text-indigo-400' : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Repeat"
+            >
+              <RepeatIcon className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Seek Bar */}
+          <div className="flex items-center gap-3 w-full text-xs font-mono text-zinc-400">
+            <span>{formatTime(currentTime)}</span>
+            <div className="relative flex-1 h-3 flex items-center group cursor-pointer">
+              <input
+                type="range"
+                min={0}
+                max={duration || 100}
+                step={0.1}
+                value={currentTime}
+                onChange={(e) => seek(parseFloat(e.target.value))}
+                style={{
+                  background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${seekPercent}%, #27272a ${seekPercent}%)`,
+                }}
+                className="w-full h-1.5 group-hover:h-2.5 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3 shadow-[0_0_12px_rgba(99,102,241,0.5)]"
+              />
             </div>
-          </motion.div>
-        </AnimatePresence>
-      )}
+            <span>{formatTime(duration)}</span>
+          </div>
+        </div>
+
+        {/* Right: Exit Lyrics Button */}
+        <div className="flex items-center gap-3 w-1/4 justify-end">
+          <button
+            onClick={handleClose}
+            className="p-2.5 rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/40 border border-indigo-500 hover:bg-indigo-500 transition-colors"
+            title="Exit Karaoke View"
+          >
+            <Mic2 className="w-5 h-5" />
+          </button>
+        </div>
+      </motion.div>
     </div>
   );
 };

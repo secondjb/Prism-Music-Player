@@ -327,7 +327,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
             <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Next from Playlist / Album</h4>
             <div
               ref={contextParentRef}
-              className="flex-1 overflow-y-auto custom-scrollbar max-h-[50vh]"
+              className="flex-1 overflow-y-auto custom-scrollbar min-h-0"
               onDragOver={(e) => e.preventDefault()}
             >
               <div

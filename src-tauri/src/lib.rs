@@ -71,9 +71,10 @@ fn play_audio(
     audio_engine: State<'_, GlobalAudioEngine>,
     path: String,
     replay_gain_db: Option<f32>,
+    start_position_secs: Option<f64>,
 ) -> Result<(), String> {
     let gain = replay_gain_db.unwrap_or(0.0);
-    audio_engine.play(path, gain)
+    audio_engine.play(path, gain, start_position_secs)
 }
 
 #[tauri::command]

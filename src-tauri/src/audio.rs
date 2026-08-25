@@ -51,7 +51,7 @@ impl GlobalAudioEngine {
         }
     }
 
-    pub fn play(&self, file_path: String, replay_gain_db: f32) -> Result<(), String> {
+    pub fn play(&self, file_path: String, replay_gain_db: f32, start_position_secs: Option<f64>) -> Result<(), String> {
         let state_guard = self.state.lock();
 
         // Signal existing thread to stop
@@ -62,12 +62,13 @@ impl GlobalAudioEngine {
         let is_playing = Arc::new(AtomicBool::new(true));
         let volume = Arc::clone(&state_guard.volume);
         let replay_gain = Arc::new(Mutex::new(replay_gain_db));
-        let seek_secs = Arc::new(Mutex::new(None));
+        let initial_seek = start_position_secs.filter(|&s| s > 0.0);
+        let seek_secs = Arc::new(Mutex::new(initial_seek));
         let current_position_secs = Arc::clone(&state_guard.current_position_secs);
         let current_duration_secs = Arc::clone(&state_guard.current_duration_secs);
 
         *state_guard.replay_gain_db.lock() = replay_gain_db;
-        *current_position_secs.lock() = 0.0;
+        *current_position_secs.lock() = initial_seek.unwrap_or(0.0);
         state_guard.is_playing.store(true, Ordering::SeqCst);
 
         let path_clone = file_path.clone();

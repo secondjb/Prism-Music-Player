@@ -262,10 +262,11 @@ export const usePlayerStore = create<PlayerState>()(
         set({ isPlaying: newPlayingState });
         try {
           if (newPlayingState) {
-            await invoke('play_audio', { path: currentTrack.path, replayGainDb: currentTrack.replay_gain_db || 0 });
-            if (currentTime > 0) {
-              await invoke('seek_audio', { positionSecs: currentTime });
-            }
+            await invoke('play_audio', {
+              path: currentTrack.path,
+              replayGainDb: currentTrack.replay_gain_db || 0,
+              startPositionSecs: currentTime > 0 ? currentTime : null,
+            });
           } else {
             await invoke('pause_audio');
           }

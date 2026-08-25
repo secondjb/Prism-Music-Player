@@ -22,6 +22,8 @@ import {
   Shuffle,
   Repeat,
   Repeat1,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 const romanizer = createRomanizer();
@@ -46,6 +48,8 @@ export const LyricsView: React.FC = () => {
     toggleShuffle,
     repeatMode,
     cycleRepeatMode,
+    volume,
+    setVolume,
     lrclibAutoFetch,
     setLrclibAutoFetch,
     isRomanizationEnabled,
@@ -245,15 +249,16 @@ export const LyricsView: React.FC = () => {
 
   // 4. Smooth scroll active line to center
   const scrollToActive = () => {
-    if (activeLineRef.current && containerRef.current) {
-      const lineEl = activeLineRef.current;
+    if (containerRef.current && activeIndex !== -1) {
+      const lineEl = document.getElementById(`lyric-line-${activeIndex}`);
       const containerEl = containerRef.current;
-      const targetTop = lineEl.offsetTop - containerEl.clientHeight / 2 + lineEl.clientHeight / 2;
-
-      containerEl.scrollTo({
-        top: targetTop,
-        behavior: 'smooth',
-      });
+      if (lineEl) {
+        const targetTop = lineEl.offsetTop - containerEl.clientHeight / 2 + lineEl.clientHeight / 2;
+        containerEl.scrollTo({
+          top: targetTop,
+          behavior: 'smooth',
+        });
+      }
     }
   };
 
@@ -485,6 +490,7 @@ export const LyricsView: React.FC = () => {
             return (
               <motion.div
                 key={line.id}
+                id={`lyric-line-${idx}`}
                 ref={isActive && !isUnsynced ? activeLineRef : null}
                 animate={{
                   opacity: isActive ? 1 : 0.35,
@@ -636,13 +642,62 @@ export const LyricsView: React.FC = () => {
           <span>{formatTime(duration)}</span>
         </div>
 
-        {/* Lyrics Exit Button */}
+        {/* Exit Lyrics Button */}
         <button
           onClick={handleClose}
           className="p-2 rounded-xl text-indigo-400 hover:text-white hover:bg-white/10 transition-colors"
           title="Exit Karaoke View"
         >
           <Mic2 className="w-5 h-5" />
+        </button>
+      </motion.div>
+
+      {/* Floating Glass Volume & Specs Pill (Bottom-Right, Fades on Idle) */}
+      <motion.div
+        animate={{
+          opacity: controlsVisible ? 1 : 0,
+          y: controlsVisible ? 0 : 20,
+        }}
+        transition={{ duration: 0.3 }}
+        className={`fixed bottom-8 right-8 z-40 glass-panel border border-white/10 rounded-full px-4 py-2.5 shadow-2xl flex items-center gap-3.5 ${
+          controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+        }`}
+      >
+        {showAudioSpecs && currentTrack && (
+          <div className="text-[11px] font-mono text-zinc-400 bg-white/5 px-2.5 py-1 rounded-full border border-white/10 shrink-0">
+            {currentTrack.bit_rate_kbps ? `${currentTrack.bit_rate_kbps}k • ` : ''}
+            {(currentTrack.sample_rate / 1000).toFixed(1)}kHz
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
+            className="text-zinc-400 hover:text-white transition-colors p-1"
+            title={volume > 0 ? 'Mute' : 'Unmute'}
+          >
+            {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={volume}
+            onChange={(e) => setVolume(parseFloat(e.target.value))}
+            style={{
+              background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${volume * 100}%, #27272a ${volume * 100}%)`,
+            }}
+            className="w-20 h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
+          />
+        </div>
+
+        <button
+          onClick={handleClose}
+          className="p-1.5 rounded-full text-indigo-400 hover:text-white hover:bg-white/10 transition-colors"
+          title="Exit Karaoke View"
+        >
+          <Mic2 className="w-4 h-4" />
         </button>
       </motion.div>
     </div>

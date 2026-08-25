@@ -98,7 +98,7 @@ fn set_volume(audio_engine: State<'_, GlobalAudioEngine>, volume: f32) {
 }
 
 #[tauri::command]
-fn get_playback_position(audio_engine: State<'_, GlobalAudioEngine>) -> f64 {
+fn get_playback_position(audio_engine: State<'_, GlobalAudioEngine>) -> (f64, f64) {
     audio_engine.get_position()
 }
 

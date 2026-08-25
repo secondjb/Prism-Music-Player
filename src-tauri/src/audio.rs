@@ -127,10 +127,11 @@ impl GlobalAudioEngine {
         *state.volume.lock() = vol.clamp(0.0, 1.0);
     }
 
-    pub fn get_position(&self) -> f64 {
+    pub fn get_position(&self) -> (f64, f64) {
         let state = self.state.lock();
         let pos = *state.current_position_secs.lock();
-        pos
+        let dur = *state.current_duration_secs.lock();
+        (pos, dur)
     }
 }
 

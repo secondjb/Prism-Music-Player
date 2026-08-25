@@ -58,19 +58,25 @@ export const BottomBar: React.FC = () => {
   const volContainerRef = useRef<HTMLDivElement>(null);
   const volTooltipRef = useRef<HTMLDivElement>(null);
 
-  // Poll playback position from Rust audio engine
+  // Poll playback position & duration from Rust audio engine
   useEffect(() => {
     if (!isPlaying || !window.__TAURI_INTERNALS__) return;
     const interval = setInterval(async () => {
       try {
-        const pos: number = await invoke('get_playback_position');
+        const res: any = await invoke('get_playback_position');
+        const pos = Array.isArray(res) ? res[0] : res;
+        const durFromRust = Array.isArray(res) ? res[1] : 0;
         if (typeof pos === 'number' && !isNaN(pos) && pos >= 0) {
-          usePlayerStore.setState({ currentTime: pos });
-          const dur = usePlayerStore.getState().duration;
-          const rm = usePlayerStore.getState().repeatMode;
+          const state = usePlayerStore.getState();
+          const effectiveDur = durFromRust > 0 ? durFromRust : (state.currentTrack?.duration_secs || state.duration || 0);
+          usePlayerStore.setState({
+            currentTime: pos,
+            ...(effectiveDur > 0 ? { duration: effectiveDur } : {})
+          });
+          const dur = effectiveDur;
+          const rm = state.repeatMode;
           if (dur > 2 && pos > 0.5 && pos >= dur - 0.5) {
             if (rm === 'one') {
-              // Repeat one: seek to start
               usePlayerStore.getState().seek(0);
             } else {
               nextTrack();

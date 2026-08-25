@@ -73,7 +73,6 @@ export const LyricsView: React.FC = () => {
   const [controlsVisible, setControlsVisible] = useState(true);
   const [artExpanded, setArtExpanded] = useState(false);
   const [isUserScrolled, setIsUserScrolled] = useState(false);
-  const isProgrammaticScrollRef = useRef(false);
 
   const activeLineRef = useRef<HTMLDivElement | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -244,14 +243,9 @@ export const LyricsView: React.FC = () => {
     }
   }
 
-  // 4. Smooth scroll active line to center with scroll lock protection
-  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  // 4. Smooth scroll active line to center
   const scrollToActive = () => {
     if (activeLineRef.current && containerRef.current) {
-      isProgrammaticScrollRef.current = true;
-      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-
       const lineEl = activeLineRef.current;
       const containerEl = containerRef.current;
       const targetTop = lineEl.offsetTop - containerEl.clientHeight / 2 + lineEl.clientHeight / 2;
@@ -260,23 +254,26 @@ export const LyricsView: React.FC = () => {
         top: targetTop,
         behavior: 'smooth',
       });
-
-      scrollTimeoutRef.current = setTimeout(() => {
-        isProgrammaticScrollRef.current = false;
-      }, 350);
     }
   };
 
-  const handleContainerScroll = () => {
-    if (isProgrammaticScrollRef.current) {
-      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-      scrollTimeoutRef.current = setTimeout(() => {
-        isProgrammaticScrollRef.current = false;
-      }, 350);
-    } else {
+  // 5. Native wheel and touchmove listeners for user manual scroll override
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleUserScroll = () => {
       setIsUserScrolled(true);
-    }
-  };
+    };
+
+    el.addEventListener('wheel', handleUserScroll, { passive: true });
+    el.addEventListener('touchmove', handleUserScroll, { passive: true });
+
+    return () => {
+      el.removeEventListener('wheel', handleUserScroll);
+      el.removeEventListener('touchmove', handleUserScroll);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isUserScrolled && activeIndex !== -1) {
@@ -443,7 +440,6 @@ export const LyricsView: React.FC = () => {
       {/* Main Lyrics Display Area */}
       <div
         ref={containerRef}
-        onScroll={handleContainerScroll}
         className="flex-1 overflow-y-auto my-4 px-4 custom-scrollbar flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-10 relative"
       >
         {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
@@ -528,145 +524,127 @@ export const LyricsView: React.FC = () => {
         )}
       </div>
 
-      {/* Integrated Bottom Bar Controls */}
-      <div className="flex items-center justify-between z-20 pt-4 border-t border-white/10 relative">
-        {/* Left: Track Info & Large Expandable Artwork (ALWAYS VISIBLE EVEN WHEN IDLE) */}
-        <div className="flex items-center gap-4 w-1/3 min-w-[240px] z-30">
-          {currentTrack && (
-            <>
-              <div
-                onClick={() => setArtExpanded(!artExpanded)}
-                className={`relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 shrink-0 group cursor-pointer transition-all duration-300 ${
-                  artExpanded ? 'w-80 h-80 -translate-y-36' : 'w-16 h-16'
-                }`}
-              >
-                {trackArt ? (
-                  <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
+      {/* Standalone Bottom-Left Track Info & Expandable Album Art (Decoupled, Always Visible) */}
+      {currentTrack && (
+        <div className="fixed bottom-8 left-8 z-40 flex items-end gap-4 pointer-events-auto select-none">
+          <div
+            onClick={() => setArtExpanded(!artExpanded)}
+            className={`relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 shrink-0 group cursor-pointer transition-all duration-300 ${
+              artExpanded ? 'w-80 h-80' : 'w-20 h-20'
+            }`}
+          >
+            {trackArt ? (
+              <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
+                <Mic2 className="w-8 h-8" />
+              </div>
+            )}
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-2">
+                {artExpanded ? (
+                  <ChevronLeft className="w-5 h-5 text-white" />
                 ) : (
-                  <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-zinc-500">
-                    <Mic2 className="w-6 h-6" />
-                  </div>
+                  <ChevronRight className="w-5 h-5 text-white" />
                 )}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-1.5">
-                    {artExpanded ? (
-                      <ChevronLeft className="w-5 h-5 text-white" />
-                    ) : (
-                      <ChevronRight className="w-5 h-5 text-white" />
-                    )}
-                  </div>
-                </div>
               </div>
+            </div>
+          </div>
 
-              <div className="flex flex-col min-w-0">
-                <span className="font-bold text-white text-lg truncate drop-shadow-md">{currentTrack.title}</span>
-                <span className="text-sm text-zinc-300 truncate mt-0.5">{currentTrack.artist}</span>
-                {currentTrack.album && (
-                  <span className="text-xs text-zinc-400 truncate mt-0.5">{currentTrack.album}</span>
-                )}
-              </div>
-            </>
-          )}
+          <div className="flex flex-col min-w-0 max-w-xs mb-1">
+            <span className="font-extrabold text-white text-lg truncate drop-shadow-lg">{currentTrack.title}</span>
+            <span className="text-sm font-medium text-zinc-300 truncate mt-0.5">{currentTrack.artist}</span>
+            {currentTrack.album && (
+              <span className="text-xs text-zinc-400 truncate mt-0.5">{currentTrack.album}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Floating Glass Transport Controls (Bottom-Center, Fades on Idle) */}
+      <motion.div
+        animate={{
+          opacity: controlsVisible ? 1 : 0,
+          y: controlsVisible ? 0 : 20,
+        }}
+        transition={{ duration: 0.3 }}
+        className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-40 glass-panel border border-white/10 rounded-full px-6 py-2.5 shadow-2xl flex items-center gap-6 ${
+          controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+        }`}
+      >
+        <button
+          onClick={toggleShuffle}
+          className={`p-2 rounded-xl transition-colors ${
+            shuffleEnabled ? 'text-indigo-400' : 'text-zinc-400 hover:text-white'
+          }`}
+          title="Shuffle"
+        >
+          <Shuffle className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={previousTrack}
+          className="p-2 text-zinc-400 hover:text-white transition-colors"
+          title="Previous"
+        >
+          <SkipBack className="w-5 h-5" />
+        </button>
+
+        <button
+          onClick={togglePlay}
+          className="w-11 h-11 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-600/40 transition-transform active:scale-95 cursor-pointer"
+          title={isPlaying ? 'Pause' : 'Play'}
+        >
+          {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
+        </button>
+
+        <button
+          onClick={nextTrack}
+          className="p-2 text-zinc-400 hover:text-white transition-colors"
+          title="Next"
+        >
+          <SkipForward className="w-5 h-5" />
+        </button>
+
+        <button
+          onClick={cycleRepeatMode}
+          className={`p-2 rounded-xl transition-colors ${
+            repeatMode !== 'off' ? 'text-indigo-400' : 'text-zinc-400 hover:text-white'
+          }`}
+          title="Repeat"
+        >
+          <RepeatIcon className="w-4 h-4" />
+        </button>
+
+        {/* Seek Bar inside floating pill */}
+        <div className="flex items-center gap-2 text-xs font-mono text-zinc-400 w-48">
+          <span>{formatTime(currentTime)}</span>
+          <div className="relative flex-1 h-3 flex items-center group cursor-pointer">
+            <input
+              type="range"
+              min={0}
+              max={duration || 100}
+              step={0.1}
+              value={currentTime}
+              onChange={(e) => seek(parseFloat(e.target.value))}
+              style={{
+                background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${seekPercent}%, #27272a ${seekPercent}%)`,
+              }}
+              className="w-full h-1.5 group-hover:h-2 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3"
+            />
+          </div>
+          <span>{formatTime(duration)}</span>
         </div>
 
-        {/* Center: Transport Controls & Seek Bar (Fades on Idle) */}
-        <motion.div
-          animate={{
-            opacity: controlsVisible ? 1 : 0,
-            y: controlsVisible ? 0 : 20,
-          }}
-          transition={{ duration: 0.3 }}
-          className={`flex flex-col items-center gap-2 w-1/2 max-w-xl ${
-            controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
-          }`}
+        {/* Lyrics Exit Button */}
+        <button
+          onClick={handleClose}
+          className="p-2 rounded-xl text-indigo-400 hover:text-white hover:bg-white/10 transition-colors"
+          title="Exit Karaoke View"
         >
-          <div className="flex items-center gap-6">
-            <button
-              onClick={toggleShuffle}
-              className={`p-2 rounded-xl transition-colors ${
-                shuffleEnabled ? 'text-indigo-400' : 'text-zinc-400 hover:text-white'
-              }`}
-              title="Shuffle"
-            >
-              <Shuffle className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={previousTrack}
-              className="p-2 text-zinc-400 hover:text-white transition-colors"
-              title="Previous"
-            >
-              <SkipBack className="w-5 h-5" />
-            </button>
-
-            <button
-              onClick={togglePlay}
-              className="w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-600/30 transition-transform active:scale-95 cursor-pointer"
-              title={isPlaying ? 'Pause' : 'Play'}
-            >
-              {isPlaying ? <Pause className="w-6 h-6 fill-white" /> : <Play className="w-6 h-6 fill-white ml-0.5" />}
-            </button>
-
-            <button
-              onClick={nextTrack}
-              className="p-2 text-zinc-400 hover:text-white transition-colors"
-              title="Next"
-            >
-              <SkipForward className="w-5 h-5" />
-            </button>
-
-            <button
-              onClick={cycleRepeatMode}
-              className={`p-2 rounded-xl transition-colors ${
-                repeatMode !== 'off' ? 'text-indigo-400' : 'text-zinc-400 hover:text-white'
-              }`}
-              title="Repeat"
-            >
-              <RepeatIcon className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Seek Bar */}
-          <div className="flex items-center gap-3 w-full text-xs font-mono text-zinc-400">
-            <span>{formatTime(currentTime)}</span>
-            <div className="relative flex-1 h-3 flex items-center group cursor-pointer">
-              <input
-                type="range"
-                min={0}
-                max={duration || 100}
-                step={0.1}
-                value={currentTime}
-                onChange={(e) => seek(parseFloat(e.target.value))}
-                style={{
-                  background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${seekPercent}%, #27272a ${seekPercent}%)`,
-                }}
-                className="w-full h-1.5 group-hover:h-2.5 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3"
-              />
-            </div>
-            <span>{formatTime(duration)}</span>
-          </div>
-        </motion.div>
-
-        {/* Right: Exit Lyrics Button (Fades on Idle) */}
-        <motion.div
-          animate={{
-            opacity: controlsVisible ? 1 : 0,
-            y: controlsVisible ? 0 : 20,
-          }}
-          transition={{ duration: 0.3 }}
-          className={`flex items-center gap-3 w-1/4 justify-end ${
-            controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
-          }`}
-        >
-          <button
-            onClick={handleClose}
-            className="p-2.5 rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/40 border border-indigo-500 hover:bg-indigo-500 transition-colors"
-            title="Exit Karaoke View"
-          >
-            <Mic2 className="w-5 h-5" />
-          </button>
-        </motion.div>
-      </div>
+          <Mic2 className="w-5 h-5" />
+        </button>
+      </motion.div>
     </div>
   );
 };

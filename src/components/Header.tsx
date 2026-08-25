@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { Search, Settings } from 'lucide-react';
 

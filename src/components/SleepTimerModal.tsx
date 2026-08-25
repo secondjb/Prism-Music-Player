@@ -18,7 +18,7 @@ export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({ isOpen, onClos
   if (!isOpen) return null;
 
   return (
-    <div className="absolute bottom-[calc(100%+1rem)] -right-10 w-[380px] z-50 p-0 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed bottom-28 right-8 w-[380px] z-[60] p-0 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
       <div className="w-full glass-panel rounded-2xl border border-white/10 shadow-2xl p-6 flex flex-col gap-5">
         {/* Header */}
         <div className="flex items-center justify-between">

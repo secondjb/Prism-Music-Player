@@ -179,11 +179,13 @@ fn run_audio_thread(
         .map_err(|e| format!("Decoder creation error: {}", e))?;
 
     // Helper to create stream and channel
-    let create_stream_fn = || -> Result<(cpal::Stream, crossbeam_channel::Sender<f32>, Arc<AtomicBool>), String> {
+    let create_stream_fn = || -> Result<(cpal::Stream, crossbeam_channel::Sender<f32>, Arc<AtomicBool>, String), String> {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
             .ok_or_else(|| "No output audio device found".to_string())?;
+
+        let dev_name = device.name().unwrap_or_else(|_| "Default Device".to_string());
 
         let default_config = device
             .default_output_config()
@@ -243,10 +245,10 @@ fn run_audio_thread(
 
         stream.play().map_err(|e| format!("Failed to play audio stream: {}", e))?;
 
-        Ok((stream, tx, device_changed))
+        Ok((stream, tx, device_changed, dev_name))
     };
 
-    let (mut stream, mut tx, mut device_changed) = create_stream_fn()?;
+    let (mut stream, mut tx, mut device_changed, mut active_device_name) = create_stream_fn()?;
     
     // Track target config for resampling logic in loop
     let mut target_sample_rate;
@@ -260,30 +262,43 @@ fn run_audio_thread(
     }
 
     let mut sample_buf = None;
+    let mut loop_counter: u64 = 0;
 
     loop {
-        if device_changed.load(Ordering::SeqCst) {
+        loop_counter = loop_counter.wrapping_add(1);
+
+        // Periodically (every ~200 iterations (~500ms)) check if the OS default output device has changed
+        let mut need_device_switch = device_changed.load(Ordering::SeqCst);
+        if !need_device_switch && loop_counter % 200 == 0 {
+            if let Some(def_dev) = cpal::default_host().default_output_device() {
+                if let Ok(name) = def_dev.name() {
+                    if name != active_device_name {
+                        println!("Default device changed from '{}' to '{}'", active_device_name, name);
+                        need_device_switch = true;
+                    }
+                }
+            }
+        }
+
+        if need_device_switch {
             println!("Audio device changed! Recreating stream...");
-            // Drop current stream to release resources
             drop(stream);
-            
-            // Wait briefly for new device to settle (Windows usually needs a tiny delay)
-            thread::sleep(Duration::from_millis(500));
+            thread::sleep(Duration::from_millis(300));
 
             match create_stream_fn() {
-                Ok((new_stream, new_tx, new_dc)) => {
+                Ok((new_stream, new_tx, new_dc, new_name)) => {
                     stream = new_stream;
                     tx = new_tx;
                     device_changed = new_dc;
+                    active_device_name = new_name;
 
-                    // Update target config
                     if let Some(device) = cpal::default_host().default_output_device() {
                         if let Ok(config) = device.default_output_config() {
                             target_sample_rate = config.sample_rate().0;
                             target_channels = config.channels() as usize;
                         }
                     }
-                    println!("Successfully restarted audio stream on new device!");
+                    println!("Successfully restarted audio stream on new device: {}", active_device_name);
                 }
                 Err(e) => {
                     eprintln!("Failed to recreate stream after device change: {}", e);

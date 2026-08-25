@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
@@ -11,16 +11,8 @@ import {
   Settings2,
   RefreshCw,
   X,
+  Target,
   Languages,
-  Play,
-  Pause,
-  SkipBack,
-  SkipForward,
-  Volume2,
-  VolumeX,
-  Shuffle,
-  Repeat,
-  Repeat1,
   ChevronRight,
   ChevronLeft,
 } from 'lucide-react';
@@ -38,13 +30,6 @@ export const LyricsView: React.FC = () => {
   const {
     currentTrack,
     currentTime,
-    duration,
-    isPlaying,
-    togglePlay,
-    nextTrack,
-    previousTrack,
-    volume,
-    setVolume,
     lrclibAutoFetch,
     setLrclibAutoFetch,
     isRomanizationEnabled,
@@ -59,10 +44,6 @@ export const LyricsView: React.FC = () => {
     activeTab,
     setActiveTab,
     seek,
-    shuffleEnabled,
-    toggleShuffle,
-    repeatMode,
-    cycleRepeatMode,
   } = usePlayerStore();
 
   const trackArt = useTrackArt(currentTrack);
@@ -72,22 +53,14 @@ export const LyricsView: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [isMuted, setIsMuted] = useState(false);
-  const [prevVol, setPrevVol] = useState(volume);
   const [artExpanded, setArtExpanded] = useState(false);
-
-  // Local drag state for butter-smooth seeking
-  const [isDraggingSeek, setIsDraggingSeek] = useState(false);
-  const [dragSeekVal, setDragSeekVal] = useState<number | null>(null);
+  const [isUserScrolled, setIsUserScrolled] = useState(false);
+  const isProgrammaticScrollRef = useRef(false);
 
   const activeLineRef = useRef<HTMLDivElement | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [windowHeight, setWindowHeight] = useState(window.innerHeight);
-
-  // Tooltip refs for zero-render-lag
-  const seekTooltipRef = useRef<HTMLDivElement>(null);
-  const volTooltipRef = useRef<HTMLDivElement>(null);
 
   // Track window height for dynamic text sizing
   useEffect(() => {
@@ -243,14 +216,24 @@ export const LyricsView: React.FC = () => {
   }
 
   // 4. Smooth scroll active line to center
-  useEffect(() => {
-    if (activeLineRef.current && activeIndex !== -1) {
+  const scrollToActive = () => {
+    if (activeLineRef.current) {
+      isProgrammaticScrollRef.current = true;
       activeLineRef.current.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
       });
+      setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 400);
     }
-  }, [activeIndex]);
+  };
+
+  useEffect(() => {
+    if (!isUserScrolled && activeIndex !== -1) {
+      scrollToActive();
+    }
+  }, [activeIndex, isUserScrolled]);
 
   const handleClose = () => {
     setShowLyricsFullscreen(false);
@@ -258,6 +241,8 @@ export const LyricsView: React.FC = () => {
       setActiveTab('library');
     }
   };
+
+
 
   const handleManualRefresh = async () => {
     if (!currentTrack) return;
@@ -273,61 +258,6 @@ export const LyricsView: React.FC = () => {
       setRawLrc(fetched);
     }
   };
-
-  const formatTime = (secs: number) => {
-    if (!secs || isNaN(secs)) return '0:00';
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
-
-  const handleMuteToggle = () => {
-    if (isMuted) {
-      setVolume(prevVol);
-      setIsMuted(false);
-    } else {
-      setPrevVol(volume);
-      setVolume(0);
-      setIsMuted(true);
-    }
-  };
-
-  const currentSeekDisplay = isDraggingSeek && dragSeekVal !== null ? dragSeekVal : currentTime;
-  const seekPercent = duration > 0 ? Math.min(100, Math.max(0, (currentSeekDisplay / duration) * 100)) : 0;
-  const effectiveVol = isMuted ? 0 : volume;
-  const volPercent = Math.min(100, Math.max(0, effectiveVol * 100));
-
-  // Zero-render-lag tooltip handlers
-  const handleSeekMouseMove = useCallback((e: React.MouseEvent) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const time = pct * (duration || 0);
-    if (seekTooltipRef.current) {
-      seekTooltipRef.current.style.left = `${e.clientX - rect.left}px`;
-      seekTooltipRef.current.style.opacity = '1';
-      seekTooltipRef.current.textContent = formatTime(time);
-    }
-  }, [duration]);
-
-  const handleSeekMouseLeave = useCallback(() => {
-    if (seekTooltipRef.current) seekTooltipRef.current.style.opacity = '0';
-  }, []);
-
-  const handleVolMouseMove = useCallback((e: React.MouseEvent) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * 100;
-    if (volTooltipRef.current) {
-      volTooltipRef.current.style.left = `${e.clientX - rect.left}px`;
-      volTooltipRef.current.style.opacity = '1';
-      volTooltipRef.current.textContent = `${Math.round(pct)}%`;
-    }
-  }, []);
-
-  const handleVolMouseLeave = useCallback(() => {
-    if (volTooltipRef.current) volTooltipRef.current.style.opacity = '0';
-  }, []);
-
-  const RepeatIcon = repeatMode === 'one' ? Repeat1 : Repeat;
 
   return (
     <div className="fixed top-0 left-0 right-0 bottom-24 z-40 bg-zinc-950/95 backdrop-blur-3xl flex flex-col justify-between p-8 overflow-hidden select-none">
@@ -456,8 +386,26 @@ export const LyricsView: React.FC = () => {
       {/* Main Lyrics Display Area */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto my-4 px-4 custom-scrollbar flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-10"
+        onScroll={() => {
+          if (!isProgrammaticScrollRef.current) {
+            setIsUserScrolled(true);
+          }
+        }}
+        className="flex-1 overflow-y-auto my-4 px-4 custom-scrollbar flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-10 relative"
       >
+        {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
+          <button
+            onClick={() => {
+              setIsUserScrolled(false);
+              scrollToActive();
+            }}
+            className="fixed bottom-28 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-600/90 hover:bg-indigo-500 text-white text-xs font-semibold shadow-xl backdrop-blur-md transition-all border border-indigo-400/40 animate-in fade-in slide-in-from-bottom-3 cursor-pointer"
+          >
+            <Target className="w-4 h-4" />
+            <span>Re-sync to music</span>
+          </button>
+        )}
+
         {isLoading ? (
           <div className="flex flex-col items-center gap-3 my-auto">
             <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
@@ -508,6 +456,7 @@ export const LyricsView: React.FC = () => {
                 onClick={() => {
                   if (typeof line.startSecs === 'number' && !isNaN(line.startSecs) && !isUnsynced) {
                     seek(line.startSecs);
+                    setIsUserScrolled(false);
                   }
                 }}
               >
@@ -560,7 +509,6 @@ export const LyricsView: React.FC = () => {
           </motion.div>
         </AnimatePresence>
       )}
-      {/* Footer Playback Controls Removed - Now relies on BottomBar.tsx */}
     </div>
   );
 };

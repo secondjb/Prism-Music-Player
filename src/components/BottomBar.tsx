@@ -156,7 +156,7 @@ export const BottomBar: React.FC = () => {
   const RepeatIcon = repeatMode === 'one' ? Repeat1 : Repeat;
 
   return (
-    <footer className="w-full h-24 glass border-t border-white/10 flex items-center justify-between px-6 z-20 shrink-0">
+    <footer className="fixed bottom-0 left-0 right-0 h-24 glass-panel border-t border-white/10 z-50 flex items-center justify-between px-6 select-none">
       {/* 1. Track Info (Left) */}
       <div className="flex items-center gap-4 w-1/4 min-w-[220px]">
         {currentTrack ? (

@@ -32,6 +32,7 @@ interface PlayerState {
   shuffleEnabled: boolean;
   repeatMode: RepeatMode;
   shuffleHistory: number[];
+  originalQueue: Track[];
 
   // Playlists
   playlists: Playlist[];
@@ -133,6 +134,7 @@ export const usePlayerStore = create<PlayerState>()(
       shuffleEnabled: false,
       repeatMode: 'off',
       shuffleHistory: [],
+      originalQueue: [],
 
       // Playlists
       playlists: [],
@@ -191,25 +193,41 @@ export const usePlayerStore = create<PlayerState>()(
       setTracks: (tracks) => set({ tracks }),
 
       playTrack: async (track, contextTracks) => {
-        let newQueue = contextTracks && contextTracks.length > 0 ? contextTracks : [track];
-        let index = newQueue.findIndex((t) => t.id === track.id);
+        const { shuffleEnabled } = get();
+        let baseQueue = contextTracks && contextTracks.length > 0 ? [...contextTracks] : [track];
+        let index = baseQueue.findIndex((t) => t.id === track.id);
         if (index === -1) {
-          newQueue = [track, ...newQueue];
+          baseQueue = [track, ...baseQueue];
           index = 0;
         }
+
+        let newQueue = baseQueue;
+        let finalIndex = index;
+        let savedOriginal = baseQueue;
+
+        if (shuffleEnabled) {
+          const remaining = baseQueue.filter((_, i) => i !== index);
+          for (let i = remaining.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+          }
+          newQueue = [track, ...remaining];
+          finalIndex = 0;
+        }
+
         set({
+          originalQueue: savedOriginal,
           queue: newQueue,
-          currentIndex: index,
+          currentIndex: finalIndex,
           currentTrack: track,
           duration: track.duration_secs,
           currentTime: 0,
           isPlaying: true,
-          shuffleHistory: [index],
         });
         try {
           await invoke('play_audio', { path: track.path, replayGainDb: track.replay_gain_db || 0 });
         } catch (e) {
-          console.warn('Rust play_audio call pending implementation:', e);
+          console.warn('Rust play_audio error:', e);
         }
       },
 
@@ -233,7 +251,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       togglePlay: async () => {
-        const { isPlaying, currentTrack, queue, playIndex } = get();
+        const { isPlaying, currentTrack, currentTime, queue, playIndex } = get();
         if (!currentTrack) {
           if (queue.length > 0) {
             playIndex(0);
@@ -244,7 +262,10 @@ export const usePlayerStore = create<PlayerState>()(
         set({ isPlaying: newPlayingState });
         try {
           if (newPlayingState) {
-            await invoke('resume_audio');
+            await invoke('play_audio', { path: currentTrack.path, replayGainDb: currentTrack.replay_gain_db || 0 });
+            if (currentTime > 0) {
+              await invoke('seek_audio', { positionSecs: currentTime });
+            }
           } else {
             await invoke('pause_audio');
           }
@@ -291,7 +312,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       nextTrack: async () => {
-        const { userQueue, currentIndex, queue, repeatMode, shuffleEnabled, shuffleHistory, playIndex, seek, onTrackFinished } = get();
+        const { userQueue, currentIndex, queue, repeatMode, playIndex, seek, onTrackFinished } = get();
         onTrackFinished();
 
         // Repeat One: replay current track
@@ -327,16 +348,6 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         if (queue.length === 0) return;
-
-        if (shuffleEnabled) {
-          // Pick a random track that isn't the current one
-          const availableIndices = Array.from({ length: queue.length }, (_, i) => i).filter((i) => i !== currentIndex);
-          if (availableIndices.length === 0) return;
-          const randomIdx = availableIndices[Math.floor(Math.random() * availableIndices.length)];
-          set({ shuffleHistory: [...shuffleHistory, randomIdx] });
-          playIndex(randomIdx);
-          return;
-        }
 
         const nextIdx = currentIndex + 1;
         if (nextIdx >= queue.length) {
@@ -464,7 +475,37 @@ export const usePlayerStore = create<PlayerState>()(
       toggleAutoHideLyricsControls: () => set((state) => ({ autoHideLyricsControls: !state.autoHideLyricsControls })),
 
       // Shuffle & Repeat
-      toggleShuffle: () => set((state) => ({ shuffleEnabled: !state.shuffleEnabled })),
+      toggleShuffle: () =>
+        set((state) => {
+          const newShuffle = !state.shuffleEnabled;
+          if (newShuffle) {
+            const currentObj = state.currentTrack;
+            const sourceQueue = state.queue.length > 0 ? state.queue : state.tracks;
+            const remaining = sourceQueue.filter((t) => t.id !== currentObj?.id);
+            for (let i = remaining.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+            }
+            const shuffledQueue = currentObj ? [currentObj, ...remaining] : remaining;
+            return {
+              shuffleEnabled: true,
+              originalQueue: [...sourceQueue],
+              queue: shuffledQueue,
+              currentIndex: 0,
+            };
+          } else {
+            const orig = state.originalQueue.length > 0 ? state.originalQueue : state.queue;
+            const restoredIdx = state.currentTrack
+              ? orig.findIndex((t) => t.id === state.currentTrack?.id)
+              : 0;
+            return {
+              shuffleEnabled: false,
+              queue: orig,
+              currentIndex: restoredIdx >= 0 ? restoredIdx : 0,
+              originalQueue: [],
+            };
+          }
+        }),
 
       cycleRepeatMode: () =>
         set((state) => {

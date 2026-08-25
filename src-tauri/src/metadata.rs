@@ -69,6 +69,102 @@ pub fn extract_track_art(path_str: &str) -> Option<String> {
     None
 }
 
+/// On-demand lyrics extraction from a FLAC file.
+/// Reads directly from disk, bypassing any cached library.json.
+pub fn extract_track_lyrics(path_str: &str) -> Option<String> {
+    let path = Path::new(path_str);
+
+    // Primary: Read from Vorbis comments via metaflac
+    if let Ok(tag) = Tag::read_from_path(path) {
+        if let Some(c) = tag.vorbis_comments() {
+            let mut best_lyrics = None;
+            let mut best_score = 0;
+
+            for (key, values) in &c.comments {
+                let key_upper = key.to_uppercase();
+
+                let score = if key_upper == "SYNCEDLYRICS" {
+                    10
+                } else if key_upper.contains("SYNCED") && !key_upper.contains("UNSYNCED") {
+                    9
+                } else if key_upper == "USLT" {
+                    5
+                } else if key_upper.contains("LYRIC") {
+                    4
+                } else if key_upper.contains("UNSYNCED") {
+                    3
+                } else if key_upper.contains("TEXT") {
+                    1
+                } else {
+                    0
+                };
+
+                if score > best_score {
+                    if let Some(l) = values.first() {
+                        let cleaned = l.trim_matches('\0').trim();
+                        if !cleaned.is_empty() {
+                            best_score = score;
+                            best_lyrics = Some(cleaned.to_string());
+                        }
+                    }
+                }
+            }
+            if best_lyrics.is_some() {
+                return best_lyrics;
+            }
+        }
+    }
+
+    // Fallback: Probe via Symphonia for ID3v2 / embedded metadata
+    if let Ok(file) = std::fs::File::open(path) {
+        let mss = symphonia::core::io::MediaSourceStream::new(Box::new(file), Default::default());
+        let mut hint = symphonia::core::probe::Hint::new();
+        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+            hint.with_extension(ext);
+        }
+        if let Ok(probed) = symphonia::default::get_probe().format(&hint, mss, &Default::default(), &Default::default()) {
+            let mut reader = probed.format;
+            if let Some(metadata) = reader.metadata().current() {
+                let mut best_lyrics = None;
+                let mut best_score = 0;
+
+                for t in metadata.tags() {
+                    let std_key_str = format!("{:?}", t.std_key).to_uppercase();
+                    let key_name = t.key.to_uppercase();
+
+                    let score = if key_name == "SYNCEDLYRICS" || std_key_str.contains("SYNCED") {
+                        10
+                    } else if key_name.contains("SYNCED") && !key_name.contains("UNSYNCED") {
+                        9
+                    } else if key_name == "USLT" {
+                        5
+                    } else if key_name.contains("LYRIC") || std_key_str.contains("LYRICS") {
+                        4
+                    } else if key_name.contains("UNSYNCED") {
+                        3
+                    } else {
+                        0
+                    };
+
+                    if score > best_score {
+                        let val = t.value.to_string();
+                        let cleaned = val.trim_matches('\0').trim();
+                        if !cleaned.is_empty() {
+                            best_score = score;
+                            best_lyrics = Some(cleaned.to_string());
+                        }
+                    }
+                }
+                if best_lyrics.is_some() {
+                    return best_lyrics;
+                }
+            }
+        }
+    }
+
+    None
+}
+
 pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
     let tag = Tag::read_from_path(path).ok()?;
     let comments = tag.vorbis_comments();

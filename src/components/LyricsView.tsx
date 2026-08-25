@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
 import { parse } from 'clrc';
 import { createRomanizer } from 'lyric-romanizer';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { invoke } from '@tauri-apps/api/core';
 import {
   Mic2,
   Settings2,
@@ -17,6 +18,11 @@ import {
   SkipForward,
   Volume2,
   VolumeX,
+  Shuffle,
+  Repeat,
+  Repeat1,
+  ChevronRight,
+  ChevronLeft,
 } from 'lucide-react';
 
 const romanizer = createRomanizer();
@@ -53,6 +59,10 @@ export const LyricsView: React.FC = () => {
     activeTab,
     setActiveTab,
     seek,
+    shuffleEnabled,
+    toggleShuffle,
+    repeatMode,
+    cycleRepeatMode,
   } = usePlayerStore();
 
   const trackArt = useTrackArt(currentTrack);
@@ -64,9 +74,34 @@ export const LyricsView: React.FC = () => {
   const [controlsVisible, setControlsVisible] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [prevVol, setPrevVol] = useState(volume);
+  const [artExpanded, setArtExpanded] = useState(false);
+
+  // Local drag state for butter-smooth seeking
+  const [isDraggingSeek, setIsDraggingSeek] = useState(false);
+  const [dragSeekVal, setDragSeekVal] = useState<number | null>(null);
 
   const activeLineRef = useRef<HTMLDivElement | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [windowHeight, setWindowHeight] = useState(window.innerHeight);
+
+  // Tooltip refs for zero-render-lag
+  const seekTooltipRef = useRef<HTMLDivElement>(null);
+  const volTooltipRef = useRef<HTMLDivElement>(null);
+
+  // Track window height for dynamic text sizing
+  useEffect(() => {
+    const handleResize = () => setWindowHeight(window.innerHeight);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Compute dynamic font sizes based on window height
+  // Goal: show ~5 lines (prev 2, current, next 2) comfortably
+  const lyricsAreaHeight = windowHeight * 0.55; // rough middle area height
+  const lineHeight = lyricsAreaHeight / 5;
+  const activeFontSize = Math.max(28, Math.min(52, lineHeight * 0.5));
+  const inactiveFontSize = Math.max(18, Math.min(32, lineHeight * 0.35));
 
   // Auto-hide controls logic on mouse idle
   useEffect(() => {
@@ -92,32 +127,51 @@ export const LyricsView: React.FC = () => {
     };
   }, [autoHideLyricsControls]);
 
-  // 1. Fetch raw lyrics when currentTrack changes or when initializing
+  // 1. Fetch raw lyrics when currentTrack changes
   useEffect(() => {
     if (!currentTrack) {
       setRawLrc('');
       return;
     }
 
+    // First: try embedded lyrics from track metadata
     if (currentTrack.unsynced_lyrics) {
       setRawLrc(currentTrack.unsynced_lyrics);
       return;
     }
 
-    if (lrclibAutoFetch) {
+    // Second: try on-demand lyrics extraction from the FLAC file directly
+    const fetchFromFile = async () => {
       setIsLoading(true);
-      fetchLrclibLyrics(
-        currentTrack.title,
-        currentTrack.artist,
-        currentTrack.album,
-        currentTrack.duration_secs
-      ).then((fetched) => {
-        setIsLoading(false);
+      try {
+        if (window.__TAURI_INTERNALS__) {
+          const lyrics: string | null = await invoke('get_track_lyrics', { path: currentTrack.path });
+          if (lyrics && lyrics.trim()) {
+            setRawLrc(lyrics);
+            setIsLoading(false);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('On-demand lyrics fetch error:', e);
+      }
+
+      // Third: try LRCLIB online fetch
+      if (lrclibAutoFetch) {
+        const fetched = await fetchLrclibLyrics(
+          currentTrack.title,
+          currentTrack.artist,
+          currentTrack.album,
+          currentTrack.duration_secs
+        );
         if (fetched) {
           setRawLrc(fetched);
         }
-      });
-    }
+      }
+      setIsLoading(false);
+    };
+
+    fetchFromFile();
   }, [currentTrack?.id]);
 
   // 2. Parse & Romanize lines locally whenever rawLrc or isRomanizationEnabled changes
@@ -238,6 +292,43 @@ export const LyricsView: React.FC = () => {
     }
   };
 
+  const currentSeekDisplay = isDraggingSeek && dragSeekVal !== null ? dragSeekVal : currentTime;
+  const seekPercent = duration > 0 ? Math.min(100, Math.max(0, (currentSeekDisplay / duration) * 100)) : 0;
+  const effectiveVol = isMuted ? 0 : volume;
+  const volPercent = Math.min(100, Math.max(0, effectiveVol * 100));
+
+  // Zero-render-lag tooltip handlers
+  const handleSeekMouseMove = useCallback((e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const time = pct * (duration || 0);
+    if (seekTooltipRef.current) {
+      seekTooltipRef.current.style.left = `${e.clientX - rect.left}px`;
+      seekTooltipRef.current.style.opacity = '1';
+      seekTooltipRef.current.textContent = formatTime(time);
+    }
+  }, [duration]);
+
+  const handleSeekMouseLeave = useCallback(() => {
+    if (seekTooltipRef.current) seekTooltipRef.current.style.opacity = '0';
+  }, []);
+
+  const handleVolMouseMove = useCallback((e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * 100;
+    if (volTooltipRef.current) {
+      volTooltipRef.current.style.left = `${e.clientX - rect.left}px`;
+      volTooltipRef.current.style.opacity = '1';
+      volTooltipRef.current.textContent = `${Math.round(pct)}%`;
+    }
+  }, []);
+
+  const handleVolMouseLeave = useCallback(() => {
+    if (volTooltipRef.current) volTooltipRef.current.style.opacity = '0';
+  }, []);
+
+  const RepeatIcon = repeatMode === 'one' ? Repeat1 : Repeat;
+
   return (
     <div className="fixed inset-0 z-40 bg-zinc-950/95 backdrop-blur-3xl flex flex-col justify-between p-8 overflow-hidden select-none">
       {/* Background Cover Art Glow */}
@@ -357,7 +448,10 @@ export const LyricsView: React.FC = () => {
       )}
 
       {/* Main Lyrics Display Area */}
-      <div className="flex-1 overflow-y-auto my-4 px-4 custom-scrollbar flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-10">
+      <div
+        ref={containerRef}
+        className="flex-1 overflow-y-auto my-4 px-4 custom-scrollbar flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-10"
+      >
         {isLoading ? (
           <div className="flex flex-col items-center gap-3 my-auto">
             <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
@@ -393,14 +487,18 @@ export const LyricsView: React.FC = () => {
                   opacity: isActive ? 1 : 0.35,
                   scale: isActive ? (isUnsynced ? 1 : 1.05) : 0.98,
                 }}
-                transition={{ duration: 0.2 }}
-                className={`text-center cursor-pointer max-w-3xl px-6 py-2 rounded-2xl transition-colors ${
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+                className={`text-center cursor-pointer max-w-4xl px-6 py-2 rounded-2xl transition-colors ${
                   isActive && !isUnsynced
-                    ? 'text-white font-extrabold text-2xl md:text-3xl drop-shadow-[0_0_25px_rgba(99,102,241,0.6)]'
+                    ? 'text-white font-extrabold drop-shadow-[0_0_25px_rgba(99,102,241,0.6)]'
                     : isUnsynced
-                    ? 'text-zinc-200 font-medium text-lg md:text-xl'
-                    : 'text-zinc-400 hover:text-zinc-200 font-medium text-lg md:text-xl'
+                    ? 'text-zinc-200 font-medium'
+                    : 'text-zinc-400 hover:text-zinc-200 font-medium'
                 }`}
+                style={{
+                  fontSize: isActive && !isUnsynced ? `${activeFontSize}px` : `${inactiveFontSize}px`,
+                  lineHeight: 1.3,
+                }}
                 onClick={() => {
                   if (typeof line.startSecs === 'number' && !isNaN(line.startSecs) && !isUnsynced) {
                     seek(line.startSecs);
@@ -409,7 +507,10 @@ export const LyricsView: React.FC = () => {
               >
                 <div>{mainText}</div>
                 {subText && (
-                  <div className="text-xs md:text-sm font-mono text-indigo-300/80 font-normal mt-1">
+                  <div
+                    className="font-mono text-indigo-300/80 font-normal mt-1"
+                    style={{ fontSize: `${Math.max(12, inactiveFontSize * 0.6)}px` }}
+                  >
                     {subText}
                   </div>
                 )}
@@ -418,6 +519,41 @@ export const LyricsView: React.FC = () => {
           })
         )}
       </div>
+
+      {/* Expandable Album Art (Bottom Right) */}
+      {trackArt && currentTrack && (
+        <AnimatePresence>
+          <motion.div
+            className="fixed bottom-36 right-8 z-50 group cursor-pointer"
+            initial={false}
+            animate={{
+              width: artExpanded ? 280 : 120,
+              height: artExpanded ? 280 : 120,
+            }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          >
+            <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+              <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setArtExpanded(!artExpanded);
+                }}
+                className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/30 transition-colors"
+                title={artExpanded ? 'Collapse' : 'Expand'}
+              >
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-2">
+                  {artExpanded ? (
+                    <ChevronRight className="w-5 h-5 text-white" />
+                  ) : (
+                    <ChevronLeft className="w-5 h-5 text-white" />
+                  )}
+                </div>
+              </button>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      )}
 
       {/* Footer Playback Controls & Track Info (Fades on idle) */}
       <motion.div
@@ -430,43 +566,63 @@ export const LyricsView: React.FC = () => {
           controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
         }`}
       >
-        {/* Seek Bar */}
+        {/* Material 3 Expressive Seek Bar with Hover Tooltip */}
         <div className="w-full flex items-center gap-3 text-xs font-mono text-zinc-400 max-w-2xl mx-auto">
-          <span>{formatTime(currentTime)}</span>
-          <input
-            type="range"
-            min={0}
-            max={duration || 100}
-            value={currentTime}
-            onChange={(e) => seek(parseFloat(e.target.value))}
-            className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400"
-          />
+          <span>{formatTime(currentSeekDisplay)}</span>
+          <div
+            className="relative flex-1 h-4 flex items-center group cursor-pointer"
+            onMouseMove={handleSeekMouseMove}
+            onMouseLeave={handleSeekMouseLeave}
+          >
+            <div
+              ref={seekTooltipRef}
+              className="absolute -top-7 transform -translate-x-1/2 px-2 py-0.5 rounded-md bg-indigo-600 text-[10px] font-mono font-bold text-white shadow-lg shadow-indigo-950/80 pointer-events-none z-30 border border-indigo-400/30 whitespace-nowrap"
+              style={{ opacity: 0, transition: 'opacity 0.1s' }}
+            />
+            <input
+              type="range"
+              min={0}
+              max={duration || 100}
+              step={0.1}
+              value={currentSeekDisplay}
+              onMouseDown={() => setIsDraggingSeek(true)}
+              onMouseUp={(e) => {
+                setIsDraggingSeek(false);
+                seek(parseFloat((e.target as HTMLInputElement).value));
+                setDragSeekVal(null);
+              }}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                setDragSeekVal(val);
+                if (!isDraggingSeek) {
+                  seek(val);
+                }
+              }}
+              style={{
+                background: `linear-gradient(to right, #818cf8 0%, #c084fc ${seekPercent}%, #27272a ${seekPercent}%)`,
+              }}
+              className="w-full h-2 group-hover:h-3 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3 shadow-sm"
+            />
+          </div>
           <span>{formatTime(duration)}</span>
         </div>
 
         {/* Track Details & Playback Controls */}
         <div className="flex items-center justify-between">
-          {/* Left Track Info */}
+          {/* Left Track Info + Audio Specs */}
           <div className="flex items-center gap-4 w-1/3 min-w-[200px]">
             {currentTrack ? (
               <>
-                <div className="w-12 h-12 rounded-xl overflow-hidden bg-zinc-800 border border-white/10 shadow-md shrink-0">
-                  {currentTrack.embedded_art_base64 ? (
-                    <img
-                      src={currentTrack.embedded_art_base64}
-                      alt={currentTrack.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-indigo-900 flex items-center justify-center">
-                      <Mic2 className="w-6 h-6 text-indigo-300" />
-                    </div>
-                  )}
-                </div>
                 <div className="min-w-0">
                   <h4 className="font-bold text-sm text-white truncate">{currentTrack.title}</h4>
                   <p className="text-xs text-zinc-400 truncate">{currentTrack.artist}</p>
                 </div>
+                {showAudioSpecs && (
+                  <div className="text-xs font-mono text-zinc-400 bg-white/5 px-3 py-1 rounded-xl border border-white/10 shrink-0">
+                    {currentTrack.bit_rate_kbps ? `${currentTrack.bit_rate_kbps} kb/s • ` : ''}
+                    {(currentTrack.sample_rate / 1000).toFixed(1)} kHz
+                  </div>
+                )}
               </>
             ) : (
               <span className="text-xs text-zinc-500 italic">No track playing</span>
@@ -474,7 +630,17 @@ export const LyricsView: React.FC = () => {
           </div>
 
           {/* Center Transport Controls */}
-          <div className="flex items-center gap-6 justify-center w-1/3">
+          <div className="flex items-center gap-4 justify-center w-1/3">
+            <button
+              onClick={toggleShuffle}
+              className={`p-1.5 rounded-lg transition-all ${
+                shuffleEnabled ? 'text-indigo-400 bg-indigo-500/15' : 'text-zinc-400 hover:text-white'
+              }`}
+              title={shuffleEnabled ? 'Shuffle On' : 'Shuffle Off'}
+            >
+              <Shuffle className="w-4 h-4" />
+            </button>
+
             <button
               onClick={previousTrack}
               className="text-zinc-400 hover:text-white transition-colors p-1"
@@ -495,34 +661,60 @@ export const LyricsView: React.FC = () => {
             >
               <SkipForward className="w-5 h-5" />
             </button>
+
+            <button
+              onClick={cycleRepeatMode}
+              className={`p-1.5 rounded-lg transition-all ${
+                repeatMode !== 'off' ? 'text-indigo-400 bg-indigo-500/15' : 'text-zinc-400 hover:text-white'
+              }`}
+              title={repeatMode === 'off' ? 'Repeat Off' : repeatMode === 'all' ? 'Repeat All' : 'Repeat One'}
+            >
+              <RepeatIcon className="w-4 h-4" />
+            </button>
           </div>
 
-          {/* Right Volume & Audio Specs */}
-          <div className="flex items-center justify-end gap-4 w-1/3 min-w-[200px]">
-            {showAudioSpecs && currentTrack && (
-              <div className="text-xs font-mono text-zinc-400 bg-white/5 px-3 py-1 rounded-xl border border-white/10">
-                {currentTrack.bit_rate_kbps ? `${currentTrack.bit_rate_kbps} kb/s • ` : ''}
-                {(currentTrack.sample_rate / 1000).toFixed(1)} kHz
-              </div>
-            )}
-
+          {/* Right Volume & Lyrics Exit */}
+          <div className="flex items-center justify-end gap-3 w-1/3 min-w-[200px]">
             <div className="flex items-center gap-2">
               <button onClick={handleMuteToggle} className="text-zinc-400 hover:text-white transition-colors">
                 {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
               </button>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={isMuted ? 0 : volume}
-                onChange={(e) => {
-                  setVolume(parseFloat(e.target.value));
-                  if (isMuted) setIsMuted(false);
-                }}
-                className="w-20 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400"
-              />
+              <div
+                className="relative w-20 h-4 flex items-center group cursor-pointer"
+                onMouseMove={handleVolMouseMove}
+                onMouseLeave={handleVolMouseLeave}
+              >
+                <div
+                  ref={volTooltipRef}
+                  className="absolute -top-7 transform -translate-x-1/2 px-1.5 py-0.5 rounded-md bg-cyan-600 text-[10px] font-mono font-bold text-white shadow-lg shadow-cyan-950/80 pointer-events-none z-30 border border-cyan-400/30 whitespace-nowrap"
+                  style={{ opacity: 0, transition: 'opacity 0.1s' }}
+                />
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={effectiveVol}
+                  onChange={(e) => {
+                    setVolume(parseFloat(e.target.value));
+                    if (isMuted) setIsMuted(false);
+                  }}
+                  style={{
+                    background: `linear-gradient(to right, #38bdf8 0%, #818cf8 ${volPercent}%, #27272a ${volPercent}%)`,
+                  }}
+                  className="w-full h-2 group-hover:h-3 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3 shadow-sm"
+                />
+              </div>
             </div>
+
+            {/* Lyrics Exit Button (always visible in lyrics view) */}
+            <button
+              onClick={handleClose}
+              className="p-2 rounded-xl bg-indigo-600 text-white shadow-md hover:bg-indigo-500 transition-all"
+              title="Exit Lyrics"
+            >
+              <Mic2 className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </motion.div>

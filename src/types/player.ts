@@ -17,6 +17,15 @@ export interface Track {
 
 export type ActiveTab = 'library' | 'playlists' | 'liked' | 'albums' | 'folders' | 'lyrics' | 'settings';
 
+export type RepeatMode = 'off' | 'all' | 'one';
+
+export interface Playlist {
+  id: string;
+  name: string;
+  trackIds: string[];
+  createdAt: number;
+}
+
 export interface SleepTimer {
   active: boolean;
   mode: 'time' | 'tracks';

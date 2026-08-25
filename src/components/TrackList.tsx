@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { Track } from '../types/player';
-import { Play, Pause, Heart, MoreVertical, Music, ListPlus, Radio, Sparkles, Check } from 'lucide-react';
+import { Play, Pause, Heart, MoreVertical, Music, ListPlus, Radio, Sparkles, Check, FolderPlus } from 'lucide-react';
 
 interface TrackListProps {
   tracks: Track[];
@@ -22,6 +22,7 @@ const TrackRow: React.FC<{
   addToQueue: (track: Track) => void;
   playNext: (track: Track) => void;
   allTracks: Track[];
+  showAudioSpecsInLibrary: boolean;
 }> = ({
   track,
   idx,
@@ -36,9 +37,13 @@ const TrackRow: React.FC<{
   addToQueue,
   playNext,
   allTracks,
+  showAudioSpecsInLibrary,
 }) => {
   const art = useTrackArt(track);
   const [addedToast, setAddedToast] = useState(false);
+  const [showPlaylistSub, setShowPlaylistSub] = useState(false);
+  const playlists = usePlayerStore((s) => s.playlists);
+  const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
 
   const formatDuration = (secs: number) => {
     if (!secs || isNaN(secs)) return '0:00';
@@ -68,10 +73,14 @@ const TrackRow: React.FC<{
     setTimeout(() => setAddedToast(false), 1500);
   };
 
+  const gridCols = showAudioSpecsInLibrary
+    ? 'grid-cols-[48px_1fr_1fr_120px_90px_80px]'
+    : 'grid-cols-[48px_1fr_1fr_90px_80px]';
+
   return (
     <div
       onClick={() => playTrack(track, allTracks)}
-      className={`group grid grid-cols-[48px_1fr_1fr_120px_90px_80px] items-center px-4 py-3 rounded-xl cursor-pointer transition-all duration-150 relative ${
+      className={`group grid ${gridCols} items-center px-4 py-3 rounded-xl cursor-pointer transition-all duration-150 relative ${
         isSelected
           ? 'bg-indigo-600/20 border border-indigo-500/30 text-white shadow-lg shadow-indigo-950/40'
           : 'hover:bg-white/5 text-zinc-300 hover:text-white border border-transparent'
@@ -126,19 +135,21 @@ const TrackRow: React.FC<{
       {/* Album */}
       <div className="text-xs text-zinc-400 truncate pr-4">{track.album}</div>
 
-      {/* Audio Format Badge */}
-      <div className="flex items-center gap-1.5">
-        <span
-          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono font-semibold tracking-tight ${
-            hiRes
-              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-              : 'bg-zinc-800 text-zinc-300 border border-white/5'
-          }`}
-        >
-          {hiRes && <Sparkles className="w-3 h-3 text-amber-400" />}
-          {formatSampleRate(track.sample_rate)} / {track.bit_depth || 16}b
-        </span>
-      </div>
+      {/* Audio Format Badge (conditionally shown) */}
+      {showAudioSpecsInLibrary && (
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono font-semibold tracking-tight ${
+              hiRes
+                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                : 'bg-zinc-800 text-zinc-300 border border-white/5'
+            }`}
+          >
+            {hiRes && <Sparkles className="w-3 h-3 text-amber-400" />}
+            {formatSampleRate(track.sample_rate)} / {track.bit_depth || 16}b
+          </span>
+        </div>
+      )}
 
       {/* Duration & ReplayGain badge */}
       <div className="flex flex-col text-xs font-mono text-zinc-400">
@@ -172,7 +183,10 @@ const TrackRow: React.FC<{
 
                 <div className="relative">
                   <button
-                    onClick={() => setActiveMenuTrackId(activeMenuTrackId === track.id ? null : track.id)}
+                    onClick={() => {
+                      setActiveMenuTrackId(activeMenuTrackId === track.id ? null : track.id);
+                      setShowPlaylistSub(false);
+                    }}
                     className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/10"
                   >
                     <MoreVertical className="w-4 h-4" />
@@ -181,8 +195,11 @@ const TrackRow: React.FC<{
                   {/* Dropdown Menu */}
                   {activeMenuTrackId === track.id && (
                     <div
-                      className="absolute right-0 top-8 w-44 glass-panel border border-white/10 rounded-xl shadow-2xl py-1 z-30 flex flex-col"
-                      onMouseLeave={() => setActiveMenuTrackId(null)}
+                      className="absolute right-0 top-8 w-48 glass-panel border border-white/10 rounded-xl shadow-2xl py-1 z-30 flex flex-col"
+                      onMouseLeave={() => {
+                        setActiveMenuTrackId(null);
+                        setShowPlaylistSub(false);
+                      }}
                     >
                       <button
                         onClick={() => {
@@ -204,6 +221,37 @@ const TrackRow: React.FC<{
                         <ListPlus className="w-3.5 h-3.5 text-emerald-400" />
                         Add to Queue
                       </button>
+                      {/* Add to Playlist submenu */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowPlaylistSub(!showPlaylistSub)}
+                          className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left w-full"
+                        >
+                          <FolderPlus className="w-3.5 h-3.5 text-purple-400" />
+                          Add to Playlist
+                        </button>
+                        {showPlaylistSub && (
+                          <div className="absolute left-full top-0 w-44 glass-panel border border-white/10 rounded-xl shadow-2xl py-1 z-40 flex flex-col ml-1">
+                            {playlists.length === 0 ? (
+                              <span className="px-3 py-2 text-xs text-zinc-500 italic">No playlists yet</span>
+                            ) : (
+                              playlists.map((pl) => (
+                                <button
+                                  key={pl.id}
+                                  onClick={() => {
+                                    addTrackToPlaylist(pl.id, track.id);
+                                    setActiveMenuTrackId(null);
+                                    setShowPlaylistSub(false);
+                                  }}
+                                  className="px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left truncate"
+                                >
+                                  {pl.name}
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -221,16 +269,21 @@ export const TrackList: React.FC<TrackListProps> = ({ tracks }) => {
   const toggleLikeTrack = usePlayerStore((s) => s.toggleLikeTrack);
   const addToQueue = usePlayerStore((s) => s.addToQueue);
   const playNext = usePlayerStore((s) => s.playNext);
+  const showAudioSpecsInLibrary = usePlayerStore((s) => s.showAudioSpecsInLibrary);
   const [activeMenuTrackId, setActiveMenuTrackId] = useState<string | null>(null);
+
+  const gridCols = showAudioSpecsInLibrary
+    ? 'grid-cols-[48px_1fr_1fr_120px_90px_80px]'
+    : 'grid-cols-[48px_1fr_1fr_90px_80px]';
 
   return (
     <div className="w-full flex flex-col gap-2">
       {/* Table Header */}
-      <div className="grid grid-cols-[48px_1fr_1fr_120px_90px_80px] items-center px-4 py-2 text-xs font-semibold text-zinc-400 uppercase tracking-wider border-b border-white/5">
+      <div className={`grid ${gridCols} items-center px-4 py-2 text-xs font-semibold text-zinc-400 uppercase tracking-wider border-b border-white/5`}>
         <span className="text-center">#</span>
         <span>Title</span>
         <span>Album</span>
-        <span>Audio Format</span>
+        {showAudioSpecsInLibrary && <span>Audio Format</span>}
         <span>Duration</span>
         <span className="text-right">Actions</span>
       </div>
@@ -265,6 +318,7 @@ export const TrackList: React.FC<TrackListProps> = ({ tracks }) => {
             addToQueue={addToQueue}
             playNext={playNext}
             allTracks={tracks}
+            showAudioSpecsInLibrary={showAudioSpecsInLibrary}
           />
         ))
       )}

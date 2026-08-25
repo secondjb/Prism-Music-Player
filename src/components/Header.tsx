@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { Search, Settings } from 'lucide-react';
 
@@ -7,6 +7,33 @@ export const Header: React.FC = () => {
   const setSearchQuery = usePlayerStore((s) => s.setSearchQuery);
   const activeTab = usePlayerStore((s) => s.activeTab);
   const setActiveTab = usePlayerStore((s) => s.setActiveTab);
+
+  // Local input value for instant response + debounced store update
+  const [inputValue, setInputValue] = useState(searchQuery);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync local value when the store query changes externally (e.g. clear)
+  useEffect(() => {
+    setInputValue(searchQuery);
+  }, [searchQuery]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputValue(val);
+
+    // Debounce the store update to avoid re-rendering the entire track list on every keystroke
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSearchQuery(val);
+    }, 200);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const getTitle = () => {
     switch (activeTab) {
@@ -44,8 +71,8 @@ export const Header: React.FC = () => {
           <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={inputValue}
+            onChange={handleChange}
             placeholder="Search tracks, artists, albums..."
             className="w-full bg-white/5 border border-white/10 focus:border-indigo-500 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none transition-colors"
           />

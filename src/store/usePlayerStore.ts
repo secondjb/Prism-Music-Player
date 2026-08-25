@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Track, ActiveTab, SleepTimer } from '../types/player';
+import { Track, ActiveTab, SleepTimer, RepeatMode, Playlist } from '../types/player';
 import { invoke } from '@tauri-apps/api/core';
 
 interface PlayerState {
@@ -23,9 +23,19 @@ interface PlayerState {
   isRomanizationEnabled: boolean;
   romanizationMode: 'below' | 'replace';
   showAudioSpecs: boolean;
+  showAudioSpecsInLibrary: boolean;
   autoHideLyricsControls: boolean;
   includedDirectories: string[];
   excludedDirectories: string[];
+
+  // Shuffle & Repeat
+  shuffleEnabled: boolean;
+  repeatMode: RepeatMode;
+  shuffleHistory: number[];
+
+  // Playlists
+  playlists: Playlist[];
+  activePlaylistId: string | null;
 
   // Library folder actions
   addIncludedDirectory: (dir: string) => Promise<void>;
@@ -61,8 +71,22 @@ interface PlayerState {
   toggleRomanization: () => void;
   setRomanizationMode: (mode: 'below' | 'replace') => void;
   toggleShowAudioSpecs: () => void;
+  toggleShowAudioSpecsInLibrary: () => void;
   toggleAutoHideLyricsControls: () => void;
-  
+
+  // Shuffle & Repeat actions
+  toggleShuffle: () => void;
+  cycleRepeatMode: () => void;
+
+  // Playlist actions
+  createPlaylist: (name: string) => void;
+  deletePlaylist: (id: string) => void;
+  renamePlaylist: (id: string, name: string) => void;
+  addTrackToPlaylist: (playlistId: string, trackId: string) => void;
+  removeTrackFromPlaylist: (playlistId: string, trackId: string) => void;
+  reorderPlaylistTracks: (playlistId: string, fromIdx: number, toIdx: number) => void;
+  setActivePlaylistId: (id: string | null) => void;
+
   // Reset & Wipe Action
   wipeDataAndReset: () => Promise<void>;
 
@@ -100,9 +124,19 @@ export const usePlayerStore = create<PlayerState>()(
       isRomanizationEnabled: true,
       romanizationMode: 'below',
       showAudioSpecs: true,
+      showAudioSpecsInLibrary: false,
       autoHideLyricsControls: true,
       includedDirectories: [],
       excludedDirectories: [],
+
+      // Shuffle & Repeat
+      shuffleEnabled: false,
+      repeatMode: 'off',
+      shuffleHistory: [],
+
+      // Playlists
+      playlists: [],
+      activePlaylistId: null,
 
       addIncludedDirectory: async (dir) => {
         const { includedDirectories, rescanConfiguredLibraries } = get();
@@ -154,7 +188,6 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
-      // ... rest of implementation stays identical ...
       setTracks: (tracks) => set({ tracks }),
 
       playTrack: async (track, contextTracks) => {
@@ -171,6 +204,7 @@ export const usePlayerStore = create<PlayerState>()(
           duration: track.duration_secs,
           currentTime: 0,
           isPlaying: true,
+          shuffleHistory: [index],
         });
         try {
           await invoke('play_audio', { path: track.path, replayGainDb: track.replay_gain_db || 0 });
@@ -257,8 +291,21 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       nextTrack: async () => {
-        const { userQueue, currentIndex, queue, playIndex, onTrackFinished } = get();
+        const { userQueue, currentIndex, queue, repeatMode, shuffleEnabled, shuffleHistory, playIndex, seek, onTrackFinished } = get();
         onTrackFinished();
+
+        // Repeat One: replay current track
+        if (repeatMode === 'one') {
+          seek(0);
+          set({ isPlaying: true });
+          try {
+            await invoke('seek_audio', { positionSecs: 0 });
+            await invoke('resume_audio');
+          } catch (e) {
+            console.warn('Rust seek error:', e);
+          }
+          return;
+        }
 
         // Priority User Queue takes precedence over context queue
         if (userQueue.length > 0) {
@@ -280,17 +327,53 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         if (queue.length === 0) return;
-        const nextIdx = (currentIndex + 1) % queue.length;
-        playIndex(nextIdx);
+
+        if (shuffleEnabled) {
+          // Pick a random track that isn't the current one
+          const availableIndices = Array.from({ length: queue.length }, (_, i) => i).filter((i) => i !== currentIndex);
+          if (availableIndices.length === 0) return;
+          const randomIdx = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+          set({ shuffleHistory: [...shuffleHistory, randomIdx] });
+          playIndex(randomIdx);
+          return;
+        }
+
+        const nextIdx = currentIndex + 1;
+        if (nextIdx >= queue.length) {
+          if (repeatMode === 'all') {
+            playIndex(0);
+          } else {
+            // repeatMode === 'off': stop at end
+            set({ isPlaying: false });
+            try {
+              await invoke('pause_audio');
+            } catch (e) {
+              console.warn('Rust pause error:', e);
+            }
+          }
+        } else {
+          playIndex(nextIdx);
+        }
       },
 
       previousTrack: () => {
-        const { currentIndex, queue, currentTime, seek, playIndex } = get();
+        const { currentIndex, queue, currentTime, seek, playIndex, shuffleEnabled, shuffleHistory } = get();
         if (currentTime > 3) {
           seek(0);
           return;
         }
         if (queue.length === 0) return;
+
+        if (shuffleEnabled && shuffleHistory.length > 1) {
+          // Go back in shuffle history
+          const newHistory = [...shuffleHistory];
+          newHistory.pop(); // Remove current
+          const prevIdx = newHistory[newHistory.length - 1];
+          set({ shuffleHistory: newHistory });
+          playIndex(prevIdx);
+          return;
+        }
+
         const prevIdx = currentIndex > 0 ? currentIndex - 1 : queue.length - 1;
         playIndex(prevIdx);
       },
@@ -376,7 +459,75 @@ export const usePlayerStore = create<PlayerState>()(
 
       toggleShowAudioSpecs: () => set((state) => ({ showAudioSpecs: !state.showAudioSpecs })),
 
+      toggleShowAudioSpecsInLibrary: () => set((state) => ({ showAudioSpecsInLibrary: !state.showAudioSpecsInLibrary })),
+
       toggleAutoHideLyricsControls: () => set((state) => ({ autoHideLyricsControls: !state.autoHideLyricsControls })),
+
+      // Shuffle & Repeat
+      toggleShuffle: () => set((state) => ({ shuffleEnabled: !state.shuffleEnabled })),
+
+      cycleRepeatMode: () =>
+        set((state) => {
+          const modes: RepeatMode[] = ['off', 'all', 'one'];
+          const currentIdx = modes.indexOf(state.repeatMode);
+          const nextMode = modes[(currentIdx + 1) % modes.length];
+          return { repeatMode: nextMode };
+        }),
+
+      // Playlist actions
+      createPlaylist: (name) => {
+        const id = `pl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        set((state) => ({
+          playlists: [...state.playlists, { id, name, trackIds: [], createdAt: Date.now() }],
+        }));
+      },
+
+      deletePlaylist: (id) => {
+        set((state) => ({
+          playlists: state.playlists.filter((p) => p.id !== id),
+          activePlaylistId: state.activePlaylistId === id ? null : state.activePlaylistId,
+        }));
+      },
+
+      renamePlaylist: (id, name) => {
+        set((state) => ({
+          playlists: state.playlists.map((p) => (p.id === id ? { ...p, name } : p)),
+        }));
+      },
+
+      addTrackToPlaylist: (playlistId, trackId) => {
+        set((state) => ({
+          playlists: state.playlists.map((p) =>
+            p.id === playlistId && !p.trackIds.includes(trackId)
+              ? { ...p, trackIds: [...p.trackIds, trackId] }
+              : p
+          ),
+        }));
+      },
+
+      removeTrackFromPlaylist: (playlistId, trackId) => {
+        set((state) => ({
+          playlists: state.playlists.map((p) =>
+            p.id === playlistId
+              ? { ...p, trackIds: p.trackIds.filter((id) => id !== trackId) }
+              : p
+          ),
+        }));
+      },
+
+      reorderPlaylistTracks: (playlistId, fromIdx, toIdx) => {
+        set((state) => ({
+          playlists: state.playlists.map((p) => {
+            if (p.id !== playlistId) return p;
+            const newTrackIds = [...p.trackIds];
+            const [moved] = newTrackIds.splice(fromIdx, 1);
+            newTrackIds.splice(toIdx, 0, moved);
+            return { ...p, trackIds: newTrackIds };
+          }),
+        }));
+      },
+
+      setActivePlaylistId: (id) => set({ activePlaylistId: id }),
 
       startSleepTimer: (mode, value) => {
         if (mode === 'time') {
@@ -471,6 +622,8 @@ export const usePlayerStore = create<PlayerState>()(
           includedDirectories: [],
           excludedDirectories: [],
           searchQuery: '',
+          playlists: [],
+          activePlaylistId: null,
           sleepTimer: {
             active: false,
             mode: 'time',
@@ -494,6 +647,7 @@ export const usePlayerStore = create<PlayerState>()(
         likedTrackIds: state.likedTrackIds,
         volume: state.volume,
         showAudioSpecs: state.showAudioSpecs,
+        showAudioSpecsInLibrary: state.showAudioSpecsInLibrary,
         isRomanizationEnabled: state.isRomanizationEnabled,
         romanizationMode: state.romanizationMode,
         autoHideLyricsControls: state.autoHideLyricsControls,
@@ -504,6 +658,9 @@ export const usePlayerStore = create<PlayerState>()(
         userQueue: state.userQueue,
         currentIndex: state.currentIndex,
         currentTrack: state.currentTrack,
+        shuffleEnabled: state.shuffleEnabled,
+        repeatMode: state.repeatMode,
+        playlists: state.playlists,
       }),
     }
   )

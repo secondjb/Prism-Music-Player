@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { Track } from '../types/player';
@@ -25,9 +25,10 @@ const QueueItemRow: React.FC<{
   isPlaying: boolean;
   onPlay: () => void;
   onRemove: () => void;
-  onDragStart?: (e: React.DragEvent, index: number) => void;
-  onDragOver?: (e: React.DragEvent, index: number) => void;
-  onDrop?: (e: React.DragEvent, index: number) => void;
+  onDragStart?: (idx: number) => void;
+  onDragEnter?: (idx: number) => void;
+  onDragEnd?: () => void;
+  onDrop?: (targetIdx: number) => void;
   isDragging?: boolean;
   isDragOver?: boolean;
 }> = ({
@@ -37,20 +38,50 @@ const QueueItemRow: React.FC<{
   onPlay,
   onRemove,
   onDragStart,
-  onDragOver,
+  onDragEnter,
+  onDragEnd,
   onDrop,
   isDragging,
   isDragOver,
 }) => {
   const art = useTrackArt(track);
   const isDraggable = Boolean(onDragStart);
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  const handleDragStart = (e: React.DragEvent) => {
+    if (!onDragStart) return;
+    // Set drag image to the entire row for a clean look
+    if (rowRef.current) {
+      e.dataTransfer.setDragImage(rowRef.current, 0, 0);
+    }
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(idx));
+    onDragStart(idx);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (onDragEnter) onDragEnter(idx);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (onDrop) onDrop(idx);
+  };
+
+  const handleDragEnd = () => {
+    if (onDragEnd) onDragEnd();
+  };
 
   return (
     <div
+      ref={rowRef}
       draggable={isDraggable}
-      onDragStart={(e) => onDragStart && onDragStart(e, idx)}
-      onDragOver={(e) => onDragOver && onDragOver(e, idx)}
-      onDrop={(e) => onDrop && onDrop(e, idx)}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onDragEnd={handleDragEnd}
       onClick={onPlay}
       className={`group flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
         isDragging ? 'opacity-40 border-dashed border-indigo-400' : ''
@@ -64,7 +95,10 @@ const QueueItemRow: React.FC<{
     >
       <div className="flex items-center gap-3 min-w-0">
         {isDraggable && (
-          <span className="cursor-grab active:cursor-grabbing text-zinc-500 group-hover:text-indigo-400 shrink-0 p-0.5 transition-colors">
+          <span
+            className="cursor-grab active:cursor-grabbing text-zinc-500 group-hover:text-indigo-400 shrink-0 p-0.5 transition-colors"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <GripVertical className="w-4 h-4" />
           </span>
         )}
@@ -128,22 +162,17 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
   const upcomingContext = queue.slice(Math.max(0, currentIndex + 1));
 
   // User Queue Drag Handlers
-  const handleUserDragStart = (e: React.DragEvent, idx: number) => {
-    e.dataTransfer.setData('text/plain', `usr-${idx}`);
-    e.dataTransfer.effectAllowed = 'move';
+  const handleUserDragStart = (idx: number) => {
     setUserDraggedIdx(idx);
   };
 
-  const handleUserDragOver = (e: React.DragEvent, idx: number) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+  const handleUserDragEnter = (idx: number) => {
     if (userDraggedIdx !== null && userDraggedIdx !== idx) {
       setUserDragOverIdx(idx);
     }
   };
 
-  const handleUserDrop = (e: React.DragEvent, targetIdx: number) => {
-    e.preventDefault();
+  const handleUserDrop = (targetIdx: number) => {
     if (userDraggedIdx !== null && userDraggedIdx !== targetIdx) {
       reorderUserQueue(userDraggedIdx, targetIdx);
     }
@@ -151,26 +180,31 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
     setUserDragOverIdx(null);
   };
 
+  const handleUserDragEnd = () => {
+    setUserDraggedIdx(null);
+    setUserDragOverIdx(null);
+  };
+
   // Context Queue Drag Handlers
-  const handleCtxDragStart = (e: React.DragEvent, idx: number) => {
-    e.dataTransfer.setData('text/plain', `ctx-${idx}`);
-    e.dataTransfer.effectAllowed = 'move';
+  const handleCtxDragStart = (idx: number) => {
     setCtxDraggedIdx(idx);
   };
 
-  const handleCtxDragOver = (e: React.DragEvent, idx: number) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+  const handleCtxDragEnter = (idx: number) => {
     if (ctxDraggedIdx !== null && ctxDraggedIdx !== idx) {
       setCtxDragOverIdx(idx);
     }
   };
 
-  const handleCtxDrop = (e: React.DragEvent, targetIdx: number) => {
-    e.preventDefault();
+  const handleCtxDrop = (targetIdx: number) => {
     if (ctxDraggedIdx !== null && ctxDraggedIdx !== targetIdx) {
       reorderContextQueue(ctxDraggedIdx, targetIdx);
     }
+    setCtxDraggedIdx(null);
+    setCtxDragOverIdx(null);
+  };
+
+  const handleCtxDragEnd = () => {
     setCtxDraggedIdx(null);
     setCtxDragOverIdx(null);
   };
@@ -267,8 +301,9 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                   onPlay={() => handlePlayUserQueueIndex(idx)}
                   onRemove={() => removeFromUserQueue(idx)}
                   onDragStart={handleUserDragStart}
-                  onDragOver={handleUserDragOver}
+                  onDragEnter={handleUserDragEnter}
                   onDrop={handleUserDrop}
+                  onDragEnd={handleUserDragEnd}
                   isDragging={userDraggedIdx === idx}
                   isDragOver={userDragOverIdx === idx}
                 />
@@ -295,8 +330,9 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                     usePlayerStore.setState({ queue: newQ });
                   }}
                   onDragStart={handleCtxDragStart}
-                  onDragOver={handleCtxDragOver}
+                  onDragEnter={handleCtxDragEnter}
                   onDrop={handleCtxDrop}
+                  onDragEnd={handleCtxDragEnd}
                   isDragging={ctxDraggedIdx === idx}
                   isDragOver={ctxDragOverIdx === idx}
                 />

@@ -35,6 +35,8 @@ export const SettingsView: React.FC = () => {
   const setRomanizationMode = usePlayerStore((s) => s.setRomanizationMode);
   const showAudioSpecs = usePlayerStore((s) => s.showAudioSpecs);
   const toggleShowAudioSpecs = usePlayerStore((s) => s.toggleShowAudioSpecs);
+  const showAudioSpecsInLibrary = usePlayerStore((s) => s.showAudioSpecsInLibrary);
+  const toggleShowAudioSpecsInLibrary = usePlayerStore((s) => s.toggleShowAudioSpecsInLibrary);
   const autoHideLyricsControls = usePlayerStore((s) => s.autoHideLyricsControls);
   const toggleAutoHideLyricsControls = usePlayerStore((s) => s.toggleAutoHideLyricsControls);
 
@@ -307,6 +309,22 @@ export const SettingsView: React.FC = () => {
               type="checkbox"
               checked={showAudioSpecs}
               onChange={toggleShowAudioSpecs}
+              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-3">
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Show Audio Format in Library</span>
+                <span className="text-[11px] text-zinc-400">Display sample rate / bit depth column in track list</span>
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              checked={showAudioSpecsInLibrary}
+              onChange={toggleShowAudioSpecsInLibrary}
               className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
             />
           </div>

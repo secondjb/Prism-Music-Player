@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { invoke } from '@tauri-apps/api/core';
@@ -14,6 +14,9 @@ import {
   Timer,
   ListMusic,
   Sparkles,
+  Shuffle,
+  Repeat,
+  Repeat1,
 } from 'lucide-react';
 import { SleepTimerModal } from './SleepTimerModal';
 
@@ -34,6 +37,10 @@ export const BottomBar: React.FC = () => {
   const tickSleepTimerSecond = usePlayerStore((s) => s.tickSleepTimerSecond);
   const showLyricsFullscreen = usePlayerStore((s) => s.showLyricsFullscreen);
   const setShowLyricsFullscreen = usePlayerStore((s) => s.setShowLyricsFullscreen);
+  const shuffleEnabled = usePlayerStore((s) => s.shuffleEnabled);
+  const toggleShuffle = usePlayerStore((s) => s.toggleShuffle);
+  const repeatMode = usePlayerStore((s) => s.repeatMode);
+  const cycleRepeatMode = usePlayerStore((s) => s.cycleRepeatMode);
 
   const trackArt = useTrackArt(currentTrack);
 
@@ -45,6 +52,12 @@ export const BottomBar: React.FC = () => {
   const [isDraggingSeek, setIsDraggingSeek] = useState(false);
   const [dragSeekVal, setDragSeekVal] = useState<number | null>(null);
 
+  // Refs for zero-render-lag tooltips
+  const seekContainerRef = useRef<HTMLDivElement>(null);
+  const seekTooltipRef = useRef<HTMLDivElement>(null);
+  const volContainerRef = useRef<HTMLDivElement>(null);
+  const volTooltipRef = useRef<HTMLDivElement>(null);
+
   // Poll playback position from Rust audio engine
   useEffect(() => {
     if (!isPlaying || !window.__TAURI_INTERNALS__) return;
@@ -53,8 +66,15 @@ export const BottomBar: React.FC = () => {
         const pos: number = await invoke('get_playback_position');
         if (typeof pos === 'number' && !isNaN(pos) && pos >= 0) {
           usePlayerStore.setState({ currentTime: pos });
-          if (duration > 2 && pos > 0.5 && pos >= duration - 0.5) {
-            nextTrack();
+          const dur = usePlayerStore.getState().duration;
+          const rm = usePlayerStore.getState().repeatMode;
+          if (dur > 2 && pos > 0.5 && pos >= dur - 0.5) {
+            if (rm === 'one') {
+              // Repeat one: seek to start
+              usePlayerStore.getState().seek(0);
+            } else {
+              nextTrack();
+            }
           }
         }
       } catch (e) {
@@ -62,7 +82,7 @@ export const BottomBar: React.FC = () => {
       }
     }, 250);
     return () => clearInterval(interval);
-  }, [isPlaying, duration, nextTrack]);
+  }, [isPlaying, nextTrack]);
 
   // Sleep timer interval tick
   useEffect(() => {
@@ -98,8 +118,42 @@ export const BottomBar: React.FC = () => {
   const effectiveVol = isMuted ? 0 : volume;
   const volPercent = Math.min(100, Math.max(0, effectiveVol * 100));
 
-  const [hoverSeekPos, setHoverSeekPos] = useState<{ x: number; time: number } | null>(null);
-  const [hoverVolPos, setHoverVolPos] = useState<{ x: number; percent: number } | null>(null);
+  // Zero-render-lag seek tooltip via direct DOM manipulation
+  const handleSeekMouseMove = useCallback((e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const time = pct * (duration || 0);
+    if (seekTooltipRef.current) {
+      seekTooltipRef.current.style.left = `${e.clientX - rect.left}px`;
+      seekTooltipRef.current.style.opacity = '1';
+      seekTooltipRef.current.textContent = formatTime(time);
+    }
+  }, [duration]);
+
+  const handleSeekMouseLeave = useCallback(() => {
+    if (seekTooltipRef.current) {
+      seekTooltipRef.current.style.opacity = '0';
+    }
+  }, []);
+
+  // Zero-render-lag volume tooltip
+  const handleVolMouseMove = useCallback((e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * 100;
+    if (volTooltipRef.current) {
+      volTooltipRef.current.style.left = `${e.clientX - rect.left}px`;
+      volTooltipRef.current.style.opacity = '1';
+      volTooltipRef.current.textContent = `${Math.round(pct)}%`;
+    }
+  }, []);
+
+  const handleVolMouseLeave = useCallback(() => {
+    if (volTooltipRef.current) {
+      volTooltipRef.current.style.opacity = '0';
+    }
+  }, []);
+
+  const RepeatIcon = repeatMode === 'one' ? Repeat1 : Repeat;
 
   return (
     <footer className="w-full h-24 glass border-t border-white/10 flex items-center justify-between px-6 z-20 shrink-0">
@@ -162,7 +216,18 @@ export const BottomBar: React.FC = () => {
       {/* 2. Audio Controls & Material 3 Expressive Seek Bar (Center) */}
       <div className="flex flex-col items-center gap-1.5 w-2/4 max-w-2xl px-4">
         {/* Playback Buttons */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
+          {/* Shuffle */}
+          <button
+            onClick={toggleShuffle}
+            className={`p-1.5 rounded-lg transition-all ${
+              shuffleEnabled ? 'text-indigo-400 bg-indigo-500/15' : 'text-zinc-400 hover:text-white'
+            }`}
+            title={shuffleEnabled ? 'Shuffle On' : 'Shuffle Off'}
+          >
+            <Shuffle className="w-4 h-4" />
+          </button>
+
           <button
             onClick={previousTrack}
             className="text-zinc-400 hover:text-white transition-colors p-1"
@@ -183,29 +248,34 @@ export const BottomBar: React.FC = () => {
           >
             <SkipForward className="w-5 h-5" />
           </button>
+
+          {/* Repeat */}
+          <button
+            onClick={cycleRepeatMode}
+            className={`p-1.5 rounded-lg transition-all ${
+              repeatMode !== 'off' ? 'text-indigo-400 bg-indigo-500/15' : 'text-zinc-400 hover:text-white'
+            }`}
+            title={repeatMode === 'off' ? 'Repeat Off' : repeatMode === 'all' ? 'Repeat All' : 'Repeat One'}
+          >
+            <RepeatIcon className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Material 3 Expressive Filled Seek Bar with Hover Tooltip */}
         <div className="w-full flex items-center gap-3 text-xs font-mono text-zinc-400">
           <span>{formatTime(currentSeekDisplay)}</span>
           <div
+            ref={seekContainerRef}
             className="relative flex-1 h-4 flex items-center group cursor-pointer"
-            onMouseMove={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-              setHoverSeekPos({ x: e.clientX - rect.left, time: pct * (duration || 0) });
-            }}
-            onMouseLeave={() => setHoverSeekPos(null)}
+            onMouseMove={handleSeekMouseMove}
+            onMouseLeave={handleSeekMouseLeave}
           >
             {/* Floating Time Preview Tooltip */}
-            {hoverSeekPos && (
-              <div
-                className="absolute -top-7 transform -translate-x-1/2 px-2 py-0.5 rounded-md bg-indigo-600 text-[10px] font-mono font-bold text-white shadow-lg shadow-indigo-950/80 pointer-events-none z-30 transition-all border border-indigo-400/30"
-                style={{ left: `${hoverSeekPos.x}px` }}
-              >
-                {formatTime(hoverSeekPos.time)}
-              </div>
-            )}
+            <div
+              ref={seekTooltipRef}
+              className="absolute -top-7 transform -translate-x-1/2 px-2 py-0.5 rounded-md bg-indigo-600 text-[10px] font-mono font-bold text-white shadow-lg shadow-indigo-950/80 pointer-events-none z-30 border border-indigo-400/30 whitespace-nowrap"
+              style={{ opacity: 0, transition: 'opacity 0.1s' }}
+            />
 
             <input
               type="range"
@@ -283,23 +353,17 @@ export const BottomBar: React.FC = () => {
             {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
           </button>
           <div
+            ref={volContainerRef}
             className="relative w-24 h-4 flex items-center group cursor-pointer"
-            onMouseMove={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * 100;
-              setHoverVolPos({ x: e.clientX - rect.left, percent: pct });
-            }}
-            onMouseLeave={() => setHoverVolPos(null)}
+            onMouseMove={handleVolMouseMove}
+            onMouseLeave={handleVolMouseLeave}
           >
             {/* Floating Volume Percentage Tooltip */}
-            {hoverVolPos && (
-              <div
-                className="absolute -top-7 transform -translate-x-1/2 px-1.5 py-0.5 rounded-md bg-cyan-600 text-[10px] font-mono font-bold text-white shadow-lg shadow-cyan-950/80 pointer-events-none z-30 transition-all border border-cyan-400/30"
-                style={{ left: `${hoverVolPos.x}px` }}
-              >
-                {Math.round(hoverVolPos.percent)}%
-              </div>
-            )}
+            <div
+              ref={volTooltipRef}
+              className="absolute -top-7 transform -translate-x-1/2 px-1.5 py-0.5 rounded-md bg-cyan-600 text-[10px] font-mono font-bold text-white shadow-lg shadow-cyan-950/80 pointer-events-none z-30 border border-cyan-400/30 whitespace-nowrap"
+              style={{ opacity: 0, transition: 'opacity 0.1s' }}
+            />
 
             <input
               type="range"

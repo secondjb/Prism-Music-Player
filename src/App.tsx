@@ -6,6 +6,7 @@ import { Header } from './components/Header';
 import { TrackList } from './components/TrackList';
 import { AlbumGrid } from './components/AlbumGrid';
 import { SettingsView } from './components/SettingsView';
+import { PlaylistView } from './components/PlaylistView';
 import { BottomBar } from './components/BottomBar';
 import { LyricsView } from './components/LyricsView';
 import { QueueDrawer } from './components/QueueDrawer';
@@ -61,6 +62,19 @@ export const App: React.FC = () => {
     return true;
   });
 
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'settings':
+        return <SettingsView />;
+      case 'albums':
+        return <AlbumGrid tracks={filteredTracks} />;
+      case 'playlists':
+        return <PlaylistView />;
+      default:
+        return <TrackList tracks={filteredTracks} />;
+    }
+  };
+
   return (
     <div className="w-screen h-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden relative selection:bg-indigo-500/30 selection:text-indigo-200">
       {/* Background Ambient Glassmorphism Glow */}
@@ -86,13 +100,7 @@ export const App: React.FC = () => {
           <Header />
 
           <div className="flex-1 overflow-y-auto px-8 py-2 custom-scrollbar">
-            {activeTab === 'settings' ? (
-              <SettingsView />
-            ) : activeTab === 'albums' ? (
-              <AlbumGrid tracks={filteredTracks} />
-            ) : (
-              <TrackList tracks={filteredTracks} />
-            )}
+            {renderContent()}
           </div>
         </main>
       </div>

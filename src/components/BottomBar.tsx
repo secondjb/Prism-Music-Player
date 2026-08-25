@@ -266,7 +266,7 @@ export const BottomBar: React.FC = () => {
           <span>{formatTime(currentSeekDisplay)}</span>
           <div
             ref={seekContainerRef}
-            className="relative flex-1 h-4 flex items-center group cursor-pointer drop-shadow-[0_0_8px_rgba(192,132,252,0.3)]"
+            className="relative flex-1 h-4 flex items-center group cursor-pointer"
             onMouseMove={handleSeekMouseMove}
             onMouseLeave={handleSeekMouseLeave}
           >

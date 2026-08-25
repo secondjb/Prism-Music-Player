@@ -244,20 +244,37 @@ export const LyricsView: React.FC = () => {
     }
   }
 
-  // 4. Smooth scroll active line to center
+  // 4. Smooth scroll active line to center with scroll lock protection
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const scrollToActive = () => {
     if (activeLineRef.current && containerRef.current) {
       isProgrammaticScrollRef.current = true;
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+
       const lineEl = activeLineRef.current;
       const containerEl = containerRef.current;
       const targetTop = lineEl.offsetTop - containerEl.clientHeight / 2 + lineEl.clientHeight / 2;
+
       containerEl.scrollTo({
         top: targetTop,
         behavior: 'smooth',
       });
-      setTimeout(() => {
+
+      scrollTimeoutRef.current = setTimeout(() => {
         isProgrammaticScrollRef.current = false;
-      }, 400);
+      }, 350);
+    }
+  };
+
+  const handleContainerScroll = () => {
+    if (isProgrammaticScrollRef.current) {
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 350);
+    } else {
+      setIsUserScrolled(true);
     }
   };
 
@@ -426,11 +443,7 @@ export const LyricsView: React.FC = () => {
       {/* Main Lyrics Display Area */}
       <div
         ref={containerRef}
-        onScroll={() => {
-          if (!isProgrammaticScrollRef.current) {
-            setIsUserScrolled(true);
-          }
-        }}
+        onScroll={handleContainerScroll}
         className="flex-1 overflow-y-auto my-4 px-4 custom-scrollbar flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-10 relative"
       >
         {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
@@ -515,25 +528,16 @@ export const LyricsView: React.FC = () => {
         )}
       </div>
 
-      {/* Integrated Bottom Bar Controls (Fades out on mouse idle) */}
-      <motion.div
-        animate={{
-          opacity: controlsVisible ? 1 : 0,
-          y: controlsVisible ? 0 : 20,
-        }}
-        transition={{ duration: 0.3 }}
-        className={`flex items-center justify-between z-20 pt-4 border-t border-white/10 ${
-          controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
-        }`}
-      >
-        {/* Left: Track Info & Expandable Artwork */}
-        <div className="flex items-center gap-4 w-1/4 min-w-[220px]">
+      {/* Integrated Bottom Bar Controls */}
+      <div className="flex items-center justify-between z-20 pt-4 border-t border-white/10 relative">
+        {/* Left: Track Info & Large Expandable Artwork (ALWAYS VISIBLE EVEN WHEN IDLE) */}
+        <div className="flex items-center gap-4 w-1/3 min-w-[240px] z-30">
           {currentTrack && (
             <>
               <div
                 onClick={() => setArtExpanded(!artExpanded)}
                 className={`relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 shrink-0 group cursor-pointer transition-all duration-300 ${
-                  artExpanded ? 'w-24 h-24' : 'w-14 h-14'
+                  artExpanded ? 'w-80 h-80 -translate-y-36' : 'w-16 h-16'
                 }`}
               >
                 {trackArt ? (
@@ -544,29 +548,38 @@ export const LyricsView: React.FC = () => {
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-1">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full p-1.5">
                     {artExpanded ? (
-                      <ChevronLeft className="w-4 h-4 text-white" />
+                      <ChevronLeft className="w-5 h-5 text-white" />
                     ) : (
-                      <ChevronRight className="w-4 h-4 text-white" />
+                      <ChevronRight className="w-5 h-5 text-white" />
                     )}
                   </div>
                 </div>
               </div>
 
               <div className="flex flex-col min-w-0">
-                <span className="font-bold text-white text-base truncate">{currentTrack.title}</span>
-                <span className="text-xs text-zinc-400 truncate mt-0.5">{currentTrack.artist}</span>
+                <span className="font-bold text-white text-lg truncate drop-shadow-md">{currentTrack.title}</span>
+                <span className="text-sm text-zinc-300 truncate mt-0.5">{currentTrack.artist}</span>
                 {currentTrack.album && (
-                  <span className="text-[11px] text-zinc-500 truncate mt-0.5">{currentTrack.album}</span>
+                  <span className="text-xs text-zinc-400 truncate mt-0.5">{currentTrack.album}</span>
                 )}
               </div>
             </>
           )}
         </div>
 
-        {/* Center: Transport Controls & Seek Bar */}
-        <div className="flex flex-col items-center gap-2 w-1/2 max-w-xl">
+        {/* Center: Transport Controls & Seek Bar (Fades on Idle) */}
+        <motion.div
+          animate={{
+            opacity: controlsVisible ? 1 : 0,
+            y: controlsVisible ? 0 : 20,
+          }}
+          transition={{ duration: 0.3 }}
+          className={`flex flex-col items-center gap-2 w-1/2 max-w-xl ${
+            controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+          }`}
+        >
           <div className="flex items-center gap-6">
             <button
               onClick={toggleShuffle}
@@ -627,15 +640,24 @@ export const LyricsView: React.FC = () => {
                 style={{
                   background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${seekPercent}%, #27272a ${seekPercent}%)`,
                 }}
-                className="w-full h-1.5 group-hover:h-2.5 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3 shadow-[0_0_12px_rgba(99,102,241,0.5)]"
+                className="w-full h-1.5 group-hover:h-2.5 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3"
               />
             </div>
             <span>{formatTime(duration)}</span>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Right: Exit Lyrics Button */}
-        <div className="flex items-center gap-3 w-1/4 justify-end">
+        {/* Right: Exit Lyrics Button (Fades on Idle) */}
+        <motion.div
+          animate={{
+            opacity: controlsVisible ? 1 : 0,
+            y: controlsVisible ? 0 : 20,
+          }}
+          transition={{ duration: 0.3 }}
+          className={`flex items-center gap-3 w-1/4 justify-end ${
+            controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+          }`}
+        >
           <button
             onClick={handleClose}
             className="p-2.5 rounded-xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/40 border border-indigo-500 hover:bg-indigo-500 transition-colors"
@@ -643,8 +665,8 @@ export const LyricsView: React.FC = () => {
           >
             <Mic2 className="w-5 h-5" />
           </button>
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
     </div>
   );
 };

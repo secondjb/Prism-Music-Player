@@ -3,7 +3,7 @@ mod metadata;
 
 use audio::GlobalAudioEngine;
 use metadata::{
-    extract_track_art, extract_track_lyrics, load_library_from_disk, save_library_to_disk,
+    extract_track_art, extract_track_lyrics, embed_track_lyrics, load_library_from_disk, save_library_to_disk,
     scan_configured_directories, scan_directory_for_tracks, TrackMetadata,
 };
 use std::env;
@@ -74,6 +74,11 @@ fn get_track_art(path: String) -> Option<String> {
 #[tauri::command]
 fn get_track_lyrics(path: String) -> Option<String> {
     extract_track_lyrics(&path)
+}
+
+#[tauri::command]
+fn embed_lyrics(path: String, lyrics: String) -> Result<(), String> {
+    metadata::embed_track_lyrics(&path, &lyrics)
 }
 
 #[tauri::command]
@@ -162,6 +167,7 @@ pub fn run() {
             load_library,
             get_track_art,
             get_track_lyrics,
+            embed_lyrics,
             play_audio,
             pause_audio,
             resume_audio,

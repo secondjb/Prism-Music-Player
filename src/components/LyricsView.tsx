@@ -27,6 +27,7 @@ import {
   VolumeX,
   Maximize2,
   Minimize2,
+  Save,
 } from 'lucide-react';
 
 const romanizer = createRomanizer();
@@ -55,6 +56,8 @@ export const LyricsView: React.FC = () => {
     setVolume,
     lrclibAutoFetch,
     setLrclibAutoFetch,
+    preferOnlineLyrics,
+    setPreferOnlineLyrics,
     isRomanizationEnabled,
     romanizationMode,
     setRomanizationMode,
@@ -78,6 +81,7 @@ export const LyricsView: React.FC = () => {
   const [rawLrc, setRawLrc] = useState<string>('');
   const [lines, setLines] = useState<SyncedLine[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isEmbedding, setIsEmbedding] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [artExpanded, setArtExpanded] = useState(false);
@@ -150,15 +154,34 @@ export const LyricsView: React.FC = () => {
 
   const isCompact = windowWidth < 850;
 
+  // Determine active line index
+  let activeIndex = -1;
+  if (lines.length > 0 && lines[0].startSecs !== -1) {
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].startSecs <= currentTime) {
+        activeIndex = i;
+      }
+    }
+  }
+
   // Compute dynamic font sizes based on preset & manual slider
   let activeFontSize = lyricsFontSize;
   if (lyricsFontSizePreset === 'normal') {
     activeFontSize = Math.max(26, Math.min(38, windowHeight * 0.04));
+  } else if (lyricsFontSizePreset === 'balanced') {
+    const defaultBalanced = Math.max(32, windowHeight * 0.07);
+    if (activeIndex >= 0 && lines[activeIndex]) {
+      const lineLen = lines[activeIndex].content.length;
+      const maxFontSizeByLine = (0.9 * windowWidth) / (Math.max(1, lineLen) * 0.6);
+      activeFontSize = Math.min(defaultBalanced, Math.max(20, maxFontSizeByLine));
+    } else {
+      activeFontSize = defaultBalanced;
+    }
   } else if (lyricsFontSizePreset === 'large') {
     activeFontSize = Math.max(34, Math.min(52, windowHeight * 0.058));
   } else if (lyricsFontSizePreset === 'maximum') {
-    // Fill the screen so exactly 3 lines are shown (active + 2 inactive).
-    activeFontSize = Math.max(42, windowHeight * 0.18);
+    // Fill the screen so exactly 3 lines are shown, but cap it so it doesn't wrap excessively
+    activeFontSize = Math.max(42, Math.min(windowHeight * 0.15, windowWidth * 0.07));
   }
   const inactiveFontSize = Math.max(16, activeFontSize * 0.65);
 
@@ -197,8 +220,8 @@ export const LyricsView: React.FC = () => {
     let isMounted = true;
     const hasLrcTimestamps = (text: string) => /\[\d{1,2}:\d{2}/.test(text);
 
-    // If embedded lyrics contain synced LRC timestamps, use them immediately
-    if (currentTrack.unsynced_lyrics && hasLrcTimestamps(currentTrack.unsynced_lyrics)) {
+    // If embedded lyrics contain synced LRC timestamps, use them immediately (UNLESS preferOnlineLyrics is true)
+    if (!preferOnlineLyrics && currentTrack.unsynced_lyrics && hasLrcTimestamps(currentTrack.unsynced_lyrics)) {
       setRawLrc(currentTrack.unsynced_lyrics);
       setIsLoading(false);
       return;
@@ -210,19 +233,35 @@ export const LyricsView: React.FC = () => {
     const loadLyrics = async () => {
       let foundSynced: string | null = null;
 
-      try {
-        if (window.__TAURI_INTERNALS__) {
-          const lyrics: string | null = await invoke('get_track_lyrics', { path: currentTrack.path });
-          if (lyrics && lyrics.trim() && (hasLrcTimestamps(lyrics) || !currentTrack.unsynced_lyrics)) {
-            foundSynced = lyrics;
-          }
+      // 1. If preferOnlineLyrics, try online FIRST
+      if (preferOnlineLyrics && lrclibAutoFetch) {
+        const fetched = await fetchLrclibLyrics(
+          currentTrack.title,
+          currentTrack.artist,
+          currentTrack.album,
+          currentTrack.duration_secs
+        );
+        if (fetched && fetched.trim()) {
+          foundSynced = fetched;
         }
-      } catch (e) {
-        console.warn('On-demand lyrics fetch error:', e);
       }
 
-      // Try LRCLIB online fetch if not found locally
-      if (!foundSynced && lrclibAutoFetch) {
+      // 2. If not found online (or didn't try yet), check local
+      if (!foundSynced) {
+        try {
+          if (window.__TAURI_INTERNALS__) {
+            const lyrics: string | null = await invoke('get_track_lyrics', { path: currentTrack.path });
+            if (lyrics && lyrics.trim() && (hasLrcTimestamps(lyrics) || !currentTrack.unsynced_lyrics)) {
+              foundSynced = lyrics;
+            }
+          }
+        } catch (e) {
+          console.warn('On-demand lyrics fetch error:', e);
+        }
+      }
+
+      // 3. If local check failed but we haven't tried online yet, try online now
+      if (!foundSynced && !preferOnlineLyrics && lrclibAutoFetch) {
         const fetched = await fetchLrclibLyrics(
           currentTrack.title,
           currentTrack.artist,
@@ -313,15 +352,7 @@ export const LyricsView: React.FC = () => {
     }
   }, [rawLrc, isRomanizationEnabled]);
 
-  // 3. Determine active line index
-  let activeIndex = -1;
-  if (lines.length > 0 && lines[0].startSecs !== -1) {
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startSecs <= currentTime) {
-        activeIndex = i;
-      }
-    }
-  }
+
 
   // 4. Smooth scroll active line to center
   const scrollToActive = () => {
@@ -381,6 +412,20 @@ export const LyricsView: React.FC = () => {
     setIsLoading(false);
     if (fetched) {
       setRawLrc(fetched);
+    }
+  };
+
+  const handleEmbedLyrics = async () => {
+    if (!currentTrack || !rawLrc.trim()) return;
+    setIsEmbedding(true);
+    try {
+      if (window.__TAURI_INTERNALS__) {
+        await invoke('embed_lyrics', { path: currentTrack.path, lyrics: rawLrc });
+      }
+    } catch (e) {
+      console.warn('Embed lyrics error:', e);
+    } finally {
+      setIsEmbedding(false);
     }
   };
 
@@ -485,8 +530,8 @@ export const LyricsView: React.FC = () => {
           </h4>
           <div className="flex flex-col gap-1.5 pt-1">
             <span className="text-zinc-300 font-medium text-xs">Lyrics Size Preset</span>
-            <div className="grid grid-cols-3 gap-1">
-              {(['normal', 'large', 'maximum'] as const).map((preset) => (
+            <div className="grid grid-cols-2 gap-1 mb-1">
+              {(['normal', 'balanced', 'large', 'maximum'] as const).map((preset) => (
                 <button
                   key={preset}
                   onClick={() => setLyricsFontSizePreset(preset)}
@@ -514,7 +559,7 @@ export const LyricsView: React.FC = () => {
               step={1}
               value={activeFontSize}
               onChange={(e) => {
-                setLyricsFontSizePreset('normal');
+                setLyricsFontSizePreset('manual');
                 setLyricsFontSize(parseInt(e.target.value, 10));
               }}
               style={{
@@ -539,6 +584,15 @@ export const LyricsView: React.FC = () => {
               type="checkbox"
               checked={lrclibAutoFetch}
               onChange={(e) => setLrclibAutoFetch(e.target.checked)}
+              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+            />
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-zinc-300">Prefer online lyrics</span>
+            <input
+              type="checkbox"
+              checked={preferOnlineLyrics}
+              onChange={(e) => setPreferOnlineLyrics(e.target.checked)}
               className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
             />
           </div>
@@ -568,6 +622,15 @@ export const LyricsView: React.FC = () => {
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh Lyrics
+          </button>
+          
+          <button
+            onClick={handleEmbedLyrics}
+            disabled={isEmbedding || !rawLrc.trim()}
+            className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-purple-600/80 hover:bg-purple-500 text-white text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Save className={`w-3.5 h-3.5 ${isEmbedding ? 'animate-pulse' : ''}`} />
+            {isEmbedding ? 'Embedding...' : 'Embed Lyrics to File'}
           </button>
         </div>
       )}
@@ -631,7 +694,7 @@ export const LyricsView: React.FC = () => {
                   scale: isActive ? (isUnsynced ? 1 : 1.05) : 0.98,
                 }}
                 transition={{ duration: 0.25, ease: 'easeOut' }}
-                className={`text-center cursor-pointer max-w-5xl w-full px-8 py-3 rounded-2xl transition-colors ${
+                className={`text-center cursor-pointer max-w-[90vw] w-full px-8 py-3 rounded-2xl transition-colors ${
                   isActive && !isUnsynced
                     ? 'text-white font-extrabold drop-shadow-[0_0_25px_rgba(99,102,241,0.6)]'
                     : isUnsynced

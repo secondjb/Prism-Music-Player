@@ -20,6 +20,7 @@ interface PlayerState {
   showLyricsFullscreen: boolean;
   isQueueOpen: boolean;
   lrclibAutoFetch: boolean;
+  preferOnlineLyrics: boolean;
   isRomanizationEnabled: boolean;
   romanizationMode: 'below' | 'replace';
   showAudioSpecs: boolean;
@@ -28,7 +29,7 @@ interface PlayerState {
   includedDirectories: string[];
   excludedDirectories: string[];
   infoModalTrack: Track | null;
-  lyricsFontSizePreset: 'normal' | 'large' | 'maximum';
+  lyricsFontSizePreset: 'normal' | 'balanced' | 'large' | 'maximum' | 'manual';
   lyricsFontSize: number;
   lyricsArtScale: number;
 
@@ -73,12 +74,13 @@ interface PlayerState {
   setSearchQuery: (query: string) => void;
   setShowLyricsFullscreen: (show: boolean) => void;
   setLrclibAutoFetch: (enabled: boolean) => void;
+  setPreferOnlineLyrics: (enabled: boolean) => void;
   toggleRomanization: () => void;
   setRomanizationMode: (mode: 'below' | 'replace') => void;
   toggleShowAudioSpecs: () => void;
   toggleShowAudioSpecsInLibrary: () => void;
   setInfoModalTrack: (track: Track | null) => void;
-  setLyricsFontSizePreset: (preset: 'normal' | 'large' | 'maximum') => void;
+  setLyricsFontSizePreset: (preset: 'normal' | 'balanced' | 'large' | 'maximum' | 'manual') => void;
   setLyricsFontSize: (size: number) => void;
   setLyricsArtScale: (scale: number) => void;
   toggleAutoHideLyricsControls: () => void;
@@ -130,6 +132,7 @@ export const usePlayerStore = create<PlayerState>()(
       showLyricsFullscreen: false,
       isQueueOpen: false,
       lrclibAutoFetch: true,
+      preferOnlineLyrics: false,
       isRomanizationEnabled: true,
       romanizationMode: 'below',
       showAudioSpecs: true,
@@ -467,7 +470,7 @@ export const usePlayerStore = create<PlayerState>()(
         });
       },
 
-      setActiveTab: (tab) => set({ activeTab: tab }),
+      setActiveTab: (tab) => set({ activeTab: tab, infoModalTrack: null }),
 
       setSearchQuery: (query) => set({ searchQuery: query }),
 
@@ -478,6 +481,7 @@ export const usePlayerStore = create<PlayerState>()(
         })),
 
       setLrclibAutoFetch: (enabled) => set({ lrclibAutoFetch: enabled }),
+      setPreferOnlineLyrics: (enabled) => set({ preferOnlineLyrics: enabled }),
 
       toggleRomanization: () => set((state) => ({ isRomanizationEnabled: !state.isRomanizationEnabled })),
       setRomanizationMode: (mode) => set({ romanizationMode: mode }),

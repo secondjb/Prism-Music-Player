@@ -441,3 +441,17 @@ pub fn load_library_from_disk(app_data_path: &Path) -> Result<Vec<TrackMetadata>
     let tracks: Vec<TrackMetadata> = serde_json::from_str(&json).map_err(|e| e.to_string())?;
     Ok(tracks)
 }
+
+pub fn embed_track_lyrics(path_str: &str, lyrics: &str) -> Result<(), String> {
+    let path = Path::new(path_str);
+    let mut tag = Tag::read_from_path(path).map_err(|e| e.to_string())?;
+    {
+        let comments = tag.vorbis_comments_mut();
+        comments.comments.remove("SYNCEDLYRICS");
+        comments.comments.remove("LYRICS");
+        comments.comments.remove("UNSYNCEDLYRICS");
+        comments.comments.insert("SYNCEDLYRICS".to_string(), vec![lyrics.to_string()]);
+    }
+    tag.save().map_err(|e| e.to_string())?;
+    Ok(())
+}

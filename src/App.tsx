@@ -24,6 +24,7 @@ export const App: React.FC = () => {
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const showLyricsFullscreen = usePlayerStore((s) => s.showLyricsFullscreen);
   const isQueueOpen = usePlayerStore((s) => s.isQueueOpen);
+  const infoModalTrack = usePlayerStore((s) => s.infoModalTrack);
 
   const trackArt = useTrackArt(currentTrack);
 
@@ -202,6 +203,9 @@ export const App: React.FC = () => {
   });
 
   const renderContent = () => {
+    if (infoModalTrack) {
+      return <SongInfoModal />;
+    }
     switch (activeTab) {
       case 'settings':
         return <SettingsView />;
@@ -256,8 +260,6 @@ export const App: React.FC = () => {
         onClose={() => usePlayerStore.setState({ isQueueOpen: false })}
       />
 
-      {/* Song Metadata Info Modal */}
-      <SongInfoModal />
     </div>
   );
 };

@@ -72,9 +72,9 @@ export const SongInfoModal: React.FC = () => {
   const displayArt = trackArt || highResArt; // Prioritize local PC art first
 
   return (
-    <div className="fixed inset-0 z-50 bg-zinc-950 overflow-y-auto animate-fade-in text-zinc-100 flex flex-col">
-      {/* Top Nav Bar */}
-      <div className="sticky top-0 z-20 flex items-center justify-between px-8 py-6 bg-zinc-950/80 backdrop-blur-xl border-b border-white/10">
+    <div className="w-full h-full overflow-y-auto animate-fade-in text-zinc-100 flex flex-col custom-scrollbar pr-2">
+      {/* Top Header */}
+      <div className="flex items-center justify-between py-2 shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-400">
             <Info className="w-5 h-5" />
@@ -93,7 +93,7 @@ export const SongInfoModal: React.FC = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 w-full max-w-7xl mx-auto px-8 py-10 flex flex-col lg:flex-row gap-12 items-start">
+      <div className="flex-1 w-full max-w-7xl mx-auto py-8 flex flex-col lg:flex-row gap-12 items-start">
         {/* Left Side: Huge Cover Art & Basic Info */}
         <div className="w-full lg:w-[450px] shrink-0 flex flex-col gap-6">
           <div className="w-full aspect-square rounded-3xl overflow-hidden bg-zinc-900 border border-white/10 shadow-2xl relative">

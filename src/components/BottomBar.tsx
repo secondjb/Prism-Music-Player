@@ -17,6 +17,10 @@ import {
   Shuffle,
   Repeat,
   Repeat1,
+  Info,
+  Radio,
+  ListPlus,
+  FolderPlus,
 } from 'lucide-react';
 import { SleepTimerModal } from './SleepTimerModal';
 
@@ -47,6 +51,14 @@ export const BottomBar: React.FC = () => {
   const [isTimerModalOpen, setIsTimerModalOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [prevVol, setPrevVol] = useState(volume);
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [showPlaylistSub, setShowPlaylistSub] = useState(false);
+
+  const playlists = usePlayerStore((s) => s.playlists);
+  const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
+  const addToQueue = usePlayerStore((s) => s.addToQueue);
+  const playNext = usePlayerStore((s) => s.playNext);
+  const setInfoModalTrack = usePlayerStore((s) => s.setInfoModalTrack);
 
   // Local drag state for butter-smooth seeking
   const [isDraggingSeek, setIsDraggingSeek] = useState(false);
@@ -164,20 +176,33 @@ export const BottomBar: React.FC = () => {
   return (
     <footer className="fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/95 backdrop-blur-2xl border-t border-white/10 z-30 flex items-center justify-between px-6 select-none">
       {/* 1. Track Info (Left) */}
-      <div className="flex items-center gap-4 w-1/4 min-w-[220px]">
+      <div 
+        className="flex items-center gap-4 w-1/4 min-w-[220px] relative"
+        onContextMenu={(e) => {
+          if (currentTrack) {
+            e.preventDefault();
+            setShowContextMenu(true);
+            setShowPlaylistSub(false);
+          }
+        }}
+        onMouseLeave={() => {
+          setShowContextMenu(false);
+          setShowPlaylistSub(false);
+        }}
+      >
         {currentTrack ? (
           <>
-            <div className="relative w-14 h-14 rounded-xl overflow-hidden shadow-md shrink-0 group border border-white/10 bg-zinc-900">
+            <div className="relative w-14 h-14 rounded-xl overflow-hidden shadow-md shrink-0 group border border-white/10 bg-zinc-900 cursor-context-menu">
               {trackArt ? (
-                <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
+                <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover pointer-events-none" />
               ) : (
-                <div className="w-full h-full bg-gradient-to-tr from-indigo-900 to-purple-900 flex items-center justify-center">
+                <div className="w-full h-full bg-gradient-to-tr from-indigo-900 to-purple-900 flex items-center justify-center pointer-events-none">
                   <Sparkles className="w-6 h-6 text-indigo-400" />
                 </div>
               )}
             </div>
 
-            <div className="flex flex-col min-w-0">
+            <div className="flex flex-col min-w-0 cursor-context-menu">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-sm text-white truncate max-w-[140px]" title={currentTrack.title}>
                   {currentTrack.title}
@@ -195,7 +220,7 @@ export const BottomBar: React.FC = () => {
               
               {/* High-Res Audio Specs Badge */}
               {usePlayerStore.getState().showAudioSpecs && (
-                <div className="flex items-center gap-1.5 mt-1">
+                <div className="flex items-center gap-1.5 mt-1 pointer-events-none">
                   <span className="px-1.5 py-0.2 text-[9px] font-mono font-bold rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                     FLAC
                   </span>
@@ -205,6 +230,79 @@ export const BottomBar: React.FC = () => {
                 </div>
               )}
             </div>
+            
+            {/* Context Menu Dropdown */}
+            {showContextMenu && (
+              <div
+                className="absolute left-0 bottom-20 w-48 glass-panel border border-white/10 rounded-xl shadow-2xl py-1 z-50 flex flex-col"
+              >
+                <button
+                  onClick={() => {
+                    setInfoModalTrack(currentTrack);
+                    setShowContextMenu(false);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left"
+                >
+                  <Info className="w-3.5 h-3.5 text-blue-400" />
+                  Song Info / Details
+                </button>
+                <button
+                  onClick={() => {
+                    playNext(currentTrack);
+                    setShowContextMenu(false);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left"
+                >
+                  <Radio className="w-3.5 h-3.5 text-indigo-400" />
+                  Play Next
+                </button>
+                <button
+                  onClick={() => {
+                    addToQueue(currentTrack);
+                    setShowContextMenu(false);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left"
+                >
+                  <ListPlus className="w-3.5 h-3.5 text-emerald-400" />
+                  Add to Queue
+                </button>
+                
+                {/* Add to Playlist submenu */}
+                <div className="relative">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowPlaylistSub(!showPlaylistSub);
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left w-full"
+                  >
+                    <FolderPlus className="w-3.5 h-3.5 text-purple-400" />
+                    Add to Playlist
+                  </button>
+                  {showPlaylistSub && (
+                    <div className="absolute left-full top-0 w-44 glass-panel border border-white/10 rounded-xl shadow-2xl py-1 z-50 flex flex-col ml-1">
+                      {playlists.length === 0 ? (
+                        <span className="px-3 py-2 text-xs text-zinc-500 italic">No playlists yet</span>
+                      ) : (
+                        playlists.map((pl) => (
+                          <button
+                            key={pl.id}
+                            onClick={() => {
+                              addTrackToPlaylist(pl.id, currentTrack.id);
+                              setShowContextMenu(false);
+                              setShowPlaylistSub(false);
+                            }}
+                            className="px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left truncate"
+                          >
+                            {pl.name}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <div className="flex items-center gap-3">

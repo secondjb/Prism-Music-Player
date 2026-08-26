@@ -617,6 +617,10 @@ export const LyricsView: React.FC = () => {
             const mainText = showRom && romanizationMode === 'replace' ? line.romanized : line.content;
             const subText = showRom && romanizationMode === 'below' ? line.romanized : null;
 
+            if (lyricsFontSizePreset === 'maximum' && !isUnsynced && Math.abs(idx - activeIndex) > 1) {
+              return null;
+            }
+
             return (
               <motion.div
                 key={line.id}
@@ -689,7 +693,7 @@ export const LyricsView: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-col min-w-0 mb-1">
+          <div className="flex flex-col min-w-0 flex-1 mb-1">
             <span
               className={`font-extrabold text-white truncate drop-shadow-lg transition-all ${
                 artExpanded ? 'text-xl md:text-3xl' : 'text-base md:text-lg'

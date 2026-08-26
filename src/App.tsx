@@ -92,7 +92,16 @@ export const App: React.FC = () => {
       }
     };
 
+    const handleContextMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      e.preventDefault();
+    };
+
     window.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('contextmenu', handleContextMenu);
 
     let unlisten: (() => void) | undefined;
     if (window.__TAURI_INTERNALS__) {
@@ -118,6 +127,7 @@ export const App: React.FC = () => {
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('contextmenu', handleContextMenu);
       if (unlisten) {
         unlisten();
       }

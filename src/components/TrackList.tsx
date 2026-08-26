@@ -12,31 +12,33 @@ const TrackRow: React.FC<{
   track: Track;
   idx: number;
   isSelected: boolean;
+  isMultiSelected: boolean;
   isLiked: boolean;
   isPlaying: boolean;
   activeMenuTrackId: string | null;
   setActiveMenuTrackId: (id: string | null) => void;
-  playTrack: (track: Track, tracks: Track[]) => void;
+  onTrackClick: (e: React.MouseEvent) => void;
+  onDragStart: (e: React.DragEvent) => void;
   togglePlay: () => void;
   toggleLikeTrack: (id: string) => void;
   addToQueue: (track: Track) => void;
   playNext: (track: Track) => void;
-  allTracks: Track[];
   showAudioSpecsInLibrary: boolean;
 }> = ({
   track,
   idx,
   isSelected,
+  isMultiSelected,
   isLiked,
   isPlaying,
   activeMenuTrackId,
   setActiveMenuTrackId,
-  playTrack,
+  onTrackClick,
+  onDragStart,
   togglePlay,
   toggleLikeTrack,
   addToQueue,
   playNext,
-  allTracks,
   showAudioSpecsInLibrary,
 }) => {
   const art = useTrackArt(track);
@@ -79,10 +81,14 @@ const TrackRow: React.FC<{
 
   return (
     <div
-      onClick={() => playTrack(track, allTracks)}
+      draggable
+      onDragStart={onDragStart}
+      onClick={onTrackClick}
       className={`group grid ${gridCols} items-center px-4 py-3 rounded-xl cursor-pointer transition-all duration-150 relative ${
         isSelected
           ? 'bg-indigo-600/20 border border-indigo-500/30 text-white shadow-lg shadow-indigo-950/40'
+          : isMultiSelected
+          ? 'bg-white/10 border border-white/20 text-white shadow-lg'
           : 'hover:bg-white/5 text-zinc-300 hover:text-white border border-transparent'
       }`}
     >
@@ -274,7 +280,38 @@ export const TrackList: React.FC<TrackListProps> = ({ tracks }) => {
   const showAudioSpecsInLibrary = usePlayerStore((s) => s.showAudioSpecsInLibrary);
   const [activeMenuTrackId, setActiveMenuTrackId] = useState<string | null>(null);
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
+
   const parentRef = React.useRef<HTMLDivElement>(null);
+
+  const handleTrackClick = (e: React.MouseEvent, track: Track, idx: number) => {
+    if (e.ctrlKey || e.metaKey) {
+      const newSel = new Set(selectedIds);
+      if (newSel.has(track.id)) newSel.delete(track.id);
+      else newSel.add(track.id);
+      setSelectedIds(newSel);
+      setLastClickedIdx(idx);
+    } else if (e.shiftKey && lastClickedIdx !== null) {
+      const newSel = new Set(selectedIds);
+      const start = Math.min(lastClickedIdx, idx);
+      const end = Math.max(lastClickedIdx, idx);
+      for (let i = start; i <= end; i++) {
+        newSel.add(tracks[i].id);
+      }
+      setSelectedIds(newSel);
+    } else {
+      setSelectedIds(new Set());
+      setLastClickedIdx(idx);
+      playTrack(track, tracks);
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, track: Track) => {
+    const idsToDrag = selectedIds.has(track.id) ? Array.from(selectedIds) : [track.id];
+    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'tracks', ids: idsToDrag }));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
 
   const rowVirtualizer = useVirtualizer({
     count: tracks.length,
@@ -334,23 +371,25 @@ export const TrackList: React.FC<TrackListProps> = ({ tracks }) => {
                     width: '100%',
                     height: `${virtualRow.size}px`,
                     transform: `translateY(${virtualRow.start}px)`,
-                    paddingBottom: '4px', // small gap
+                    paddingBottom: '4px',
+                    zIndex: activeMenuTrackId === track.id ? 50 : 1,
                   }}
                 >
                   <TrackRow
                     track={track}
                     idx={idx}
                     isSelected={currentTrack?.id === track.id}
+                    isMultiSelected={selectedIds.has(track.id)}
                     isLiked={likedTrackIds.includes(track.id)}
                     isPlaying={isPlaying}
                     activeMenuTrackId={activeMenuTrackId}
                     setActiveMenuTrackId={setActiveMenuTrackId}
-                    playTrack={playTrack}
+                    onTrackClick={(e) => handleTrackClick(e, track, idx)}
+                    onDragStart={(e) => handleDragStart(e, track)}
                     togglePlay={togglePlay}
                     toggleLikeTrack={toggleLikeTrack}
                     addToQueue={addToQueue}
                     playNext={playNext}
-                    allTracks={tracks}
                     showAudioSpecsInLibrary={showAudioSpecsInLibrary}
                   />
                 </div>

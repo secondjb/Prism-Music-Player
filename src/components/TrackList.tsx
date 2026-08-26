@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { Track } from '../types/player';
-import { Play, Pause, Heart, MoreVertical, Music, ListPlus, Radio, Sparkles, Check, FolderPlus } from 'lucide-react';
+import { Play, Pause, Heart, MoreVertical, Music, ListPlus, Radio, Sparkles, Check, FolderPlus, Info } from 'lucide-react';
 
 interface TrackListProps {
   tracks: Track[];
@@ -46,6 +46,7 @@ const TrackRow: React.FC<{
   const [showPlaylistSub, setShowPlaylistSub] = useState(false);
   const playlists = usePlayerStore((s) => s.playlists);
   const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
+  const setInfoModalTrack = usePlayerStore((s) => s.setInfoModalTrack);
 
   const formatDuration = (secs: number) => {
     if (!secs || isNaN(secs)) return '0:00';
@@ -84,6 +85,11 @@ const TrackRow: React.FC<{
       draggable
       onDragStart={onDragStart}
       onClick={onTrackClick}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setActiveMenuTrackId(track.id);
+      }}
       className={`group grid ${gridCols} items-center px-4 py-3 rounded-xl cursor-pointer transition-all duration-150 relative ${
         isSelected
           ? 'bg-indigo-600/20 border border-indigo-500/30 text-white shadow-lg shadow-indigo-950/40'
@@ -228,6 +234,16 @@ const TrackRow: React.FC<{
                         setShowPlaylistSub(false);
                       }}
                     >
+                      <button
+                        onClick={() => {
+                          setInfoModalTrack(track);
+                          setActiveMenuTrackId(null);
+                        }}
+                        className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left"
+                      >
+                        <Info className="w-3.5 h-3.5 text-blue-400" />
+                        Song Info / Details
+                      </button>
                       <button
                         onClick={() => {
                           playNext(track);

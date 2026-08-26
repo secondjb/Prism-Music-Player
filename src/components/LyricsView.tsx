@@ -67,11 +67,13 @@ export const LyricsView: React.FC = () => {
     activeTab,
     setActiveTab,
     seek,
+    lyricsFontSizePreset,
+    setLyricsFontSizePreset,
+    lyricsFontSize,
+    setLyricsFontSize,
   } = usePlayerStore();
 
   const trackArt = useTrackArt(currentTrack);
-
-
 
   const [rawLrc, setRawLrc] = useState<string>('');
   const [lines, setLines] = useState<SyncedLine[]>([]);
@@ -85,7 +87,6 @@ export const LyricsView: React.FC = () => {
   const activeLineRef = useRef<HTMLDivElement | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [windowHeight, setWindowHeight] = useState(window.innerHeight);
 
   // Check initial window fullscreen state
   useEffect(() => {
@@ -134,18 +135,31 @@ export const LyricsView: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen]);
 
-  // Track window height for dynamic text sizing
+  const [windowHeight, setWindowHeight] = useState(window.innerHeight);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  // Track window dimensions for dynamic text sizing & small window layouts
   useEffect(() => {
-    const handleResize = () => setWindowHeight(window.innerHeight);
+    const handleResize = () => {
+      setWindowHeight(window.innerHeight);
+      setWindowWidth(window.innerWidth);
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Compute dynamic font sizes based on window height
-  const lyricsAreaHeight = windowHeight * 0.55;
-  const lineHeight = lyricsAreaHeight / 5;
-  const activeFontSize = Math.max(28, Math.min(52, lineHeight * 0.5));
-  const inactiveFontSize = Math.max(18, Math.min(32, lineHeight * 0.35));
+  const isCompact = windowWidth < 850;
+
+  // Compute dynamic font sizes based on preset & manual slider
+  let activeFontSize = lyricsFontSize;
+  if (lyricsFontSizePreset === 'normal') {
+    activeFontSize = Math.max(26, Math.min(38, windowHeight * 0.04));
+  } else if (lyricsFontSizePreset === 'large') {
+    activeFontSize = Math.max(34, Math.min(52, windowHeight * 0.058));
+  } else if (lyricsFontSizePreset === 'maximum') {
+    activeFontSize = Math.max(42, Math.min(72, windowHeight * 0.075));
+  }
+  const inactiveFontSize = Math.max(16, activeFontSize * 0.65);
 
   // Auto-hide controls logic on mouse idle
   useEffect(() => {
@@ -468,6 +482,43 @@ export const LyricsView: React.FC = () => {
           <h4 className="text-sm font-semibold text-white border-b border-white/10 pb-2">
             Lyrics & Display Settings
           </h4>
+          <div className="flex flex-col gap-1.5 pt-1 border-t border-white/10">
+            <span className="text-zinc-300 font-medium text-xs">Lyrics Size Preset</span>
+            <div className="grid grid-cols-3 gap-1">
+              {(['normal', 'large', 'maximum'] as const).map((preset) => (
+                <button
+                  key={preset}
+                  onClick={() => setLyricsFontSizePreset(preset)}
+                  className={`py-1 px-2 rounded-lg text-[11px] font-semibold capitalize transition-colors ${
+                    lyricsFontSizePreset === preset
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  {preset === 'maximum' ? 'Max Space' : preset}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1 pt-1 border-t border-white/10">
+            <div className="flex justify-between text-xs text-zinc-300">
+              <span>Manual Font Size</span>
+              <span className="font-mono text-indigo-400">{Math.round(activeFontSize)}px</span>
+            </div>
+            <input
+              type="range"
+              min={18}
+              max={64}
+              step={1}
+              value={activeFontSize}
+              onChange={(e) => {
+                setLyricsFontSize(parseInt(e.target.value, 10));
+              }}
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
+            />
+          </div>
+
           <div className="flex items-center justify-between text-xs">
             <span className="text-zinc-300">Auto-hide controls on idle</span>
             <input
@@ -604,13 +655,15 @@ export const LyricsView: React.FC = () => {
         )}
       </div>
 
-      {/* Standalone Bottom-Left Track Info & Expandable Album Art (Decoupled, Always Visible) */}
+      {/* Track Info & Expandable Album Art */}
       {currentTrack && (
-        <div className="fixed bottom-8 left-8 z-40 flex items-end gap-4 pointer-events-auto select-none">
+        <div className={`fixed z-40 flex items-end gap-4 pointer-events-auto select-none transition-all duration-300 ${
+          isCompact ? 'top-16 left-6' : 'bottom-8 left-8'
+        }`}>
           <div
             onClick={() => setArtExpanded(!artExpanded)}
             className={`relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 shrink-0 group cursor-pointer transition-all duration-300 ${
-              artExpanded ? 'w-80 h-80' : 'w-20 h-20'
+              artExpanded ? (isCompact ? 'w-48 h-48' : 'w-80 h-80') : (isCompact ? 'w-14 h-14' : 'w-20 h-20')
             }`}
           >
             {trackArt ? (
@@ -632,29 +685,47 @@ export const LyricsView: React.FC = () => {
           </div>
 
           <div className="flex flex-col min-w-0 max-w-xs mb-1">
-            <span className="font-extrabold text-white text-lg truncate drop-shadow-lg">{currentTrack.title}</span>
-            <span className="text-sm font-medium text-zinc-300 truncate mt-0.5">{currentTrack.artist}</span>
+            <span
+              className={`font-extrabold text-white truncate drop-shadow-lg transition-all ${
+                artExpanded ? 'text-xl md:text-3xl' : 'text-base md:text-lg'
+              }`}
+            >
+              {currentTrack.title}
+            </span>
+            <span
+              className={`font-medium text-zinc-300 truncate mt-0.5 transition-all ${
+                artExpanded ? 'text-sm md:text-lg' : 'text-xs md:text-sm'
+              }`}
+            >
+              {currentTrack.artist}
+            </span>
             {currentTrack.album && (
-              <span className="text-xs text-zinc-400 truncate mt-0.5">{currentTrack.album}</span>
+              <span
+                className={`text-zinc-400 truncate mt-0.5 transition-all ${
+                  artExpanded ? 'text-xs md:text-sm' : 'text-[11px]'
+                }`}
+              >
+                {currentTrack.album}
+              </span>
             )}
           </div>
         </div>
       )}
 
-      {/* Floating Glass Transport Controls (Bottom-Center, Fades on Idle) */}
+      {/* Floating Glass Transport Controls (Bottom-Center, Responsive) */}
       <motion.div
         animate={{
           opacity: controlsVisible ? 1 : 0,
           y: controlsVisible ? 0 : 20,
         }}
         transition={{ duration: 0.3 }}
-        className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-40 glass-panel border border-white/10 rounded-full px-6 py-2.5 shadow-2xl flex items-center gap-6 ${
+        className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-40 glass-panel border border-white/10 rounded-full px-5 py-2.5 shadow-2xl flex items-center gap-4 md:gap-6 ${
           controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
-        }`}
+        } ${isCompact ? 'max-w-[92vw] overflow-x-auto custom-scrollbar' : ''}`}
       >
         <button
           onClick={toggleShuffle}
-          className={`p-2 rounded-xl transition-colors ${
+          className={`p-1.5 rounded-xl transition-colors ${
             shuffleEnabled ? 'text-indigo-400' : 'text-zinc-400 hover:text-white'
           }`}
           title="Shuffle"
@@ -664,7 +735,7 @@ export const LyricsView: React.FC = () => {
 
         <button
           onClick={previousTrack}
-          className="p-2 text-zinc-400 hover:text-white transition-colors"
+          className="p-1.5 text-zinc-400 hover:text-white transition-colors"
           title="Previous"
         >
           <SkipBack className="w-5 h-5" />
@@ -672,7 +743,7 @@ export const LyricsView: React.FC = () => {
 
         <button
           onClick={togglePlay}
-          className="w-11 h-11 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-600/40 transition-transform active:scale-95 cursor-pointer"
+          className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-600/40 transition-transform active:scale-95 cursor-pointer shrink-0"
           title={isPlaying ? 'Pause' : 'Play'}
         >
           {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
@@ -680,7 +751,7 @@ export const LyricsView: React.FC = () => {
 
         <button
           onClick={nextTrack}
-          className="p-2 text-zinc-400 hover:text-white transition-colors"
+          className="p-1.5 text-zinc-400 hover:text-white transition-colors"
           title="Next"
         >
           <SkipForward className="w-5 h-5" />
@@ -688,7 +759,7 @@ export const LyricsView: React.FC = () => {
 
         <button
           onClick={cycleRepeatMode}
-          className={`p-2 rounded-xl transition-colors ${
+          className={`p-1.5 rounded-xl transition-colors ${
             repeatMode !== 'off' ? 'text-indigo-400' : 'text-zinc-400 hover:text-white'
           }`}
           title="Repeat"
@@ -697,7 +768,7 @@ export const LyricsView: React.FC = () => {
         </button>
 
         {/* Seek Bar inside floating pill */}
-        <div className="flex items-center gap-2 text-xs font-mono text-zinc-400 w-48">
+        <div className="flex items-center gap-2 text-xs font-mono text-zinc-400 w-36 md:w-48">
           <span>{formatTime(currentTime)}</span>
           <div className="relative flex-1 h-3 flex items-center group cursor-pointer">
             <input
@@ -716,57 +787,72 @@ export const LyricsView: React.FC = () => {
           <span>{formatTime(duration)}</span>
         </div>
 
+        {/* Integrated Volume control when space is compact */}
+        {isCompact && (
+          <div className="flex items-center gap-1.5 pl-2 border-l border-white/10">
+            <button
+              onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
+              className="text-zinc-400 hover:text-white transition-colors p-1"
+            >
+              {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={volume}
+              onChange={(e) => setVolume(parseFloat(e.target.value))}
+              className="w-16 h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
+            />
+          </div>
+        )}
+
         {/* Exit Lyrics Button */}
         <button
           onClick={handleClose}
-          className="p-2 rounded-xl text-indigo-400 hover:text-white hover:bg-white/10 transition-colors"
+          className="p-1.5 rounded-xl text-indigo-400 hover:text-white hover:bg-white/10 transition-colors"
           title="Exit Karaoke View"
         >
           <Mic2 className="w-5 h-5" />
         </button>
       </motion.div>
 
-      {/* Floating Glass Volume & Specs Pill (Bottom-Right, Fades on Idle) */}
-      <motion.div
-        animate={{
-          opacity: controlsVisible ? 1 : 0,
-          y: controlsVisible ? 0 : 20,
-        }}
-        transition={{ duration: 0.3 }}
-        className={`fixed bottom-8 right-8 z-40 glass-panel border border-white/10 rounded-full px-4 py-2.5 shadow-2xl flex items-center gap-3.5 ${
-          controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
-        }`}
-      >
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
-            className="text-zinc-400 hover:text-white transition-colors p-1"
-            title={volume > 0 ? 'Mute' : 'Unmute'}
-          >
-            {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={volume}
-            onChange={(e) => setVolume(parseFloat(e.target.value))}
-            style={{
-              background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${volume * 100}%, #27272a ${volume * 100}%)`,
-            }}
-            className="w-20 h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
-          />
-        </div>
-
-        <button
-          onClick={handleClose}
-          className="p-1.5 rounded-full text-indigo-400 hover:text-white hover:bg-white/10 transition-colors"
-          title="Exit Karaoke View"
+      {/* Floating Glass Volume Pill (Bottom-Right, Hidden on Compact Windows to avoid collision) */}
+      {!isCompact && (
+        <motion.div
+          animate={{
+            opacity: controlsVisible ? 1 : 0,
+            y: controlsVisible ? 0 : 20,
+          }}
+          transition={{ duration: 0.3 }}
+          className={`fixed bottom-6 right-8 z-40 glass-panel border border-white/10 rounded-full px-4 py-2.5 shadow-2xl flex items-center gap-3.5 ${
+            controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+          }`}
         >
-          <Mic2 className="w-4 h-4" />
-        </button>
-      </motion.div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
+              className="text-zinc-400 hover:text-white transition-colors p-1"
+              title={volume > 0 ? 'Mute' : 'Unmute'}
+            >
+              {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={volume}
+              onChange={(e) => setVolume(parseFloat(e.target.value))}
+              style={{
+                background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${volume * 100}%, #27272a ${volume * 100}%)`,
+              }}
+              className="w-20 h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
+            />
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 };

@@ -10,6 +10,7 @@ import { PlaylistView } from './components/PlaylistView';
 import { BottomBar } from './components/BottomBar';
 import { LyricsView } from './components/LyricsView';
 import { QueueDrawer } from './components/QueueDrawer';
+import { SongInfoModal } from './components/SongInfoModal';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
@@ -254,6 +255,9 @@ export const App: React.FC = () => {
         isOpen={isQueueOpen}
         onClose={() => usePlayerStore.setState({ isQueueOpen: false })}
       />
+
+      {/* Song Metadata Info Modal */}
+      <SongInfoModal />
     </div>
   );
 };

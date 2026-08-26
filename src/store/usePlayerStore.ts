@@ -27,6 +27,10 @@ interface PlayerState {
   autoHideLyricsControls: boolean;
   includedDirectories: string[];
   excludedDirectories: string[];
+  infoModalTrack: Track | null;
+  lyricsFontSizePreset: 'normal' | 'large' | 'maximum';
+  lyricsFontSize: number;
+  lyricsArtScale: number;
 
   // Shuffle & Repeat
   shuffleEnabled: boolean;
@@ -73,6 +77,10 @@ interface PlayerState {
   setRomanizationMode: (mode: 'below' | 'replace') => void;
   toggleShowAudioSpecs: () => void;
   toggleShowAudioSpecsInLibrary: () => void;
+  setInfoModalTrack: (track: Track | null) => void;
+  setLyricsFontSizePreset: (preset: 'normal' | 'large' | 'maximum') => void;
+  setLyricsFontSize: (size: number) => void;
+  setLyricsArtScale: (scale: number) => void;
   toggleAutoHideLyricsControls: () => void;
 
   // Shuffle & Repeat actions
@@ -129,6 +137,10 @@ export const usePlayerStore = create<PlayerState>()(
       autoHideLyricsControls: true,
       includedDirectories: [],
       excludedDirectories: [],
+      infoModalTrack: null,
+      lyricsFontSizePreset: 'normal',
+      lyricsFontSize: 24,
+      lyricsArtScale: 100,
 
       // Shuffle & Repeat
       shuffleEnabled: false,
@@ -468,12 +480,17 @@ export const usePlayerStore = create<PlayerState>()(
       setLrclibAutoFetch: (enabled) => set({ lrclibAutoFetch: enabled }),
 
       toggleRomanization: () => set((state) => ({ isRomanizationEnabled: !state.isRomanizationEnabled })),
-
       setRomanizationMode: (mode) => set({ romanizationMode: mode }),
 
       toggleShowAudioSpecs: () => set((state) => ({ showAudioSpecs: !state.showAudioSpecs })),
 
-      toggleShowAudioSpecsInLibrary: () => set((state) => ({ showAudioSpecsInLibrary: !state.showAudioSpecsInLibrary })),
+      toggleShowAudioSpecsInLibrary: () =>
+        set((state) => ({ showAudioSpecsInLibrary: !state.showAudioSpecsInLibrary })),
+
+      setInfoModalTrack: (track) => set({ infoModalTrack: track }),
+      setLyricsFontSizePreset: (preset) => set({ lyricsFontSizePreset: preset }),
+      setLyricsFontSize: (size) => set({ lyricsFontSize: size }),
+      setLyricsArtScale: (scale) => set({ lyricsArtScale: scale }),
 
       toggleAutoHideLyricsControls: () => set((state) => ({ autoHideLyricsControls: !state.autoHideLyricsControls })),
 

@@ -17,7 +17,7 @@ const TrackRow: React.FC<{
   isPlaying: boolean;
   activeMenuTrackId: string | null;
   setActiveMenuTrackId: (id: string | null) => void;
-  onTrackClick: (e: React.MouseEvent) => void;
+  onTrackClick: (e: React.MouseEvent, forceToggle?: boolean) => void;
   onDragStart: (e: React.DragEvent) => void;
   togglePlay: () => void;
   toggleLikeTrack: (id: string) => void;
@@ -93,24 +93,45 @@ const TrackRow: React.FC<{
       }`}
     >
       {/* Play / Index Column */}
-      <div className="flex items-center justify-center font-mono text-sm">
-        {isSelected ? (
-          <button
+      <div className="flex items-center justify-center font-mono text-sm w-8">
+        {(isMultiSelected) ? (
+          <input
+            type="checkbox"
+            checked={isMultiSelected}
+            onChange={() => {}}
             onClick={(e) => {
               e.stopPropagation();
-              togglePlay();
+              onTrackClick(e, true);
             }}
-            className="w-8 h-8 rounded-full bg-indigo-500 text-white flex items-center justify-center shadow-md hover:scale-105 transition-transform"
-          >
-            {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white ml-0.5" />}
-          </button>
+            className="w-4 h-4 rounded border-zinc-500 bg-indigo-500 text-white focus:ring-indigo-500 focus:ring-offset-zinc-900 cursor-pointer"
+          />
         ) : (
-          <>
-            <span className="group-hover:hidden text-zinc-500">{idx + 1}</span>
-            <button className="hidden group-hover:flex w-8 h-8 rounded-full bg-white/10 text-white items-center justify-center hover:bg-indigo-500 transition-colors">
-              <Play className="w-4 h-4 fill-white ml-0.5" />
-            </button>
-          </>
+          <div className="relative flex items-center justify-center w-full h-full">
+            {isSelected ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePlay();
+                }}
+                className="w-8 h-8 rounded-full bg-indigo-500 text-white flex items-center justify-center shadow-md hover:scale-105 transition-transform group-hover:hidden"
+              >
+                {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white ml-0.5" />}
+              </button>
+            ) : (
+              <span className="group-hover:opacity-0 transition-opacity text-zinc-500">{idx + 1}</span>
+            )}
+            
+            <input
+              type="checkbox"
+              checked={isMultiSelected}
+              onChange={() => {}}
+              onClick={(e) => {
+                e.stopPropagation();
+                onTrackClick(e, true);
+              }}
+              className={`absolute inset-0 m-auto w-4 h-4 rounded border-zinc-500 bg-zinc-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-zinc-900 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity ${isSelected ? 'group-hover:opacity-100' : ''}`}
+            />
+          </div>
         )}
       </div>
 
@@ -285,8 +306,8 @@ export const TrackList: React.FC<TrackListProps> = ({ tracks }) => {
 
   const parentRef = React.useRef<HTMLDivElement>(null);
 
-  const handleTrackClick = (e: React.MouseEvent, track: Track, idx: number) => {
-    if (e.ctrlKey || e.metaKey) {
+  const handleTrackClick = (e: React.MouseEvent, track: Track, idx: number, forceToggle?: boolean) => {
+    if (e.ctrlKey || e.metaKey || forceToggle) {
       const newSel = new Set(selectedIds);
       if (newSel.has(track.id)) newSel.delete(track.id);
       else newSel.add(track.id);
@@ -309,7 +330,7 @@ export const TrackList: React.FC<TrackListProps> = ({ tracks }) => {
 
   const handleDragStart = (e: React.DragEvent, track: Track) => {
     const idsToDrag = selectedIds.has(track.id) ? Array.from(selectedIds) : [track.id];
-    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'tracks', ids: idsToDrag }));
+    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'tracks', ids: idsToDrag }));
     e.dataTransfer.effectAllowed = 'copy';
   };
 
@@ -384,7 +405,7 @@ export const TrackList: React.FC<TrackListProps> = ({ tracks }) => {
                     isPlaying={isPlaying}
                     activeMenuTrackId={activeMenuTrackId}
                     setActiveMenuTrackId={setActiveMenuTrackId}
-                    onTrackClick={(e) => handleTrackClick(e, track, idx)}
+                    onTrackClick={(e, forceToggle) => handleTrackClick(e, track, idx, forceToggle)}
                     onDragStart={(e) => handleDragStart(e, track)}
                     togglePlay={togglePlay}
                     toggleLikeTrack={toggleLikeTrack}

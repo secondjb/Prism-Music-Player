@@ -78,9 +78,6 @@ export const Sidebar: React.FC = () => {
               <div key={item.id} className="flex flex-col gap-0.5">
                 <button
                   onClick={() => {
-                    if (isPlaylists) {
-                      setShowPlaylists(!showPlaylists);
-                    }
                     setActiveTab(item.id);
                   }}
                   className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
@@ -94,7 +91,13 @@ export const Sidebar: React.FC = () => {
                     <span>{item.label}</span>
                   </div>
                   {isPlaylists && (
-                    <div className="text-zinc-500">
+                    <div
+                      className="text-zinc-500 p-1 hover:text-zinc-300 rounded-md hover:bg-white/10"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowPlaylists(!showPlaylists);
+                      }}
+                    >
                       {showPlaylists ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                     </div>
                   )}
@@ -103,40 +106,81 @@ export const Sidebar: React.FC = () => {
                 {/* Sub Playlists List */}
                 {isPlaylists && showPlaylists && (
                   <div className="flex flex-col gap-0.5 pl-9 pr-2 mt-1 mb-1">
-                    {playlists.length === 0 ? (
-                      <span className="px-2 py-1.5 text-xs text-zinc-500 italic">No playlists yet</span>
-                    ) : (
-                      playlists.map((pl) => (
-                        <button
-                          key={pl.id}
-                          onDragOver={(e) => { e.preventDefault(); setDragOverPlaylistId(pl.id); }}
-                          onDragLeave={() => setDragOverPlaylistId(null)}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            setDragOverPlaylistId(null);
-                            try {
-                              const data = JSON.parse(e.dataTransfer.getData('application/json'));
-                              if (data.type === 'tracks' && Array.isArray(data.ids)) {
-                                data.ids.forEach((id: string) => addTrackToPlaylist(pl.id, id));
+                    {/* Liked Songs Pseudo-Playlist */}
+                    <button
+                      onDragEnter={(e) => e.preventDefault()}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'copy';
+                        setDragOverPlaylistId('liked');
+                      }}
+                      onDragLeave={() => setDragOverPlaylistId(null)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOverPlaylistId(null);
+                        try {
+                          const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                          if (data.type === 'tracks' && Array.isArray(data.ids)) {
+                            const state = usePlayerStore.getState();
+                            data.ids.forEach((id: string) => {
+                              if (!state.likedTrackIds.includes(id)) {
+                                state.toggleLikeTrack(id);
                               }
-                            } catch (err) {}
-                          }}
-                          onClick={() => {
-                            setActiveTab('playlists');
-                            setActivePlaylistId(pl.id);
-                          }}
-                          className={`text-left text-xs py-1.5 px-3 rounded-lg truncate transition-colors ${
-                            activeTab === 'playlists' && activePlaylistId === pl.id
-                              ? 'bg-indigo-500/20 text-indigo-300 font-medium'
-                              : dragOverPlaylistId === pl.id
-                              ? 'bg-indigo-500/40 text-white'
-                              : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
-                          }`}
-                        >
-                          {pl.name}
-                        </button>
-                      ))
-                    )}
+                            });
+                          }
+                        } catch (err) {}
+                      }}
+                      onClick={() => {
+                        setActiveTab('liked');
+                      }}
+                      className={`flex items-center gap-2 text-left text-xs py-1.5 px-3 rounded-lg truncate transition-colors ${
+                        activeTab === 'liked'
+                          ? 'bg-indigo-500/20 text-indigo-300 font-medium'
+                          : dragOverPlaylistId === 'liked'
+                          ? 'bg-indigo-500/40 text-white'
+                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+                      }`}
+                    >
+                      <Heart className="w-3.5 h-3.5 text-pink-500" />
+                      <span>Liked Songs</span>
+                    </button>
+
+                    {/* User Playlists */}
+                    {playlists.map((pl) => (
+                      <button
+                        key={pl.id}
+                        onDragEnter={(e) => e.preventDefault()}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'copy';
+                          setDragOverPlaylistId(pl.id);
+                        }}
+                        onDragLeave={() => setDragOverPlaylistId(null)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setDragOverPlaylistId(null);
+                          try {
+                            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                            if (data.type === 'tracks' && Array.isArray(data.ids)) {
+                              data.ids.forEach((id: string) => addTrackToPlaylist(pl.id, id));
+                            }
+                          } catch (err) {}
+                        }}
+                        onClick={() => {
+                          setActiveTab('playlists');
+                          setActivePlaylistId(pl.id);
+                        }}
+                        className={`text-left text-xs py-1.5 px-3 rounded-lg truncate transition-colors ${
+                          activeTab === 'playlists' && activePlaylistId === pl.id
+                            ? 'bg-indigo-500/20 text-indigo-300 font-medium'
+                            : dragOverPlaylistId === pl.id
+                            ? 'bg-indigo-500/40 text-white'
+                            : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+                        }`}
+                      >
+                        {pl.name}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>

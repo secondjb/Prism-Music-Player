@@ -98,7 +98,6 @@ const QueueItemRow: React.FC<{
         {isDraggable && (
           <span
             className="cursor-grab active:cursor-grabbing text-zinc-500 group-hover:text-indigo-400 shrink-0 p-0.5 transition-colors"
-            onMouseDown={(e) => e.stopPropagation()}
           >
             <GripVertical className="w-4 h-4" />
           </span>
@@ -300,7 +299,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                 {formatTotalDuration(userQueueDuration)}
               </span>
             </div>
-            <div className="flex flex-col gap-1.5" onDragOver={(e) => e.preventDefault()}>
+            <div className="flex flex-col gap-1.5" onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}>
               {userQueue.map((track, idx) => (
                 <QueueItemRow
                   key={`user-q-${track.id}-${idx}`}
@@ -328,7 +327,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
             <div
               ref={contextParentRef}
               className="flex-1 overflow-y-auto custom-scrollbar min-h-0"
-              onDragOver={(e) => e.preventDefault()}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
             >
               <div
                 style={{

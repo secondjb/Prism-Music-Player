@@ -157,7 +157,8 @@ export const LyricsView: React.FC = () => {
   } else if (lyricsFontSizePreset === 'large') {
     activeFontSize = Math.max(34, Math.min(52, windowHeight * 0.058));
   } else if (lyricsFontSizePreset === 'maximum') {
-    activeFontSize = Math.max(42, Math.min(72, windowHeight * 0.075));
+    // Fill the screen so exactly 3 lines are shown (active + 2 inactive).
+    activeFontSize = Math.max(42, windowHeight * 0.18);
   }
   const inactiveFontSize = Math.max(16, activeFontSize * 0.65);
 
@@ -418,8 +419,8 @@ export const LyricsView: React.FC = () => {
           <div className="w-10 h-10 rounded-xl bg-indigo-600/30 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
             <Mic2 className="w-5 h-5" />
           </div>
-          <div>
-            <h3 className="font-bold text-white text-base">
+          <div className="min-w-0 flex-1">
+            <h3 className="font-bold text-white text-base truncate">
               {lines.length > 0 && lines[0].startSecs === -1 ? 'Unsynced Lyrics' : 'Synced Lyrics'}
             </h3>
           </div>
@@ -482,7 +483,7 @@ export const LyricsView: React.FC = () => {
           <h4 className="text-sm font-semibold text-white border-b border-white/10 pb-2">
             Lyrics & Display Settings
           </h4>
-          <div className="flex flex-col gap-1.5 pt-1 border-t border-white/10">
+          <div className="flex flex-col gap-1.5 pt-1">
             <span className="text-zinc-300 font-medium text-xs">Lyrics Size Preset</span>
             <div className="grid grid-cols-3 gap-1">
               {(['normal', 'large', 'maximum'] as const).map((preset) => (
@@ -509,11 +510,15 @@ export const LyricsView: React.FC = () => {
             <input
               type="range"
               min={18}
-              max={64}
+              max={150}
               step={1}
               value={activeFontSize}
               onChange={(e) => {
+                setLyricsFontSizePreset('normal');
                 setLyricsFontSize(parseInt(e.target.value, 10));
+              }}
+              style={{
+                background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${((activeFontSize - 18) / (150 - 18)) * 100}%, #27272a ${((activeFontSize - 18) / (150 - 18)) * 100}%)`,
               }}
               className="w-full h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
             />
@@ -657,7 +662,7 @@ export const LyricsView: React.FC = () => {
 
       {/* Track Info & Expandable Album Art */}
       {currentTrack && (
-        <div className={`fixed z-40 flex items-end gap-4 pointer-events-auto select-none transition-all duration-300 ${
+        <div className={`fixed z-40 flex items-end gap-4 pointer-events-auto select-none transition-all duration-300 max-w-[calc(100vw-80px)] md:max-w-[calc(100vw-350px)] ${
           isCompact ? 'top-16 left-6' : 'bottom-8 left-8'
         }`}>
           <div
@@ -684,7 +689,7 @@ export const LyricsView: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-col min-w-0 max-w-xs mb-1">
+          <div className="flex flex-col min-w-0 mb-1">
             <span
               className={`font-extrabold text-white truncate drop-shadow-lg transition-all ${
                 artExpanded ? 'text-xl md:text-3xl' : 'text-base md:text-lg'
@@ -803,6 +808,9 @@ export const LyricsView: React.FC = () => {
               step={0.01}
               value={volume}
               onChange={(e) => setVolume(parseFloat(e.target.value))}
+              style={{
+                background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${volume * 100}%, #27272a ${volume * 100}%)`,
+              }}
               className="w-16 h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
             />
           </div>

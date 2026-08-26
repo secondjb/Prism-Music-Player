@@ -3,8 +3,8 @@ mod metadata;
 
 use audio::GlobalAudioEngine;
 use metadata::{
-    extract_track_art, extract_track_lyrics, load_library_from_disk, save_library_to_disk, scan_configured_directories,
-    scan_directory_for_tracks, TrackMetadata,
+    extract_track_art, extract_track_lyrics, load_library_from_disk, save_library_to_disk,
+    scan_configured_directories, scan_directory_for_tracks, TrackMetadata,
 };
 use std::env;
 use std::path::PathBuf;
@@ -46,13 +46,19 @@ fn scan_sample_folder() -> Vec<TrackMetadata> {
 
 #[tauri::command]
 fn save_library(app_handle: AppHandle, tracks: Vec<TrackMetadata>) -> Result<(), String> {
-    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
     save_library_to_disk(&app_data_dir, &tracks)
 }
 
 #[tauri::command]
 fn load_library(app_handle: AppHandle) -> Result<Vec<TrackMetadata>, String> {
-    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
     load_library_from_disk(&app_data_dir)
 }
 
@@ -107,6 +113,7 @@ pub fn run() {
     let engine = GlobalAudioEngine::new();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(engine)
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

@@ -6,6 +6,7 @@ import { parse } from 'clrc';
 import { createRomanizer } from 'lyric-romanizer';
 import { motion } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   Mic2,
   Settings2,
@@ -24,6 +25,8 @@ import {
   Repeat1,
   Volume2,
   VolumeX,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 
 const romanizer = createRomanizer();
@@ -77,11 +80,59 @@ export const LyricsView: React.FC = () => {
   const [controlsVisible, setControlsVisible] = useState(true);
   const [artExpanded, setArtExpanded] = useState(false);
   const [isUserScrolled, setIsUserScrolled] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const activeLineRef = useRef<HTMLDivElement | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [windowHeight, setWindowHeight] = useState(window.innerHeight);
+
+  // Check initial window fullscreen state
+  useEffect(() => {
+    if (window.__TAURI_INTERNALS__) {
+      getCurrentWindow().isFullscreen().then(setIsFullscreen).catch(() => {});
+    } else {
+      setIsFullscreen(!!document.fullscreenElement);
+    }
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (window.__TAURI_INTERNALS__) {
+        const appWin = getCurrentWindow();
+        const next = !isFullscreen;
+        await appWin.setFullscreen(next);
+        setIsFullscreen(next);
+      } else {
+        if (!document.fullscreenElement) {
+          await document.documentElement.requestFullscreen();
+          setIsFullscreen(true);
+        } else {
+          await document.exitFullscreen();
+          setIsFullscreen(false);
+        }
+      }
+    } catch (e) {
+      console.warn('Fullscreen toggle error:', e);
+    }
+  };
+
+  // Keyboard shortcuts (F11 and 'f' key for fullscreen)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      if (e.key === 'F11' || (e.key === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey)) {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
 
   // Track window height for dynamic text sizing
   useEffect(() => {
@@ -120,49 +171,43 @@ export const LyricsView: React.FC = () => {
     };
   }, [autoHideLyricsControls]);
 
-  // 1. Fetch raw lyrics when currentTrack changes
+  // 1. Fetch raw lyrics when currentTrack changes without flashing unsynced lyrics
   useEffect(() => {
     if (!currentTrack) {
       setRawLrc('');
+      setLines([]);
       return;
     }
 
+    let isMounted = true;
     const hasLrcTimestamps = (text: string) => /\[\d{1,2}:\d{2}/.test(text);
 
     // If embedded lyrics contain synced LRC timestamps, use them immediately
     if (currentTrack.unsynced_lyrics && hasLrcTimestamps(currentTrack.unsynced_lyrics)) {
       setRawLrc(currentTrack.unsynced_lyrics);
+      setIsLoading(false);
       return;
     }
 
-    // Set unsynced fallback if available while searching for synced lyrics
-    if (currentTrack.unsynced_lyrics) {
-      setRawLrc(currentTrack.unsynced_lyrics);
-    } else {
-      setRawLrc('');
-    }
+    // Set loading state true and hold off rendering unsynced text until synced check finishes
+    setIsLoading(true);
 
     const loadLyrics = async () => {
-      setIsLoading(true);
+      let foundSynced: string | null = null;
+
       try {
         if (window.__TAURI_INTERNALS__) {
           const lyrics: string | null = await invoke('get_track_lyrics', { path: currentTrack.path });
-          if (lyrics && lyrics.trim()) {
-            if (hasLrcTimestamps(lyrics) || !currentTrack.unsynced_lyrics) {
-              setRawLrc(lyrics);
-              if (hasLrcTimestamps(lyrics)) {
-                setIsLoading(false);
-                return;
-              }
-            }
+          if (lyrics && lyrics.trim() && (hasLrcTimestamps(lyrics) || !currentTrack.unsynced_lyrics)) {
+            foundSynced = lyrics;
           }
         }
       } catch (e) {
         console.warn('On-demand lyrics fetch error:', e);
       }
 
-      // Try LRCLIB online fetch for synced lyrics
-      if (lrclibAutoFetch) {
+      // Try LRCLIB online fetch if not found locally
+      if (!foundSynced && lrclibAutoFetch) {
         const fetched = await fetchLrclibLyrics(
           currentTrack.title,
           currentTrack.artist,
@@ -170,13 +215,29 @@ export const LyricsView: React.FC = () => {
           currentTrack.duration_secs
         );
         if (fetched && fetched.trim()) {
-          setRawLrc(fetched);
+          foundSynced = fetched;
         }
       }
+
+      if (!isMounted) return;
+
+      if (foundSynced) {
+        setRawLrc(foundSynced);
+      } else if (currentTrack.unsynced_lyrics) {
+        // Fallback to unsynced lyrics only after synced lookup finishes
+        setRawLrc(currentTrack.unsynced_lyrics);
+      } else {
+        setRawLrc('');
+      }
+
       setIsLoading(false);
     };
 
     loadLyrics();
+
+    return () => {
+      isMounted = false;
+    };
   }, [currentTrack?.id]);
 
   // 2. Parse & Romanize lines locally whenever rawLrc or isRomanizationEnabled changes
@@ -368,6 +429,19 @@ export const LyricsView: React.FC = () => {
             title={isRomanizationEnabled ? 'Translation Enabled' : 'Translation Disabled'}
           >
             <Languages className="w-5 h-5" />
+          </button>
+
+          {/* Fullscreen Toggle Button */}
+          <button
+            onClick={toggleFullscreen}
+            className={`p-2.5 rounded-xl transition-all border ${
+              isFullscreen
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/40 border-indigo-500'
+                : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
+            }`}
+            title={isFullscreen ? 'Exit Fullscreen (F11)' : 'Fullscreen (F11)'}
+          >
+            {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
           </button>
 
           <button
@@ -663,13 +737,6 @@ export const LyricsView: React.FC = () => {
           controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
         }`}
       >
-        {showAudioSpecs && currentTrack && (
-          <div className="text-[11px] font-mono text-zinc-400 bg-white/5 px-2.5 py-1 rounded-full border border-white/10 shrink-0">
-            {currentTrack.bit_rate_kbps ? `${currentTrack.bit_rate_kbps}k • ` : ''}
-            {(currentTrack.sample_rate / 1000).toFixed(1)}kHz
-          </div>
-        )}
-
         <div className="flex items-center gap-2">
           <button
             onClick={() => setVolume(volume > 0 ? 0 : 0.8)}

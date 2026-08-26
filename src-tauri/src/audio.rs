@@ -39,6 +39,7 @@ impl AudioPlayerState {
 
 pub struct GlobalAudioEngine {
     pub state: Arc<Mutex<AudioPlayerState>>,
+    pub thread_handle: Arc<Mutex<Option<thread::JoinHandle<()>>>>,
 }
 
 unsafe impl Send for GlobalAudioEngine {}
@@ -48,15 +49,25 @@ impl GlobalAudioEngine {
     pub fn new() -> Self {
         Self {
             state: Arc::new(Mutex::new(AudioPlayerState::new())),
+            thread_handle: Arc::new(Mutex::new(None)),
         }
     }
 
-    pub fn play(&self, file_path: String, replay_gain_db: f32, start_position_secs: Option<f64>) -> Result<(), String> {
+    pub fn play(
+        &self,
+        file_path: String,
+        replay_gain_db: f32,
+        start_position_secs: Option<f64>,
+    ) -> Result<(), String> {
         let state_guard = self.state.lock();
 
         // Signal existing thread to stop
         state_guard.stop_signal.store(true, Ordering::SeqCst);
-        thread::sleep(Duration::from_millis(60));
+
+        // Join existing thread to release WASAPI audio output device cleanly
+        if let Some(handle) = self.thread_handle.lock().take() {
+            let _ = handle.join();
+        }
 
         let stop_signal = Arc::new(AtomicBool::new(false));
         let is_playing = Arc::new(AtomicBool::new(true));
@@ -89,7 +100,7 @@ impl GlobalAudioEngine {
             state_write.replay_gain_db = replay_gain;
         }
 
-        thread::spawn(move || {
+        let handle = thread::spawn(move || {
             if let Err(e) = run_audio_thread(
                 &path_clone,
                 stop_signal_clone,
@@ -103,6 +114,8 @@ impl GlobalAudioEngine {
                 eprintln!("Audio thread error: {}", e);
             }
         });
+
+        *self.thread_handle.lock() = Some(handle);
 
         Ok(())
     }
@@ -145,7 +158,8 @@ fn run_audio_thread(
     current_position_secs: Arc<Mutex<f64>>,
     current_duration_secs: Arc<Mutex<f64>>,
 ) -> Result<(), String> {
-    let file = File::open(Path::new(path_str)).map_err(|e| format!("Failed to open file '{}': {}", path_str, e))?;
+    let file = File::open(Path::new(path_str))
+        .map_err(|e| format!("Failed to open file '{}': {}", path_str, e))?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
     let mut hint = Hint::new();
@@ -251,7 +265,7 @@ fn run_audio_thread(
     };
 
     let (mut stream, mut tx, mut device_changed, mut active_device_name) = create_stream_fn()?;
-    
+
     // Track target config for resampling logic in loop
     let mut target_sample_rate;
     let mut target_channels;
@@ -275,7 +289,10 @@ fn run_audio_thread(
             if let Some(def_dev) = cpal::default_host().default_output_device() {
                 if let Ok(name) = def_dev.name() {
                     if name != active_device_name {
-                        println!("Default device changed from '{}' to '{}'", active_device_name, name);
+                        println!(
+                            "Default device changed from '{}' to '{}'",
+                            active_device_name, name
+                        );
                         need_device_switch = true;
                     }
                 }
@@ -300,7 +317,10 @@ fn run_audio_thread(
                             target_channels = config.channels() as usize;
                         }
                     }
-                    println!("Successfully restarted audio stream on new device: {}", active_device_name);
+                    println!(
+                        "Successfully restarted audio stream on new device: {}",
+                        active_device_name
+                    );
                 }
                 Err(e) => {
                     eprintln!("Failed to recreate stream after device change: {}", e);
@@ -340,8 +360,8 @@ fn run_audio_thread(
 
         let current_frame_ts = packet.ts();
         if let Some(tb) = time_base {
-            let pos_secs = tb.calc_time(current_frame_ts).seconds as f64
-                + tb.calc_time(current_frame_ts).frac;
+            let pos_secs =
+                tb.calc_time(current_frame_ts).seconds as f64 + tb.calc_time(current_frame_ts).frac;
             *current_position_secs.lock() = pos_secs;
         }
 
@@ -354,20 +374,28 @@ fn run_audio_thread(
                 if sample_buf.is_none() {
                     let spec = *decoded.spec();
                     let cap = decoded.capacity() as u64;
-                    sample_buf = Some(symphonia::core::audio::SampleBuffer::<f32>::new(
-                        cap, spec,
-                    ));
+                    sample_buf = Some(symphonia::core::audio::SampleBuffer::<f32>::new(cap, spec));
                 }
 
                 if let Some(ref mut buf) = sample_buf {
                     buf.copy_interleaved_ref(decoded);
                     let raw_samples = buf.samples();
 
-                    if input_sample_rate == target_sample_rate && input_channels == target_channels {
+                    if input_sample_rate == target_sample_rate && input_channels == target_channels
+                    {
                         for &sample in raw_samples {
-                            if stop_signal.load(Ordering::SeqCst) { break; }
+                            if stop_signal.load(Ordering::SeqCst) {
+                                break;
+                            }
                             let gain_adjusted = (sample * linear_gain).clamp(-1.0, 1.0);
-                            let _ = tx.send(gain_adjusted);
+                            if tx
+                                .send_timeout(gain_adjusted, Duration::from_millis(15))
+                                .is_err()
+                            {
+                                if stop_signal.load(Ordering::SeqCst) {
+                                    break;
+                                }
+                            }
                         }
                     } else {
                         // Linear sample rate & channel adaptation
@@ -376,7 +404,9 @@ fn run_audio_thread(
                         let target_frames = (num_frames as f64 * resample_ratio) as usize;
 
                         for f in 0..target_frames {
-                            if stop_signal.load(Ordering::SeqCst) { break; }
+                            if stop_signal.load(Ordering::SeqCst) {
+                                break;
+                            }
                             let src_frame_f = f as f64 / resample_ratio;
                             let src_frame_idx = src_frame_f.floor() as usize;
                             let frac = (src_frame_f - src_frame_idx as f64) as f32;
@@ -385,14 +415,25 @@ fn run_audio_thread(
                                 let input_c = c % input_channels;
                                 let sample_curr = if src_frame_idx < num_frames {
                                     raw_samples[src_frame_idx * input_channels + input_c]
-                                } else { 0.0 };
+                                } else {
+                                    0.0
+                                };
                                 let sample_next = if src_frame_idx + 1 < num_frames {
                                     raw_samples[(src_frame_idx + 1) * input_channels + input_c]
-                                } else { sample_curr };
+                                } else {
+                                    sample_curr
+                                };
 
                                 let interp = sample_curr + frac * (sample_next - sample_curr);
                                 let gain_adjusted = (interp * linear_gain).clamp(-1.0, 1.0);
-                                let _ = tx.send(gain_adjusted);
+                                if tx
+                                    .send_timeout(gain_adjusted, Duration::from_millis(15))
+                                    .is_err()
+                                {
+                                    if stop_signal.load(Ordering::SeqCst) {
+                                        break;
+                                    }
+                                }
                             }
                         }
                     }

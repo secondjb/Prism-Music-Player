@@ -49,8 +49,17 @@ pub fn extract_track_art(path_str: &str) -> Option<String> {
     // Fallback: Check folder for cover image
     if let Some(parent) = path.parent() {
         for name in &[
-            "cover.jpg", "cover.png", "folder.jpg", "folder.png", "album.jpg", "album.png",
-            "Cover.jpg", "Folder.jpg", "Album.jpg", "art.jpg", "art.png",
+            "cover.jpg",
+            "cover.png",
+            "folder.jpg",
+            "folder.png",
+            "album.jpg",
+            "album.png",
+            "Cover.jpg",
+            "Folder.jpg",
+            "Album.jpg",
+            "art.jpg",
+            "art.png",
         ] {
             let img_path = parent.join(name);
             if img_path.exists() {
@@ -123,7 +132,12 @@ pub fn extract_track_lyrics(path_str: &str) -> Option<String> {
         if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
             hint.with_extension(ext);
         }
-        if let Ok(probed) = symphonia::default::get_probe().format(&hint, mss, &Default::default(), &Default::default()) {
+        if let Ok(probed) = symphonia::default::get_probe().format(
+            &hint,
+            mss,
+            &Default::default(),
+            &Default::default(),
+        ) {
             let mut reader = probed.format;
             if let Some(metadata) = reader.metadata().current() {
                 let mut best_lyrics = None;
@@ -209,7 +223,7 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
 
         for (key, values) in &c.comments {
             let key_upper = key.to_uppercase();
-            
+
             let score = if key_upper == "SYNCEDLYRICS" {
                 10
             } else if key_upper == "LYRICS" {
@@ -245,12 +259,18 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
     // Secondary fallback: Probe via Symphonia for ID3v2 / embedded metadata
     if unsynced_lyrics.is_none() {
         if let Ok(file) = std::fs::File::open(path) {
-            let mss = symphonia::core::io::MediaSourceStream::new(Box::new(file), Default::default());
+            let mss =
+                symphonia::core::io::MediaSourceStream::new(Box::new(file), Default::default());
             let mut hint = symphonia::core::probe::Hint::new();
             if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                 hint.with_extension(ext);
             }
-            if let Ok(probed) = symphonia::default::get_probe().format(&hint, mss, &Default::default(), &Default::default()) {
+            if let Ok(probed) = symphonia::default::get_probe().format(
+                &hint,
+                mss,
+                &Default::default(),
+                &Default::default(),
+            ) {
                 let mut reader = probed.format;
                 if let Some(metadata) = reader.metadata().current() {
                     let mut best_lyrics = None;
@@ -259,8 +279,9 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
                     for t in metadata.tags() {
                         let std_key_str = format!("{:?}", t.std_key).to_uppercase();
                         let key_name = t.key.to_uppercase();
-                        
-                        let score = if key_name == "SYNCEDLYRICS" || std_key_str.contains("SYNCED") {
+
+                        let score = if key_name == "SYNCEDLYRICS" || std_key_str.contains("SYNCED")
+                        {
                             10
                         } else if key_name == "LYRICS" || std_key_str.contains("LYRICS") {
                             8
@@ -395,7 +416,7 @@ pub fn scan_directory_for_tracks(dir_path: &str) -> Vec<TrackMetadata> {
 pub fn save_library_to_disk(app_data_path: &Path, tracks: &[TrackMetadata]) -> Result<(), String> {
     std::fs::create_dir_all(app_data_path).map_err(|e| e.to_string())?;
     let file_path = app_data_path.join("library.json");
-    
+
     // Strip heavy artwork from library.json to ensure disk file is tiny (<1MB)
     let lightweight_tracks: Vec<TrackMetadata> = tracks
         .iter()

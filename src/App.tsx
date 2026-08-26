@@ -11,6 +11,7 @@ import { BottomBar } from './components/BottomBar';
 import { LyricsView } from './components/LyricsView';
 import { QueueDrawer } from './components/QueueDrawer';
 import { invoke } from '@tauri-apps/api/core';
+import { register, unregisterAll } from '@tauri-apps/plugin-global-shortcut';
 
 export const App: React.FC = () => {
   const tracks = usePlayerStore((s) => s.tracks);
@@ -19,10 +20,116 @@ export const App: React.FC = () => {
   const searchQuery = usePlayerStore((s) => s.searchQuery);
   const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
   const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
   const showLyricsFullscreen = usePlayerStore((s) => s.showLyricsFullscreen);
   const isQueueOpen = usePlayerStore((s) => s.isQueueOpen);
 
   const trackArt = useTrackArt(currentTrack);
+
+  // Sync MediaSession metadata & action handlers for Windows System Media Transport Controls (SMTC)
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    if (currentTrack) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentTrack.title,
+        artist: currentTrack.artist,
+        album: currentTrack.album || '',
+        artwork: trackArt ? [{ src: trackArt, sizes: '512x512', type: 'image/png' }] : [],
+      });
+    } else {
+      navigator.mediaSession.metadata = null;
+    }
+
+    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+  }, [currentTrack, isPlaying, trackArt]);
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    const actionHandlers: [MediaSessionAction, MediaSessionActionHandler][] = [
+      ['play', () => usePlayerStore.getState().togglePlay()],
+      ['pause', () => usePlayerStore.getState().togglePlay()],
+      ['previoustrack', () => usePlayerStore.getState().previousTrack()],
+      ['nexttrack', () => usePlayerStore.getState().nextTrack()],
+      ['seekto', (details) => {
+        if (typeof details.seekTime === 'number') {
+          usePlayerStore.getState().seek(details.seekTime);
+        }
+      }],
+    ];
+
+    for (const [action, handler] of actionHandlers) {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch (e) {
+        // Action not supported
+      }
+    }
+
+    return () => {
+      for (const [action] of actionHandlers) {
+        try {
+          navigator.mediaSession.setActionHandler(action, null);
+        } catch (e) {
+          // Ignored
+        }
+      }
+    };
+  }, []);
+
+  // Global hardware & keyboard media shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+
+      if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault();
+        usePlayerStore.getState().togglePlay();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    if (window.__TAURI_INTERNALS__) {
+      const registerShortcuts = async () => {
+        try {
+          await unregisterAll();
+          
+          await register('MediaPlayPause', (event) => {
+            if (event.state === 'Pressed') {
+              usePlayerStore.getState().togglePlay();
+            }
+          });
+          
+          await register('MediaNextTrack', (event) => {
+            if (event.state === 'Pressed') {
+              usePlayerStore.getState().nextTrack();
+            }
+          });
+          
+          await register('MediaPreviousTrack', (event) => {
+            if (event.state === 'Pressed') {
+              usePlayerStore.getState().previousTrack();
+            }
+          });
+        } catch (e) {
+          console.warn('Failed to register global shortcuts:', e);
+        }
+      };
+      registerShortcuts();
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (window.__TAURI_INTERNALS__) {
+        unregisterAll().catch(() => {});
+      }
+    };
+  }, []);
 
   // Load saved library.json from AppData on startup
   useEffect(() => {

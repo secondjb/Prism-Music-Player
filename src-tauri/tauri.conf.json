@@ -16,7 +16,8 @@
         "width": 1200,
         "height": 800,
         "label": "main",
-        "devtools": true
+        "devtools": true,
+        "dragDropEnabled": false
       }
     ],
     "security": {

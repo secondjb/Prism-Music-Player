@@ -141,8 +141,8 @@ export const Sidebar: React.FC = () => {
                           : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
                       }`}
                     >
-                      <Heart className="w-3.5 h-3.5 text-pink-500" />
-                      <span>Liked Songs</span>
+                      <Heart className="w-3.5 h-3.5 text-pink-500 pointer-events-none" />
+                      <span className="pointer-events-none">Liked Songs</span>
                     </button>
 
                     {/* User Playlists */}
@@ -178,7 +178,7 @@ export const Sidebar: React.FC = () => {
                             : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
                         }`}
                       >
-                        {pl.name}
+                        <span className="pointer-events-none">{pl.name}</span>
                       </button>
                     ))}
                   </div>

@@ -103,6 +103,14 @@ export const App: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     document.addEventListener('contextmenu', handleContextMenu);
 
+    const handleGlobalDrag = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    
+    // Tauri/WebView2 global drag interception fix
+    window.addEventListener('dragover', handleGlobalDrag, false);
+    window.addEventListener('drop', handleGlobalDrag, false);
+
     let unlisten: (() => void) | undefined;
     if (window.__TAURI_INTERNALS__) {
       listen<string>('media-control', (event) => {
@@ -128,6 +136,8 @@ export const App: React.FC = () => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('dragover', handleGlobalDrag, false);
+      window.removeEventListener('drop', handleGlobalDrag, false);
       if (unlisten) {
         unlisten();
       }

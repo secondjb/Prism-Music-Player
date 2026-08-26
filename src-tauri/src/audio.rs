@@ -278,19 +278,18 @@ fn run_audio_thread(
     }
 
     let mut sample_buf = None;
-    let mut loop_counter: u64 = 0;
+    let mut last_device_check = std::time::Instant::now();
 
     loop {
-        loop_counter = loop_counter.wrapping_add(1);
-
-        // Periodically (every ~200 iterations (~500ms)) check if the OS default output device has changed
+        // Periodically (every 100ms) check if the OS default output device has changed
         let mut need_device_switch = device_changed.load(Ordering::SeqCst);
-        if !need_device_switch && loop_counter % 200 == 0 {
+        if !need_device_switch && last_device_check.elapsed() >= Duration::from_millis(100) {
+            last_device_check = std::time::Instant::now();
             if let Some(def_dev) = cpal::default_host().default_output_device() {
                 if let Ok(name) = def_dev.name() {
                     if name != active_device_name {
                         println!(
-                            "Default device changed from '{}' to '{}'",
+                            "Default OS audio device changed from '{}' to '{}'",
                             active_device_name, name
                         );
                         need_device_switch = true;
@@ -300,9 +299,9 @@ fn run_audio_thread(
         }
 
         if need_device_switch {
-            println!("Audio device changed! Recreating stream...");
+            println!("Audio device change detected! Instantly re-creating WASAPI stream...");
             drop(stream);
-            thread::sleep(Duration::from_millis(300));
+            thread::sleep(Duration::from_millis(50));
 
             match create_stream_fn() {
                 Ok((new_stream, new_tx, new_dc, new_name)) => {
@@ -318,7 +317,7 @@ fn run_audio_thread(
                         }
                     }
                     println!(
-                        "Successfully restarted audio stream on new device: {}",
+                        "Successfully migrated audio stream to new device: {}",
                         active_device_name
                     );
                 }
@@ -345,7 +344,7 @@ fn run_audio_thread(
         }
 
         if !is_playing.load(Ordering::SeqCst) {
-            thread::sleep(Duration::from_millis(20));
+            thread::sleep(Duration::from_millis(15));
             continue;
         }
 
@@ -381,20 +380,36 @@ fn run_audio_thread(
                     buf.copy_interleaved_ref(decoded);
                     let raw_samples = buf.samples();
 
+                    // Non-blocking sample pusher closure with instant WASAPI stall detection
+                    let mut push_sample = |sample: f32| -> bool {
+                        let stall_start = std::time::Instant::now();
+                        loop {
+                            if stop_signal.load(Ordering::SeqCst) {
+                                return false;
+                            }
+                            match tx.try_send(sample) {
+                                Ok(_) => return true,
+                                Err(crossbeam_channel::TrySendError::Full(_)) => {
+                                    if stall_start.elapsed() > Duration::from_millis(100) {
+                                        device_changed.store(true, Ordering::SeqCst);
+                                        return false;
+                                    }
+                                    thread::sleep(Duration::from_millis(1));
+                                }
+                                Err(crossbeam_channel::TrySendError::Disconnected(_)) => {
+                                    device_changed.store(true, Ordering::SeqCst);
+                                    return false;
+                                }
+                            }
+                        }
+                    };
+
                     if input_sample_rate == target_sample_rate && input_channels == target_channels
                     {
                         for &sample in raw_samples {
-                            if stop_signal.load(Ordering::SeqCst) {
-                                break;
-                            }
                             let gain_adjusted = (sample * linear_gain).clamp(-1.0, 1.0);
-                            if tx
-                                .send_timeout(gain_adjusted, Duration::from_millis(15))
-                                .is_err()
-                            {
-                                if stop_signal.load(Ordering::SeqCst) {
-                                    break;
-                                }
+                            if !push_sample(gain_adjusted) {
+                                break;
                             }
                         }
                     } else {
@@ -404,9 +419,6 @@ fn run_audio_thread(
                         let target_frames = (num_frames as f64 * resample_ratio) as usize;
 
                         for f in 0..target_frames {
-                            if stop_signal.load(Ordering::SeqCst) {
-                                break;
-                            }
                             let src_frame_f = f as f64 / resample_ratio;
                             let src_frame_idx = src_frame_f.floor() as usize;
                             let frac = (src_frame_f - src_frame_idx as f64) as f32;
@@ -426,13 +438,8 @@ fn run_audio_thread(
 
                                 let interp = sample_curr + frac * (sample_next - sample_curr);
                                 let gain_adjusted = (interp * linear_gain).clamp(-1.0, 1.0);
-                                if tx
-                                    .send_timeout(gain_adjusted, Duration::from_millis(15))
-                                    .is_err()
-                                {
-                                    if stop_signal.load(Ordering::SeqCst) {
-                                        break;
-                                    }
+                                if !push_sample(gain_adjusted) {
+                                    break;
                                 }
                             }
                         }

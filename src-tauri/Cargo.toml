@@ -31,8 +31,4 @@ metaflac = "0.2"
 parking_lot = "0.12"
 crossbeam-channel = "0.5"
 rayon = "1.10"
-
-[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-global-shortcut = "2"
-
-
+souvlaki = "0.8.3"

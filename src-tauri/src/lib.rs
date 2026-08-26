@@ -8,7 +8,11 @@ use metadata::{
 };
 use std::env;
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, State, Emitter};
+use souvlaki::{MediaControlEvent, MediaControls, MediaPlayback, PlatformConfig};
+use std::sync::Mutex;
+
+struct MediaControlState(Mutex<Option<MediaControls>>);
 
 #[tauri::command]
 fn scan_directory(app_handle: AppHandle, dir_path: String) -> Result<Vec<TrackMetadata>, String> {
@@ -113,7 +117,40 @@ pub fn run() {
     let engine = GlobalAudioEngine::new();
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .setup(|app| {
+            let app_handle = app.handle().clone();
+
+            #[cfg(target_os = "windows")]
+            let hwnd = Some(app.get_webview_window("main").unwrap().hwnd().unwrap().0 as *mut std::ffi::c_void);
+            #[cfg(not(target_os = "windows"))]
+            let hwnd = None;
+
+            let config = PlatformConfig {
+                dbus_name: "prism_music_player",
+                display_name: "Prism Music Player",
+                hwnd,
+            };
+
+            if let Ok(mut controls) = MediaControls::new(config) {
+                controls.attach(move |event| {
+                    let event_name = match event {
+                        MediaControlEvent::Play => "play",
+                        MediaControlEvent::Pause => "pause",
+                        MediaControlEvent::Toggle => "toggle",
+                        MediaControlEvent::Next => "next",
+                        MediaControlEvent::Previous => "previous",
+                        _ => return,
+                    };
+                    let _ = app_handle.emit("media-control", event_name);
+                }).unwrap();
+
+                let _ = controls.set_playback(MediaPlayback::Playing { progress: None });
+                app.manage(MediaControlState(Mutex::new(Some(controls))));
+            } else {
+                app.manage(MediaControlState(Mutex::new(None)));
+            }
+            Ok(())
+        })
         .manage(engine)
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

@@ -11,7 +11,7 @@ import { BottomBar } from './components/BottomBar';
 import { LyricsView } from './components/LyricsView';
 import { QueueDrawer } from './components/QueueDrawer';
 import { invoke } from '@tauri-apps/api/core';
-import { register, unregisterAll } from '@tauri-apps/plugin-global-shortcut';
+import { listen } from '@tauri-apps/api/event';
 
 export const App: React.FC = () => {
   const tracks = usePlayerStore((s) => s.tracks);
@@ -94,39 +94,32 @@ export const App: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
 
+    let unlisten: (() => void) | undefined;
     if (window.__TAURI_INTERNALS__) {
-      const registerShortcuts = async () => {
-        try {
-          await unregisterAll();
-          
-          await register('MediaPlayPause', (event) => {
-            if (event.state === 'Pressed') {
-              usePlayerStore.getState().togglePlay();
-            }
-          });
-          
-          await register('MediaNextTrack', (event) => {
-            if (event.state === 'Pressed') {
-              usePlayerStore.getState().nextTrack();
-            }
-          });
-          
-          await register('MediaPreviousTrack', (event) => {
-            if (event.state === 'Pressed') {
-              usePlayerStore.getState().previousTrack();
-            }
-          });
-        } catch (e) {
-          console.warn('Failed to register global shortcuts:', e);
+      listen<string>('media-control', (event) => {
+        const store = usePlayerStore.getState();
+        switch (event.payload) {
+          case 'play':
+          case 'pause':
+          case 'toggle':
+            store.togglePlay();
+            break;
+          case 'next':
+            store.nextTrack();
+            break;
+          case 'previous':
+            store.previousTrack();
+            break;
         }
-      };
-      registerShortcuts();
+      }).then((unlistenFn) => {
+        unlisten = unlistenFn;
+      });
     }
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      if (window.__TAURI_INTERNALS__) {
-        unregisterAll().catch(() => {});
+      if (unlisten) {
+        unlisten();
       }
     };
   }, []);

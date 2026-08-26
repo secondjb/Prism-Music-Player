@@ -332,6 +332,24 @@ export const TrackList: React.FC<TrackListProps> = ({ tracks }) => {
     const idsToDrag = selectedIds.has(track.id) ? Array.from(selectedIds) : [track.id];
     e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'tracks', ids: idsToDrag }));
     e.dataTransfer.effectAllowed = 'copy';
+
+    // Create a compact custom drag preview pill
+    const ghost = document.createElement('div');
+    ghost.style.position = 'absolute';
+    ghost.style.top = '-9999px';
+    ghost.style.left = '-9999px';
+    ghost.className = 'bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-2xl z-50 flex items-center gap-2 border border-indigo-400';
+    ghost.innerHTML = idsToDrag.length > 1
+      ? `<span>🎵 Moving ${idsToDrag.length} tracks</span>`
+      : `<span style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🎵 ${track.title}</span>`;
+
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 15, 15);
+    setTimeout(() => {
+      if (document.body.contains(ghost)) {
+        document.body.removeChild(ghost);
+      }
+    }, 0);
   };
 
   const rowVirtualizer = useVirtualizer({

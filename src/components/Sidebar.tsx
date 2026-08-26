@@ -162,7 +162,27 @@ export const Sidebar: React.FC = () => {
                           try {
                             const data = JSON.parse(e.dataTransfer.getData('text/plain'));
                             if (data.type === 'tracks' && Array.isArray(data.ids)) {
-                              data.ids.forEach((id: string) => addTrackToPlaylist(pl.id, id));
+                              const state = usePlayerStore.getState();
+                              const targetPlaylist = state.playlists.find((p) => p.id === pl.id);
+                              if (!targetPlaylist) return;
+
+                              const existingSet = new Set(targetPlaylist.trackIds);
+                              const duplicates = data.ids.filter((id: string) => existingSet.has(id));
+
+                              if (duplicates.length > 0) {
+                                const addDuplicates = window.confirm(
+                                  `${duplicates.length} of the ${data.ids.length} selected song(s) are already in "${targetPlaylist.name}".\n\nClick OK to add duplicates anyway, or Cancel to skip duplicates.`
+                                );
+
+                                if (addDuplicates) {
+                                  data.ids.forEach((id: string) => addTrackToPlaylist(pl.id, id));
+                                } else {
+                                  const uniqueIds = data.ids.filter((id: string) => !existingSet.has(id));
+                                  uniqueIds.forEach((id: string) => addTrackToPlaylist(pl.id, id));
+                                }
+                              } else {
+                                data.ids.forEach((id: string) => addTrackToPlaylist(pl.id, id));
+                              }
                             }
                           } catch (err) {}
                         }}

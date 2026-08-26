@@ -51,10 +51,23 @@ const QueueItemRow: React.FC<{
 
   const handleDragStart = (e: React.DragEvent) => {
     if (!onDragStart) return;
-    // Set drag image to the entire row for a clean look
-    if (rowRef.current) {
-      e.dataTransfer.setDragImage(rowRef.current, 0, 0);
-    }
+    
+    // Create compact pill drag ghost
+    const ghost = document.createElement('div');
+    ghost.style.position = 'absolute';
+    ghost.style.top = '-9999px';
+    ghost.style.left = '-9999px';
+    ghost.className = 'bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-2xl z-50 border border-indigo-400';
+    ghost.innerHTML = `<span style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;">🎵 ${track.title}</span>`;
+
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 15, 15);
+    setTimeout(() => {
+      if (document.body.contains(ghost)) {
+        document.body.removeChild(ghost);
+      }
+    }, 0);
+
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(idx));
     onDragStart(idx);
@@ -76,61 +89,65 @@ const QueueItemRow: React.FC<{
   };
 
   return (
-    <div
-      ref={rowRef}
-      draggable={isDraggable}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      onDragEnd={handleDragEnd}
-      onClick={onPlay}
-      className={`group flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
-        isDragging ? 'opacity-40 border-dashed border-indigo-400' : ''
-      } ${
-        isDragOver ? 'bg-indigo-600/30 border-indigo-400 scale-[1.02]' : ''
-      } ${
-        isPlaying
-          ? 'bg-indigo-600/25 border-indigo-500/40 text-white shadow-md'
-          : 'bg-white/5 hover:bg-white/10 border-transparent text-zinc-300'
-      }`}
-    >
-      <div className="flex items-center gap-3 min-w-0">
-        {isDraggable && (
-          <span
-            className="cursor-grab active:cursor-grabbing text-zinc-500 group-hover:text-indigo-400 shrink-0 p-0.5 transition-colors"
-          >
-            <GripVertical className="w-4 h-4" />
-          </span>
-        )}
-
-        <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-zinc-800 border border-white/10">
-          {art ? (
-            <img src={art} alt={track.title} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full bg-indigo-900/60 flex items-center justify-center">
-              <Play className="w-3.5 h-3.5 text-indigo-300" />
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-col min-w-0">
-          <span className={`text-xs font-semibold truncate ${isPlaying ? 'text-indigo-400' : 'text-white'}`}>
-            {track.title}
-          </span>
-          <span className="text-[11px] text-zinc-400 truncate">{track.artist}</span>
-        </div>
-      </div>
-
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove();
-        }}
-        className="p-1 text-zinc-500 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity"
-        title="Remove"
+    <div className="relative my-0.5">
+      {/* Insertion line indicator */}
+      {isDragOver && (
+        <div className="absolute -top-1.5 left-0 right-0 h-1 bg-indigo-400 rounded-full z-20 shadow-lg shadow-indigo-500/50" />
+      )}
+      <div
+        ref={rowRef}
+        draggable={isDraggable}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        onDragEnd={handleDragEnd}
+        onClick={onPlay}
+        className={`group flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
+          isDragging ? 'opacity-30 border-dashed border-indigo-400' : ''
+        } ${
+          isDragOver ? 'bg-indigo-600/20 border-indigo-400' : ''
+        } ${
+          isPlaying
+            ? 'bg-indigo-600/25 border-indigo-500/40 text-white shadow-md'
+            : 'bg-white/5 hover:bg-white/10 border-transparent text-zinc-300'
+        }`}
       >
-        <X className="w-3.5 h-3.5" />
-      </button>
+        <div className="flex items-center gap-3 min-w-0 pointer-events-none">
+          {isDraggable && (
+            <span className="text-zinc-500 group-hover:text-indigo-400 shrink-0 p-0.5 transition-colors">
+              <GripVertical className="w-4 h-4" />
+            </span>
+          )}
+
+          <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-zinc-800 border border-white/10">
+            {art ? (
+              <img src={art} alt={track.title} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-indigo-900/60 flex items-center justify-center">
+                <Play className="w-3.5 h-3.5 text-indigo-300" />
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col min-w-0">
+            <span className={`text-xs font-semibold truncate ${isPlaying ? 'text-indigo-400' : 'text-white'}`}>
+              {track.title}
+            </span>
+            <span className="text-[11px] text-zinc-400 truncate">{track.artist}</span>
+          </div>
+        </div>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="p-1 text-zinc-500 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto"
+          title="Remove"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
   );
 };

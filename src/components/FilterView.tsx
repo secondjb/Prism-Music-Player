@@ -5,6 +5,7 @@ import { Track } from '../types/player';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { invoke } from '@tauri-apps/api/core';
 import Slider from '@mui/material/Slider';
+import Checkbox from '@mui/material/Checkbox';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import {
   SlidersHorizontal,
@@ -33,7 +34,7 @@ const muiDarkTheme = createTheme({
   },
 });
 
-// Lazy-loaded Track Row with Album Art Thumbnail
+// Lazy-loaded Track Row with Album Art Thumbnail & Hover Play Button
 const FilterTrackRow: React.FC<{
   track: Track;
   isPlayingCurrent: boolean;
@@ -55,16 +56,11 @@ const FilterTrackRow: React.FC<{
       }`}
     >
       <div className="flex items-center gap-3.5 min-w-0 flex-1">
-        {/* Play Button */}
-        <button
+        {/* Lazy Loaded Art Thumbnail with Hover Play Button */}
+        <div
           onClick={onPlay}
-          className="w-8 h-8 rounded-lg bg-indigo-600/30 group-hover:bg-indigo-600 text-indigo-300 group-hover:text-white flex items-center justify-center shrink-0 transition-colors"
+          className="w-10 h-10 rounded-xl overflow-hidden shrink-0 bg-zinc-800 border border-white/10 relative group/art cursor-pointer"
         >
-          <Play className="w-3.5 h-3.5 fill-current" />
-        </button>
-
-        {/* Lazy Loaded Art Thumbnail */}
-        <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-zinc-800 border border-white/10">
           {trackArt ? (
             <img src={trackArt} alt={track.title} className="w-full h-full object-cover" />
           ) : (
@@ -72,6 +68,9 @@ const FilterTrackRow: React.FC<{
               <Music className="w-4 h-4" />
             </div>
           )}
+          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/art:opacity-100 transition-opacity flex items-center justify-center">
+            <Play className="w-4 h-4 fill-white text-white" />
+          </div>
         </div>
 
         <div className="flex flex-col min-w-0 flex-1">
@@ -81,6 +80,7 @@ const FilterTrackRow: React.FC<{
           </span>
         </div>
       </div>
+
 
       <div className="flex items-center gap-4 text-xs font-mono text-zinc-400 shrink-0">
         {track.genre && (
@@ -218,6 +218,8 @@ export const FilterView: React.FC = () => {
 
   // Multi-select Decade toggle
   const toggleDecade = (decade: string) => {
+    // Uncheck Release Year range filter when decade chips are clicked
+    setUseYearFilter(false);
     if (decade === 'all') {
       setSelectedDecades([]);
     } else {
@@ -226,6 +228,15 @@ export const FilterView: React.FC = () => {
       );
     }
   };
+
+  const handleYearFilterChange = (enabled: boolean) => {
+    setUseYearFilter(enabled);
+    if (enabled) {
+      // Uncheck decade chips when Release Year range filter is enabled
+      setSelectedDecades([]);
+    }
+  };
+
 
   // Multi-select Sample Rate toggle
   const toggleSampleRate = (sr: number) => {
@@ -746,12 +757,16 @@ export const FilterView: React.FC = () => {
             {/* MUI Range Slider: Release Year */}
             <div className="flex flex-col gap-1 p-3.5 rounded-2xl bg-white/5 border border-white/5">
               <div className="flex items-center justify-between text-xs mb-1">
-                <span className="font-semibold text-zinc-300 flex items-center gap-1.5">
-                  <input
-                    type="checkbox"
+                <span className="font-semibold text-zinc-300 flex items-center gap-1">
+                  <Checkbox
                     checked={useYearFilter}
-                    onChange={(e) => setUseYearFilter(e.target.checked)}
-                    className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                    onChange={(e) => handleYearFilterChange(e.target.checked)}
+                    size="small"
+                    sx={{
+                      color: '#10b981',
+                      p: 0.5,
+                      '&.Mui-checked': { color: '#10b981' },
+                    }}
                   />
                   Release Year Range
                 </span>
@@ -762,7 +777,10 @@ export const FilterView: React.FC = () => {
               <div className="px-2 pt-1">
                 <Slider
                   value={yearRange}
-                  onChange={(_, val) => setYearRange(val as [number, number])}
+                  onChange={(_, val) => {
+                    setYearRange(val as [number, number]);
+                    if (!useYearFilter) handleYearFilterChange(true);
+                  }}
                   valueLabelDisplay="auto"
                   min={1950}
                   max={2026}
@@ -787,12 +805,16 @@ export const FilterView: React.FC = () => {
             {/* MUI Range Slider: Bitrate (kbps) */}
             <div className="flex flex-col gap-1 p-3.5 rounded-2xl bg-white/5 border border-white/5">
               <div className="flex items-center justify-between text-xs mb-1">
-                <span className="font-semibold text-zinc-300 flex items-center gap-1.5">
-                  <input
-                    type="checkbox"
+                <span className="font-semibold text-zinc-300 flex items-center gap-1">
+                  <Checkbox
                     checked={useBitrateFilter}
                     onChange={(e) => setUseBitrateFilter(e.target.checked)}
-                    className="w-4 h-4 accent-amber-500 rounded cursor-pointer"
+                    size="small"
+                    sx={{
+                      color: '#f59e0b',
+                      p: 0.5,
+                      '&.Mui-checked': { color: '#f59e0b' },
+                    }}
                   />
                   Bitrate Range (kbps)
                 </span>
@@ -803,7 +825,10 @@ export const FilterView: React.FC = () => {
               <div className="px-2 pt-1">
                 <Slider
                   value={bitrateRange}
-                  onChange={(_, val) => setBitrateRange(val as [number, number])}
+                  onChange={(_, val) => {
+                    setBitrateRange(val as [number, number]);
+                    if (!useBitrateFilter) setUseBitrateFilter(true);
+                  }}
                   valueLabelDisplay="auto"
                   min={128}
                   max={2000}
@@ -829,12 +854,16 @@ export const FilterView: React.FC = () => {
             {/* MUI Range Slider: BPM */}
             <div className="flex flex-col gap-1 p-3.5 rounded-2xl bg-white/5 border border-white/5">
               <div className="flex items-center justify-between text-xs mb-1">
-                <span className="font-semibold text-zinc-300 flex items-center gap-1.5">
-                  <input
-                    type="checkbox"
+                <span className="font-semibold text-zinc-300 flex items-center gap-1">
+                  <Checkbox
                     checked={useBpmFilter}
                     onChange={(e) => setUseBpmFilter(e.target.checked)}
-                    className="w-4 h-4 accent-purple-500 rounded cursor-pointer"
+                    size="small"
+                    sx={{
+                      color: '#a855f7',
+                      p: 0.5,
+                      '&.Mui-checked': { color: '#a855f7' },
+                    }}
                   />
                   BPM Tag Range
                 </span>
@@ -845,7 +874,10 @@ export const FilterView: React.FC = () => {
               <div className="px-2 pt-1">
                 <Slider
                   value={bpmRange}
-                  onChange={(_, val) => setBpmRange(val as [number, number])}
+                  onChange={(_, val) => {
+                    setBpmRange(val as [number, number]);
+                    if (!useBpmFilter) setUseBpmFilter(true);
+                  }}
                   valueLabelDisplay="auto"
                   min={40}
                   max={220}
@@ -868,6 +900,7 @@ export const FilterView: React.FC = () => {
               </div>
             </div>
           </div>
+
         </div>
 
         {/* Results Count & Filtering Status */}

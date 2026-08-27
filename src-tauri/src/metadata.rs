@@ -253,20 +253,25 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
             }
         }
 
-        if let Some(k_list) = c.get("INITIALKEY").or_else(|| c.get("KEY")) {
-            if let Some(k) = k_list.first() {
-                let cleaned = k.trim();
-                if !cleaned.is_empty() {
-                    key = Some(cleaned.to_string());
+        // Case-insensitive vorbis tag search for Key and BPM
+        for (k_name, values) in &c.comments {
+            let key_upper = k_name.to_uppercase();
+            if key.is_none() && (key_upper == "INITIALKEY" || key_upper == "KEY" || key_upper == "TKEY") {
+                if let Some(k) = values.first() {
+                    let cleaned = k.trim();
+                    if !cleaned.is_empty() {
+                        key = Some(cleaned.to_string());
+                    }
                 }
             }
-        }
-
-        if let Some(b_list) = c.get("BPM").or_else(|| c.get("TEMPO")) {
-            if let Some(b) = b_list.first() {
-                let cleaned = b.trim();
-                if let Ok(val) = cleaned.parse::<f32>() {
-                    bpm = Some(val as u32);
+            if bpm.is_none() && (key_upper == "BPM" || key_upper == "TBPM" || key_upper == "TEMPO") {
+                if let Some(b) = values.first() {
+                    let clean = b.to_uppercase().replace("BPM", "").trim().to_string();
+                    if let Ok(val) = clean.parse::<f32>() {
+                        bpm = Some(val as u32);
+                    } else if let Ok(val) = clean.parse::<u32>() {
+                        bpm = Some(val);
+                    }
                 }
             }
         }
@@ -315,7 +320,7 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
         use lofty::tag::Accessor;
 
 
-        if let Some(t) = tagged_file.primary_tag().or_else(|| tagged_file.first_tag()) {
+        for t in tagged_file.tags() {
             if genre.is_none() {
                 if let Some(g) = t.genre() {
                     genre = Some(g.to_string());
@@ -333,8 +338,27 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
             }
             if bpm.is_none() {
                 if let Some(b_item) = t.get_string(&lofty::tag::ItemKey::Bpm) {
-                    if let Ok(b_val) = b_item.parse::<f32>() {
+                    let clean = b_item.to_uppercase().replace("BPM", "").trim().to_string();
+                    if let Ok(b_val) = clean.parse::<f32>() {
                         bpm = Some(b_val as u32);
+                    }
+                }
+            }
+
+            for item in t.items() {
+                let k_str = format!("{:?}", item.key()).to_uppercase();
+                if key.is_none() && (k_str.contains("INITIALKEY") || k_str.contains("KEY") || k_str.contains("TKEY")) {
+                    if let lofty::tag::ItemValue::Text(val) = item.value() {
+                        let cleaned = val.trim();
+                        if !cleaned.is_empty() { key = Some(cleaned.to_string()); }
+                    }
+                }
+                if bpm.is_none() && (k_str.contains("BPM") || k_str.contains("TEMPO") || k_str.contains("TBPM")) {
+                    if let lofty::tag::ItemValue::Text(val) = item.value() {
+                        let clean = val.to_uppercase().replace("BPM", "").trim().to_string();
+                        if let Ok(b_val) = clean.parse::<f32>() {
+                            bpm = Some(b_val as u32);
+                        }
                     }
                 }
             }
@@ -440,6 +464,121 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
 
 }
 
+pub fn parse_audio_file(path: &Path) -> Option<TrackMetadata> {
+    if let Some(t) = parse_flac_file(path) {
+        return Some(t);
+    }
+
+    use lofty::file::AudioFile;
+    use lofty::file::TaggedFileExt;
+    use lofty::probe::Probe;
+    use lofty::tag::Accessor;
+
+    let path_str = path.to_string_lossy().to_string();
+    let filename = path.file_stem()?.to_string_lossy().to_string();
+
+    let tagged_file = Probe::open(path).ok()?.read().ok()?;
+
+    let properties = tagged_file.properties();
+    let duration_secs = properties.duration().as_secs_f64();
+    let sample_rate = properties.sample_rate().unwrap_or(44100);
+    let bit_depth = properties.bit_depth().unwrap_or(16) as u32;
+    let channels = properties.channels().unwrap_or(2) as u16;
+    let bit_rate_kbps = properties.audio_bitrate();
+
+    let mut title = filename.clone();
+    let mut artist = "Unknown Artist".to_string();
+    let mut album = "Unknown Album".to_string();
+    let mut genre = None;
+    let mut year = None;
+    let mut date = None;
+    let mut key = None;
+    let mut bpm = None;
+    let mut unsynced_lyrics = None;
+
+    for tag in tagged_file.tags() {
+        if let Some(t) = tag.title() {
+            let cleaned = t.trim();
+            if !cleaned.is_empty() { title = cleaned.to_string(); }
+        }
+        if let Some(a) = tag.artist() {
+            let cleaned = a.trim();
+            if !cleaned.is_empty() { artist = cleaned.to_string(); }
+        }
+        if let Some(al) = tag.album() {
+            let cleaned = al.trim();
+            if !cleaned.is_empty() { album = cleaned.to_string(); }
+        }
+        if genre.is_none() {
+            if let Some(g) = tag.genre() {
+                let cleaned = g.trim();
+                if !cleaned.is_empty() { genre = Some(cleaned.to_string()); }
+            }
+        }
+        if year.is_none() {
+            if let Some(y) = tag.year() {
+                year = Some(y);
+            }
+        }
+        if key.is_none() {
+            if let Some(k) = tag.get_string(&lofty::tag::ItemKey::InitialKey) {
+                let cleaned = k.trim();
+                if !cleaned.is_empty() { key = Some(cleaned.to_string()); }
+            }
+        }
+        if bpm.is_none() {
+            if let Some(b) = tag.get_string(&lofty::tag::ItemKey::Bpm) {
+                let clean = b.to_uppercase().replace("BPM", "").trim().to_string();
+                if let Ok(b_val) = clean.parse::<f32>() {
+                    bpm = Some(b_val as u32);
+                }
+            }
+        }
+
+        for item in tag.items() {
+            let k_str = format!("{:?}", item.key()).to_uppercase();
+            if key.is_none() && (k_str.contains("INITIALKEY") || k_str.contains("KEY") || k_str.contains("TKEY")) {
+                if let lofty::tag::ItemValue::Text(val) = item.value() {
+                    let cleaned = val.trim();
+                    if !cleaned.is_empty() { key = Some(cleaned.to_string()); }
+                }
+            }
+            if bpm.is_none() && (k_str.contains("BPM") || k_str.contains("TEMPO") || k_str.contains("TBPM")) {
+                if let lofty::tag::ItemValue::Text(val) = item.value() {
+                    let clean = val.to_uppercase().replace("BPM", "").trim().to_string();
+                    if let Ok(b_val) = clean.parse::<f32>() {
+                        bpm = Some(b_val as u32);
+                    }
+                }
+            }
+        }
+    }
+
+    let id = format!("{:x}", md5_hash(&path_str));
+
+    Some(TrackMetadata {
+        id,
+        path: path_str,
+        title,
+        artist,
+        album,
+        duration_secs,
+        sample_rate,
+        bit_depth,
+        channels,
+        bit_rate_kbps,
+        replay_gain_db: None,
+        replay_gain_peak: None,
+        embedded_art_base64: None,
+        unsynced_lyrics,
+        genre,
+        year,
+        date,
+        key,
+        bpm,
+    })
+}
+
 fn md5_hash(input: &str) -> u128 {
     let mut hash: u128 = 0xcbf29ce484222325;
     for byte in input.bytes() {
@@ -453,7 +592,7 @@ pub fn scan_configured_directories(
     included_dirs: &[String],
     excluded_dirs: &[String],
 ) -> Vec<TrackMetadata> {
-    let mut all_flac_paths: Vec<PathBuf> = Vec::new();
+    let mut all_audio_paths: Vec<PathBuf> = Vec::new();
     let excluded_paths: Vec<PathBuf> = excluded_dirs.iter().map(PathBuf::from).collect();
 
     for dir_path in included_dirs {
@@ -467,12 +606,15 @@ pub fn scan_configured_directories(
             .filter_map(|e| e.ok())
             .filter(|e| e.path().is_file())
             .filter(|e| {
-                let is_flac = e
+                let is_supported = e
                     .path()
                     .extension()
-                    .map(|ext| ext.to_string_lossy().to_lowercase() == "flac")
+                    .map(|ext| {
+                        let ext_str = ext.to_string_lossy().to_lowercase();
+                        matches!(ext_str.as_str(), "flac" | "mp3" | "m4a" | "wav" | "ogg" | "aac" | "aiff" | "alac" | "wma")
+                    })
                     .unwrap_or(false);
-                if !is_flac {
+                if !is_supported {
                     return false;
                 }
 
@@ -488,15 +630,15 @@ pub fn scan_configured_directories(
             .map(|e| e.path().to_path_buf())
             .collect();
 
-        all_flac_paths.extend(paths);
+        all_audio_paths.extend(paths);
     }
 
-    all_flac_paths.sort();
-    all_flac_paths.dedup();
+    all_audio_paths.sort();
+    all_audio_paths.dedup();
 
-    all_flac_paths
+    all_audio_paths
         .into_par_iter()
-        .filter_map(|path| parse_flac_file(&path))
+        .filter_map(|path| parse_audio_file(&path))
         .collect()
 }
 

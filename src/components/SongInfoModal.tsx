@@ -152,27 +152,28 @@ export const SongInfoModal: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Local Genre</span>
-                <span className="text-xl font-medium text-white">{infoModalTrack.genre || 'Not set in file'}</span>
+                <span className="text-xl font-medium text-white">{infoModalTrack.genre || 'N/A'}</span>
               </div>
 
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Local Release Year / Date</span>
                 <span className="text-xl font-mono text-white">
-                  {infoModalTrack.date || (infoModalTrack.year ? String(infoModalTrack.year) : 'Not set in file')}
+                  {infoModalTrack.date || (infoModalTrack.year ? String(infoModalTrack.year) : 'N/A')}
                 </span>
               </div>
 
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Musical Key</span>
-                <span className="text-xl font-mono text-indigo-300 font-bold">{infoModalTrack.key || 'Not tagged'}</span>
+                <span className="text-xl font-mono text-indigo-300 font-bold">{infoModalTrack.key || 'N/A'}</span>
               </div>
 
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">BPM (Beats Per Minute)</span>
                 <span className="text-xl font-mono text-purple-300 font-bold">
-                  {infoModalTrack.bpm ? `${infoModalTrack.bpm} BPM` : 'Not tagged'}
+                  {infoModalTrack.bpm ? `${infoModalTrack.bpm} BPM` : 'N/A'}
                 </span>
               </div>
+
 
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Duration</span>

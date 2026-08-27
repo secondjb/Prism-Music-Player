@@ -185,11 +185,25 @@ export const BottomBar: React.FC = () => {
             setShowPlaylistSub(false);
           }
         }}
-        onMouseLeave={() => {
-          setShowContextMenu(false);
-          setShowPlaylistSub(false);
-        }}
       >
+        {/* Backdrop to close context menu on click outside */}
+        {showContextMenu && (
+          <div
+            className="fixed inset-0 z-40 bg-transparent"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowContextMenu(false);
+              setShowPlaylistSub(false);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowContextMenu(false);
+              setShowPlaylistSub(false);
+            }}
+          />
+        )}
+
         {currentTrack ? (
           <>
             <div className="relative w-14 h-14 rounded-xl overflow-hidden shadow-md shrink-0 group border border-white/10 bg-zinc-900 cursor-context-menu">
@@ -234,7 +248,11 @@ export const BottomBar: React.FC = () => {
             {/* Context Menu Dropdown */}
             {showContextMenu && (
               <div
-                className="absolute left-0 bottom-20 w-48 glass-panel border border-white/10 rounded-xl shadow-2xl py-1 z-50 flex flex-col"
+                className="absolute left-0 bottom-full mb-3 w-48 glass-panel border border-white/10 rounded-xl shadow-2xl py-1 z-50 flex flex-col animate-fade-in"
+                onMouseLeave={() => {
+                  setShowContextMenu(false);
+                  setShowPlaylistSub(false);
+                }}
               >
                 <button
                   onClick={() => {

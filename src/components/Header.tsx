@@ -38,9 +38,6 @@ export const Header: React.FC = () => {
     <header className="w-full py-4 px-8 flex items-center justify-between z-10 shrink-0">
       <div>
         <h2 className="text-2xl font-bold text-white tracking-tight">{getTitle()}</h2>
-        <p className="text-xs text-zinc-400 mt-0.5 font-medium">
-          Bit-perfect high-resolution local audio engine
-        </p>
       </div>
 
       <div className="flex items-center gap-4">

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { ActiveTab } from '../types/player';
-import { Library, Heart, Disc, Folder, Music, Mic2, FolderPlus, Sparkles, Settings, ChevronDown, ChevronRight } from 'lucide-react';
+import { Library, Heart, Disc, Folder, Music, Mic2, FolderPlus, Settings, ChevronDown, ChevronRight } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
+import { GeminiLogo } from './GeminiLogo';
 
 export const Sidebar: React.FC = () => {
   const activeTab = usePlayerStore((s) => s.activeTab);
@@ -14,6 +15,7 @@ export const Sidebar: React.FC = () => {
   const setActivePlaylistId = usePlayerStore((s) => s.setActivePlaylistId);
   const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
 
+  const includedDirectories = usePlayerStore((s) => s.includedDirectories);
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [dragOverPlaylistId, setDragOverPlaylistId] = useState<string | null>(null);
 
@@ -50,23 +52,24 @@ export const Sidebar: React.FC = () => {
       <div className="flex flex-col gap-6">
         {/* App Logo */}
         <div className="flex items-center gap-3 px-2 pt-2 cursor-pointer" onClick={() => setActiveTab('library')}>
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
-            <Sparkles className="w-6 h-6 text-white" />
+          <div className="p-2 rounded-xl bg-white/5 border border-white/10 shadow-lg flex items-center justify-center">
+            <GeminiLogo className="w-9 h-5" />
           </div>
           <div>
-            <h1 className="font-bold text-lg text-white tracking-wide leading-none">PRISM</h1>
-            <p className="text-[11px] text-zinc-400 font-medium tracking-wider uppercase mt-1">High-Res FLAC</p>
+            <h1 className="font-bold text-xl text-white tracking-wide leading-none">Prism</h1>
           </div>
         </div>
 
-        {/* Action Button: Manage Library Folders */}
-        <button
-          onClick={handleQuickAddDirectory}
-          className="flex items-center justify-center gap-2.5 w-full py-2.5 px-4 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 text-white font-medium text-sm transition-all duration-200 shadow-md shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98]"
-        >
-          <FolderPlus className="w-4 h-4" />
-          <span>Add Library Folder</span>
-        </button>
+        {/* Action Button: Manage Library Folders (only show if no folders added) */}
+        {includedDirectories.length === 0 && (
+          <button
+            onClick={handleQuickAddDirectory}
+            className="flex items-center justify-center gap-2.5 w-full py-2.5 px-4 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 text-white font-medium text-sm transition-all duration-200 shadow-md shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <FolderPlus className="w-4 h-4" />
+            <span>Add Library Folder</span>
+          </button>
+        )}
 
         {/* Navigation Items */}
         <nav className="flex flex-col gap-1">

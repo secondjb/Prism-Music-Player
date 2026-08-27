@@ -888,8 +888,9 @@ export const LyricsView: React.FC = () => {
       >
         <button
           onClick={toggleShuffle}
+          style={shuffleEnabled ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
           className={`p-1.5 rounded-xl transition-colors ${
-            shuffleEnabled ? 'text-indigo-400' : 'text-zinc-400 hover:text-white'
+            shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
           }`}
           title="Shuffle"
         >
@@ -906,7 +907,8 @@ export const LyricsView: React.FC = () => {
 
         <button
           onClick={togglePlay}
-          className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-600/40 transition-transform active:scale-95 cursor-pointer shrink-0"
+          style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+          className="w-10 h-10 rounded-full text-white flex items-center justify-center shadow-lg transition-transform active:scale-95 cursor-pointer shrink-0"
           title={isPlaying ? 'Pause' : 'Play'}
         >
           {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
@@ -922,8 +924,9 @@ export const LyricsView: React.FC = () => {
 
         <button
           onClick={cycleRepeatMode}
+          style={repeatMode !== 'off' ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
           className={`p-1.5 rounded-xl transition-colors ${
-            repeatMode !== 'off' ? 'text-indigo-400' : 'text-zinc-400 hover:text-white'
+            repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
           }`}
           title="Repeat"
         >

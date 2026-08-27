@@ -382,8 +382,16 @@ export const BottomBar: React.FC = () => {
           {/* Shuffle */}
           <button
             onClick={toggleShuffle}
+            style={
+              shuffleEnabled
+                ? {
+                    color: 'var(--color-stop-1, #6366f1)',
+                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                  }
+                : undefined
+            }
             className={`p-1.5 rounded-lg transition-all ${
-              shuffleEnabled ? 'text-indigo-400 bg-indigo-500/15' : 'text-zinc-400 hover:text-white'
+              shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
             }`}
             title={shuffleEnabled ? 'Shuffle On' : 'Shuffle Off'}
           >
@@ -414,8 +422,16 @@ export const BottomBar: React.FC = () => {
           {/* Repeat */}
           <button
             onClick={cycleRepeatMode}
+            style={
+              repeatMode !== 'off'
+                ? {
+                    color: 'var(--color-stop-1, #6366f1)',
+                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                  }
+                : undefined
+            }
             className={`p-1.5 rounded-lg transition-all ${
-              repeatMode !== 'off' ? 'text-indigo-400 bg-indigo-500/15' : 'text-zinc-400 hover:text-white'
+              repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
             }`}
             title={repeatMode === 'off' ? 'Repeat Off' : repeatMode === 'all' ? 'Repeat All' : 'Repeat One'}
           >
@@ -435,8 +451,12 @@ export const BottomBar: React.FC = () => {
             {/* Floating Time Preview Tooltip */}
             <div
               ref={seekTooltipRef}
-              className="absolute -top-7 transform -translate-x-1/2 px-2 py-0.5 rounded-md bg-indigo-600 text-[10px] font-mono font-bold text-white shadow-lg shadow-indigo-950/80 pointer-events-none z-30 border border-indigo-400/30 whitespace-nowrap"
-              style={{ opacity: 0 }}
+              style={{
+                opacity: 0,
+                backgroundColor: 'var(--color-stop-1, #6366f1)',
+                borderColor: 'var(--color-stop-2, #818cf8)',
+              }}
+              className="absolute -top-7 transform -translate-x-1/2 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold text-white shadow-lg pointer-events-none z-30 whitespace-nowrap border"
             />
 
             <input
@@ -459,7 +479,7 @@ export const BottomBar: React.FC = () => {
                 }
               }}
               style={{
-                background: `linear-gradient(to right, #818cf8 0%, #c084fc ${seekPercent}%, #27272a ${seekPercent}%)`,
+                background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${seekPercent}%, #27272a ${seekPercent}%)`,
               }}
               className="w-full h-2 group-hover:h-3 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3 shadow-sm"
             />

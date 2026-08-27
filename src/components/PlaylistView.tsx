@@ -164,7 +164,8 @@ export const PlaylistView: React.FC = () => {
     };
 
     return (
-      <div className="flex flex-col gap-6">
+      <div className="w-full h-full flex flex-col gap-6 overflow-y-auto custom-scrollbar pr-2">
+
         {/* Back button + playlist info */}
         <div className="flex items-center gap-4">
           <button
@@ -297,7 +298,8 @@ export const PlaylistView: React.FC = () => {
 
   // Playlist selector view
   return (
-    <div className="flex flex-col gap-6">
+    <div className="w-full h-full flex flex-col gap-6 overflow-y-auto custom-scrollbar pr-2">
+
       {/* Header with create button */}
       <div className="flex items-center justify-between">
         <div>

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
+  const tracks = usePlayerStore((s) => s.tracks);
   const includedDirectories = usePlayerStore((s) => s.includedDirectories);
   const excludedDirectories = usePlayerStore((s) => s.excludedDirectories);
   const addIncludedDirectory = usePlayerStore((s) => s.addIncludedDirectory);
@@ -42,6 +43,13 @@ export const SettingsView: React.FC = () => {
 
   const [isScanning, setIsScanning] = useState(false);
   const [showWipeModal, setShowWipeModal] = useState(false);
+
+  // Compute Tag Indexing Stats
+  const totalTracks = tracks.length;
+  const genreCount = tracks.filter((t) => Boolean(t.genre)).length;
+  const yearCount = tracks.filter((t) => Boolean(t.year || t.date)).length;
+  const keyCount = tracks.filter((t) => Boolean(t.key)).length;
+  const bpmCount = tracks.filter((t) => Boolean(t.bpm)).length;
 
   const handleAddIncludedDir = async () => {
     try {
@@ -90,7 +98,7 @@ export const SettingsView: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto flex flex-col gap-8 pb-12">
+    <div className="w-full max-w-4xl mx-auto flex flex-col gap-8 pb-12 overflow-y-auto custom-scrollbar pr-2 h-full">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/10 pb-5">
         <div className="flex items-center gap-3">
@@ -100,7 +108,7 @@ export const SettingsView: React.FC = () => {
           <div>
             <h2 className="text-xl font-bold text-white tracking-wide">Settings & Library Folders</h2>
             <p className="text-xs text-zinc-400 mt-0.5">
-              Manage watched music directories, subfolder exclusions, audio specs, and lyrics fetching.
+              Manage watched music directories, tag indexing, audio specs, and lyrics preferences.
             </p>
           </div>
         </div>
@@ -115,9 +123,68 @@ export const SettingsView: React.FC = () => {
           }`}
         >
           <RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
-          <span>{isScanning ? 'Scanning...' : 'Rescan All Folders'}</span>
+          <span>{isScanning ? 'Indexing Library...' : 'Re-index Library & Tags'}</span>
         </button>
       </div>
+
+      {/* Library Tag Indexing Stats Card */}
+      <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-4 bg-gradient-to-br from-indigo-950/20 to-purple-950/20">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <RefreshCw className={`w-5 h-5 text-indigo-400 ${isScanning ? 'animate-spin' : ''}`} />
+            <div>
+              <h3 className="text-base font-bold text-white">Library Indexing & Tag Coverage</h3>
+              <p className="text-xs text-zinc-400">
+                {isScanning
+                  ? 'Currently reading local files and updating metadata index...'
+                  : `All ${totalTracks} tracks stored in local AppData index (library.json) for instant search.`}
+              </p>
+            </div>
+          </div>
+          <span
+            className={`px-3 py-1 rounded-full text-xs font-bold ${
+              isScanning
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
+                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+            }`}
+          >
+            {isScanning ? 'Indexing in progress' : 'Library Fully Indexed'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+          <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-1">
+            <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Total Indexed Tracks</span>
+            <span className="text-2xl font-black font-mono text-white">{totalTracks}</span>
+          </div>
+
+          <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-1">
+            <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Genre Tag Coverage</span>
+            <span className="text-2xl font-black font-mono text-indigo-300">
+              {totalTracks > 0 ? `${Math.round((genreCount / totalTracks) * 100)}%` : '0%'}
+            </span>
+            <span className="text-[10px] text-zinc-500 font-mono">{genreCount} / {totalTracks} tracks</span>
+          </div>
+
+          <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-1">
+            <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Year / Date Tags</span>
+            <span className="text-2xl font-black font-mono text-purple-300">
+              {totalTracks > 0 ? `${Math.round((yearCount / totalTracks) * 100)}%` : '0%'}
+            </span>
+            <span className="text-[10px] text-zinc-500 font-mono">{yearCount} / {totalTracks} tracks</span>
+          </div>
+
+          <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-1">
+            <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Key & BPM Tags</span>
+            <span className="text-2xl font-black font-mono text-pink-300">
+              {totalTracks > 0 ? `${Math.round((keyCount / totalTracks) * 100)}%` : '0%'}
+            </span>
+            <span className="text-[10px] text-zinc-500 font-mono">Key: {keyCount} • BPM: {bpmCount}</span>
+          </div>
+        </div>
+      </div>
+
+
 
       {/* 1. Included Music Folders */}
       <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-4">

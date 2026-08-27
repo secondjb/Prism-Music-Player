@@ -87,10 +87,13 @@ export const LyricsView: React.FC = () => {
   const [artExpanded, setArtExpanded] = useState(false);
   const [isUserScrolled, setIsUserScrolled] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isScrollbarVisible, setIsScrollbarVisible] = useState(false);
 
   const activeLineRef = useRef<HTMLDivElement | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollbarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
 
   // Check initial window fullscreen state
   useEffect(() => {
@@ -369,23 +372,32 @@ export const LyricsView: React.FC = () => {
     }
   };
 
-  // 5. Native wheel and touchmove listeners for user manual scroll override
+  // 5. Native scroll, wheel and touchmove listeners for scrollbar auto-hide & user manual scroll override
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const handleUserScroll = () => {
       setIsUserScrolled(true);
+      setIsScrollbarVisible(true);
+      if (scrollbarTimerRef.current) clearTimeout(scrollbarTimerRef.current);
+      scrollbarTimerRef.current = setTimeout(() => {
+        setIsScrollbarVisible(false);
+      }, 3000);
     };
 
+    el.addEventListener('scroll', handleUserScroll, { passive: true });
     el.addEventListener('wheel', handleUserScroll, { passive: true });
     el.addEventListener('touchmove', handleUserScroll, { passive: true });
 
     return () => {
+      el.removeEventListener('scroll', handleUserScroll);
       el.removeEventListener('wheel', handleUserScroll);
       el.removeEventListener('touchmove', handleUserScroll);
+      if (scrollbarTimerRef.current) clearTimeout(scrollbarTimerRef.current);
     };
   }, []);
+
 
   useEffect(() => {
     if (!isUserScrolled && activeIndex !== -1) {
@@ -638,8 +650,11 @@ export const LyricsView: React.FC = () => {
       {/* Main Lyrics Display Area */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto my-4 px-4 custom-scrollbar flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-10 relative"
+        className={`flex-1 overflow-y-auto my-4 px-4 custom-scrollbar ${
+          !isScrollbarVisible ? 'scrollbar-hidden' : ''
+        } flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-10 relative`}
       >
+
         {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
           <button
             onClick={() => {

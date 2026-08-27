@@ -11,8 +11,10 @@ import { BottomBar } from './components/BottomBar';
 import { LyricsView } from './components/LyricsView';
 import { QueueDrawer } from './components/QueueDrawer';
 import { SongInfoModal } from './components/SongInfoModal';
+import { FilterView } from './components/FilterView';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+
 
 export const App: React.FC = () => {
   const tracks = usePlayerStore((s) => s.tracks);
@@ -207,6 +209,8 @@ export const App: React.FC = () => {
       return <SongInfoModal />;
     }
     switch (activeTab) {
+      case 'filter':
+        return <FilterView />;
       case 'settings':
         return <SettingsView />;
       case 'albums':
@@ -216,6 +220,7 @@ export const App: React.FC = () => {
       default:
         return <TrackList tracks={filteredTracks} />;
     }
+
   };
 
   return (

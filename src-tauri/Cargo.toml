@@ -32,3 +32,5 @@ parking_lot = "0.12"
 crossbeam-channel = "0.5"
 rayon = "1.10"
 souvlaki = "0.8.3"
+lofty = "0.21"
+

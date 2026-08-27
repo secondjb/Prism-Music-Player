@@ -13,9 +13,15 @@ export interface Track {
   replay_gain_peak?: number | null;
   embedded_art_base64?: string | null;
   unsynced_lyrics?: string | null;
+  genre?: string | null;
+  year?: number | null;
+  date?: string | null;
+  key?: string | null;
+  bpm?: number | null;
 }
 
-export type ActiveTab = 'library' | 'playlists' | 'liked' | 'albums' | 'folders' | 'lyrics' | 'settings';
+export type ActiveTab = 'library' | 'playlists' | 'liked' | 'albums' | 'folders' | 'lyrics' | 'settings' | 'filter';
+
 
 export type RepeatMode = 'off' | 'all' | 'one';
 

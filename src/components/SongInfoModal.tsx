@@ -146,14 +146,39 @@ export const SongInfoModal: React.FC = () => {
           <section className="flex flex-col gap-4">
             <div className="flex items-center gap-3 text-indigo-400 border-b border-white/10 pb-3">
               <HardDrive className="w-6 h-6" />
-              <h3 className="text-lg font-bold">Local File Technical Specs</h3>
+              <h3 className="text-lg font-bold">Local File Technical Specs & ID3 Tags</h3>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
+                <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Local Genre</span>
+                <span className="text-xl font-medium text-white">{infoModalTrack.genre || 'Not set in file'}</span>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
+                <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Local Release Year / Date</span>
+                <span className="text-xl font-mono text-white">
+                  {infoModalTrack.date || (infoModalTrack.year ? String(infoModalTrack.year) : 'Not set in file')}
+                </span>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
+                <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Musical Key</span>
+                <span className="text-xl font-mono text-indigo-300 font-bold">{infoModalTrack.key || 'Not tagged'}</span>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
+                <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">BPM (Beats Per Minute)</span>
+                <span className="text-xl font-mono text-purple-300 font-bold">
+                  {infoModalTrack.bpm ? `${infoModalTrack.bpm} BPM` : 'Not tagged'}
+                </span>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Duration</span>
                 <span className="text-xl font-mono text-white">{formatDuration(infoModalTrack.duration_secs)}</span>
               </div>
+
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">ReplayGain</span>
                 <span className="text-xl font-mono text-white">
@@ -173,6 +198,7 @@ export const SongInfoModal: React.FC = () => {
               </p>
             </div>
           </section>
+
 
           {/* iTunes API Info */}
           <section className="flex flex-col gap-4 mt-4">

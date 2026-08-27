@@ -21,7 +21,13 @@ pub struct TrackMetadata {
     pub replay_gain_peak: Option<f32>,
     pub embedded_art_base64: Option<String>,
     pub unsynced_lyrics: Option<String>,
+    pub genre: Option<String>,
+    pub year: Option<u32>,
+    pub date: Option<String>,
+    pub key: Option<String>,
+    pub bpm: Option<u32>,
 }
+
 
 fn parse_replay_gain_db(gain_str: &str) -> Option<f32> {
     let clean = gain_str.trim().replace("dB", "").replace("DB", "");
@@ -205,6 +211,12 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
     let mut replay_gain_db = None;
     let mut replay_gain_peak = None;
     let mut unsynced_lyrics = None;
+    let mut genre = None;
+    let mut year = None;
+    let mut date = None;
+    let mut key = None;
+    let mut bpm = None;
+
 
     if let Some(c) = comments {
         if let Some(gains) = c.get("REPLAYGAIN_TRACK_GAIN") {
@@ -218,11 +230,52 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
             }
         }
 
+        if let Some(g_list) = c.get("GENRE") {
+            if let Some(g) = g_list.first() {
+                let cleaned = g.trim();
+                if !cleaned.is_empty() {
+                    genre = Some(cleaned.to_string());
+                }
+            }
+        }
+
+        if let Some(d_list) = c.get("DATE").or_else(|| c.get("YEAR")) {
+            if let Some(d) = d_list.first() {
+                let cleaned = d.trim();
+                if !cleaned.is_empty() {
+                    date = Some(cleaned.to_string());
+                    if let Some(y_str) = cleaned.split('-').next().or_else(|| cleaned.split('/').next()) {
+                        if let Ok(y_num) = y_str.parse::<u32>() {
+                            year = Some(y_num);
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(k_list) = c.get("INITIALKEY").or_else(|| c.get("KEY")) {
+            if let Some(k) = k_list.first() {
+                let cleaned = k.trim();
+                if !cleaned.is_empty() {
+                    key = Some(cleaned.to_string());
+                }
+            }
+        }
+
+        if let Some(b_list) = c.get("BPM").or_else(|| c.get("TEMPO")) {
+            if let Some(b) = b_list.first() {
+                let cleaned = b.trim();
+                if let Ok(val) = cleaned.parse::<f32>() {
+                    bpm = Some(val as u32);
+                }
+            }
+        }
+
         let mut best_lyrics = None;
         let mut best_score = 0;
 
-        for (key, values) in &c.comments {
-            let key_upper = key.to_uppercase();
+        for (k_name, values) in &c.comments {
+            let key_upper = k_name.to_uppercase();
 
             let score = if key_upper == "SYNCEDLYRICS" {
                 10
@@ -253,6 +306,38 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
         }
         if best_lyrics.is_some() {
             unsynced_lyrics = best_lyrics;
+        }
+    }
+
+    // Secondary fallback using lofty: Probe file for generic ID3 tags (genre, year, key, bpm)
+    if let Ok(tagged_file) = lofty::probe::Probe::open(path).and_then(|p| p.read()) {
+        use lofty::file::TaggedFileExt;
+        use lofty::tag::Accessor;
+
+
+        if let Some(t) = tagged_file.primary_tag().or_else(|| tagged_file.first_tag()) {
+            if genre.is_none() {
+                if let Some(g) = t.genre() {
+                    genre = Some(g.to_string());
+                }
+            }
+            if year.is_none() {
+                if let Some(y) = t.year() {
+                    year = Some(y);
+                }
+            }
+            if key.is_none() {
+                if let Some(k_item) = t.get_string(&lofty::tag::ItemKey::InitialKey) {
+                    key = Some(k_item.to_string());
+                }
+            }
+            if bpm.is_none() {
+                if let Some(b_item) = t.get_string(&lofty::tag::ItemKey::Bpm) {
+                    if let Ok(b_val) = b_item.parse::<f32>() {
+                        bpm = Some(b_val as u32);
+                    }
+                }
+            }
         }
     }
 
@@ -346,7 +431,13 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
         replay_gain_peak,
         embedded_art_base64: None, // On-demand art fetching keeps library tiny and ultra-fast
         unsynced_lyrics,
+        genre,
+        year,
+        date,
+        key,
+        bpm,
     })
+
 }
 
 fn md5_hash(input: &str) -> u128 {

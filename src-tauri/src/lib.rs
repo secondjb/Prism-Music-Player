@@ -117,6 +117,125 @@ fn get_playback_position(audio_engine: State<'_, GlobalAudioEngine>) -> (f64, f6
     audio_engine.get_position()
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct FilterParams {
+    pub artist: Option<String>,
+    pub genre: Option<String>,
+    pub min_year: Option<u32>,
+    pub max_year: Option<u32>,
+    pub min_bitrate_kbps: Option<u32>,
+    pub max_bitrate_kbps: Option<u32>,
+    pub sample_rate: Option<u32>,
+    pub key: Option<String>,
+    pub min_bpm: Option<u32>,
+    pub max_bpm: Option<u32>,
+    pub query: Option<String>,
+}
+
+#[tauri::command]
+fn filter_tracks(app_handle: AppHandle, params: FilterParams) -> Result<Vec<String>, String> {
+    use rayon::prelude::*;
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+
+    let tracks = load_library_from_disk(&app_data_dir).unwrap_or_default();
+
+    let artist_query = params.artist.as_ref().map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty());
+    let genre_query = params.genre.as_ref().map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty());
+    let key_query = params.key.as_ref().map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty());
+    let text_query = params.query.as_ref().map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty());
+
+    let matching_ids: Vec<String> = tracks
+        .into_par_iter()
+        .filter(|t| {
+            if let Some(ref aq) = artist_query {
+                if !t.artist.to_lowercase().contains(aq) {
+                    return false;
+                }
+            }
+
+            if let Some(ref gq) = genre_query {
+                match &t.genre {
+                    Some(g) if g.to_lowercase().contains(gq) => {}
+                    _ => return false,
+                }
+            }
+
+            if let Some(min_y) = params.min_year {
+                match t.year {
+                    Some(y) if y >= min_y => {}
+                    _ => return false,
+                }
+            }
+
+            if let Some(max_y) = params.max_year {
+                match t.year {
+                    Some(y) if y <= max_y => {}
+                    _ => return false,
+                }
+            }
+
+            if let Some(min_b) = params.min_bitrate_kbps {
+                match t.bit_rate_kbps {
+                    Some(b) if b >= min_b => {}
+                    _ => return false,
+                }
+            }
+
+            if let Some(max_b) = params.max_bitrate_kbps {
+                match t.bit_rate_kbps {
+                    Some(b) if b <= max_b => {}
+                    _ => return false,
+                }
+            }
+
+            if let Some(sr) = params.sample_rate {
+                if t.sample_rate != sr {
+                    return false;
+                }
+            }
+
+            if let Some(ref kq) = key_query {
+                match &t.key {
+                    Some(k) if k.to_lowercase().contains(kq) => {}
+                    _ => return false,
+                }
+            }
+
+            if let Some(min_bpm) = params.min_bpm {
+                match t.bpm {
+                    Some(b) if b >= min_bpm => {}
+                    _ => return false,
+                }
+            }
+
+            if let Some(max_bpm) = params.max_bpm {
+                match t.bpm {
+                    Some(b) if b <= max_bpm => {}
+                    _ => return false,
+                }
+            }
+
+            if let Some(ref tq) = text_query {
+                let in_title = t.title.to_lowercase().contains(tq);
+                let in_artist = t.artist.to_lowercase().contains(tq);
+                let in_album = t.album.to_lowercase().contains(tq);
+                let in_genre = t.genre.as_ref().map(|g| g.to_lowercase().contains(tq)).unwrap_or(false);
+                if !in_title && !in_artist && !in_album && !in_genre {
+                    return false;
+                }
+            }
+
+            true
+        })
+        .map(|t| t.id)
+        .collect();
+
+    Ok(matching_ids)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let engine = GlobalAudioEngine::new();
@@ -173,8 +292,10 @@ pub fn run() {
             resume_audio,
             seek_audio,
             set_volume,
-            get_playback_position
+            get_playback_position,
+            filter_tracks
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+

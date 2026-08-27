@@ -134,6 +134,41 @@ export const BottomBar: React.FC = () => {
     }
   };
 
+  const [isEditingVol, setIsEditingVol] = useState(false);
+  const [volInputText, setVolInputText] = useState('');
+
+  // Native non-passive wheel listener for smooth & instant volume scrolling in WebView2/Tauri
+  useEffect(() => {
+    const el = volContainerRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const store = usePlayerStore.getState();
+      const current = store.volume;
+      const step = e.shiftKey ? 0.01 : 0.02;
+      const delta = e.deltaY < 0 ? step : -step;
+      const nextVol = Math.max(0, Math.min(1, Math.round((current + delta) * 100) / 100));
+      store.setVolume(nextVol);
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+    };
+  }, []);
+
+  const handleVolInputSubmit = () => {
+    const num = parseInt(volInputText, 10);
+    if (!isNaN(num)) {
+      const clamped = Math.max(0, Math.min(100, num)) / 100;
+      setVolume(clamped);
+      if (isMuted && clamped > 0) setIsMuted(false);
+    }
+    setIsEditingVol(false);
+  };
+
   const isLiked = currentTrack ? likedTrackIds.includes(currentTrack.id) : false;
 
   const currentSeekDisplay = isDraggingSeek && dragSeekVal !== null ? dragSeekVal : currentTime;
@@ -159,7 +194,7 @@ export const BottomBar: React.FC = () => {
     }
   }, []);
 
-  // Zero-render-lag volume tooltip
+  // Zero-render-lag volume tooltip without decimals
   const handleVolMouseMove = useCallback((e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * 100;
@@ -182,7 +217,7 @@ export const BottomBar: React.FC = () => {
     <footer className="fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/95 backdrop-blur-2xl border-t border-white/10 z-30 flex items-center justify-between px-6 select-none">
       {/* 1. Track Info (Left) */}
       <div 
-        className="flex items-center gap-4 w-1/4 min-w-[220px] relative"
+        className="flex items-center gap-4 w-1/4 min-w-[180px] shrink relative"
         onContextMenu={(e) => {
           if (currentTrack) {
             e.preventDefault();
@@ -341,7 +376,7 @@ export const BottomBar: React.FC = () => {
       </div>
 
       {/* 2. Audio Controls & Material 3 Expressive Seek Bar (Center) */}
-      <div className="flex flex-col items-center gap-1.5 w-2/4 max-w-2xl px-4">
+      <div className="flex flex-col items-center gap-1.5 w-2/4 max-w-2xl px-4 min-w-0 shrink">
         {/* Playback Buttons */}
         <div className="flex items-center gap-4">
           {/* Shuffle */}
@@ -433,12 +468,12 @@ export const BottomBar: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. Volume & Extra Controls (Right) */}
-      <div className="flex items-center justify-end gap-3 w-1/4 min-w-[200px]">
+      {/* 3. Volume & Extra Controls (Right - Responsive & Auto-Shrinking) */}
+      <div className="flex items-center justify-end gap-1.5 sm:gap-2.5 w-1/4 shrink min-w-0">
         {/* Queue Drawer Button */}
         <button
           onClick={() => usePlayerStore.setState((s) => ({ isQueueOpen: !s.isQueueOpen }))}
-          className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-all relative"
+          className="p-1.5 sm:p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-all relative shrink-0"
           title="Play Queue"
         >
           <ListMusic className="w-5 h-5" />
@@ -450,10 +485,10 @@ export const BottomBar: React.FC = () => {
         </button>
 
         {/* Sleep Timer Button */}
-        <div className="relative">
+        <div className="relative shrink-0">
           <button
             onClick={() => setIsTimerModalOpen(!isTimerModalOpen)}
-            className={`p-2 rounded-xl transition-all relative ${
+            className={`p-1.5 sm:p-2 rounded-xl transition-all relative ${
               sleepTimer.active ? 'bg-indigo-600/30 text-indigo-400 border border-indigo-500/40' : 'text-zinc-400 hover:text-white hover:bg-white/5'
             }`}
             title="Sleep Timer"
@@ -466,15 +501,22 @@ export const BottomBar: React.FC = () => {
           <SleepTimerModal isOpen={isTimerModalOpen} onClose={() => setIsTimerModalOpen(false)} />
         </div>
 
-        <div className="flex items-center gap-2">
-          <button onClick={handleMuteToggle} className="text-zinc-400 hover:text-white transition-colors">
-            {isMuted || volume === 0 ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+        {/* Responsive Volume Controls */}
+        <div className="flex items-center gap-1.5 flex-1 max-w-[140px] min-w-[50px] shrink">
+          <button
+            onClick={handleMuteToggle}
+            className="text-zinc-400 hover:text-white transition-colors p-1 shrink-0"
+            title={isMuted ? 'Unmute' : 'Mute'}
+          >
+            {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 text-rose-400" /> : <Volume2 className="w-5 h-5" />}
           </button>
+          
           <div
             ref={volContainerRef}
-            className="relative w-24 h-4 flex items-center group cursor-pointer"
+            className="relative flex-1 h-6 flex items-center group cursor-pointer shrink min-w-[30px]"
             onMouseMove={handleVolMouseMove}
             onMouseLeave={handleVolMouseLeave}
+            title="Scroll wheel to adjust volume"
           >
             {/* Floating Volume Percentage Tooltip */}
             <div
@@ -500,12 +542,42 @@ export const BottomBar: React.FC = () => {
               className="w-full h-2 group-hover:h-3 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3 shadow-sm"
             />
           </div>
+
+          {/* Integer Volume Percentage Display / Direct Input */}
+          {isEditingVol ? (
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              autoFocus
+              value={volInputText}
+              onChange={(e) => setVolInputText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleVolInputSubmit();
+                if (e.key === 'Escape') setIsEditingVol(false);
+              }}
+              onBlur={handleVolInputSubmit}
+              className="w-10 px-0.5 py-0.5 text-xs font-mono font-bold text-center bg-zinc-900 border border-cyan-500 rounded text-cyan-300 outline-none shrink-0"
+            />
+          ) : (
+            <button
+              onClick={() => {
+                setVolInputText(Math.round(effectiveVol * 100).toString());
+                setIsEditingVol(true);
+              }}
+              className="px-1 py-0.5 text-xs font-mono font-bold text-zinc-400 hover:text-cyan-300 hover:bg-cyan-500/10 rounded transition-colors min-w-[28px] text-right shrink-0"
+              title="Click to type volume"
+            >
+              {Math.round(effectiveVol * 100)}%
+            </button>
+          )}
         </div>
 
         {/* Karaoke / Lyrics Toggle (Moved to far right) */}
         <button
           onClick={() => setShowLyricsFullscreen(!showLyricsFullscreen)}
-          className={`p-2 rounded-xl transition-all ${
+          className={`p-1.5 sm:p-2 rounded-xl transition-all shrink-0 ${
             showLyricsFullscreen ? 'bg-indigo-600 text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-white/5'
           }`}
           title="Karaoke / Fullscreen Lyrics"

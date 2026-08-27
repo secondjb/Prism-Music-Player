@@ -52,8 +52,8 @@ export const App: React.FC = () => {
     if (!('mediaSession' in navigator)) return;
 
     const actionHandlers: [MediaSessionAction, MediaSessionActionHandler][] = [
-      ['play', () => usePlayerStore.getState().togglePlay()],
-      ['pause', () => usePlayerStore.getState().togglePlay()],
+      ['play', () => usePlayerStore.getState().resume()],
+      ['pause', () => usePlayerStore.getState().pause()],
       ['previoustrack', () => usePlayerStore.getState().previousTrack()],
       ['nexttrack', () => usePlayerStore.getState().nextTrack()],
       ['seekto', (details) => {
@@ -121,7 +121,11 @@ export const App: React.FC = () => {
         const store = usePlayerStore.getState();
         switch (event.payload) {
           case 'play':
+            store.resume();
+            break;
           case 'pause':
+            store.pause();
+            break;
           case 'toggle':
             store.togglePlay();
             break;

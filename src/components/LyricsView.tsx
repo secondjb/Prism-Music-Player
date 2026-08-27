@@ -93,7 +93,28 @@ export const LyricsView: React.FC = () => {
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollbarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const floatingVolRef = useRef<HTMLDivElement | null>(null);
 
+  useEffect(() => {
+    const el = floatingVolRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const store = usePlayerStore.getState();
+      const current = store.volume;
+      const step = e.shiftKey ? 0.005 : 0.02;
+      const delta = e.deltaY < 0 ? step : -step;
+      const nextVol = Math.max(0, Math.min(1, current + delta));
+      store.setVolume(nextVol);
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+    };
+  }, []);
 
   // Check initial window fullscreen state
   useEffect(() => {
@@ -893,8 +914,11 @@ export const LyricsView: React.FC = () => {
               style={{
                 background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${volume * 100}%, #27272a ${volume * 100}%)`,
               }}
-              className="w-16 h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
+              className="w-20 h-2 rounded-full appearance-none cursor-pointer slider-m3"
             />
+            <span className="text-[10px] font-mono text-zinc-400 font-bold min-w-[28px] text-right">
+              {Math.round(volume * 100)}%
+            </span>
           </div>
         )}
 
@@ -916,11 +940,11 @@ export const LyricsView: React.FC = () => {
             y: controlsVisible ? 0 : 20,
           }}
           transition={{ duration: 0.3 }}
-          className={`fixed bottom-6 right-8 z-40 glass-panel border border-white/10 rounded-full px-4 py-2.5 shadow-2xl flex items-center gap-3.5 ${
+          className={`fixed bottom-6 right-8 z-40 glass-panel border border-white/10 rounded-full px-4 py-2 shadow-2xl flex items-center gap-3.5 ${
             controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
           }`}
         >
-          <div className="flex items-center gap-2">
+          <div ref={floatingVolRef} className="flex items-center gap-2.5">
             <button
               onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
               className="text-zinc-400 hover:text-white transition-colors p-1"
@@ -938,8 +962,11 @@ export const LyricsView: React.FC = () => {
               style={{
                 background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${volume * 100}%, #27272a ${volume * 100}%)`,
               }}
-              className="w-20 h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
+              className="w-24 sm:w-28 md:w-32 h-2 hover:h-3 rounded-full appearance-none cursor-pointer slider-m3 transition-all"
             />
+            <span className="text-xs font-mono text-cyan-300 font-bold min-w-[32px] text-right">
+              {Math.round(volume * 100)}%
+            </span>
           </div>
         </motion.div>
       )}

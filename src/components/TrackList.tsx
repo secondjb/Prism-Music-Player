@@ -109,7 +109,7 @@ const TrackRow: React.FC<{
               e.stopPropagation();
               onTrackClick(e, true);
             }}
-            className="w-4 h-4 rounded border-zinc-500 bg-indigo-500 text-white focus:ring-indigo-500 focus:ring-offset-zinc-900 cursor-pointer"
+            className="w-4 h-4 rounded border-zinc-600 bg-zinc-900 text-indigo-500 accent-indigo-500 focus:ring-indigo-500 focus:ring-offset-zinc-900 cursor-pointer"
           />
         ) : (
           <div className="relative flex items-center justify-center w-full h-full">
@@ -135,7 +135,7 @@ const TrackRow: React.FC<{
                 e.stopPropagation();
                 onTrackClick(e, true);
               }}
-              className={`absolute inset-0 m-auto w-4 h-4 rounded border-zinc-500 bg-zinc-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-zinc-900 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity ${isSelected ? 'group-hover:opacity-100' : ''}`}
+              className={`absolute inset-0 m-auto w-4 h-4 rounded border-zinc-600 bg-zinc-900 text-indigo-500 accent-indigo-500 focus:ring-indigo-500 focus:ring-offset-zinc-900 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity ${isSelected ? 'group-hover:opacity-100' : ''}`}
             />
           </div>
         )}

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <rect width="512" height="512" rx="128" fill="#09090b" />
-  <g transform="translate(6, 156)">
+  <g transform="translate(256, 256) scale(1.85) translate(-250, -100)">
     <defs>
       <linearGradient id="refraction" x1="0%" y1="0%" x2="100%" y2="0%">
         <stop offset="0%" stop-color="#FF3B30" />
@@ -14,14 +14,14 @@
 
     <!-- Left Input Sine Wave -->
     <path d="M 131.15 100 q 15 -35, 30 0 t 30 0 t 30 0" 
-          fill="none" stroke="#A1A1AA" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+          fill="none" stroke="#A1A1AA" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" />
 
     <!-- Right Output Sine Wave -->
     <path d="M 278.85 100 q 15 -35, 30 0 t 30 0 t 30 0" 
-          fill="none" stroke="url(#refraction)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+          fill="none" stroke="url(#refraction)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" />
 
     <!-- Central Grounded Prism -->
     <polygon points="250,50 192.3,150 307.7,150" 
-             fill="none" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+             fill="none" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" />
   </g>
 </svg>

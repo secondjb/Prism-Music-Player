@@ -9,7 +9,7 @@ export const GeminiLogo: React.FC<GeminiLogoProps> = ({ className = 'w-6 h-6', s
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 500 200"
+      viewBox="120 40 260 120"
       className={className}
       style={style}
     >

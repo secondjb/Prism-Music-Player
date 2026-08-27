@@ -12,6 +12,11 @@ import { LyricsView } from './components/LyricsView';
 import { QueueDrawer } from './components/QueueDrawer';
 import { SongInfoModal } from './components/SongInfoModal';
 import { FilterView } from './components/FilterView';
+import { MobileBottomNav } from './components/MobileBottomNav';
+import { SwipeableNowPlaying } from './components/SwipeableNowPlaying';
+import { HomePage } from './components/HomePage';
+import { SearchPage } from './components/SearchPage';
+import { LibraryPage } from './components/LibraryPage';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { logListeningEvent } from './utils/stats';
@@ -271,6 +276,19 @@ export const App: React.FC = () => {
 
   };
 
+  const renderMobileContent = () => {
+    switch (activeTab) {
+      case 'home':
+        return <HomePage />;
+      case 'search':
+        return <SearchPage />;
+      case 'library':
+        return <LibraryPage />;
+      default:
+        return <HomePage />;
+    }
+  };
+
   return (
     <div className="w-screen h-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden relative selection:bg-indigo-500/30 selection:text-indigo-200">
       {/* Background Ambient Glassmorphism Glow */}
@@ -298,23 +316,36 @@ export const App: React.FC = () => {
         )}
       </div>
 
-      {/* App Body Layout */}
-      <div className="flex flex-1 min-h-0 z-10">
-        {/* Sidebar */}
+      {/* Desktop App Body Layout */}
+      <div className="hidden md:flex flex-1 min-h-0 z-10">
         <Sidebar />
-
-        {/* Main Content Area */}
         <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <Header />
-
           <div className="flex-1 overflow-hidden px-8 py-2 flex flex-col">
             {renderContent()}
           </div>
         </main>
       </div>
 
-      {/* Bottom Audio Player Bar */}
-      <BottomBar />
+      {/* Mobile App Body Layout */}
+      <div className="flex md:hidden flex-1 min-h-0 z-10 flex-col">
+        <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {renderMobileContent()}
+          </div>
+        </main>
+      </div>
+
+      {/* Desktop Bottom Audio Player Bar */}
+      <div className="hidden md:block z-20">
+        <BottomBar />
+      </div>
+
+      {/* Mobile Swipeable Now Playing */}
+      <SwipeableNowPlaying />
+
+      {/* Mobile Bottom Navigation Bar */}
+      <MobileBottomNav />
 
       {/* Fullscreen Karaoke / Lyrics View Overlay */}
       {(showLyricsFullscreen || activeTab === 'lyrics') && <LyricsView />}

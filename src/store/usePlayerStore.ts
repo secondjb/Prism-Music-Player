@@ -124,7 +124,7 @@ export const usePlayerStore = create<PlayerState>()(
       volume: 0.8,
       currentTime: 0,
       duration: 0,
-      activeTab: 'library',
+      activeTab: 'home',
       searchQuery: '',
       likedTrackIds: [],
       sleepTimer: {

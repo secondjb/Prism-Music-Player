@@ -379,6 +379,10 @@ export const LyricsView: React.FC = () => {
 
 
 
+  const isProgrammaticScrollRef = useRef(false);
+  const userInteractingRef = useRef(false);
+  const userInteractionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // 4. Smooth scroll active line to center
   const scrollToActive = () => {
     if (containerRef.current && activeIndex !== -1) {
@@ -386,40 +390,66 @@ export const LyricsView: React.FC = () => {
       const containerEl = containerRef.current;
       if (lineEl) {
         const targetTop = lineEl.offsetTop - containerEl.clientHeight / 2 + lineEl.clientHeight / 2;
+        isProgrammaticScrollRef.current = true;
         containerEl.scrollTo({
           top: targetTop,
           behavior: 'smooth',
         });
+        setTimeout(() => {
+          isProgrammaticScrollRef.current = false;
+        }, 800);
       }
     }
   };
 
-  // 5. Native scroll, wheel and touchmove listeners for scrollbar auto-hide & user manual scroll override
+  // 5. Detect genuine user scrolling (wheel/touch/drag) away from current lyric line
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    const handleUserScroll = () => {
-      setIsUserScrolled(true);
+    const markUserInteracting = () => {
+      userInteractingRef.current = true;
+      if (userInteractionTimeoutRef.current) clearTimeout(userInteractionTimeoutRef.current);
+      userInteractionTimeoutRef.current = setTimeout(() => {
+        userInteractingRef.current = false;
+      }, 1500);
+    };
+
+    const handleScroll = () => {
       setIsScrollbarVisible(true);
       if (scrollbarTimerRef.current) clearTimeout(scrollbarTimerRef.current);
       scrollbarTimerRef.current = setTimeout(() => {
         setIsScrollbarVisible(false);
       }, 3000);
+
+      // Only unsync if it's NOT a programmatic scroll, user is actively scrolling, and scrolled away from active line
+      if (!isProgrammaticScrollRef.current && userInteractingRef.current && activeIndex !== -1) {
+        const lineEl = document.getElementById(`lyric-line-${activeIndex}`);
+        if (lineEl) {
+          const targetTop = lineEl.offsetTop - el.clientHeight / 2 + lineEl.clientHeight / 2;
+          const distance = Math.abs(el.scrollTop - targetTop);
+          // Require at least 100px displacement from the centered active line to consider it an unsync scroll
+          if (distance > 100) {
+            setIsUserScrolled(true);
+          }
+        }
+      }
     };
 
-    el.addEventListener('scroll', handleUserScroll, { passive: true });
-    el.addEventListener('wheel', handleUserScroll, { passive: true });
-    el.addEventListener('touchmove', handleUserScroll, { passive: true });
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    el.addEventListener('wheel', markUserInteracting, { passive: true });
+    el.addEventListener('touchmove', markUserInteracting, { passive: true });
+    el.addEventListener('pointerdown', markUserInteracting, { passive: true });
 
     return () => {
-      el.removeEventListener('scroll', handleUserScroll);
-      el.removeEventListener('wheel', handleUserScroll);
-      el.removeEventListener('touchmove', handleUserScroll);
+      el.removeEventListener('scroll', handleScroll);
+      el.removeEventListener('wheel', markUserInteracting);
+      el.removeEventListener('touchmove', markUserInteracting);
+      el.removeEventListener('pointerdown', markUserInteracting);
       if (scrollbarTimerRef.current) clearTimeout(scrollbarTimerRef.current);
+      if (userInteractionTimeoutRef.current) clearTimeout(userInteractionTimeoutRef.current);
     };
-  }, []);
-
+  }, [activeIndex]);
 
   useEffect(() => {
     if (!isUserScrolled && activeIndex !== -1) {

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { open } from '@tauri-apps/plugin-dialog';
 import {
@@ -335,11 +336,17 @@ export const SettingsView: React.FC = () => {
                 <span className="text-[11px] text-zinc-400">Fetch synced lyrics from LRCLIB if embedded lyrics missing</span>
               </div>
             </div>
-            <input
-              type="checkbox"
+            <Checkbox
               checked={lrclibAutoFetch}
               onChange={(e) => setLrclibAutoFetch(e.target.checked)}
-              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
             />
           </div>
 
@@ -351,11 +358,17 @@ export const SettingsView: React.FC = () => {
                 <span className="text-[11px] text-zinc-400">Romanize non-Latin script lyrics automatically</span>
               </div>
             </div>
-            <input
-              type="checkbox"
+            <Checkbox
               checked={isRomanizationEnabled}
               onChange={toggleRomanization}
-              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
             />
           </div>
 
@@ -400,11 +413,17 @@ export const SettingsView: React.FC = () => {
                 <span className="text-[11px] text-zinc-400">Display sample rate (kHz) and bit rate in player bar</span>
               </div>
             </div>
-            <input
-              type="checkbox"
+            <Checkbox
               checked={showAudioSpecs}
               onChange={toggleShowAudioSpecs}
-              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
             />
           </div>
 
@@ -416,11 +435,17 @@ export const SettingsView: React.FC = () => {
                 <span className="text-[11px] text-zinc-400">Display sample rate / bit depth column in track list</span>
               </div>
             </div>
-            <input
-              type="checkbox"
+            <Checkbox
               checked={showAudioSpecsInLibrary}
               onChange={toggleShowAudioSpecsInLibrary}
-              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
             />
           </div>
 
@@ -432,11 +457,17 @@ export const SettingsView: React.FC = () => {
                 <span className="text-[11px] text-zinc-400">Fade overlay controls after mouse stops moving</span>
               </div>
             </div>
-            <input
-              type="checkbox"
+            <Checkbox
               checked={autoHideLyricsControls}
               onChange={toggleAutoHideLyricsControls}
-              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
             />
           </div>
         </div>

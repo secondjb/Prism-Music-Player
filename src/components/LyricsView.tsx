@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
@@ -604,38 +605,62 @@ export const LyricsView: React.FC = () => {
 
           <div className="flex items-center justify-between text-xs">
             <span className="text-zinc-300">Auto-hide controls on idle</span>
-            <input
-              type="checkbox"
+            <Checkbox
               checked={autoHideLyricsControls}
               onChange={toggleAutoHideLyricsControls}
-              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
             />
           </div>
           <div className="flex items-center justify-between text-xs">
             <span className="text-zinc-300">Auto-fetch online lyrics</span>
-            <input
-              type="checkbox"
+            <Checkbox
               checked={lrclibAutoFetch}
               onChange={(e) => setLrclibAutoFetch(e.target.checked)}
-              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
             />
           </div>
           <div className="flex items-center justify-between text-xs">
             <span className="text-zinc-300">Prefer online lyrics</span>
-            <input
-              type="checkbox"
+            <Checkbox
               checked={preferOnlineLyrics}
               onChange={(e) => setPreferOnlineLyrics(e.target.checked)}
-              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
             />
           </div>
           <div className="flex items-center justify-between text-xs">
             <span className="text-zinc-300">Show Audio Bitrate & Frequency</span>
-            <input
-              type="checkbox"
+            <Checkbox
               checked={showAudioSpecs}
               onChange={toggleShowAudioSpecs}
-              className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
             />
           </div>
           <div className="flex items-center justify-between text-xs pt-1 border-t border-white/10">

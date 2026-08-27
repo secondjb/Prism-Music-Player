@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { Track } from '../types/player';
@@ -100,16 +101,25 @@ const TrackRow: React.FC<{
     >
       {/* Play / Index Column */}
       <div className="flex items-center justify-center font-mono text-sm w-8">
-        {(isMultiSelected) ? (
-          <input
-            type="checkbox"
+        {isMultiSelected ? (
+          <Checkbox
             checked={isMultiSelected}
             onChange={() => {}}
             onClick={(e) => {
               e.stopPropagation();
               onTrackClick(e, true);
             }}
-            className="w-4 h-4 rounded border-zinc-600 bg-zinc-900 text-indigo-500 accent-indigo-500 focus:ring-indigo-500 focus:ring-offset-zinc-900 cursor-pointer"
+            size="small"
+            sx={{
+              color: 'var(--color-stop-1, #6366f1)',
+              '&.Mui-checked': {
+                color: 'var(--color-stop-1, #6366f1)',
+              },
+              padding: 0,
+              '& .MuiSvgIcon-root': {
+                fontSize: 20,
+              },
+            }}
           />
         ) : (
           <div className="relative flex items-center justify-center w-full h-full">
@@ -126,16 +136,27 @@ const TrackRow: React.FC<{
             ) : (
               <span className="group-hover:opacity-0 transition-opacity text-zinc-500">{idx + 1}</span>
             )}
-            
-            <input
-              type="checkbox"
+
+            <Checkbox
               checked={isMultiSelected}
               onChange={() => {}}
               onClick={(e) => {
                 e.stopPropagation();
                 onTrackClick(e, true);
               }}
-              className={`absolute inset-0 m-auto w-4 h-4 rounded border-zinc-600 bg-zinc-900 text-indigo-500 accent-indigo-500 focus:ring-indigo-500 focus:ring-offset-zinc-900 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity ${isSelected ? 'group-hover:opacity-100' : ''}`}
+              size="small"
+              className="opacity-0 group-hover:opacity-100 transition-opacity"
+              sx={{
+                position: 'absolute',
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                padding: 0,
+                '& .MuiSvgIcon-root': {
+                  fontSize: 20,
+                },
+              }}
             />
           </div>
         )}

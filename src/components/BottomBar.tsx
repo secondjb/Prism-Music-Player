@@ -13,6 +13,7 @@ import {
   Mic2,
   Timer,
   ListMusic,
+  Sparkles,
   Shuffle,
   Repeat,
   Repeat1,
@@ -22,7 +23,6 @@ import {
   FolderPlus,
 } from 'lucide-react';
 import { SleepTimerModal } from './SleepTimerModal';
-import { GeminiLogo } from './GeminiLogo';
 import { updateLogoGradientFromImage } from '../utils/colorExtractor';
 
 export const BottomBar: React.FC = () => {
@@ -215,8 +215,8 @@ export const BottomBar: React.FC = () => {
               {trackArt ? (
                 <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover pointer-events-none" />
               ) : (
-                <div className="w-full h-full bg-zinc-900/90 flex items-center justify-center pointer-events-none p-2">
-                  <GeminiLogo className="w-10 h-5" />
+                <div className="w-full h-full bg-gradient-to-tr from-indigo-900 to-purple-900 flex items-center justify-center pointer-events-none">
+                  <Sparkles className="w-6 h-6 text-indigo-400" />
                 </div>
               )}
             </div>
@@ -329,8 +329,8 @@ export const BottomBar: React.FC = () => {
           </>
         ) : (
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center">
-              <GeminiLogo className="w-10 h-5" />
+            <div className="w-14 h-14 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-zinc-600">
+              <Sparkles className="w-6 h-6" />
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-semibold text-zinc-500">No track playing</span>

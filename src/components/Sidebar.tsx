@@ -51,12 +51,19 @@ export const Sidebar: React.FC = () => {
     <aside className="w-64 h-full glass border-r border-white/10 flex flex-col justify-between p-4 z-20 shrink-0">
       <div className="flex flex-col gap-6">
         {/* App Logo */}
-        <div className="flex items-center gap-3 px-2 pt-2 cursor-pointer" onClick={() => setActiveTab('library')}>
-          <div className="p-2 rounded-xl bg-white/5 border border-white/10 shadow-lg flex items-center justify-center">
-            <GeminiLogo className="w-9 h-5" />
+        <div className="flex items-center gap-3.5 px-2 pt-2 cursor-pointer" onClick={() => setActiveTab('library')}>
+          <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 shadow-lg flex items-center justify-center p-1 shrink-0">
+            <GeminiLogo className="w-full h-full" />
           </div>
           <div>
-            <h1 className="font-bold text-xl text-white tracking-wide leading-none">Prism</h1>
+            <h1 
+              className="font-extrabold text-2xl tracking-wide leading-none text-transparent bg-clip-text"
+              style={{
+                backgroundImage: 'linear-gradient(to right, var(--color-stop-1, #FF3B30), var(--color-stop-2, #FFCC00), var(--color-stop-3, #34C759), var(--color-stop-4, #00C7BE), var(--color-stop-5, #007AFF), var(--color-stop-6, #AF52DE))'
+              }}
+            >
+              Prism
+            </h1>
           </div>
         </div>
 

@@ -123,9 +123,11 @@ pub struct FilterParams {
     pub genre: Option<String>,
     pub min_year: Option<u32>,
     pub max_year: Option<u32>,
+    pub decades: Option<Vec<String>>,
     pub min_bitrate_kbps: Option<u32>,
     pub max_bitrate_kbps: Option<u32>,
     pub sample_rate: Option<u32>,
+    pub sample_rates: Option<Vec<u32>>,
     pub key: Option<String>,
     pub min_bpm: Option<u32>,
     pub max_bpm: Option<u32>,
@@ -163,6 +165,28 @@ fn filter_tracks(app_handle: AppHandle, params: FilterParams) -> Result<Vec<Stri
                 }
             }
 
+            if let Some(ref dec_list) = params.decades {
+                if !dec_list.is_empty() {
+                    match t.year {
+                        Some(y) => {
+                            let matches_decade = dec_list.iter().any(|d| match d.as_str() {
+                                "1970s" => (1970..=1979).contains(&y),
+                                "1980s" => (1980..=1989).contains(&y),
+                                "1990s" => (1990..=1999).contains(&y),
+                                "2000s" => (2000..=2009).contains(&y),
+                                "2010s" => (2010..=2019).contains(&y),
+                                "2020s" => (2020..=2029).contains(&y),
+                                _ => false,
+                            });
+                            if !matches_decade {
+                                return false;
+                            }
+                        }
+                        None => return false,
+                    }
+                }
+            }
+
             if let Some(min_y) = params.min_year {
                 match t.year {
                     Some(y) if y >= min_y => {}
@@ -188,6 +212,12 @@ fn filter_tracks(app_handle: AppHandle, params: FilterParams) -> Result<Vec<Stri
                 match t.bit_rate_kbps {
                     Some(b) if b <= max_b => {}
                     _ => return false,
+                }
+            }
+
+            if let Some(ref sr_list) = params.sample_rates {
+                if !sr_list.is_empty() && !sr_list.contains(&t.sample_rate) {
+                    return false;
                 }
             }
 
@@ -235,6 +265,7 @@ fn filter_tracks(app_handle: AppHandle, params: FilterParams) -> Result<Vec<Stri
 
     Ok(matching_ids)
 }
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

@@ -98,7 +98,8 @@ export const SettingsView: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto flex flex-col gap-8 pb-12 overflow-y-auto custom-scrollbar pr-2 h-full">
+    <div className="w-full max-w-4xl mx-auto flex flex-col gap-8 pb-36 overflow-y-auto custom-scrollbar pr-2 h-full">
+
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/10 pb-5">
         <div className="flex items-center gap-3">

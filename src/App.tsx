@@ -148,11 +148,15 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Load saved library.json from AppData on startup
+  // Load saved library.json and synchronize saved volume state on startup
   useEffect(() => {
     const initLoad = async () => {
       try {
         if (window.__TAURI_INTERNALS__) {
+          const store = usePlayerStore.getState();
+          // Instantly sync stored volume level to Rust audio engine on startup
+          await invoke('set_volume', { volume: store.volume });
+
           const savedTracks: any = await invoke('load_library');
           if (savedTracks && Array.isArray(savedTracks) && savedTracks.length > 0) {
             setTracks(savedTracks);
@@ -164,7 +168,6 @@ export const App: React.FC = () => {
           }
           
           // Restore playback state
-          const store = usePlayerStore.getState();
           if (store.currentTrack) {
             // Force pause state on startup for safety
             usePlayerStore.setState({ isPlaying: false });
@@ -178,6 +181,7 @@ export const App: React.FC = () => {
               await invoke('seek_audio', { positionSecs: store.currentTime });
             }
           }
+
         }
       } catch (e) {
         console.warn('Auto init load notice:', e);

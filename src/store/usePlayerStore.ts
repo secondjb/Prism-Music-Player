@@ -255,7 +255,10 @@ export const usePlayerStore = create<PlayerState>()(
           isPlaying: true,
         });
         try {
-          await invoke('play_audio', { path: track.path, replayGainDb: track.replay_gain_db || 0 });
+          if (window.__TAURI_INTERNALS__) {
+            await invoke('set_volume', { volume: get().volume });
+            await invoke('play_audio', { path: track.path, replayGainDb: track.replay_gain_db || 0 });
+          }
         } catch (e) {
           console.warn('Rust play_audio error:', e);
         }
@@ -273,7 +276,10 @@ export const usePlayerStore = create<PlayerState>()(
             isPlaying: true,
           });
           try {
-            await invoke('play_audio', { path: track.path, replayGainDb: track.replay_gain_db || 0 });
+            if (window.__TAURI_INTERNALS__) {
+              await invoke('set_volume', { volume: get().volume });
+              await invoke('play_audio', { path: track.path, replayGainDb: track.replay_gain_db || 0 });
+            }
           } catch (e) {
             console.warn('Rust play_audio call pending:', e);
           }
@@ -292,13 +298,18 @@ export const usePlayerStore = create<PlayerState>()(
         set({ isPlaying: newPlayingState });
         try {
           if (newPlayingState) {
-            await invoke('play_audio', {
-              path: currentTrack.path,
-              replayGainDb: currentTrack.replay_gain_db || 0,
-              startPositionSecs: currentTime > 0 ? currentTime : null,
-            });
+            if (window.__TAURI_INTERNALS__) {
+              await invoke('set_volume', { volume: get().volume });
+              await invoke('play_audio', {
+                path: currentTrack.path,
+                replayGainDb: currentTrack.replay_gain_db || 0,
+                startPositionSecs: currentTime > 0 ? currentTime : null,
+              });
+            }
           } else {
-            await invoke('pause_audio');
+            if (window.__TAURI_INTERNALS__) {
+              await invoke('pause_audio');
+            }
           }
         } catch (e) {
           console.warn('Rust audio toggle call error:', e);
@@ -308,7 +319,9 @@ export const usePlayerStore = create<PlayerState>()(
       pause: async () => {
         set({ isPlaying: false });
         try {
-          await invoke('pause_audio');
+          if (window.__TAURI_INTERNALS__) {
+            await invoke('pause_audio');
+          }
         } catch (e) {
           console.warn('Rust pause_audio error:', e);
         }
@@ -317,11 +330,15 @@ export const usePlayerStore = create<PlayerState>()(
       resume: async () => {
         set({ isPlaying: true });
         try {
-          await invoke('resume_audio');
+          if (window.__TAURI_INTERNALS__) {
+            await invoke('set_volume', { volume: get().volume });
+            await invoke('resume_audio');
+          }
         } catch (e) {
           console.warn('Rust resume_audio error:', e);
         }
       },
+
 
       seek: async (seconds) => {
         set({ currentTime: seconds });

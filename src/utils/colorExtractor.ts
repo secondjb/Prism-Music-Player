@@ -1,4 +1,4 @@
-// Utility to extract dynamic colors from album art image for the Gemini logo gradient
+// Utility to extract dynamic colors from album art image for the Gemini logo & ambient background gradient
 
 function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   r /= 255;
@@ -56,14 +56,14 @@ function hslToRgbString(h: number, s: number, l: number): string {
   return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
 }
 
-// Default rainbow color stops
+// Default smooth, rich Prism color stops (Indigo -> Purple -> Pink -> Fuchsia -> Blue -> Violet)
 const DEFAULT_COLOR_STOPS = [
-  '#FF3B30',
-  '#FFCC00',
-  '#34C759',
-  '#00C7BE',
-  '#007AFF',
-  '#AF52DE',
+  '#6366F1', // Indigo
+  '#8B5CF6', // Purple
+  '#EC4899', // Pink
+  '#D946EF', // Fuchsia
+  '#3B82F6', // Blue
+  '#818CF8', // Light Indigo
 ];
 
 export function updateLogoGradientFromImage(imageSrc?: string | null): void {
@@ -92,11 +92,15 @@ export function updateLogoGradientFromImage(imageSrc?: string | null): void {
         const g = imgData[i * 4 + 1];
         const b = imgData[i * 4 + 2];
 
-        // Boost color vibrancy so logo sparkles even on dark album art
-        const [h, s] = rgbToHsl(r, g, b);
-        const vibrantColor = hslToRgbString(h, Math.max(s, 0.65), 0.55);
+        // Smooth, elegant color normalization for dark UI (never oversaturated or overly bright)
+        const [h, s, l] = rgbToHsl(r, g, b);
+        const smoothColor = hslToRgbString(
+          h,
+          Math.min(0.75, Math.max(0.4, s)),
+          Math.min(0.6, Math.max(0.45, l))
+        );
 
-        document.documentElement.style.setProperty(`--color-stop-${i + 1}`, vibrantColor);
+        document.documentElement.style.setProperty(`--color-stop-${i + 1}`, smoothColor);
       }
     } catch (e) {
       console.warn('Failed to extract album art colors:', e);

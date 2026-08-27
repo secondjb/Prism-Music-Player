@@ -59,7 +59,7 @@ export const Sidebar: React.FC = () => {
             <h1 
               className="font-extrabold text-2xl tracking-wide leading-none text-transparent bg-clip-text"
               style={{
-                backgroundImage: 'linear-gradient(to right, var(--color-stop-1, #FF3B30), var(--color-stop-2, #FFCC00), var(--color-stop-3, #34C759), var(--color-stop-4, #00C7BE), var(--color-stop-5, #007AFF), var(--color-stop-6, #AF52DE))'
+                backgroundImage: 'linear-gradient(to right, var(--color-stop-1, #6366F1), var(--color-stop-2, #8B5CF6), var(--color-stop-3, #EC4899), var(--color-stop-4, #D946EF), var(--color-stop-5, #3B82F6), var(--color-stop-6, #818CF8))'
               }}
             >
               Prism

@@ -224,13 +224,25 @@ export const App: React.FC = () => {
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
         {trackArt ? (
           <div
-            className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] opacity-25 blur-[120px] transition-all duration-700 bg-cover bg-center scale-110"
+            className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] opacity-20 blur-[140px] transition-all duration-1000 bg-cover bg-center scale-110"
             style={{ backgroundImage: `url(${trackArt})` }}
           />
         ) : (
-          <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none" />
+          <>
+            <div 
+              className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full blur-[140px] opacity-15 pointer-events-none transition-all duration-700"
+              style={{
+                background: 'radial-gradient(circle, var(--color-stop-1, #6366F1), var(--color-stop-3, #EC4899), transparent 70%)'
+              }}
+            />
+            <div 
+              className="absolute top-1/3 -right-40 w-[600px] h-[600px] rounded-full blur-[150px] opacity-15 pointer-events-none transition-all duration-700"
+              style={{
+                background: 'radial-gradient(circle, var(--color-stop-4, #D946EF), var(--color-stop-6, #818CF8), transparent 70%)'
+              }}
+            />
+          </>
         )}
-        <div className="absolute top-1/3 -right-40 w-96 h-96 bg-purple-600/15 rounded-full blur-[140px] pointer-events-none" />
       </div>
 
       {/* App Body Layout */}

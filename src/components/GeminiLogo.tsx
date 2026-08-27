@@ -15,12 +15,12 @@ export const GeminiLogo: React.FC<GeminiLogoProps> = ({ className = 'w-6 h-6', s
     >
       <defs>
         <linearGradient id="refraction" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="var(--color-stop-1, #FF3B30)" />
-          <stop offset="20%" stopColor="var(--color-stop-2, #FFCC00)" />
-          <stop offset="40%" stopColor="var(--color-stop-3, #34C759)" />
-          <stop offset="60%" stopColor="var(--color-stop-4, #00C7BE)" />
-          <stop offset="80%" stopColor="var(--color-stop-5, #007AFF)" />
-          <stop offset="100%" stopColor="var(--color-stop-6, #AF52DE)" />
+          <stop offset="0%" stopColor="var(--color-stop-1, #6366F1)" />
+          <stop offset="20%" stopColor="var(--color-stop-2, #8B5CF6)" />
+          <stop offset="40%" stopColor="var(--color-stop-3, #EC4899)" />
+          <stop offset="60%" stopColor="var(--color-stop-4, #D946EF)" />
+          <stop offset="80%" stopColor="var(--color-stop-5, #3B82F6)" />
+          <stop offset="100%" stopColor="var(--color-stop-6, #818CF8)" />
         </linearGradient>
       </defs>
 

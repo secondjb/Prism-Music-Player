@@ -537,7 +537,7 @@ export const BottomBar: React.FC = () => {
                 if (isMuted) setIsMuted(false);
               }}
               style={{
-                background: `linear-gradient(to right, #818cf8 0%, #c084fc ${volPercent}%, #27272a ${volPercent}%)`,
+                background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${volPercent}%, #27272a ${volPercent}%)`,
               }}
               className="w-full h-2 group-hover:h-3 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3 shadow-sm"
             />
@@ -558,7 +558,11 @@ export const BottomBar: React.FC = () => {
                 if (e.key === 'Escape') setIsEditingVol(false);
               }}
               onBlur={handleVolInputSubmit}
-              className="w-12 px-1 py-1 text-xs font-mono font-bold text-center bg-zinc-800/80 border-b-2 border-indigo-500 rounded-t text-indigo-300 outline-none focus:bg-zinc-800 shrink-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none shadow-inner"
+              style={{
+                color: 'var(--color-stop-1, #6366f1)',
+                borderColor: 'var(--color-stop-1, #6366f1)',
+              }}
+              className="w-12 px-1 py-1 text-xs font-mono font-bold text-center bg-zinc-800/80 border-b-2 rounded-t outline-none focus:bg-zinc-800 shrink-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none shadow-inner"
             />
           ) : (
             <button
@@ -566,7 +570,8 @@ export const BottomBar: React.FC = () => {
                 setVolInputText(Math.round(effectiveVol * 100).toString());
                 setIsEditingVol(true);
               }}
-              className="px-1 py-0.5 text-xs font-mono font-bold text-zinc-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded transition-colors min-w-[28px] text-right shrink-0"
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+              className="px-1 py-0.5 text-xs font-mono font-bold hover:brightness-125 rounded transition-all min-w-[28px] text-right shrink-0"
               title="Click to type volume"
             >
               {Math.round(effectiveVol * 100)}%

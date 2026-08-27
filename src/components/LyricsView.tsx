@@ -967,11 +967,14 @@ export const LyricsView: React.FC = () => {
               value={volume}
               onChange={(e) => setVolume(parseFloat(e.target.value))}
               style={{
-                background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${volume * 100}%, #27272a ${volume * 100}%)`,
+                background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${volume * 100}%, #27272a ${volume * 100}%)`,
               }}
               className="w-20 h-2 rounded-full appearance-none cursor-pointer slider-m3"
             />
-            <span className="text-[10px] font-mono text-zinc-400 font-bold min-w-[28px] text-right">
+            <span
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+              className="text-[10px] font-mono font-bold min-w-[28px] text-right"
+            >
               {Math.round(volume * 100)}%
             </span>
           </div>
@@ -1015,11 +1018,14 @@ export const LyricsView: React.FC = () => {
               value={volume}
               onChange={(e) => setVolume(parseFloat(e.target.value))}
               style={{
-                background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${volume * 100}%, #27272a ${volume * 100}%)`,
+                background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${volume * 100}%, #27272a ${volume * 100}%)`,
               }}
               className="w-24 sm:w-28 md:w-32 h-2 hover:h-3 rounded-full appearance-none cursor-pointer slider-m3 transition-all"
             />
-            <span className="text-xs font-mono text-indigo-300 font-bold min-w-[32px] text-right">
+            <span
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+              className="text-xs font-mono font-bold min-w-[32px] text-right"
+            >
               {Math.round(volume * 100)}%
             </span>
           </div>

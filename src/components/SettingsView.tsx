@@ -26,6 +26,7 @@ export const SettingsView: React.FC = () => {
   const addExcludedDirectory = usePlayerStore((s) => s.addExcludedDirectory);
   const removeExcludedDirectory = usePlayerStore((s) => s.removeExcludedDirectory);
   const rescanConfiguredLibraries = usePlayerStore((s) => s.rescanConfiguredLibraries);
+  const analyzeAndIndexAudio = usePlayerStore((s) => s.analyzeAndIndexAudio);
   const wipeDataAndReset = usePlayerStore((s) => s.wipeDataAndReset);
 
   const lrclibAutoFetch = usePlayerStore((s) => s.lrclibAutoFetch);
@@ -42,6 +43,7 @@ export const SettingsView: React.FC = () => {
   const toggleAutoHideLyricsControls = usePlayerStore((s) => s.toggleAutoHideLyricsControls);
 
   const [isScanning, setIsScanning] = useState(false);
+  const [isAnalyzingAudio, setIsAnalyzingAudio] = useState(false);
   const [showWipeModal, setShowWipeModal] = useState(false);
 
   // Compute Tag Indexing Stats
@@ -50,6 +52,7 @@ export const SettingsView: React.FC = () => {
   const yearCount = tracks.filter((t) => Boolean(t.year || t.date)).length;
   const keyCount = tracks.filter((t) => Boolean(t.key)).length;
   const bpmCount = tracks.filter((t) => Boolean(t.bpm)).length;
+  const keyOrBpmCount = tracks.filter((t) => Boolean(t.key || t.bpm)).length;
 
   const handleAddIncludedDir = async () => {
     try {
@@ -97,11 +100,17 @@ export const SettingsView: React.FC = () => {
     setIsScanning(false);
   };
 
+  const handleAnalyzeAudio = async () => {
+    setIsAnalyzingAudio(true);
+    await analyzeAndIndexAudio();
+    setIsAnalyzingAudio(false);
+  };
+
   return (
     <div className="w-full max-w-4xl mx-auto flex flex-col gap-8 pb-36 overflow-y-auto custom-scrollbar pr-2 h-full">
 
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-white/10 pb-5">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-indigo-600/30 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shadow-lg shadow-indigo-950/30">
             <Settings2 className="w-6 h-6" />
@@ -109,24 +118,41 @@ export const SettingsView: React.FC = () => {
           <div>
             <h2 className="text-xl font-bold text-white tracking-wide">Settings & Library Folders</h2>
             <p className="text-xs text-zinc-400 mt-0.5">
-              Manage watched music directories, tag indexing, audio specs, and lyrics preferences.
+              Manage watched music directories, background tag indexing, audio waveform analysis, and lyrics.
             </p>
           </div>
         </div>
 
-        <button
-          onClick={handleRescan}
-          disabled={isScanning || includedDirectories.length === 0}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-xs transition-all shadow-md ${
-            isScanning || includedDirectories.length === 0
-              ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
-              : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98]'
-          }`}
-        >
-          <RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
-          <span>{isScanning ? 'Indexing Library...' : 'Re-index Library & Tags'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleAnalyzeAudio}
+            disabled={isAnalyzingAudio || totalTracks === 0}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-medium text-xs transition-all shadow-md ${
+              isAnalyzingAudio || totalTracks === 0
+                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
+                : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/30 hover:scale-[1.02] active:scale-[0.98]'
+            }`}
+            title="Analyze audio waveforms asynchronously to calculate missing Key and BPM"
+          >
+            <RefreshCw className={`w-4 h-4 ${isAnalyzingAudio ? 'animate-spin' : ''}`} />
+            <span>{isAnalyzingAudio ? 'Analyzing Audio Waveforms...' : 'Detect Key & BPM'}</span>
+          </button>
+
+          <button
+            onClick={handleRescan}
+            disabled={isScanning || includedDirectories.length === 0}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-medium text-xs transition-all shadow-md ${
+              isScanning || includedDirectories.length === 0
+                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
+                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98]'
+            }`}
+          >
+            <RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
+            <span>{isScanning ? 'Indexing...' : 'Re-index Tags'}</span>
+          </button>
+        </div>
       </div>
+
 
       {/* Library Tag Indexing Stats Card */}
       <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-4 bg-gradient-to-br from-indigo-950/20 to-purple-950/20">
@@ -176,12 +202,13 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-1">
-            <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Key & BPM Tags</span>
+            <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Key & BPM Coverage</span>
             <span className="text-2xl font-black font-mono text-pink-300">
-              {totalTracks > 0 ? `${Math.round((keyCount / totalTracks) * 100)}%` : '0%'}
+              {totalTracks > 0 ? `${Math.round((keyOrBpmCount / totalTracks) * 100)}%` : '0%'}
             </span>
             <span className="text-[10px] text-zinc-500 font-mono">Key: {keyCount} • BPM: {bpmCount}</span>
           </div>
+
         </div>
       </div>
 

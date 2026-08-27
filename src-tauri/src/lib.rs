@@ -267,6 +267,38 @@ fn filter_tracks(app_handle: AppHandle, params: FilterParams) -> Result<Vec<Stri
 }
 
 
+mod audio_analysis;
+
+#[tauri::command]
+fn analyze_library_audio(app_handle: AppHandle) -> Result<Vec<TrackMetadata>, String> {
+    use rayon::prelude::*;
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+
+    let mut tracks = load_library_from_disk(&app_data_dir).unwrap_or_default();
+
+    // Parallel background analysis of audio waveforms for tracks missing Key or BPM
+    tracks.par_iter_mut().for_each(|track| {
+        if track.key.is_none() || track.bpm.is_none() {
+            let p = std::path::Path::new(&track.path);
+            if p.exists() {
+                let analysis = audio_analysis::analyze_audio_waveform(p);
+                if track.bpm.is_none() && analysis.bpm.is_some() {
+                    track.bpm = analysis.bpm;
+                }
+                if track.key.is_none() && analysis.key.is_some() {
+                    track.key = analysis.key;
+                }
+            }
+        }
+    });
+
+    let _ = save_library_to_disk(&app_data_dir, &tracks);
+    Ok(tracks)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let engine = GlobalAudioEngine::new();
@@ -324,9 +356,9 @@ pub fn run() {
             seek_audio,
             set_volume,
             get_playback_position,
-            filter_tracks
+            filter_tracks,
+            analyze_library_audio
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

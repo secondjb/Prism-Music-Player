@@ -49,6 +49,8 @@ interface PlayerState {
   addExcludedDirectory: (dir: string) => Promise<void>;
   removeExcludedDirectory: (dir: string) => Promise<void>;
   rescanConfiguredLibraries: () => Promise<void>;
+  analyzeAndIndexAudio: () => Promise<void>;
+
 
   // Actions
   setTracks: (tracks: Track[]) => void;
@@ -192,16 +194,29 @@ export const usePlayerStore = create<PlayerState>()(
         if (includedDirectories.length === 0) return;
         try {
           if (window.__TAURI_INTERNALS__) {
-            const scannedTracks: any = await invoke('scan_libraries', {
+            const scannedTracks: Track[] = await invoke('scan_libraries', {
               includedDirs: includedDirectories,
               excludedDirs: excludedDirectories,
             });
-            if (scannedTracks && Array.isArray(scannedTracks)) {
-              setTracks(scannedTracks);
-            }
+            setTracks(scannedTracks);
+            // Run background audio waveform analysis to detect missing Key & BPM
+            const analyzedTracks: Track[] = await invoke('analyze_library_audio');
+            setTracks(analyzedTracks);
           }
         } catch (e) {
           console.warn('Rescan libraries error:', e);
+        }
+      },
+
+      analyzeAndIndexAudio: async () => {
+        const { setTracks } = get();
+        try {
+          if (window.__TAURI_INTERNALS__) {
+            const updatedTracks: Track[] = await invoke('analyze_library_audio');
+            setTracks(updatedTracks);
+          }
+        } catch (e) {
+          console.warn('Audio analysis error:', e);
         }
       },
 

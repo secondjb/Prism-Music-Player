@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <rect width="512" height="512" rx="128" fill="#09090b" />
-  <g transform="translate(256, 256) scale(1.85) translate(-250, -100)">
+  <g transform="translate(256, 256) scale(2.0) translate(-250, -100)">
     <defs>
       <linearGradient id="refraction" x1="0%" y1="0%" x2="100%" y2="0%">
         <stop offset="0%" stop-color="#FF3B30" />

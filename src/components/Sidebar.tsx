@@ -51,10 +51,8 @@ export const Sidebar: React.FC = () => {
     <aside className="w-64 h-full glass border-r border-white/10 flex flex-col justify-between p-4 z-20 shrink-0">
       <div className="flex flex-col gap-6">
         {/* App Logo */}
-        <div className="flex items-center gap-3.5 px-2 pt-2 cursor-pointer" onClick={() => setActiveTab('library')}>
-          <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 shadow-lg flex items-center justify-center p-1 shrink-0">
-            <GeminiLogo className="w-full h-full" />
-          </div>
+        <div className="flex items-center gap-3 px-1 pt-2 cursor-pointer" onClick={() => setActiveTab('library')}>
+          <GeminiLogo className="w-14 h-8 shrink-0" />
           <div>
             <h1 
               className="font-extrabold text-2xl tracking-wide leading-none text-transparent bg-clip-text"

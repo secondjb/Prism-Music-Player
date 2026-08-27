@@ -1019,7 +1019,7 @@ export const LyricsView: React.FC = () => {
               }}
               className="w-24 sm:w-28 md:w-32 h-2 hover:h-3 rounded-full appearance-none cursor-pointer slider-m3 transition-all"
             />
-            <span className="text-xs font-mono text-cyan-300 font-bold min-w-[32px] text-right">
+            <span className="text-xs font-mono text-indigo-300 font-bold min-w-[32px] text-right">
               {Math.round(volume * 100)}%
             </span>
           </div>

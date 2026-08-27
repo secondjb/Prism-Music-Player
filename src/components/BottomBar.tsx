@@ -558,7 +558,7 @@ export const BottomBar: React.FC = () => {
                 if (e.key === 'Escape') setIsEditingVol(false);
               }}
               onBlur={handleVolInputSubmit}
-              className="w-10 px-0.5 py-0.5 text-xs font-mono font-bold text-center bg-zinc-900 border border-cyan-500 rounded text-cyan-300 outline-none shrink-0"
+              className="w-12 px-1 py-1 text-xs font-mono font-bold text-center bg-zinc-800/80 border-b-2 border-cyan-500 rounded-t text-cyan-300 outline-none focus:bg-zinc-800 shrink-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none shadow-inner"
             />
           ) : (
             <button

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { ActiveTab } from '../types/player';
-import { Library, Heart, Disc, Folder, Music, Mic2, FolderPlus, Settings, ChevronDown, ChevronRight, SlidersHorizontal } from 'lucide-react';
+import { Library, Heart, Disc, Folder, Music, Mic2, FolderPlus, Settings, ChevronDown, ChevronRight, SlidersHorizontal, BarChart2 } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { GeminiLogo } from './GeminiLogo';
 
@@ -45,6 +45,7 @@ export const Sidebar: React.FC = () => {
     { id: 'playlists', label: 'Playlists', icon: <Music className="w-5 h-5" /> },
     { id: 'folders', label: 'Folders', icon: <Folder className="w-5 h-5" /> },
     { id: 'lyrics', label: 'Karaoke & Lyrics', icon: <Mic2 className="w-5 h-5" /> },
+    { id: 'stats', label: 'Listening Stats', icon: <BarChart2 className="w-5 h-5 text-emerald-400" /> },
     { id: 'settings', label: 'Library & Settings', icon: <Settings className="w-5 h-5" /> },
   ];
 

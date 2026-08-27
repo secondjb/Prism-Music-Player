@@ -1,5 +1,6 @@
 mod audio;
 mod metadata;
+mod stats;
 
 use audio::GlobalAudioEngine;
 use metadata::{
@@ -336,6 +337,7 @@ pub fn run() {
             } else {
                 app.manage(MediaControlState(Mutex::new(None)));
             }
+            stats::init_db(&app.handle());
             Ok(())
         })
         .manage(engine)
@@ -357,7 +359,10 @@ pub fn run() {
             set_volume,
             get_playback_position,
             filter_tracks,
-            analyze_library_audio
+            analyze_library_audio,
+            stats::log_listening_event,
+            stats::fetch_listening_events,
+            stats::delete_listening_history
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

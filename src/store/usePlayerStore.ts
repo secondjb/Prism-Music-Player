@@ -32,6 +32,7 @@ interface PlayerState {
   lyricsFontSizePreset: 'normal' | 'balanced' | 'large' | 'maximum' | 'manual';
   lyricsFontSize: number;
   lyricsArtScale: number;
+  isStatsCollectionEnabled: boolean;
 
   // Shuffle & Repeat
   shuffleEnabled: boolean;
@@ -86,6 +87,7 @@ interface PlayerState {
   setLyricsFontSize: (size: number) => void;
   setLyricsArtScale: (scale: number) => void;
   toggleAutoHideLyricsControls: () => void;
+  toggleStatsCollection: () => void;
 
   // Shuffle & Repeat actions
   toggleShuffle: () => void;
@@ -146,6 +148,7 @@ export const usePlayerStore = create<PlayerState>()(
       lyricsFontSizePreset: 'normal',
       lyricsFontSize: 24,
       lyricsArtScale: 100,
+      isStatsCollectionEnabled: false,
 
       // Shuffle & Repeat
       shuffleEnabled: false,
@@ -530,6 +533,8 @@ export const usePlayerStore = create<PlayerState>()(
 
       toggleAutoHideLyricsControls: () => set((state) => ({ autoHideLyricsControls: !state.autoHideLyricsControls })),
 
+      toggleStatsCollection: () => set((state) => ({ isStatsCollectionEnabled: !state.isStatsCollectionEnabled })),
+
       // Shuffle & Repeat
       toggleShuffle: () =>
         set((state) => {
@@ -748,6 +753,7 @@ export const usePlayerStore = create<PlayerState>()(
         isRomanizationEnabled: state.isRomanizationEnabled,
         romanizationMode: state.romanizationMode,
         autoHideLyricsControls: state.autoHideLyricsControls,
+        isStatsCollectionEnabled: state.isStatsCollectionEnabled,
         lrclibAutoFetch: state.lrclibAutoFetch,
         includedDirectories: state.includedDirectories,
         excludedDirectories: state.excludedDirectories,

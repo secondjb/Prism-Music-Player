@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { usePlayerStore } from './store/usePlayerStore';
 import { useTrackArt } from './utils/useTrackArt';
 import { Sidebar } from './components/Sidebar';
@@ -14,7 +14,8 @@ import { SongInfoModal } from './components/SongInfoModal';
 import { FilterView } from './components/FilterView';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-
+import { logListeningEvent } from './utils/stats';
+import { StatsView } from './components/StatsView';
 
 export const App: React.FC = () => {
   const tracks = usePlayerStore((s) => s.tracks);
@@ -212,6 +213,43 @@ export const App: React.FC = () => {
     return true;
   });
 
+  const isStatsCollectionEnabled = usePlayerStore((s) => s.isStatsCollectionEnabled);
+  
+  const listeningMsRef = useRef(0);
+  const currentTrackRef = useRef(currentTrack);
+
+  // Accumulate actual listening time when playing
+  useEffect(() => {
+    let interval: number;
+    if (isPlaying && isStatsCollectionEnabled) {
+      interval = window.setInterval(() => {
+        listeningMsRef.current += 1000;
+      }, 1000);
+    }
+    return () => window.clearInterval(interval);
+  }, [isPlaying, isStatsCollectionEnabled]);
+
+  // Log listening event when current track changes if sufficient time was spent
+  useEffect(() => {
+    if (currentTrackRef.current && currentTrackRef.current.id !== currentTrack?.id && isStatsCollectionEnabled) {
+      const track = currentTrackRef.current;
+      const ms = listeningMsRef.current;
+      // Log if listened for > 30s or > 50% of the song duration
+      const threshold = Math.min(30000, (track.duration_secs * 1000) / 2);
+      if (ms >= threshold && threshold > 0) {
+        logListeningEvent(
+          track.title,
+          track.artist,
+          track.album,
+          track.genre || null,
+          ms
+        );
+      }
+      listeningMsRef.current = 0;
+    }
+    currentTrackRef.current = currentTrack;
+  }, [currentTrack?.id, isStatsCollectionEnabled]);
+
   const renderContent = () => {
     if (infoModalTrack) {
       return <SongInfoModal />;
@@ -221,6 +259,8 @@ export const App: React.FC = () => {
         return <FilterView />;
       case 'settings':
         return <SettingsView />;
+      case 'stats':
+        return <StatsView />;
       case 'albums':
         return <AlbumGrid tracks={filteredTracks} />;
       case 'playlists':

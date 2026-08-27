@@ -16,6 +16,7 @@ import {
   Languages,
   Info,
   AlertTriangle,
+  BarChart2,
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
@@ -469,6 +470,50 @@ export const SettingsView: React.FC = () => {
                 p: 0.5,
               }}
             />
+          </div>
+
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-3">
+              <BarChart2 className="w-4 h-4 text-emerald-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Enable Listening Statistics</span>
+                <span className="text-[11px] text-zinc-400">Log play counts to build personalized stats</span>
+              </div>
+            </div>
+            <Checkbox
+              checked={usePlayerStore((s) => s.isStatsCollectionEnabled)}
+              onChange={usePlayerStore((s) => s.toggleStatsCollection)}
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 col-span-1 md:col-span-2">
+            <div className="flex items-center gap-3">
+              <Trash2 className="w-4 h-4 text-rose-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Clear Listening History</span>
+                <span className="text-[11px] text-zinc-400">Delete all local listening history data permanently</span>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                if (window.confirm("Are you sure you want to permanently delete all your listening history? This cannot be undone.")) {
+                  const { deleteListeningHistory } = await import('../utils/stats');
+                  await deleteListeningHistory();
+                  alert("Listening history cleared.");
+                }
+              }}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600/20 text-rose-400 hover:bg-rose-600/40 transition-colors"
+            >
+              Clear History
+            </button>
           </div>
         </div>
       </div>

@@ -43,6 +43,12 @@ export const SettingsView: React.FC = () => {
   const toggleShowAudioSpecsInLibrary = usePlayerStore((s) => s.toggleShowAudioSpecsInLibrary);
   const autoHideLyricsControls = usePlayerStore((s) => s.autoHideLyricsControls);
   const toggleAutoHideLyricsControls = usePlayerStore((s) => s.toggleAutoHideLyricsControls);
+  const preferOnlineLyrics = usePlayerStore((s) => s.preferOnlineLyrics);
+  const setPreferOnlineLyrics = usePlayerStore((s) => s.setPreferOnlineLyrics);
+  const isStatsCollectionEnabled = usePlayerStore((s) => s.isStatsCollectionEnabled);
+  const toggleStatsCollection = usePlayerStore((s) => s.toggleStatsCollection);
+  const lyricsFontSizePreset = usePlayerStore((s) => s.lyricsFontSizePreset);
+  const setLyricsFontSizePreset = usePlayerStore((s) => s.setLyricsFontSizePreset);
 
   const [isScanning, setIsScanning] = useState(false);
   const [isAnalyzingAudio, setIsAnalyzingAudio] = useState(false);
@@ -406,6 +412,32 @@ export const SettingsView: React.FC = () => {
             </div>
           </div>
 
+          {/* Lyrics Font Size Setting */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
+            <div className="flex items-center gap-3">
+              <Mic2 className="w-4 h-4 text-indigo-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Lyrics Font Size Preset</span>
+                <span className="text-[11px] text-zinc-400">Choose default font scaling preset for Karaoke & Lyrics view</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10 shrink-0 self-start sm:self-auto">
+              {(['normal', 'balanced', 'large', 'maximum'] as const).map((preset) => (
+                <button
+                  key={preset}
+                  onClick={() => setLyricsFontSizePreset(preset)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${
+                    lyricsFontSizePreset === preset
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  {preset === 'maximum' ? 'Max Space' : preset}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3">
               <Sparkles className="w-4 h-4 text-amber-400" />
@@ -416,7 +448,7 @@ export const SettingsView: React.FC = () => {
             </div>
             <Checkbox
               checked={showAudioSpecs}
-              onChange={toggleShowAudioSpecs}
+              onChange={() => toggleShowAudioSpecs()}
               size="small"
               sx={{
                 color: 'var(--color-stop-1, #6366f1)',
@@ -438,7 +470,7 @@ export const SettingsView: React.FC = () => {
             </div>
             <Checkbox
               checked={showAudioSpecsInLibrary}
-              onChange={toggleShowAudioSpecsInLibrary}
+              onChange={() => toggleShowAudioSpecsInLibrary()}
               size="small"
               sx={{
                 color: 'var(--color-stop-1, #6366f1)',
@@ -460,7 +492,29 @@ export const SettingsView: React.FC = () => {
             </div>
             <Checkbox
               checked={autoHideLyricsControls}
-              onChange={toggleAutoHideLyricsControls}
+              onChange={() => toggleAutoHideLyricsControls()}
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-3">
+              <Mic2 className="w-4 h-4 text-indigo-300" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Prefer Online Lyrics</span>
+                <span className="text-[11px] text-zinc-400">Always check online LRCLIB first before embedded lyrics</span>
+              </div>
+            </div>
+            <Checkbox
+              checked={preferOnlineLyrics}
+              onChange={(e) => setPreferOnlineLyrics(e.target.checked)}
               size="small"
               sx={{
                 color: 'var(--color-stop-1, #6366f1)',
@@ -481,8 +535,8 @@ export const SettingsView: React.FC = () => {
               </div>
             </div>
             <Checkbox
-              checked={usePlayerStore((s) => s.isStatsCollectionEnabled)}
-              onChange={usePlayerStore((s) => s.toggleStatsCollection)}
+              checked={isStatsCollectionEnabled}
+              onChange={() => toggleStatsCollection()}
               size="small"
               sx={{
                 color: 'var(--color-stop-1, #6366f1)',

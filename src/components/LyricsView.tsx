@@ -637,7 +637,7 @@ export const LyricsView: React.FC = () => {
             <span className="text-zinc-300">Auto-hide controls on idle</span>
             <Checkbox
               checked={autoHideLyricsControls}
-              onChange={toggleAutoHideLyricsControls}
+              onChange={() => toggleAutoHideLyricsControls()}
               size="small"
               sx={{
                 color: 'var(--color-stop-1, #6366f1)',

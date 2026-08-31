@@ -2,6 +2,16 @@
 title Build Android Release - Prism Music Player
 cd /d "%~dp0"
 
+:: Set Java 17+ environment for Android Gradle Plugin
+if exist "C:\Program Files\Eclipse Adoptium\jdk-21.0.4.7-hotspot" (
+    set "JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-21.0.4.7-hotspot"
+) else if exist "C:\Program Files\Microsoft\jdk-25.0.3.9-hotspot" (
+    set "JAVA_HOME=C:\Program Files\Microsoft\jdk-25.0.3.9-hotspot"
+)
+if defined JAVA_HOME (
+    set "PATH=%JAVA_HOME%\bin;%PATH%"
+)
+
 echo ===================================================
 echo   Extracting Version Number from package.json...
 echo ===================================================
@@ -9,6 +19,7 @@ for /f %%a in ('powershell -Command "(Get-Content package.json | ConvertFrom-Jso
 if "%VERSION%"=="" set VERSION=0.1.0
 
 echo Application Version: v%VERSION%
+if defined JAVA_HOME echo Using JAVA_HOME: %JAVA_HOME%
 echo.
 
 echo ===================================================
@@ -34,7 +45,7 @@ if not exist "release" mkdir release
 
 set "FOUND_APK="
 
-:: Check universal APK output path
+:: Check universal & arm64 APK output paths
 if exist "src-tauri\gen\android\app\build\outputs\apk\universal\release\app-universal-release.apk" (
     set "SOURCE_APK=src-tauri\gen\android\app\build\outputs\apk\universal\release\app-universal-release.apk"
     set "FOUND_APK=1"

@@ -366,8 +366,8 @@ fn analyze_library_audio(app_handle: AppHandle) -> Result<(), String> {
             return;
         }
 
-        // Dedicated 2-thread worker pool so the CPU remains completely responsive
-        let pool = match rayon::ThreadPoolBuilder::new().num_threads(2).build() {
+        // Use a 4-thread worker pool for faster background processing
+        let pool = match rayon::ThreadPoolBuilder::new().num_threads(4).build() {
             Ok(p) => p,
             Err(_) => return,
         };
@@ -375,8 +375,8 @@ fn analyze_library_audio(app_handle: AppHandle) -> Result<(), String> {
         use rayon::prelude::*;
         let processed_count = std::sync::atomic::AtomicUsize::new(0);
 
-        // Process in small batches of 10 tracks, saving to disk continuously
-        let chunk_size = 10;
+        // Process in larger batches (100) to drastically reduce disk I/O locking
+        let chunk_size = 100;
         let num_tracks = tracks.len();
         for i in (0..num_tracks).step_by(chunk_size) {
             let end = (i + chunk_size).min(num_tracks);
@@ -407,11 +407,11 @@ fn analyze_library_audio(app_handle: AppHandle) -> Result<(), String> {
                 });
             });
 
-            // Immediately dump progress to disk every 10 songs
+            // Periodically dump progress to disk
             let _ = save_library_to_disk(&app_data_dir, &tracks);
 
-            // Yield thread momentarily to prevent system stutter
-            std::thread::sleep(std::time::Duration::from_millis(20));
+            // Yield thread momentarily to ensure UI remains highly responsive
+            std::thread::sleep(std::time::Duration::from_millis(10));
         }
 
         // Final save & notify frontend

@@ -348,11 +348,9 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       analyzeAndIndexAudio: async () => {
-        const { setTracks } = get();
         try {
           if (window.__TAURI_INTERNALS__) {
-            const updatedTracks: Track[] = await invoke('analyze_library_audio');
-            setTracks(updatedTracks);
+            await invoke('analyze_library_audio');
           }
         } catch (e) {
           console.warn('Audio analysis error:', e);

@@ -416,7 +416,14 @@ export const FilterView: React.FC = () => {
         {/* Header Bar */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0 bg-white/5 border border-white/10 rounded-2xl p-4 glass">
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 shadow-lg shadow-indigo-950/30">
+            <div
+              className="p-3 rounded-2xl border shadow-lg shrink-0"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                color: 'var(--color-stop-1, #6366f1)',
+              }}
+            >
               <SlidersHorizontal className="w-6 h-6" />
             </div>
             <div>
@@ -431,7 +438,8 @@ export const FilterView: React.FC = () => {
             <button
               onClick={handlePlayAll}
               disabled={filteredTracks.length === 0}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-indigo-600/30 cursor-pointer"
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-white text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md cursor-pointer"
+              style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
             >
               <Play className="w-4 h-4 fill-white" />
               <span>Play All ({filteredTracks.length})</span>
@@ -686,9 +694,14 @@ export const FilterView: React.FC = () => {
                 onClick={() => toggleDecade('all')}
                 className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                   selectedDecades.length === 0
-                    ? 'bg-emerald-500 text-zinc-950 shadow-md shadow-emerald-500/30'
+                    ? 'text-white shadow-md font-bold'
                     : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
                 }`}
+                style={
+                  selectedDecades.length === 0
+                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                    : undefined
+                }
               >
                 All Eras
               </button>
@@ -700,9 +713,14 @@ export const FilterView: React.FC = () => {
                     onClick={() => toggleDecade(d)}
                     className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                       isSelected
-                        ? 'bg-emerald-500 text-zinc-950 shadow-md shadow-emerald-500/30 font-bold'
+                        ? 'text-white shadow-md font-bold'
                         : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
                     }`}
+                    style={
+                      isSelected
+                        ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                        : undefined
+                    }
                   >
                     {isSelected && <Check className="w-3.5 h-3.5" />}
                     <span>{d}</span>
@@ -720,9 +738,14 @@ export const FilterView: React.FC = () => {
                 onClick={() => toggleSampleRate(0)}
                 className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                   selectedSampleRates.length === 0
-                    ? 'bg-cyan-500 text-zinc-950 shadow-md shadow-cyan-500/30'
+                    ? 'text-white shadow-md font-bold'
                     : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
                 }`}
+                style={
+                  selectedSampleRates.length === 0
+                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                    : undefined
+                }
               >
                 All Rates
               </button>
@@ -740,9 +763,14 @@ export const FilterView: React.FC = () => {
                     onClick={() => toggleSampleRate(sr.value)}
                     className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                       isSelected
-                        ? 'bg-cyan-500 text-zinc-950 shadow-md shadow-cyan-500/30 font-bold'
+                        ? 'text-white shadow-md font-bold'
                         : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
                     }`}
+                    style={
+                      isSelected
+                        ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                        : undefined
+                    }
                   >
                     {isSelected && <Check className="w-3.5 h-3.5" />}
                     <span>{sr.label}</span>

@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
+import { AudioSlider } from './AudioSlider';
 import { invoke } from '@tauri-apps/api/core';
 import {
   Play,
@@ -66,14 +67,10 @@ export const BottomBar: React.FC = () => {
   const setInfoModalTrack = usePlayerStore((s) => s.setInfoModalTrack);
 
   // Local drag state for butter-smooth seeking
-  const [isDraggingSeek, setIsDraggingSeek] = useState(false);
   const [dragSeekVal, setDragSeekVal] = useState<number | null>(null);
 
-  // Refs for zero-render-lag tooltips
-  const seekContainerRef = useRef<HTMLDivElement>(null);
-  const seekTooltipRef = useRef<HTMLDivElement>(null);
+  // Ref for volume wheel scrolling
   const volContainerRef = useRef<HTMLDivElement>(null);
-  const volTooltipRef = useRef<HTMLDivElement>(null);
 
   // Poll playback position & duration from Rust audio engine
   useEffect(() => {
@@ -171,45 +168,8 @@ export const BottomBar: React.FC = () => {
 
   const isLiked = currentTrack ? likedTrackIds.includes(currentTrack.id) : false;
 
-  const currentSeekDisplay = isDraggingSeek && dragSeekVal !== null ? dragSeekVal : currentTime;
-  const seekPercent = duration > 0 ? Math.min(100, Math.max(0, (currentSeekDisplay / duration) * 100)) : 0;
+  const currentSeekDisplay = dragSeekVal !== null ? dragSeekVal : currentTime;
   const effectiveVol = isMuted ? 0 : volume;
-  const volPercent = Math.min(100, Math.max(0, effectiveVol * 100));
-
-  // Zero-render-lag seek tooltip via direct DOM manipulation
-  const handleSeekMouseMove = useCallback((e: React.MouseEvent) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const time = pct * (duration || 0);
-    if (seekTooltipRef.current) {
-      seekTooltipRef.current.style.left = `${e.clientX - rect.left}px`;
-      seekTooltipRef.current.style.opacity = '1';
-      seekTooltipRef.current.textContent = formatTime(time);
-    }
-  }, [duration]);
-
-  const handleSeekMouseLeave = useCallback(() => {
-    if (seekTooltipRef.current) {
-      seekTooltipRef.current.style.opacity = '0';
-    }
-  }, []);
-
-  // Zero-render-lag volume tooltip without decimals
-  const handleVolMouseMove = useCallback((e: React.MouseEvent) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * 100;
-    if (volTooltipRef.current) {
-      volTooltipRef.current.style.left = `${e.clientX - rect.left}px`;
-      volTooltipRef.current.style.opacity = '1';
-      volTooltipRef.current.textContent = `${Math.round(pct)}%`;
-    }
-  }, []);
-
-  const handleVolMouseLeave = useCallback(() => {
-    if (volTooltipRef.current) {
-      volTooltipRef.current.style.opacity = '0';
-    }
-  }, []);
 
   const RepeatIcon = repeatMode === 'one' ? Repeat1 : Repeat;
 
@@ -442,48 +402,19 @@ export const BottomBar: React.FC = () => {
         {/* Material 3 Expressive Filled Seek Bar with Hover Tooltip */}
         <div className="w-full flex items-center gap-3 text-xs font-mono text-zinc-400">
           <span>{formatTime(currentSeekDisplay)}</span>
-          <div
-            ref={seekContainerRef}
-            className="relative flex-1 h-4 flex items-center group cursor-pointer"
-            onMouseMove={handleSeekMouseMove}
-            onMouseLeave={handleSeekMouseLeave}
-          >
-            {/* Floating Time Preview Tooltip */}
-            <div
-              ref={seekTooltipRef}
-              style={{
-                opacity: 0,
-                backgroundColor: 'var(--color-stop-1, #6366f1)',
-                borderColor: 'var(--color-stop-2, #818cf8)',
-              }}
-              className="absolute -top-7 transform -translate-x-1/2 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold text-white shadow-lg pointer-events-none z-30 whitespace-nowrap border"
-            />
-
-            <input
-              type="range"
-              min={0}
-              max={duration || 100}
-              step={0.1}
-              value={currentSeekDisplay}
-              onMouseDown={() => setIsDraggingSeek(true)}
-              onMouseUp={(e) => {
-                setIsDraggingSeek(false);
-                seek(parseFloat((e.target as HTMLInputElement).value));
-                setDragSeekVal(null);
-              }}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value);
-                setDragSeekVal(val);
-                if (!isDraggingSeek) {
-                  seek(val);
-                }
-              }}
-              style={{
-                background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${seekPercent}%, #27272a ${seekPercent}%)`,
-              }}
-              className="w-full h-2 group-hover:h-3 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3 shadow-sm"
-            />
-          </div>
+          <AudioSlider
+            value={currentSeekDisplay}
+            min={0}
+            max={duration || 100}
+            step={0.1}
+            onChange={(val) => setDragSeekVal(val)}
+            onChangeCommitted={(val) => {
+              seek(val);
+              setDragSeekVal(null);
+            }}
+            formatTooltip={(val) => formatTime(val)}
+            className="flex-1"
+          />
           <span>{formatTime(duration)}</span>
         </div>
       </div>
@@ -535,35 +466,18 @@ export const BottomBar: React.FC = () => {
               {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 text-rose-400" /> : <Volume2 className="w-5 h-5" />}
             </button>
             
-            <div
-              className="relative flex-1 h-6 flex items-center group cursor-pointer shrink min-w-[30px]"
-              onMouseMove={handleVolMouseMove}
-              onMouseLeave={handleVolMouseLeave}
-            >
-              {/* Floating Volume Percentage Tooltip */}
-              <div
-                ref={volTooltipRef}
-                className="absolute -top-7 transform -translate-x-1/2 px-1.5 py-0.5 rounded-md bg-cyan-600 text-[10px] font-mono font-bold text-white shadow-lg shadow-cyan-950/80 pointer-events-none z-30 border border-cyan-400/30 whitespace-nowrap"
-                style={{ opacity: 0 }}
-              />
-
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={effectiveVol}
-                onChange={(e) => {
-                  const val = parseFloat(e.target.value);
-                  setVolume(val);
-                  if (isMuted) setIsMuted(false);
-                }}
-                style={{
-                  background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${volPercent}%, #27272a ${volPercent}%)`,
-                }}
-                className="w-full h-2 group-hover:h-3 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3 shadow-sm hover:brightness-125"
-              />
-            </div>
+            <AudioSlider
+              value={effectiveVol}
+              min={0}
+              max={1}
+              step={0.01}
+              onChange={(val) => {
+                setVolume(val);
+                if (isMuted) setIsMuted(false);
+              }}
+              formatTooltip={(val) => `${Math.round(val * 100)}%`}
+              className="flex-1 min-w-[30px]"
+            />
 
             {/* Integer Volume Percentage Display / Direct Input */}
             {isEditingVol ? (

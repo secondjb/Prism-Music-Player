@@ -140,7 +140,14 @@ export const SettingsView: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-white/10 pb-5 text-center sm:text-left">
         <div className="flex flex-col sm:flex-row items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600/30 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shadow-lg shadow-indigo-950/30 shrink-0">
+          <div
+            className="w-12 h-12 rounded-2xl border flex items-center justify-center shadow-lg shrink-0"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+              color: 'var(--color-stop-1, #6366f1)',
+            }}
+          >
             <Settings2 className="w-6 h-6" />
           </div>
           <div>
@@ -158,8 +165,13 @@ export const SettingsView: React.FC = () => {
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-medium text-xs transition-all shadow-md ${
               isAnalyzingAudio || totalTracks === 0
                 ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
-                : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-600/30 hover:scale-[1.02] active:scale-[0.98]'
+                : 'text-white hover:scale-[1.02] active:scale-[0.98]'
             }`}
+            style={
+              !isAnalyzingAudio && totalTracks > 0
+                ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                : undefined
+            }
             title="Analyze audio waveforms asynchronously to calculate missing Key and BPM"
           >
             <RefreshCw className={`w-4 h-4 ${isAnalyzingAudio ? 'animate-spin' : ''}`} />
@@ -172,8 +184,13 @@ export const SettingsView: React.FC = () => {
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-medium text-xs transition-all shadow-md ${
               isScanning || includedDirectories.length === 0
                 ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
-                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98]'
+                : 'text-white hover:scale-[1.02] active:scale-[0.98]'
             }`}
+            style={
+              !isScanning && includedDirectories.length > 0
+                ? { backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 85%, black)' }
+                : undefined
+            }
           >
             <RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
             <span>{isScanning ? 'Indexing...' : 'Re-index Tags'}</span>
@@ -277,7 +294,10 @@ export const SettingsView: React.FC = () => {
       <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <FolderPlus className="w-5 h-5 text-indigo-400 shrink-0" />
+            <FolderPlus
+              className="w-5 h-5 shrink-0"
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+            />
             <div>
               <h3 className="text-base font-bold text-white">Included Music Directories</h3>
               <p className="text-xs text-zinc-400">
@@ -287,7 +307,8 @@ export const SettingsView: React.FC = () => {
           </div>
           <button
             onClick={handleAddIncludedDir}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all hover:scale-105 shadow-md"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-white text-xs font-semibold transition-all hover:scale-105 shadow-md"
+            style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
           >
             <FolderPlus className="w-4 h-4" />
             <span>Open Folder Picker</span>
@@ -309,7 +330,12 @@ export const SettingsView: React.FC = () => {
           <button
             onClick={() => handleManualAddPath()}
             disabled={!customPathInput.trim() || isScanning}
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white text-xs font-semibold transition-all shrink-0"
+            className="px-4 py-2 rounded-xl disabled:bg-zinc-800 disabled:text-zinc-600 text-white text-xs font-semibold transition-all shrink-0"
+            style={
+              customPathInput.trim() && !isScanning
+                ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                : undefined
+            }
           >
             Add Path
           </button>
@@ -465,9 +491,14 @@ export const SettingsView: React.FC = () => {
                 onClick={() => setRomanizationMode('below')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   romanizationMode === 'below'
-                    ? 'bg-indigo-600 text-white shadow-md'
+                    ? 'text-white shadow-md font-semibold'
                     : 'text-zinc-400 hover:text-zinc-200'
                 }`}
+                style={
+                  romanizationMode === 'below'
+                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                    : undefined
+                }
               >
                 Add Below Original
               </button>
@@ -475,9 +506,14 @@ export const SettingsView: React.FC = () => {
                 onClick={() => setRomanizationMode('replace')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   romanizationMode === 'replace'
-                    ? 'bg-indigo-600 text-white shadow-md'
+                    ? 'text-white shadow-md font-semibold'
                     : 'text-zinc-400 hover:text-zinc-200'
                 }`}
+                style={
+                  romanizationMode === 'replace'
+                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                    : undefined
+                }
               >
                 Replace Original
               </button>
@@ -500,9 +536,14 @@ export const SettingsView: React.FC = () => {
                   onClick={() => setLyricsFontSizePreset(preset)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-all ${
                     lyricsFontSizePreset === preset
-                      ? 'bg-indigo-600 text-white shadow-md'
+                      ? 'text-white shadow-md font-semibold'
                       : 'text-zinc-400 hover:text-zinc-200'
                   }`}
+                  style={
+                    lyricsFontSizePreset === preset
+                      ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                      : undefined
+                  }
                 >
                   {preset === 'maximum' ? 'Max Space' : preset}
                 </button>

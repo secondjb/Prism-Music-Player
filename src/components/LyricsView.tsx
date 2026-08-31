@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
+import { AudioSlider } from './AudioSlider';
 import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
 import { parse } from 'clrc';
 import { createRomanizer } from 'lyric-romanizer';
@@ -848,9 +849,9 @@ export const LyricsView: React.FC = () => {
                   scale: isActive ? (isUnsynced ? 1 : 1.05) : 0.98,
                 }}
                 transition={{ duration: 0.25, ease: 'easeOut' }}
-                className={`text-center cursor-pointer max-w-[90vw] w-full px-8 py-3 rounded-2xl transition-colors ${
+                className={`text-center cursor-pointer max-w-[90vw] w-full px-8 py-3 rounded-2xl transition-all ${
                   isActive && !isUnsynced
-                    ? 'text-white font-extrabold drop-shadow-[0_0_25px_rgba(99,102,241,0.6)]'
+                    ? 'font-extrabold'
                     : isUnsynced
                     ? 'text-zinc-200 font-medium'
                     : 'text-zinc-400 hover:text-zinc-200 font-medium'
@@ -858,6 +859,13 @@ export const LyricsView: React.FC = () => {
                 style={{
                   fontSize: isActive && !isUnsynced ? `${activeFontSize}px` : `${inactiveFontSize}px`,
                   lineHeight: 1.3,
+                  ...(isActive && !isUnsynced
+                    ? {
+                        color: '#ffffff',
+                        filter:
+                          'drop-shadow(0 0 20px color-mix(in srgb, var(--color-stop-1, #6366f1) 85%, transparent)) drop-shadow(0 0 35px color-mix(in srgb, var(--color-stop-2, #818cf8) 50%, transparent))',
+                      }
+                    : {}),
                 }}
                 onClick={() => {
                   if (typeof line.startSecs === 'number' && !isNaN(line.startSecs) && !isUnsynced) {
@@ -869,8 +877,11 @@ export const LyricsView: React.FC = () => {
                 <div>{mainText}</div>
                 {subText && (
                   <div
-                    className="font-mono text-indigo-300/80 font-normal mt-1"
-                    style={{ fontSize: `${Math.max(12, inactiveFontSize * 0.6)}px` }}
+                    className="font-mono font-normal mt-1"
+                    style={{
+                      fontSize: `${Math.max(12, inactiveFontSize * 0.6)}px`,
+                      color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 75%, white)',
+                    }}
                   >
                     {subText}
                   </div>
@@ -1025,17 +1036,15 @@ export const LyricsView: React.FC = () => {
             >
               {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
             </button>
-            <input
-              type="range"
+            <AudioSlider
+              value={volume}
               min={0}
               max={1}
               step={0.01}
-              value={volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
-              style={{
-                background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${volume * 100}%, #27272a ${volume * 100}%)`,
-              }}
-              className="w-20 h-2 rounded-full appearance-none cursor-pointer slider-m3 hover:brightness-125 transition-all"
+              onChange={(val) => setVolume(val)}
+              formatTooltip={(val) => `${Math.round(val * 100)}%`}
+              size="sm"
+              className="w-20"
             />
             <span
               style={{ color: 'var(--color-stop-1, #6366f1)' }}

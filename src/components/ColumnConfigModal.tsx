@@ -1,5 +1,6 @@
 import React from 'react';
 import { Column } from '@tanstack/react-table';
+import Slider from '@mui/material/Slider';
 import { RefreshCw, Check, X, SlidersHorizontal } from 'lucide-react';
 import { Track } from '../types/player';
 import {
@@ -36,7 +37,11 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
     { key: 'normal', label: 'Normal', height: '56px' },
     { key: 'large', label: 'Large', height: '68px' },
     { key: 'extra-large', label: 'XL', height: '80px' },
+    { key: 'huge', label: 'Huge', height: '96px' },
   ];
+
+  const densitySteps: TrackGridDensity[] = ['compact', 'normal', 'large', 'extra-large', 'huge'];
+  const currentStepIndex = Math.max(0, densitySteps.indexOf(density));
 
   return (
     <>
@@ -44,7 +49,7 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
       <div className="fixed inset-0 z-40 bg-transparent" onClick={onClose} />
 
       {/* Popover Card anchored near the Grid Customization button */}
-      <div className="absolute right-0 top-11 w-72 glass-panel border border-white/10 rounded-2xl shadow-2xl p-4 z-50 flex flex-col gap-3.5 text-xs max-h-[30rem] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150 bg-[#121212]/95 text-white">
+      <div className="absolute right-0 top-11 w-80 glass-panel border border-white/10 rounded-2xl shadow-2xl p-4 z-50 flex flex-col gap-3.5 text-xs max-h-[32rem] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150 bg-[#121212]/95 text-white">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
           <div className="flex items-center gap-2 font-bold text-sm text-white">
@@ -76,26 +81,66 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
           <span>Reset Grid Defaults</span>
         </button>
 
-        {/* Item Density Selector */}
+        {/* Item Density Discrete Slider & Buttons */}
         <div className="flex flex-col gap-2 pt-1 border-t border-white/10">
-          <span className="text-zinc-400 font-semibold text-[11px] uppercase tracking-wider">
-            Row Density
-          </span>
-          <div className="grid grid-cols-4 gap-1.5 bg-white/5 p-1 rounded-xl border border-white/5">
+          <div className="flex items-center justify-between">
+            <span className="text-zinc-400 font-semibold text-[11px] uppercase tracking-wider">
+              Row Density Slider
+            </span>
+            <span
+              className="text-xs font-mono font-bold capitalize"
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+            >
+              {density.replace('-', ' ')}
+            </span>
+          </div>
+
+          <div className="px-3 pt-1 pb-2">
+            <Slider
+              value={currentStepIndex}
+              min={0}
+              max={4}
+              step={1}
+              marks={[
+                { value: 0, label: '36p' },
+                { value: 1, label: '56p' },
+                { value: 2, label: '68p' },
+                { value: 3, label: '80p' },
+                { value: 4, label: '96p' },
+              ]}
+              onChange={(_, val) => {
+                const idx = Array.isArray(val) ? val[0] : val;
+                if (densitySteps[idx]) onDensityChange(densitySteps[idx]);
+              }}
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '& .MuiSlider-markLabel': {
+                  fontSize: '10px',
+                  color: '#a1a1aa',
+                },
+                '& .MuiSlider-thumb': {
+                  width: 14,
+                  height: 14,
+                },
+              }}
+            />
+          </div>
+
+          <div className="grid grid-cols-5 gap-1 bg-white/5 p-1 rounded-xl border border-white/5">
             {densities.map((d) => {
               const active = density === d.key;
               return (
                 <button
                   key={d.key}
                   onClick={() => onDensityChange(d.key)}
-                  className={`py-1.5 px-1 rounded-lg text-xs font-medium transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                  className={`py-1.5 px-0.5 rounded-lg text-[11px] font-medium transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
                     active
                       ? 'text-white shadow-md font-semibold'
                       : 'text-zinc-400 hover:text-white hover:bg-white/10'
                   }`}
                   style={active ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
                 >
-                  <span>{d.label}</span>
+                  <span className="truncate w-full text-center">{d.label}</span>
                   <span className="text-[9px] opacity-75 font-mono">{d.height}</span>
                 </button>
               );
@@ -123,7 +168,7 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
           <span className="text-zinc-400 font-semibold text-[11px] uppercase tracking-wider">
             Visible Columns
           </span>
-          <div className="flex flex-col gap-1 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+          <div className="flex flex-col gap-1 max-h-44 overflow-y-auto custom-scrollbar pr-1">
             {columns.map((col) => {
               const colId = col.id as TrackColumnId;
               const isVisible = col.getIsVisible();

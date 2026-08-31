@@ -17,7 +17,7 @@ export type TrackColumnId =
   | 'addToQueue'
   | 'actions';
 
-export type TrackGridDensity = 'compact' | 'normal' | 'large' | 'extra-large';
+export type TrackGridDensity = 'compact' | 'normal' | 'large' | 'extra-large' | 'huge';
 
 interface PlayerState {
   tracks: Track[];

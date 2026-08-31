@@ -53,7 +53,7 @@ const COLUMN_LABELS: Record<TrackColumnId, string> = {
 };
 
 const ART_COL_WIDTHS: Record<TrackGridDensity, number> = {
-  compact: 36, normal: 48, large: 64, 'extra-large': 80,
+  compact: 36, normal: 48, large: 64, 'extra-large': 80, huge: 96,
 };
 
 const DENSITY_CONFIG = {
@@ -76,6 +76,11 @@ const DENSITY_CONFIG = {
     rowHeight: 88, artSize: 'w-18 h-18', artIconSize: 'w-6 h-6',
     textSize: 'text-lg', subTextSize: 'text-sm',
     numTextSize: 'text-lg', playBadgeSize: 'w-9 h-9', playIconSize: 'w-5 h-5',
+  },
+  huge: {
+    rowHeight: 96, artSize: 'w-20 h-20', artIconSize: 'w-7 h-7',
+    textSize: 'text-xl', subTextSize: 'text-base',
+    numTextSize: 'text-xl', playBadgeSize: 'w-10 h-10', playIconSize: 'w-6 h-6',
   },
 } satisfies Record<TrackGridDensity, {
   rowHeight: number; artSize: string; artIconSize: string; textSize: string;

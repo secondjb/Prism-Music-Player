@@ -177,7 +177,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       onKeyDown={handleKeyDown}
     >
       {/* Table Header Bar / Controls */}
-      <div className="flex items-center justify-between px-4 py-2 bg-transparent shrink-0 border-b border-white/5 z-20">
+      <div className="flex items-center justify-between px-4 py-2 bg-transparent shrink-0 border-b border-white/5 z-40">
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
             Songs

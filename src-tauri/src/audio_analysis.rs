@@ -55,9 +55,9 @@ pub fn analyze_audio_waveform(path: &Path) -> AudioAnalysisResult {
         Err(_) => return AudioAnalysisResult { bpm: None, key: None },
     };
 
-    // Collect up to 30 seconds of mono PCM audio samples (skip first 3 seconds)
-    let target_samples = sample_rate * 30;
-    let skip_samples = sample_rate * 3;
+    // Collect up to 40 seconds of mono PCM audio samples (skip first 2 seconds)
+    let target_samples = sample_rate * 40;
+    let skip_samples = sample_rate * 2;
 
     let mut samples: Vec<f32> = Vec::with_capacity(target_samples);
     let mut total_read = 0;
@@ -128,7 +128,7 @@ pub fn analyze_audio_waveform(path: &Path) -> AudioAnalysisResult {
     AudioAnalysisResult { bpm, key }
 }
 
-/// Estimate BPM from mono audio buffer using envelope autocorrelation with tempo prior weighting and octave correction
+/// Estimate BPM from mono audio buffer using onset autocorrelation & log-normal tempo prior weighting
 fn estimate_bpm(samples: &[f32], sample_rate: usize) -> Option<u32> {
     let frame_size = 256;
     let num_frames = samples.len() / frame_size;
@@ -136,7 +136,7 @@ fn estimate_bpm(samples: &[f32], sample_rate: usize) -> Option<u32> {
         return None;
     }
 
-    // Compute frame energies
+    // Compute frame energies with onset envelope derivative
     let mut energies = Vec::with_capacity(num_frames);
     for f in 0..num_frames {
         let start = f * frame_size;
@@ -148,7 +148,6 @@ fn estimate_bpm(samples: &[f32], sample_rate: usize) -> Option<u32> {
         energies.push(e.sqrt());
     }
 
-    // Onset energy derivative (positive changes only)
     let mut onset = vec![0.0f32; num_frames];
     for f in 1..num_frames {
         let diff = energies[f] - energies[f - 1];
@@ -157,11 +156,11 @@ fn estimate_bpm(samples: &[f32], sample_rate: usize) -> Option<u32> {
         }
     }
 
-    // Autocorrelation for tempo lags corresponding to 55 BPM to 180 BPM
-    let frame_rate = sample_rate as f32 / frame_size as f32; // ~43.06 Hz
+    // Autocorrelation for tempo lags corresponding to 55 BPM to 195 BPM
+    let frame_rate = sample_rate as f32 / frame_size as f32; // ~43.066 Hz
 
     let min_bpm = 55.0f32;
-    let max_bpm = 180.0f32;
+    let max_bpm = 195.0f32;
 
     let min_lag = (frame_rate * 60.0 / max_bpm).round() as usize;
     let max_lag = (frame_rate * 60.0 / min_bpm).round() as usize;
@@ -186,7 +185,7 @@ fn estimate_bpm(samples: &[f32], sample_rate: usize) -> Option<u32> {
         }
     }
 
-    // Weighted correlation with log-normal tempo prior centered around 115 BPM
+    // Weighted correlation with a broad log-normal tempo prior centered around 125 BPM
     let mut best_lag = 0;
     let mut max_weighted_score = -1.0f32;
 
@@ -197,11 +196,10 @@ fn estimate_bpm(samples: &[f32], sample_rate: usize) -> Option<u32> {
         }
 
         let bpm_cand = frame_rate * 60.0 / lag as f32;
-        // Log-normal tempo prior centered at 115 BPM
-        let log_ratio = (bpm_cand / 115.0).ln();
-        let prior_weight = (-0.5 * (log_ratio / 0.35).powi(2)).exp();
+        let log_ratio = (bpm_cand / 125.0).ln();
+        let prior_weight = (-0.5 * (log_ratio / 0.50).powi(2)).exp();
 
-        let score = raw * (0.5 + 0.5 * prior_weight);
+        let score = raw * (0.6 + 0.4 * prior_weight);
         if score > max_weighted_score {
             max_weighted_score = score;
             best_lag = lag;
@@ -212,39 +210,31 @@ fn estimate_bpm(samples: &[f32], sample_rate: usize) -> Option<u32> {
         return None;
     }
 
-    // Octave Correction: If best_lag gives a high BPM (> 125), check if double lag (half tempo) has significant correlation
-    let bpm_cand = frame_rate * 60.0 / best_lag as f32;
-    if bpm_cand > 125.0 {
-        let double_lag = best_lag * 2;
-        if double_lag <= max_lag {
-            let half_tempo_corr = raw_corrs[double_lag];
-            let best_corr = raw_corrs[best_lag];
-            if half_tempo_corr >= 0.72 * best_corr {
-                best_lag = double_lag;
-            }
-        }
-    }
-
     let final_bpm = (frame_rate * 60.0 / best_lag as f32).round() as u32;
-    if (50..=210).contains(&final_bpm) {
+    if (50..=220).contains(&final_bpm) {
         Some(final_bpm)
     } else {
         None
     }
 }
 
-/// Estimate Musical Key using Pitch Class Profile (Chromagram) across full audio duration and Krumhansl-Schmuckler profiles
+/// Estimate Musical Key using Hanning-windowed Goertzel chromagram across 5 octaves (C2 to B6) & Krumhansl-Schmuckler profiles
 fn estimate_key(samples: &[f32], sample_rate: usize) -> Option<String> {
     let mut chroma = [0.0f32; 12];
 
-    // Evaluate DFT Goertzel energy for notes across 4 octaves (C3 to B6, ~130 Hz to 1975 Hz)
-    let f0_c3 = 130.81f32;
+    // Evaluate DFT Goertzel energy for notes across 5 octaves (C2 to B6, ~65.4 Hz to 1975 Hz)
+    let f0_c2 = 65.4063f32;
     let window_size = 4096;
     let step_size = 2048; // 50% overlap
 
     if samples.len() < window_size {
         return None;
     }
+
+    // Precompute Hanning window function
+    let hanning: Vec<f32> = (0..window_size)
+        .map(|n| 0.5 * (1.0 - (2.0 * std::f32::consts::PI * n as f32 / (window_size - 1) as f32).cos()))
+        .collect();
 
     let mut window_count = 0;
 
@@ -253,8 +243,8 @@ fn estimate_key(samples: &[f32], sample_rate: usize) -> Option<String> {
         window_count += 1;
 
         for note in 0..12 {
-            for octave in 0..4 {
-                let freq = f0_c3 * (2.0f32).powf((note as f32 + octave as f32 * 12.0) / 12.0);
+            for octave in 0..5 {
+                let freq = f0_c2 * (2.0f32).powf((note as f32 + octave as f32 * 12.0) / 12.0);
                 let omega = 2.0 * std::f32::consts::PI * freq / sample_rate as f32;
                 let cos_w = omega.cos();
                 let coeff = 2.0 * cos_w;
@@ -262,8 +252,9 @@ fn estimate_key(samples: &[f32], sample_rate: usize) -> Option<String> {
                 let mut s_prev = 0.0f32;
                 let mut s_prev2 = 0.0f32;
 
-                for &s in chunk {
-                    let s_curr = s + coeff * s_prev - s_prev2;
+                for (i, &s) in chunk.iter().enumerate() {
+                    let windowed_sample = s * hanning[i];
+                    let s_curr = windowed_sample + coeff * s_prev - s_prev2;
                     s_prev2 = s_prev;
                     s_prev = s_curr;
                 }

@@ -809,17 +809,20 @@ export const FilterView: React.FC = () => {
                     setYearRange(val as [number, number]);
                     if (!useYearFilter) handleYearFilterChange(true);
                   }}
+                  onPointerDown={() => {
+                    if (!useYearFilter) handleYearFilterChange(true);
+                  }}
                   valueLabelDisplay="auto"
                   min={1950}
                   max={2026}
-                  disabled={!useYearFilter}
                   sx={{
-                    color: '#10b981', // Emerald 500
+                    color: 'var(--color-stop-1, #10b981)',
+                    opacity: useYearFilter ? 1 : 0.6,
                     '& .MuiSlider-thumb': {
                       width: 16,
                       height: 16,
                       '&:hover, &.Mui-focusVisible': {
-                        boxShadow: '0px 0px 0px 8px rgba(16, 185, 129, 0.16)',
+                        boxShadow: '0px 0px 0px 8px color-mix(in srgb, var(--color-stop-1, #10b981) 20%, transparent)',
                       },
                     },
                     '& .MuiSlider-rail': {
@@ -839,9 +842,9 @@ export const FilterView: React.FC = () => {
                     onChange={(e) => setUseBitrateFilter(e.target.checked)}
                     size="small"
                     sx={{
-                      color: '#f59e0b',
+                      color: 'var(--color-stop-1, #f59e0b)',
                       p: 0.5,
-                      '&.Mui-checked': { color: '#f59e0b' },
+                      '&.Mui-checked': { color: 'var(--color-stop-1, #f59e0b)' },
                     }}
                   />
                   Bitrate Range (kbps)
@@ -857,18 +860,21 @@ export const FilterView: React.FC = () => {
                     setBitrateRange(val as [number, number]);
                     if (!useBitrateFilter) setUseBitrateFilter(true);
                   }}
+                  onPointerDown={() => {
+                    if (!useBitrateFilter) setUseBitrateFilter(true);
+                  }}
                   valueLabelDisplay="auto"
                   min={128}
                   max={2000}
                   step={32}
-                  disabled={!useBitrateFilter}
                   sx={{
-                    color: '#f59e0b', // Amber 500
+                    color: 'var(--color-stop-1, #f59e0b)',
+                    opacity: useBitrateFilter ? 1 : 0.6,
                     '& .MuiSlider-thumb': {
                       width: 16,
                       height: 16,
                       '&:hover, &.Mui-focusVisible': {
-                        boxShadow: '0px 0px 0px 8px rgba(245, 158, 11, 0.16)',
+                        boxShadow: '0px 0px 0px 8px color-mix(in srgb, var(--color-stop-1, #f59e0b) 20%, transparent)',
                       },
                     },
                     '& .MuiSlider-rail': {
@@ -888,9 +894,9 @@ export const FilterView: React.FC = () => {
                     onChange={(e) => setUseBpmFilter(e.target.checked)}
                     size="small"
                     sx={{
-                      color: '#a855f7',
+                      color: 'var(--color-stop-1, #a855f7)',
                       p: 0.5,
-                      '&.Mui-checked': { color: '#a855f7' },
+                      '&.Mui-checked': { color: 'var(--color-stop-1, #a855f7)' },
                     }}
                   />
                   BPM Tag Range
@@ -906,18 +912,21 @@ export const FilterView: React.FC = () => {
                     setBpmRange(val as [number, number]);
                     if (!useBpmFilter) setUseBpmFilter(true);
                   }}
+                  onPointerDown={() => {
+                    if (!useBpmFilter) setUseBpmFilter(true);
+                  }}
                   valueLabelDisplay="auto"
                   min={40}
                   max={220}
                   step={5}
-                  disabled={!useBpmFilter}
                   sx={{
-                    color: '#a855f7', // Purple 500
+                    color: 'var(--color-stop-1, #a855f7)',
+                    opacity: useBpmFilter ? 1 : 0.6,
                     '& .MuiSlider-thumb': {
                       width: 16,
                       height: 16,
                       '&:hover, &.Mui-focusVisible': {
-                        boxShadow: '0px 0px 0px 8px rgba(168, 85, 247, 0.16)',
+                        boxShadow: '0px 0px 0px 8px color-mix(in srgb, var(--color-stop-1, #a855f7) 20%, transparent)',
                       },
                     },
                     '& .MuiSlider-rail': {

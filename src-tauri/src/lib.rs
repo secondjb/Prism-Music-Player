@@ -352,18 +352,16 @@ fn analyze_library_audio(app_handle: AppHandle) -> Result<Vec<TrackMetadata>, St
 
     let mut tracks = load_library_from_disk(&app_data_dir).unwrap_or_default();
 
-    // Parallel background analysis of audio waveforms for tracks missing Key or BPM
+    // Parallel background analysis of audio waveforms for all tracks in library
     tracks.par_iter_mut().for_each(|track| {
-        if track.key.is_none() || track.bpm.is_none() {
-            let p = std::path::Path::new(&track.path);
-            if p.exists() {
-                let analysis = audio_analysis::analyze_audio_waveform(p);
-                if track.bpm.is_none() && analysis.bpm.is_some() {
-                    track.bpm = analysis.bpm;
-                }
-                if track.key.is_none() && analysis.key.is_some() {
-                    track.key = analysis.key;
-                }
+        let p = std::path::Path::new(&track.path);
+        if p.exists() {
+            let analysis = audio_analysis::analyze_audio_waveform(p);
+            if let Some(bpm) = analysis.bpm {
+                track.bpm = Some(bpm);
+            }
+            if let Some(key) = analysis.key {
+                track.key = Some(key);
             }
         }
     });

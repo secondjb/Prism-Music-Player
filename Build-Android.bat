@@ -27,7 +27,7 @@ echo   Compiling Prism Music Player Android Release APK...
 echo ===================================================
 echo.
 
-call npx tauri android build --apk
+call npx tauri android build --apk --target aarch64
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

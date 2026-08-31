@@ -17,13 +17,13 @@ open class RustPlugin : Plugin<Project> {
     override fun apply(project: Project) = with(project) {
         config = extensions.create("rust", Config::class.java)
 
-        val defaultAbiList = listOf("arm64-v8a");
+        val defaultAbiList = listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
         val abiList = (findProperty("abiList") as? String)?.split(',') ?: defaultAbiList
 
-        val defaultArchList = listOf("arm64");
+        val defaultArchList = listOf("arm", "arm64", "x86", "x86_64")
         val archList = (findProperty("archList") as? String)?.split(',') ?: defaultArchList
 
-        val targetsList = (findProperty("targetList") as? String)?.split(',') ?: listOf("aarch64")
+        val targetsList = (findProperty("targetList") as? String)?.split(',') ?: listOf("armv7-linux-androideabi", "aarch64-linux-android", "i686-linux-android", "x86_64-linux-android")
 
         extensions.configure<ApplicationExtension> {
             @Suppress("UnstableApiUsage")

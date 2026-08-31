@@ -54,6 +54,11 @@ open class BuildTask : DefaultTask() {
             workingDir(File(project.projectDir, rootDirRel))
             executable(executable)
             args(args)
+            val extraRustFlags = "-Clink-arg=-landroid -Clink-arg=-llog -Clink-arg=-lOpenSLES -Clink-arg=-lc++_static"
+            environment("CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS", extraRustFlags)
+            environment("CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS", extraRustFlags)
+            environment("CARGO_TARGET_I686_LINUX_ANDROID_RUSTFLAGS", extraRustFlags)
+            environment("CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS", extraRustFlags)
             if (project.logger.isEnabled(LogLevel.DEBUG)) {
                 args("-vv")
             } else if (project.logger.isEnabled(LogLevel.INFO)) {

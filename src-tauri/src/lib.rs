@@ -458,6 +458,63 @@ async fn analyze_library_audio(app_handle: AppHandle, paths: Vec<String>) -> Res
     Ok(())
 }
 
+#[derive(Clone, serde::Serialize)]
+pub struct TurboAnalysisProgressPayload {
+    pub path: String,
+    pub bpm: Option<u32>,
+    pub key: Option<String>,
+}
+
+#[tauri::command]
+async fn analyze_library_batch_turbo(
+    paths: Vec<String>,
+    window: tauri::Window,
+) -> Result<(), String> {
+    use futures::StreamExt;
+
+    if paths.is_empty() {
+        return Ok(());
+    }
+
+    let concurrency = num_cpus::get();
+
+    futures::stream::iter(paths.into_iter().map(|path_str| {
+        tokio::task::spawn_blocking(move || {
+            let path_buf = std::path::PathBuf::from(&path_str);
+            let result = if path_buf.exists() {
+                audio_analysis::analyze_audio_waveform(&path_buf)
+            } else {
+                audio_analysis::AudioAnalysisResult { bpm: None, key: None }
+            };
+            (path_str, result)
+        })
+    }))
+    .buffer_unordered(concurrency)
+    .for_each(|join_res| {
+        let window = window.clone();
+        async move {
+            let (path, result) = match join_res {
+                Ok(res) => res,
+                Err(_) => (String::new(), audio_analysis::AudioAnalysisResult { bpm: None, key: None }),
+            };
+
+            if !path.is_empty() {
+                let _ = window.emit(
+                    "analysis-progress",
+                    TurboAnalysisProgressPayload {
+                        path,
+                        bpm: result.bpm,
+                        key: result.key,
+                    },
+                );
+            }
+        }
+    })
+    .await;
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let engine = GlobalAudioEngine::new();
@@ -531,6 +588,7 @@ pub fn run() {
             get_playback_position,
             filter_tracks,
             analyze_library_audio,
+            analyze_library_batch_turbo,
             analyze_track_audio,
             stats::log_listening_event,
             stats::fetch_listening_events,

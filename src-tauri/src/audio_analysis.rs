@@ -119,6 +119,7 @@ pub fn analyze_audio_waveform(path: &Path) -> AudioAnalysisResult {
     let (final_samples, final_sample_rate) = if sample_rate > 48000 {
         let target_sr = 44100u32;
         let resample_ratio = target_sr as f64 / sample_rate as f64;
+        
         let params = InterpolationParameters {
             sinc_len: 128,
             f_cutoff: 0.95,
@@ -126,46 +127,26 @@ pub fn analyze_audio_waveform(path: &Path) -> AudioAnalysisResult {
             oversampling_factor: 256,
             window: WindowFunction::BlackmanHarris2,
         };
-        let chunk_size = 1024;
+
+        // Pass the total sample length as the chunk size to process in one pass
         let mut resampler = match SincFixedIn::<f32>::new(
             resample_ratio,
             2.0,
             params,
-            chunk_size,
+            samples.len(),
             1,
         ) {
             Ok(r) => r,
             Err(_) => return AudioAnalysisResult { bpm: None, key: None },
         };
 
-        let mut out_vec = Vec::with_capacity((samples.len() as f64 * resample_ratio) as usize + 1024);
-        let mut input_waves = vec![vec![0.0f32; chunk_size]];
-        let total_input_frames = samples.len();
-        let mut read_idx = 0;
-
-        while read_idx < total_input_frames {
-            let remaining = total_input_frames - read_idx;
-            if remaining >= chunk_size {
-                input_waves[0].copy_from_slice(&samples[read_idx..read_idx + chunk_size]);
-                read_idx += chunk_size;
-                if let Ok(resampled) = resampler.process(&input_waves, None) {
-                    if let Some(chan) = resampled.first() {
-                        out_vec.extend_from_slice(chan);
-                    }
-                }
-            } else {
-                input_waves[0][..remaining].copy_from_slice(&samples[read_idx..read_idx + remaining]);
-                input_waves[0][remaining..].fill(0.0);
-                read_idx += remaining;
-                if let Ok(resampled) = resampler.process(&input_waves, None) {
-                    if let Some(chan) = resampled.first() {
-                        let take_len = (remaining as f64 * resample_ratio).round() as usize;
-                        let chunk_len = chan.len().min(take_len);
-                        out_vec.extend_from_slice(&chan[..chunk_len]);
-                    }
-                }
-            }
-        }
+        // Rubato expects a vector of channels; we have 1 mono channel
+        let input_waves = vec![samples];
+        
+        let out_vec = match resampler.process(&input_waves, None) {
+            Ok(mut resampled) => resampled.pop().unwrap_or_default(),
+            Err(_) => return AudioAnalysisResult { bpm: None, key: None },
+        };
 
         (out_vec, target_sr)
     } else {

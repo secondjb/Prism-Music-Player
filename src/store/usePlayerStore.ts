@@ -464,6 +464,13 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       resume: async () => {
+        const { currentTrack, queue, playIndex } = get();
+        if (!currentTrack) {
+          if (queue.length > 0) {
+            playIndex(0);
+          }
+          return;
+        }
         set({ isPlaying: true });
         try {
           if (window.__TAURI_INTERNALS__) {

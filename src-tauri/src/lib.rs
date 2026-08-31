@@ -4,7 +4,7 @@ mod stats;
 
 use audio::GlobalAudioEngine;
 use metadata::{
-    extract_track_art, extract_track_lyrics, embed_track_lyrics, load_library_from_disk, save_library_to_disk,
+    extract_track_art, extract_track_lyrics, load_library_from_disk, save_library_to_disk,
     scan_configured_directories, scan_directory_for_tracks, TrackMetadata,
 };
 use std::env;
@@ -94,22 +94,85 @@ fn embed_lyrics(path: String, lyrics: String) -> Result<(), String> {
 #[tauri::command]
 fn play_audio(
     audio_engine: State<'_, GlobalAudioEngine>,
+    controls_state: State<'_, MediaControlState>,
     path: String,
     replay_gain_db: Option<f32>,
     start_position_secs: Option<f64>,
 ) -> Result<(), String> {
     let gain = replay_gain_db.unwrap_or(0.0);
-    audio_engine.play(path, gain, start_position_secs)
+    audio_engine.play(path, gain, start_position_secs)?;
+    if let Ok(mut guard) = controls_state.0.lock() {
+        if let Some(controls) = guard.as_mut() {
+            let _ = controls.set_playback(MediaPlayback::Playing { progress: None });
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
-fn pause_audio(audio_engine: State<'_, GlobalAudioEngine>) {
+fn pause_audio(
+    audio_engine: State<'_, GlobalAudioEngine>,
+    controls_state: State<'_, MediaControlState>,
+) {
     audio_engine.pause();
+    if let Ok(mut guard) = controls_state.0.lock() {
+        if let Some(controls) = guard.as_mut() {
+            let _ = controls.set_playback(MediaPlayback::Paused { progress: None });
+        }
+    }
 }
 
 #[tauri::command]
-fn resume_audio(audio_engine: State<'_, GlobalAudioEngine>) {
+fn resume_audio(
+    audio_engine: State<'_, GlobalAudioEngine>,
+    controls_state: State<'_, MediaControlState>,
+) {
     audio_engine.resume();
+    if let Ok(mut guard) = controls_state.0.lock() {
+        if let Some(controls) = guard.as_mut() {
+            let _ = controls.set_playback(MediaPlayback::Playing { progress: None });
+        }
+    }
+}
+
+#[tauri::command]
+fn update_media_controls_playback(
+    controls_state: State<'_, MediaControlState>,
+    is_playing: bool,
+) {
+    if let Ok(mut guard) = controls_state.0.lock() {
+        if let Some(controls) = guard.as_mut() {
+            let playback = if is_playing {
+                MediaPlayback::Playing { progress: None }
+            } else {
+                MediaPlayback::Paused { progress: None }
+            };
+            let _ = controls.set_playback(playback);
+        }
+    }
+}
+
+#[tauri::command]
+fn update_media_controls_metadata(
+    controls_state: State<'_, MediaControlState>,
+    title: String,
+    artist: String,
+    album: String,
+    duration_secs: Option<f64>,
+) {
+    if let Ok(mut guard) = controls_state.0.lock() {
+        if let Some(controls) = guard.as_mut() {
+            let duration = duration_secs.map(std::time::Duration::from_secs_f64);
+            let metadata = souvlaki::MediaMetadata {
+                title: Some(&title),
+                artist: Some(&artist),
+                album: Some(&album),
+                cover_url: None,
+                duration,
+            };
+            let _ = controls.set_metadata(metadata);
+        }
+    }
 }
 
 #[tauri::command]
@@ -342,7 +405,7 @@ pub fn run() {
                         };
                         let _ = app_handle.emit("media-control", event_name);
                     }).is_ok() {
-                        let _ = controls.set_playback(MediaPlayback::Playing { progress: None });
+                        let _ = controls.set_playback(MediaPlayback::Stopped);
                         app.manage(MediaControlState(Mutex::new(Some(controls))));
                     } else {
                         app.manage(MediaControlState(Mutex::new(None)));
@@ -375,6 +438,8 @@ pub fn run() {
             play_audio,
             pause_audio,
             resume_audio,
+            update_media_controls_playback,
+            update_media_controls_metadata,
             seek_audio,
             set_volume,
             get_playback_position,

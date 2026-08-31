@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { Track, Playlist } from '../types/player';
-import { TrackGridView } from './TrackGridView';
+import { TrackTableView } from './TrackTableView';
 import {
   Heart,
   Music,
@@ -150,7 +150,7 @@ export const PlaylistView: React.FC = () => {
 
         {/* Track list Grid View */}
         <div className="flex-1 min-h-0">
-          <TrackGridView
+          <TrackTableView
             tracks={playlistTracks}
             playlistId={activePlaylist.id}
             onRemoveFromPlaylist={(trackId) => {

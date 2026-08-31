@@ -33,6 +33,18 @@ export const App: React.FC = () => {
 
   // Sync MediaSession metadata & action handlers for Windows System Media Transport Controls (SMTC)
   useEffect(() => {
+    if (window.__TAURI_INTERNALS__) {
+      if (currentTrack) {
+        invoke('update_media_controls_metadata', {
+          title: currentTrack.title,
+          artist: currentTrack.artist,
+          album: currentTrack.album || '',
+          durationSecs: currentTrack.duration_secs || null,
+        }).catch(() => {});
+      }
+      invoke('update_media_controls_playback', { isPlaying }).catch(() => {});
+    }
+
     if (!('mediaSession' in navigator)) return;
 
     if (currentTrack) {
@@ -125,7 +137,11 @@ export const App: React.FC = () => {
             store.resume();
             break;
           case 'pause':
-            store.pause();
+            if (store.isPlaying) {
+              store.pause();
+            } else {
+              store.resume();
+            }
             break;
           case 'toggle':
             store.togglePlay();

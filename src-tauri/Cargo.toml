@@ -34,5 +34,4 @@ rayon = "1.10"
 souvlaki = "0.8.3"
 lofty = "0.21"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
-tauri-plugin-android-fs = "29.0.0"
 

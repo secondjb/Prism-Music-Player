@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { showOpenDirPicker } from 'tauri-plugin-android-fs-api';
+import { open } from '@tauri-apps/plugin-dialog';
 import {
   FolderPlus,
   FolderMinus,
@@ -96,9 +96,12 @@ export const SettingsView: React.FC = () => {
   };
 
   const pickDirectory = async (): Promise<string | null> => {
-    const res = await showOpenDirPicker();
-    if (!res) return null;
-    return typeof res === 'string' ? res : res.uri;
+    const selected = await open({
+      directory: true,
+      multiple: false,
+    });
+    if (!selected) return null;
+    return typeof selected === 'string' ? selected : selected[0];
   };
 
   const handleAddIncludedDir = async () => {
@@ -278,7 +281,7 @@ export const SettingsView: React.FC = () => {
             <div>
               <h3 className="text-base font-bold text-white">Included Music Directories</h3>
               <p className="text-xs text-zinc-400">
-                Add local or Android storage directories to automatically scan and play your music files.
+                Add local music directories to automatically scan and play your audio files.
               </p>
             </div>
           </div>
@@ -291,33 +294,8 @@ export const SettingsView: React.FC = () => {
           </button>
         </div>
 
-        {/* Android & Mobile Quick Presets */}
-        <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
-          <span className="text-[11px] font-semibold text-zinc-400">Quick-Add Common Android Music Folders:</span>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => handleManualAddPath('/storage/emulated/0/Music')}
-              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-mono text-indigo-300 hover:text-white transition-all active:scale-95"
-            >
-              📁 /storage/emulated/0/Music
-            </button>
-            <button
-              onClick={() => handleManualAddPath('/storage/emulated/0/Download')}
-              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-mono text-indigo-300 hover:text-white transition-all active:scale-95"
-            >
-              📁 /storage/emulated/0/Download
-            </button>
-            <button
-              onClick={() => handleManualAddPath('/sdcard/Music')}
-              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-mono text-indigo-300 hover:text-white transition-all active:scale-95"
-            >
-              📁 /sdcard/Music
-            </button>
-          </div>
-        </div>
-
         {/* Manual Folder Path Input */}
-        <div className="flex items-center gap-2 pt-2">
+        <div className="flex items-center gap-2 pt-2 border-t border-white/10">
           <input
             type="text"
             value={customPathInput}
@@ -325,7 +303,7 @@ export const SettingsView: React.FC = () => {
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleManualAddPath();
             }}
-            placeholder="Type or paste custom folder path (e.g. /storage/emulated/0/Music)"
+            placeholder="Type or paste custom folder path (e.g. C:\Users\YourName\Music)"
             className="flex-1 bg-zinc-900 border border-white/10 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none transition-colors"
           />
           <button

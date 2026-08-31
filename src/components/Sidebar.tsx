@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { ActiveTab } from '../types/player';
 import { Library, Heart, Disc, Folder, Music, Mic2, FolderPlus, Settings, ChevronDown, ChevronRight, SlidersHorizontal, BarChart2 } from 'lucide-react';
-import { showOpenDirPicker } from 'tauri-plugin-android-fs-api';
+import { open } from '@tauri-apps/plugin-dialog';
 import { GeminiLogo } from './GeminiLogo';
 
 export const Sidebar: React.FC = () => {
@@ -21,10 +21,12 @@ export const Sidebar: React.FC = () => {
 
   const handleQuickAddDirectory = async () => {
     try {
-      const res = await showOpenDirPicker();
-      const selected = res ? (typeof res === 'string' ? res : res.uri) : null;
-      console.log('Picked directory URI:', selected);
-      if (selected) {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+      });
+      console.log('Picked directory path:', selected);
+      if (selected && typeof selected === 'string') {
         await addIncludedDirectory(selected);
         setActiveTab('settings');
       }

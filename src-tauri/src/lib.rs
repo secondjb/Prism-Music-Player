@@ -363,7 +363,6 @@ pub fn run() {
         .manage(engine)
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_android_fs::init())
         .invoke_handler(tauri::generate_handler![
             scan_directory,
             scan_libraries,

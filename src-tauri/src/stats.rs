@@ -19,28 +19,42 @@ pub struct DbState {
 }
 
 pub fn init_db(app_handle: &AppHandle) {
-    let app_data_dir = app_handle.path().app_data_dir().expect("Failed to get app data dir");
-    std::fs::create_dir_all(&app_data_dir).expect("Failed to create app data dir");
-    
-    let db_path = app_data_dir.join("listening_stats.db");
-    let conn = Connection::open(db_path).expect("Failed to open sqlite db");
+    let conn = (|| -> Result<Connection, Box<dyn std::error::Error>> {
+        let app_data_dir = app_handle.path().app_data_dir()?;
+        std::fs::create_dir_all(&app_data_dir)?;
+        
+        let db_path = app_data_dir.join("listening_stats.db");
+        let conn = Connection::open(db_path)?;
 
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS listening_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            song_title TEXT NOT NULL,
-            artist_name TEXT NOT NULL,
-            album_name TEXT,
-            genre TEXT,
-            duration_ms INTEGER NOT NULL,
-            played_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )",
-        [],
-    ).expect("Failed to create listening_events table");
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS listening_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                song_title TEXT NOT NULL,
+                artist_name TEXT NOT NULL,
+                album_name TEXT,
+                genre TEXT,
+                duration_ms INTEGER NOT NULL,
+                played_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )",
+            [],
+        )?;
 
-    app_handle.manage(DbState {
-        db: Mutex::new(Some(conn)),
-    });
+        Ok(conn)
+    })();
+
+    match conn {
+        Ok(c) => {
+            app_handle.manage(DbState {
+                db: Mutex::new(Some(c)),
+            });
+        }
+        Err(e) => {
+            eprintln!("Warning: Failed to initialize stats database: {}", e);
+            app_handle.manage(DbState {
+                db: Mutex::new(None),
+            });
+        }
+    }
 }
 
 #[tauri::command]

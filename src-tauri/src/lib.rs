@@ -46,7 +46,11 @@ fn scan_sample_folder() -> Vec<TrackMetadata> {
         path = PathBuf::from("./Sample Music Folder");
     }
 
-    scan_directory_for_tracks(&path.to_string_lossy())
+    if path.exists() {
+        scan_directory_for_tracks(&path.to_string_lossy())
+    } else {
+        Vec::new()
+    }
 }
 
 #[tauri::command]
@@ -308,35 +312,46 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
 
-            #[cfg(target_os = "windows")]
-            let hwnd = Some(app.get_webview_window("main").unwrap().hwnd().unwrap().0 as *mut std::ffi::c_void);
-            #[cfg(not(target_os = "windows"))]
-            let hwnd = None;
+            #[cfg(desktop)]
+            {
+                #[cfg(target_os = "windows")]
+                let hwnd = app.get_webview_window("main").and_then(|w| w.hwnd().ok()).map(|h| h.0 as *mut std::ffi::c_void);
+                #[cfg(not(target_os = "windows"))]
+                let hwnd = None;
 
-            let config = PlatformConfig {
-                dbus_name: "prism_music_player",
-                display_name: "Prism Music Player",
-                hwnd,
-            };
+                let config = PlatformConfig {
+                    dbus_name: "prism_music_player",
+                    display_name: "Prism Music Player",
+                    hwnd,
+                };
 
-            if let Ok(mut controls) = MediaControls::new(config) {
-                controls.attach(move |event| {
-                    let event_name = match event {
-                        MediaControlEvent::Play => "play",
-                        MediaControlEvent::Pause => "pause",
-                        MediaControlEvent::Toggle => "toggle",
-                        MediaControlEvent::Next => "next",
-                        MediaControlEvent::Previous => "previous",
-                        _ => return,
-                    };
-                    let _ = app_handle.emit("media-control", event_name);
-                }).unwrap();
+                if let Ok(mut controls) = MediaControls::new(config) {
+                    if controls.attach(move |event| {
+                        let event_name = match event {
+                            MediaControlEvent::Play => "play",
+                            MediaControlEvent::Pause => "pause",
+                            MediaControlEvent::Toggle => "toggle",
+                            MediaControlEvent::Next => "next",
+                            MediaControlEvent::Previous => "previous",
+                            _ => return,
+                        };
+                        let _ = app_handle.emit("media-control", event_name);
+                    }).is_ok() {
+                        let _ = controls.set_playback(MediaPlayback::Playing { progress: None });
+                        app.manage(MediaControlState(Mutex::new(Some(controls))));
+                    } else {
+                        app.manage(MediaControlState(Mutex::new(None)));
+                    }
+                } else {
+                    app.manage(MediaControlState(Mutex::new(None)));
+                }
+            }
 
-                let _ = controls.set_playback(MediaPlayback::Playing { progress: None });
-                app.manage(MediaControlState(Mutex::new(Some(controls))));
-            } else {
+            #[cfg(not(desktop))]
+            {
                 app.manage(MediaControlState(Mutex::new(None)));
             }
+
             stats::init_db(&app.handle());
             Ok(())
         })

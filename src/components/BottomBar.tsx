@@ -521,94 +521,95 @@ export const BottomBar: React.FC = () => {
           <SleepTimerModal isOpen={isTimerModalOpen} onClose={() => setIsTimerModalOpen(false)} />
         </div>
 
-        {/* Responsive Volume Controls */}
-        <div className="flex items-center gap-1.5 flex-1 max-w-[140px] min-w-[50px] shrink">
-          <button
-            onClick={handleMuteToggle}
-            className="text-zinc-400 hover:text-white transition-colors p-1 shrink-0"
-            title={isMuted ? 'Unmute' : 'Mute'}
-          >
-            {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 text-rose-400" /> : <Volume2 className="w-5 h-5" />}
-          </button>
-          
-          <div
-            ref={volContainerRef}
-            className="relative flex-1 h-6 flex items-center group cursor-pointer shrink min-w-[30px]"
-            onMouseMove={handleVolMouseMove}
-            onMouseLeave={handleVolMouseLeave}
-            title="Scroll wheel to adjust volume"
-          >
-            {/* Floating Volume Percentage Tooltip */}
+        {/* Volume & Karaoke Toggle */}
+        <div className="flex items-center gap-2">
+          <div ref={volContainerRef} className="hidden sm:flex items-center gap-2 w-32 md:w-44 shrink-0" title="Scroll wheel to adjust volume">
+            <button
+              onClick={handleMuteToggle}
+              className="text-zinc-400 hover:text-white transition-colors p-1 shrink-0"
+              title={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 text-rose-400" /> : <Volume2 className="w-5 h-5" />}
+            </button>
+            
             <div
-              ref={volTooltipRef}
-              className="absolute -top-7 transform -translate-x-1/2 px-1.5 py-0.5 rounded-md bg-cyan-600 text-[10px] font-mono font-bold text-white shadow-lg shadow-cyan-950/80 pointer-events-none z-30 border border-cyan-400/30 whitespace-nowrap"
-              style={{ opacity: 0 }}
-            />
+              className="relative flex-1 h-6 flex items-center group cursor-pointer shrink min-w-[30px]"
+              onMouseMove={handleVolMouseMove}
+              onMouseLeave={handleVolMouseLeave}
+            >
+              {/* Floating Volume Percentage Tooltip */}
+              <div
+                ref={volTooltipRef}
+                className="absolute -top-7 transform -translate-x-1/2 px-1.5 py-0.5 rounded-md bg-cyan-600 text-[10px] font-mono font-bold text-white shadow-lg shadow-cyan-950/80 pointer-events-none z-30 border border-cyan-400/30 whitespace-nowrap"
+                style={{ opacity: 0 }}
+              />
 
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={effectiveVol}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value);
-                setVolume(val);
-                if (isMuted) setIsMuted(false);
-              }}
-              style={{
-                background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${volPercent}%, #27272a ${volPercent}%)`,
-              }}
-              className="w-full h-2 group-hover:h-3 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3 shadow-sm"
-            />
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={effectiveVol}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  setVolume(val);
+                  if (isMuted) setIsMuted(false);
+                }}
+                style={{
+                  background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${volPercent}%, #27272a ${volPercent}%)`,
+                }}
+                className="w-full h-2 group-hover:h-3 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3 shadow-sm"
+              />
+            </div>
+
+            {/* Integer Volume Percentage Display / Direct Input */}
+            {isEditingVol ? (
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                autoFocus
+                value={volInputText}
+                onChange={(e) => setVolInputText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleVolInputSubmit();
+                  if (e.key === 'Escape') setIsEditingVol(false);
+                }}
+                onBlur={handleVolInputSubmit}
+                style={{
+                  color: 'var(--color-stop-1, #6366f1)',
+                  borderColor: 'var(--color-stop-1, #6366f1)',
+                }}
+                className="w-12 px-1 py-1 text-xs font-mono font-bold text-center bg-zinc-800/80 border-b-2 rounded-t outline-none focus:bg-zinc-800 shrink-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none shadow-inner"
+              />
+            ) : (
+              <button
+                onClick={() => {
+                  setVolInputText(Math.round(effectiveVol * 100).toString());
+                  setIsEditingVol(true);
+                }}
+                style={{ color: 'var(--color-stop-1, #6366f1)' }}
+                className="px-1 py-0.5 text-xs font-mono font-bold hover:brightness-125 rounded transition-all min-w-[28px] text-right shrink-0"
+                title="Click to type volume"
+              >
+                {Math.round(effectiveVol * 100)}%
+              </button>
+            )}
           </div>
 
-          {/* Integer Volume Percentage Display / Direct Input */}
-          {isEditingVol ? (
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step={1}
-              autoFocus
-              value={volInputText}
-              onChange={(e) => setVolInputText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleVolInputSubmit();
-                if (e.key === 'Escape') setIsEditingVol(false);
-              }}
-              onBlur={handleVolInputSubmit}
-              style={{
-                color: 'var(--color-stop-1, #6366f1)',
-                borderColor: 'var(--color-stop-1, #6366f1)',
-              }}
-              className="w-12 px-1 py-1 text-xs font-mono font-bold text-center bg-zinc-800/80 border-b-2 rounded-t outline-none focus:bg-zinc-800 shrink-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none shadow-inner"
-            />
-          ) : (
-            <button
-              onClick={() => {
-                setVolInputText(Math.round(effectiveVol * 100).toString());
-                setIsEditingVol(true);
-              }}
-              style={{ color: 'var(--color-stop-1, #6366f1)' }}
-              className="px-1 py-0.5 text-xs font-mono font-bold hover:brightness-125 rounded transition-all min-w-[28px] text-right shrink-0"
-              title="Click to type volume"
-            >
-              {Math.round(effectiveVol * 100)}%
-            </button>
-          )}
+          {/* Karaoke / Lyrics Toggle (Moved to far right) */}
+          <button
+            onClick={() => setShowLyricsFullscreen(!showLyricsFullscreen)}
+            className={`p-1.5 sm:p-2 rounded-xl transition-all shrink-0 ${
+              showLyricsFullscreen ? 'text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-white/5'
+            }`}
+            style={showLyricsFullscreen ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+            title="Karaoke / Fullscreen Lyrics"
+          >
+            <Mic2 className="w-5 h-5" />
+          </button>
         </div>
-
-        {/* Karaoke / Lyrics Toggle (Moved to far right) */}
-        <button
-          onClick={() => setShowLyricsFullscreen(!showLyricsFullscreen)}
-          className={`p-1.5 sm:p-2 rounded-xl transition-all shrink-0 ${
-            showLyricsFullscreen ? 'bg-indigo-600 text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-white/5'
-          }`}
-          title="Karaoke / Fullscreen Lyrics"
-        >
-          <Mic2 className="w-5 h-5" />
-        </button>
       </div>
     </footer>
   );

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { Track, Playlist } from '../types/player';
+import { TrackGridView } from './TrackGridView';
 import {
   Heart,
   Music,
@@ -11,102 +12,9 @@ import {
   Trash2,
   Pencil,
   Check,
-  X,
-  GripVertical,
+  ListPlus,
+  ListVideo,
 } from 'lucide-react';
-
-// Small component for track art in playlist detail
-const PlaylistTrackRow: React.FC<{
-  track: Track;
-  idx: number;
-  isSelected: boolean;
-  isPlaying: boolean;
-  onPlay: () => void;
-  onRemove: () => void;
-  onDragStart: (idx: number) => void;
-  onDragEnter: (idx: number) => void;
-  onDrop: (idx: number) => void;
-  onDragEnd: () => void;
-  isDragging: boolean;
-  isDragOver: boolean;
-}> = ({ track, idx, isSelected, isPlaying, onPlay, onRemove, onDragStart, onDragEnter, onDrop, onDragEnd, isDragging, isDragOver }) => {
-  const art = useTrackArt(track);
-
-  const formatDuration = (secs: number) => {
-    if (!secs || isNaN(secs)) return '0:00';
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
-
-  return (
-    <div
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', String(idx));
-        onDragStart(idx);
-      }}
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        onDragEnter(idx);
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        onDrop(idx);
-      }}
-      onDragEnd={onDragEnd}
-      onClick={onPlay}
-      className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all border ${
-        isDragging ? 'opacity-40 border-dashed border-indigo-400' : ''
-      } ${isDragOver ? 'bg-indigo-600/30 border-indigo-400' : ''} ${
-        isSelected
-          ? isPlaying
-            ? 'bg-indigo-600/30 border-indigo-500/50 text-white shadow-md'
-            : 'bg-indigo-600/20 border-indigo-500/30 text-white'
-          : 'hover:bg-white/5 border-transparent text-zinc-300'
-      }`}
-    >
-      <span
-        className="cursor-grab active:cursor-grabbing text-zinc-500 group-hover:text-indigo-400 shrink-0"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <GripVertical className="w-4 h-4" />
-      </span>
-
-      <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-zinc-800 border border-white/10">
-        {art ? (
-          <img src={art} alt={track.title} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full bg-indigo-900/40 flex items-center justify-center">
-            <Music className="w-3.5 h-3.5 text-indigo-300" />
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-col min-w-0 flex-1">
-        <span className={`text-sm font-semibold truncate ${isSelected ? 'text-indigo-400' : 'text-white'}`}>
-          {track.title}
-        </span>
-        <span className="text-xs text-zinc-400 truncate">{track.artist}</span>
-      </div>
-
-      <span className="text-xs font-mono text-zinc-500 shrink-0">{formatDuration(track.duration_secs)}</span>
-
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove();
-        }}
-        className="p-1 text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-white/10"
-        title="Remove from playlist"
-      >
-        <X className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  );
-};
 
 export const PlaylistView: React.FC = () => {
   const tracks = usePlayerStore((s) => s.tracks);
@@ -118,17 +26,15 @@ export const PlaylistView: React.FC = () => {
   const deletePlaylist = usePlayerStore((s) => s.deletePlaylist);
   const renamePlaylist = usePlayerStore((s) => s.renamePlaylist);
   const removeTrackFromPlaylist = usePlayerStore((s) => s.removeTrackFromPlaylist);
-  const reorderPlaylistTracks = usePlayerStore((s) => s.reorderPlaylistTracks);
-  const currentTrack = usePlayerStore((s) => s.currentTrack);
-  const isPlaying = usePlayerStore((s) => s.isPlaying);
   const playTrack = usePlayerStore((s) => s.playTrack);
+  const playPlaylistNext = usePlayerStore((s) => s.playPlaylistNext);
+  const addPlaylistToQueue = usePlayerStore((s) => s.addPlaylistToQueue);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; playlistId: string; name: string } | null>(null);
 
   // "Liked Songs" virtual playlist
   const likedTracks = tracks.filter((t) => likedTrackIds.includes(t.id));
@@ -153,14 +59,6 @@ export const PlaylistView: React.FC = () => {
       if (playlistTracks.length > 0) {
         playTrack(playlistTracks[0], playlistTracks);
       }
-    };
-
-    const handleDragDrop = (targetIdx: number) => {
-      if (draggedIdx !== null && draggedIdx !== targetIdx && activePlaylist.id !== '__liked__') {
-        reorderPlaylistTracks(activePlaylist.id, draggedIdx, targetIdx);
-      }
-      setDraggedIdx(null);
-      setDragOverIdx(null);
     };
 
     return (
@@ -250,47 +148,19 @@ export const PlaylistView: React.FC = () => {
           )}
         </div>
 
-        {/* Track list */}
-        <div className="flex flex-col gap-1.5" onDragOver={(e) => e.preventDefault()}>
-          {playlistTracks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-              <Music className="w-10 h-10 text-zinc-600" />
-              <p className="text-sm text-zinc-400">
-                {activePlaylist.id === '__liked__'
-                  ? 'No liked songs yet. Click the heart icon on tracks to add them.'
-                  : 'This playlist is empty. Add tracks from the library using the three-dot menu.'}
-              </p>
-            </div>
-          ) : (
-            playlistTracks.map((track, idx) => (
-              <PlaylistTrackRow
-                key={`${track.id}-${idx}`}
-                track={track}
-                idx={idx}
-                isSelected={currentTrack?.id === track.id}
-                isPlaying={isPlaying}
-                onPlay={() => playTrack(track, playlistTracks)}
-                onRemove={() => {
-                  if (activePlaylist.id === '__liked__') {
-                    usePlayerStore.getState().toggleLikeTrack(track.id);
-                  } else {
-                    removeTrackFromPlaylist(activePlaylist.id, track.id);
-                  }
-                }}
-                onDragStart={(i) => setDraggedIdx(i)}
-                onDragEnter={(i) => {
-                  if (draggedIdx !== null && draggedIdx !== i) setDragOverIdx(i);
-                }}
-                onDrop={handleDragDrop}
-                onDragEnd={() => {
-                  setDraggedIdx(null);
-                  setDragOverIdx(null);
-                }}
-                isDragging={draggedIdx === idx}
-                isDragOver={dragOverIdx === idx}
-              />
-            ))
-          )}
+        {/* Track list Grid View */}
+        <div className="flex-1 min-h-0">
+          <TrackGridView
+            tracks={playlistTracks}
+            playlistId={activePlaylist.id}
+            onRemoveFromPlaylist={(trackId) => {
+              if (activePlaylist.id === '__liked__') {
+                usePlayerStore.getState().toggleLikeTrack(trackId);
+              } else {
+                removeTrackFromPlaylist(activePlaylist.id, trackId);
+              }
+            }}
+          />
         </div>
       </div>
     );
@@ -323,6 +193,16 @@ export const PlaylistView: React.FC = () => {
         {/* Liked Songs (always first, special card) */}
         <div
           onClick={() => setActivePlaylistId('__liked__')}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setContextMenu({
+              x: e.clientX,
+              y: e.clientY,
+              playlistId: '__liked__',
+              name: 'Liked Songs',
+            });
+          }}
           className="group glass-card rounded-2xl border border-white/10 p-5 cursor-pointer hover:border-pink-500/40 hover:bg-pink-500/5 transition-all flex flex-col gap-3"
         >
           <div className="w-full aspect-square rounded-xl bg-gradient-to-br from-pink-600 to-purple-700 flex items-center justify-center shadow-lg">
@@ -345,6 +225,16 @@ export const PlaylistView: React.FC = () => {
             <div
               key={pl.id}
               onClick={() => setActivePlaylistId(pl.id)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setContextMenu({
+                  x: e.clientX,
+                  y: e.clientY,
+                  playlistId: pl.id,
+                  name: pl.name,
+                });
+              }}
               className="group glass-card rounded-2xl border border-white/10 p-5 cursor-pointer hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all flex flex-col gap-3 relative"
             >
               {/* Playlist cover art grid */}
@@ -431,6 +321,70 @@ export const PlaylistView: React.FC = () => {
                 Create
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Playlist Right-Click Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed inset-0 z-50 pointer-events-auto"
+          onClick={() => setContextMenu(null)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setContextMenu(null);
+          }}
+        >
+          <div
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            className="fixed z-50 w-56 glass-panel border border-white/10 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 text-xs text-zinc-300 animate-in fade-in zoom-in-95 duration-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-2.5 py-1 text-[11px] font-semibold text-zinc-400 border-b border-white/10 truncate">
+              {contextMenu.name}
+            </div>
+            <button
+              onClick={() => {
+                playPlaylistNext(contextMenu.playlistId);
+                setContextMenu(null);
+              }}
+              className="flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors text-left font-medium cursor-pointer"
+            >
+              <ListPlus className="w-4 h-4 text-indigo-400 group-hover:text-white" />
+              <span>Play Next (After Song)</span>
+            </button>
+            <button
+              onClick={() => {
+                addPlaylistToQueue(contextMenu.playlistId);
+                setContextMenu(null);
+              }}
+              className="flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-white/10 hover:text-white transition-colors text-left font-medium cursor-pointer"
+            >
+              <ListVideo className="w-4 h-4 text-zinc-400" />
+              <span>Add Playlist to Queue</span>
+            </button>
+            <button
+              onClick={() => {
+                const store = usePlayerStore.getState();
+                let targetTracks: Track[] = [];
+                if (contextMenu.playlistId === '__liked__') {
+                  targetTracks = store.tracks.filter((t) => store.likedTrackIds.includes(t.id));
+                } else {
+                  const pl = store.playlists.find((p) => p.id === contextMenu.playlistId);
+                  if (pl) {
+                    targetTracks = pl.trackIds.map((id) => store.tracks.find((t) => t.id === id)).filter((t): t is Track => Boolean(t));
+                  }
+                }
+                if (targetTracks.length > 0) {
+                  store.playTrack(targetTracks[0], targetTracks);
+                }
+                setContextMenu(null);
+              }}
+              className="flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-white/10 hover:text-white transition-colors text-left font-medium cursor-pointer"
+            >
+              <Play className="w-4 h-4 text-zinc-400" />
+              <span>Play Now</span>
+            </button>
           </div>
         </div>
       )}

@@ -94,27 +94,28 @@ export const LyricsView: React.FC = () => {
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollbarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const floatingVolRef = useRef<HTMLDivElement | null>(null);
+  const volNodeRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    const el = floatingVolRef.current;
-    if (!el) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const store = usePlayerStore.getState();
-      const current = store.volume;
-      const step = e.shiftKey ? 0.005 : 0.02;
-      const delta = e.deltaY < 0 ? step : -step;
-      const nextVol = Math.max(0, Math.min(1, current + delta));
-      store.setVolume(nextVol);
-    };
-
-    el.addEventListener('wheel', handleWheel, { passive: false });
-    return () => {
-      el.removeEventListener('wheel', handleWheel);
-    };
+  const volRefCallback = React.useCallback((node: HTMLDivElement | null) => {
+    if (volNodeRef.current) {
+      const prev = (volNodeRef.current as any)._volWheelHandler;
+      if (prev) volNodeRef.current.removeEventListener('wheel', prev);
+    }
+    volNodeRef.current = node;
+    if (node) {
+      const handleWheel = (e: WheelEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const store = usePlayerStore.getState();
+        const current = store.volume;
+        const step = e.shiftKey ? 0.005 : 0.02;
+        const delta = e.deltaY < 0 ? step : -step;
+        const nextVol = Math.max(0, Math.min(1, Math.round((current + delta) * 100) / 100));
+        store.setVolume(nextVol);
+      };
+      node.addEventListener('wheel', handleWheel, { passive: false });
+      (node as any)._volWheelHandler = handleWheel;
+    }
   }, []);
 
   // Check initial window fullscreen state
@@ -457,10 +458,26 @@ export const LyricsView: React.FC = () => {
     }
   }, [activeIndex, isUserScrolled]);
 
-  const handleClose = () => {
+  const handleClose = async () => {
     setShowLyricsFullscreen(false);
     if (activeTab === 'lyrics') {
       setActiveTab('library');
+    }
+    try {
+      if (window.__TAURI_INTERNALS__) {
+        const appWin = getCurrentWindow();
+        if (await appWin.isFullscreen()) {
+          await appWin.setFullscreen(false);
+          setIsFullscreen(false);
+        }
+      } else {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+          setIsFullscreen(false);
+        }
+      }
+    } catch (e) {
+      console.warn('Fullscreen exit error on close:', e);
     }
   };
 
@@ -525,7 +542,14 @@ export const LyricsView: React.FC = () => {
         }`}
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600/30 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center border"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+              color: 'var(--color-stop-1, #6366f1)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+            }}
+          >
             <Mic2 className="w-5 h-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -545,11 +569,19 @@ export const LyricsView: React.FC = () => {
           {/* Translation Toggle Button */}
           <button
             onClick={toggleRomanization}
-            className={`p-2.5 rounded-xl transition-all ${
+            className={`p-2.5 rounded-xl transition-all border ${
               isRomanizationEnabled
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/40 border border-indigo-500'
-                : 'p-2.5 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 border border-white/10'
+                ? 'text-white shadow-lg'
+                : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
             }`}
+            style={
+              isRomanizationEnabled
+                ? {
+                    backgroundColor: 'var(--color-stop-1, #6366f1)',
+                    borderColor: 'var(--color-stop-2, #818cf8)',
+                  }
+                : undefined
+            }
             title={isRomanizationEnabled ? 'Translation Enabled' : 'Translation Disabled'}
           >
             <Languages className="w-5 h-5" />
@@ -560,9 +592,17 @@ export const LyricsView: React.FC = () => {
             onClick={toggleFullscreen}
             className={`p-2.5 rounded-xl transition-all border ${
               isFullscreen
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/40 border-indigo-500'
+                ? 'text-white shadow-lg'
                 : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
             }`}
+            style={
+              isFullscreen
+                ? {
+                    backgroundColor: 'var(--color-stop-1, #6366f1)',
+                    borderColor: 'var(--color-stop-2, #818cf8)',
+                  }
+                : undefined
+            }
             title={isFullscreen ? 'Exit Fullscreen (F11)' : 'Fullscreen (F11)'}
           >
             {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
@@ -570,7 +610,19 @@ export const LyricsView: React.FC = () => {
 
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="p-2.5 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 border border-white/10"
+            className={`p-2.5 rounded-xl transition-all border ${
+              showSettings
+                ? 'text-white shadow-lg'
+                : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
+            }`}
+            style={
+              showSettings
+                ? {
+                    backgroundColor: 'var(--color-stop-1, #6366f1)',
+                    borderColor: 'var(--color-stop-2, #818cf8)',
+                  }
+                : undefined
+            }
             title="Settings"
           >
             <Settings2 className="w-5 h-5" />
@@ -601,9 +653,14 @@ export const LyricsView: React.FC = () => {
                   onClick={() => setLyricsFontSizePreset(preset)}
                   className={`py-1 px-2 rounded-lg text-[11px] font-semibold capitalize transition-colors ${
                     lyricsFontSizePreset === preset
-                      ? 'bg-indigo-600 text-white'
+                      ? 'text-white'
                       : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
                   }`}
+                  style={
+                    lyricsFontSizePreset === preset
+                      ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                      : undefined
+                  }
                 >
                   {preset === 'maximum' ? 'Max Space' : preset}
                 </button>
@@ -614,7 +671,9 @@ export const LyricsView: React.FC = () => {
           <div className="flex flex-col gap-1 pt-1 border-t border-white/10">
             <div className="flex justify-between text-xs text-zinc-300">
               <span>Manual Font Size</span>
-              <span className="font-mono text-indigo-400">{Math.round(activeFontSize)}px</span>
+              <span className="font-mono font-bold" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
+                {Math.round(activeFontSize)}px
+              </span>
             </div>
             <input
               type="range"
@@ -627,7 +686,9 @@ export const LyricsView: React.FC = () => {
                 setLyricsFontSize(parseInt(e.target.value, 10));
               }}
               style={{
-                background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${((activeFontSize - 18) / (150 - 18)) * 100}%, #27272a ${((activeFontSize - 18) / (150 - 18)) * 100}%)`,
+                background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${
+                  ((activeFontSize - 18) / (150 - 18)) * 100
+                }%, #27272a ${((activeFontSize - 18) / (150 - 18)) * 100}%)`,
               }}
               className="w-full h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
             />
@@ -706,7 +767,8 @@ export const LyricsView: React.FC = () => {
           </div>
           <button
             onClick={handleManualRefresh}
-            className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 text-white text-xs font-medium transition-colors mt-1"
+            style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+            className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-medium transition-colors hover:brightness-110 mt-1"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh Lyrics
@@ -715,7 +777,8 @@ export const LyricsView: React.FC = () => {
           <button
             onClick={handleEmbedLyrics}
             disabled={isEmbedding || !rawLrc.trim()}
-            className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-purple-600/80 hover:bg-purple-500 text-white text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: 'var(--color-stop-2, #818cf8)' }}
+            className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-medium transition-colors hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save className={`w-3.5 h-3.5 ${isEmbedding ? 'animate-pulse' : ''}`} />
             {isEmbedding ? 'Embedding...' : 'Embed Lyrics to File'}
@@ -945,7 +1008,7 @@ export const LyricsView: React.FC = () => {
               value={currentTime}
               onChange={(e) => seek(parseFloat(e.target.value))}
               style={{
-                background: `linear-gradient(to right, #6366f1 0%, #818cf8 ${seekPercent}%, #27272a ${seekPercent}%)`,
+                background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${seekPercent}%, #27272a ${seekPercent}%)`,
               }}
               className="w-full h-1.5 group-hover:h-2 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3"
             />
@@ -955,7 +1018,7 @@ export const LyricsView: React.FC = () => {
 
         {/* Integrated Volume control when space is compact */}
         {isCompact && (
-          <div className="flex items-center gap-1.5 pl-2 border-l border-white/10">
+          <div ref={volRefCallback} className="flex items-center gap-1.5 pl-2 border-l border-white/10">
             <button
               onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
               className="text-zinc-400 hover:text-white transition-colors p-1"
@@ -986,7 +1049,8 @@ export const LyricsView: React.FC = () => {
         {/* Exit Lyrics Button */}
         <button
           onClick={handleClose}
-          className="p-1.5 rounded-xl text-indigo-400 hover:text-white hover:bg-white/10 transition-colors"
+          className="p-1.5 rounded-xl hover:text-white hover:bg-white/10 transition-colors"
+          style={{ color: 'var(--color-stop-1, #6366f1)' }}
           title="Exit Karaoke View"
         >
           <Mic2 className="w-5 h-5" />
@@ -1005,7 +1069,7 @@ export const LyricsView: React.FC = () => {
             controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
           }`}
         >
-          <div ref={floatingVolRef} className="flex items-center gap-2.5">
+          <div ref={volRefCallback} className="flex items-center gap-2.5">
             <button
               onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
               className="text-zinc-400 hover:text-white transition-colors p-1"

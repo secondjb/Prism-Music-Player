@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { ActiveTab } from '../types/player';
-import { Library, Heart, Disc, Folder, Music, Mic2, FolderPlus, Settings, ChevronDown, ChevronRight, SlidersHorizontal, BarChart2 } from 'lucide-react';
+import { ActiveTab, Track } from '../types/player';
+import { Library, Heart, Disc, Folder, Music, Mic2, FolderPlus, Settings, ChevronDown, ChevronRight, SlidersHorizontal, BarChart2, ListPlus, ListVideo, Play } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { GeminiLogo } from './GeminiLogo';
 
@@ -14,10 +14,13 @@ export const Sidebar: React.FC = () => {
   const activePlaylistId = usePlayerStore((s) => s.activePlaylistId);
   const setActivePlaylistId = usePlayerStore((s) => s.setActivePlaylistId);
   const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
+  const playPlaylistNext = usePlayerStore((s) => s.playPlaylistNext);
+  const addPlaylistToQueue = usePlayerStore((s) => s.addPlaylistToQueue);
 
   const includedDirectories = usePlayerStore((s) => s.includedDirectories);
   const [showPlaylists, setShowPlaylists] = useState(false);
   const [dragOverPlaylistId, setDragOverPlaylistId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; playlistId: string; name: string } | null>(null);
 
   const handleQuickAddDirectory = async () => {
     try {
@@ -43,7 +46,7 @@ export const Sidebar: React.FC = () => {
     { id: 'playlists', label: 'Playlists', icon: <Music className="w-5 h-5" /> },
     { id: 'folders', label: 'Folders', icon: <Folder className="w-5 h-5" /> },
     { id: 'lyrics', label: 'Karaoke & Lyrics', icon: <Mic2 className="w-5 h-5" /> },
-    { id: 'stats', label: 'Listening Stats', icon: <BarChart2 className="w-5 h-5 text-emerald-400" /> },
+    { id: 'stats', label: 'Listening Stats', icon: <BarChart2 className="w-5 h-5" /> },
     { id: 'settings', label: 'Library & Settings', icon: <Settings className="w-5 h-5" /> },
   ];
 
@@ -139,6 +142,16 @@ export const Sidebar: React.FC = () => {
                           }
                         } catch (err) {}
                       }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setContextMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          playlistId: '__liked__',
+                          name: 'Liked Songs',
+                        });
+                      }}
                       onClick={() => {
                         setActiveTab('liked');
                       }}
@@ -195,6 +208,16 @@ export const Sidebar: React.FC = () => {
                             }
                           } catch (err) {}
                         }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setContextMenu({
+                            x: e.clientX,
+                            y: e.clientY,
+                            playlistId: pl.id,
+                            name: pl.name,
+                          });
+                        }}
                         onClick={() => {
                           setActiveTab('playlists');
                           setActivePlaylistId(pl.id);
@@ -225,6 +248,70 @@ export const Sidebar: React.FC = () => {
           <span className="font-mono text-indigo-400 font-semibold">{tracks.length} tracks</span>
         </div>
       </div>
+
+      {/* Playlist Right-Click Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed inset-0 z-50 pointer-events-auto"
+          onClick={() => setContextMenu(null)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setContextMenu(null);
+          }}
+        >
+          <div
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            className="fixed z-50 w-56 glass-panel border border-white/10 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 text-xs text-zinc-300 animate-in fade-in zoom-in-95 duration-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-2.5 py-1 text-[11px] font-semibold text-zinc-400 border-b border-white/10 truncate">
+              {contextMenu.name}
+            </div>
+            <button
+              onClick={() => {
+                playPlaylistNext(contextMenu.playlistId);
+                setContextMenu(null);
+              }}
+              className="flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors text-left font-medium cursor-pointer"
+            >
+              <ListPlus className="w-4 h-4 text-indigo-400 group-hover:text-white" />
+              <span>Play Next (After Song)</span>
+            </button>
+            <button
+              onClick={() => {
+                addPlaylistToQueue(contextMenu.playlistId);
+                setContextMenu(null);
+              }}
+              className="flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-white/10 hover:text-white transition-colors text-left font-medium cursor-pointer"
+            >
+              <ListVideo className="w-4 h-4 text-zinc-400" />
+              <span>Add Playlist to Queue</span>
+            </button>
+            <button
+              onClick={() => {
+                const store = usePlayerStore.getState();
+                let targetTracks: Track[] = [];
+                if (contextMenu.playlistId === '__liked__') {
+                  targetTracks = store.tracks.filter((t) => store.likedTrackIds.includes(t.id));
+                } else {
+                  const pl = store.playlists.find((p) => p.id === contextMenu.playlistId);
+                  if (pl) {
+                    targetTracks = pl.trackIds.map((id) => store.tracks.find((t) => t.id === id)).filter((t): t is Track => Boolean(t));
+                  }
+                }
+                if (targetTracks.length > 0) {
+                  store.playTrack(targetTracks[0], targetTracks);
+                }
+                setContextMenu(null);
+              }}
+              className="flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-white/10 hover:text-white transition-colors text-left font-medium cursor-pointer"
+            >
+              <Play className="w-4 h-4 text-zinc-400" />
+              <span>Play Now</span>
+            </button>
+          </div>
+        </div>
+      )}
     </aside>
   );
 };

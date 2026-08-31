@@ -3,6 +3,22 @@ import { persist } from 'zustand/middleware';
 import { Track, ActiveTab, SleepTimer, RepeatMode, Playlist } from '../types/player';
 import { invoke } from '@tauri-apps/api/core';
 
+export type TrackColumnId =
+  | 'order'
+  | 'art'
+  | 'title'
+  | 'artist'
+  | 'album'
+  | 'date'
+  | 'genre'
+  | 'duration'
+  | 'favorite'
+  | 'playNext'
+  | 'addToQueue'
+  | 'actions';
+
+export type TrackGridDensity = 'compact' | 'normal' | 'large' | 'extra-large';
+
 interface PlayerState {
   tracks: Track[];
   queue: Track[];
@@ -35,6 +51,10 @@ interface PlayerState {
   lyricsFontSize: number;
   lyricsArtScale: number;
   isStatsCollectionEnabled: boolean;
+
+  // Track Grid View Customization
+  visibleTrackColumns: TrackColumnId[];
+  trackGridDensity: TrackGridDensity;
 
   // Shuffle & Repeat
   shuffleEnabled: boolean;
@@ -90,6 +110,9 @@ interface PlayerState {
   setLyricsArtScale: (scale: number) => void;
   toggleAutoHideLyricsControls: () => void;
   toggleStatsCollection: () => void;
+  setVisibleTrackColumns: (cols: TrackColumnId[]) => void;
+  toggleTrackColumn: (col: TrackColumnId) => void;
+  setTrackGridDensity: (density: TrackGridDensity) => void;
 
   // Shuffle & Repeat actions
   toggleShuffle: () => void;
@@ -103,6 +126,8 @@ interface PlayerState {
   removeTrackFromPlaylist: (playlistId: string, trackId: string) => void;
   reorderPlaylistTracks: (playlistId: string, fromIdx: number, toIdx: number) => void;
   setActivePlaylistId: (id: string | null) => void;
+  playPlaylistNext: (playlistId: string) => void;
+  addPlaylistToQueue: (playlistId: string) => void;
 
   // Reset & Wipe Action
   wipeDataAndReset: () => Promise<void>;
@@ -171,6 +196,32 @@ export const usePlayerStore = create<PlayerState>()(
       lyricsFontSize: 24,
       lyricsArtScale: 100,
       isStatsCollectionEnabled: false,
+
+      // Track Grid View Customization
+      visibleTrackColumns: [
+        'order',
+        'art',
+        'title',
+        'artist',
+        'album',
+        'duration',
+        'favorite',
+        'playNext',
+        'addToQueue',
+        'actions',
+      ],
+      trackGridDensity: 'normal',
+
+      setVisibleTrackColumns: (cols) => set({ visibleTrackColumns: cols }),
+      toggleTrackColumn: (col) =>
+        set((state) => {
+          const exists = state.visibleTrackColumns.includes(col);
+          const updated = exists
+            ? state.visibleTrackColumns.filter((c) => c !== col)
+            : [...state.visibleTrackColumns, col];
+          return { visibleTrackColumns: updated };
+        }),
+      setTrackGridDensity: (density) => set({ trackGridDensity: density }),
 
       // Shuffle & Repeat
       shuffleEnabled: false,
@@ -689,6 +740,67 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       setActivePlaylistId: (id) => set({ activePlaylistId: id }),
+
+      playPlaylistNext: (playlistId) => {
+        const { tracks, playlists, likedTrackIds, currentTrack, playTrack } = get();
+        let targetTracks: Track[] = [];
+        if (playlistId === '__liked__' || playlistId === 'liked') {
+          targetTracks = tracks.filter((t) => likedTrackIds.includes(t.id));
+        } else {
+          const pl = playlists.find((p) => p.id === playlistId);
+          if (pl) {
+            targetTracks = pl.trackIds
+              .map((tid) => tracks.find((t) => t.id === tid))
+              .filter((t): t is Track => Boolean(t));
+          }
+        }
+        if (targetTracks.length === 0) return;
+
+        if (!currentTrack) {
+          playTrack(targetTracks[0], targetTracks);
+          return;
+        }
+
+        const existingIndex = targetTracks.findIndex((t) => t.id === currentTrack.id);
+        if (existingIndex !== -1) {
+          set({
+            queue: targetTracks,
+            originalQueue: targetTracks,
+            currentIndex: existingIndex,
+          });
+        } else {
+          const newQueue = [currentTrack, ...targetTracks];
+          set({
+            queue: newQueue,
+            originalQueue: newQueue,
+            currentIndex: 0,
+          });
+        }
+      },
+
+      addPlaylistToQueue: (playlistId) => {
+        const { tracks, playlists, likedTrackIds, currentTrack, playTrack } = get();
+        let targetTracks: Track[] = [];
+        if (playlistId === '__liked__' || playlistId === 'liked') {
+          targetTracks = tracks.filter((t) => likedTrackIds.includes(t.id));
+        } else {
+          const pl = playlists.find((p) => p.id === playlistId);
+          if (pl) {
+            targetTracks = pl.trackIds
+              .map((tid) => tracks.find((t) => t.id === tid))
+              .filter((t): t is Track => Boolean(t));
+          }
+        }
+        if (targetTracks.length === 0) return;
+
+        if (!currentTrack) {
+          playTrack(targetTracks[0], targetTracks);
+        } else {
+          set((state) => ({
+            userQueue: [...state.userQueue, ...targetTracks],
+          }));
+        }
+      },
 
       startSleepTimer: (mode, value) => {
         if (mode === 'time') {

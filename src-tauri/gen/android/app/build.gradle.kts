@@ -17,7 +17,7 @@ android {
     compileSdk = 36
     namespace = "com.prism.musicplayer"
     defaultConfig {
-        manifestPlaceholders["usesCleartextTraffic"] = "false"
+        manifestPlaceholders["usesCleartextTraffic"] = "true"
         applicationId = "com.prism.musicplayer"
         minSdk = 24
         targetSdk = 36

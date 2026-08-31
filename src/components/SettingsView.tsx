@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { open } from '@tauri-apps/plugin-dialog';
+import { showOpenDirPicker } from 'tauri-plugin-android-fs-api';
 import {
   FolderPlus,
   FolderMinus,
@@ -76,67 +76,38 @@ export const SettingsView: React.FC = () => {
     setIsAnalyzingAudio(false);
   };
 
-  const resolveAndroidContentUri = (uri: string): string => {
-    // Example: content://com.android.externalstorage.documents/tree/primary%3AMusic
-    if (uri.startsWith('content://com.android.externalstorage.documents/tree/')) {
-      try {
-        const encodedPath = uri.replace('content://com.android.externalstorage.documents/tree/', '');
-        const decodedPath = decodeURIComponent(encodedPath); // e.g. "primary:Music"
-        const parts = decodedPath.split(':');
-        if (parts.length === 2) {
-          const volume = parts[0];
-          const folder = parts[1];
-          if (volume === 'primary') {
-            return `/storage/emulated/0/${folder}`;
-          } else {
-            return `/storage/${volume}/${folder}`;
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to parse Android content URI:', e);
-      }
-    }
-    return uri; // Fallback to returning the raw URI
+  const pickDirectory = async (): Promise<string | null> => {
+    const res = await showOpenDirPicker();
+    if (!res) return null;
+    return typeof res === 'string' ? res : res.uri;
   };
 
   const handleAddIncludedDir = async () => {
     try {
-      if (window.__TAURI_INTERNALS__) {
-        const selected = await open({
-          directory: true,
-          multiple: false,
-          title: 'Select Music Library Folder to Include',
-        });
-        if (selected && typeof selected === 'string') {
-          setIsScanning(true);
-          const resolvedPath = resolveAndroidContentUri(selected);
-          await addIncludedDirectory(resolvedPath);
-          setIsScanning(false);
-        }
+      const selected = await pickDirectory();
+      console.log('Picked directory URI:', selected);
+      if (selected) {
+        setIsScanning(true);
+        await addIncludedDirectory(selected);
+        setIsScanning(false);
       }
     } catch (e) {
-      console.warn('Dialog error:', e);
+      console.warn('Picker error:', e);
       setIsScanning(false);
     }
   };
 
   const handleAddExcludedDir = async () => {
     try {
-      if (window.__TAURI_INTERNALS__) {
-        const selected = await open({
-          directory: true,
-          multiple: false,
-          title: 'Select Folder to Exclude from Library',
-        });
-        if (selected && typeof selected === 'string') {
-          setIsScanning(true);
-          const resolvedPath = resolveAndroidContentUri(selected);
-          await addExcludedDirectory(resolvedPath);
-          setIsScanning(false);
-        }
+      const selected = await pickDirectory();
+      console.log('Picked directory URI:', selected);
+      if (selected) {
+        setIsScanning(true);
+        await addExcludedDirectory(selected);
+        setIsScanning(false);
       }
     } catch (e) {
-      console.warn('Dialog error:', e);
+      console.warn('Picker error:', e);
       setIsScanning(false);
     }
   };

@@ -588,49 +588,95 @@ fn md5_hash(input: &str) -> u128 {
     hash
 }
 
+pub fn normalize_android_path(dir_path: &str) -> String {
+    let mut path = dir_path.to_string();
+
+    path = path.replace("%3A", ":").replace("%3a", ":")
+               .replace("%2F", "/").replace("%2f", "/")
+               .replace("%20", " ");
+
+    if path.contains("primary:") {
+        if let Some(idx) = path.find("primary:") {
+            let relative = &path[idx + "primary:".len()..];
+            let clean_relative = relative.trim_start_matches('/');
+            if clean_relative.is_empty() {
+                return "/storage/emulated/0".to_string();
+            } else {
+                return format!("/storage/emulated/0/{}", clean_relative);
+            }
+        }
+    }
+
+    if path.contains("raw:") {
+        if let Some(idx) = path.find("raw:") {
+            let raw_path = &path[idx + "raw:".len()..];
+            return raw_path.to_string();
+        }
+    }
+
+    path
+}
+
 pub fn scan_configured_directories(
     included_dirs: &[String],
     excluded_dirs: &[String],
 ) -> Vec<TrackMetadata> {
     let mut all_audio_paths: Vec<PathBuf> = Vec::new();
-    let excluded_paths: Vec<PathBuf> = excluded_dirs.iter().map(PathBuf::from).collect();
+    let excluded_paths: Vec<PathBuf> = excluded_dirs
+        .iter()
+        .map(|d| PathBuf::from(normalize_android_path(d)))
+        .collect();
 
-    for dir_path in included_dirs {
-        let p = Path::new(dir_path);
-        if !p.exists() {
-            continue;
+    for raw_dir in included_dirs {
+        let normalized = normalize_android_path(raw_dir);
+        let mut target_paths = vec![PathBuf::from(&normalized)];
+
+        if !Path::new(&normalized).exists() && normalized.contains("Music") {
+            let fallback = PathBuf::from("/storage/emulated/0/Music");
+            if fallback.exists() {
+                target_paths.push(fallback);
+            }
         }
 
-        let paths: Vec<PathBuf> = WalkDir::new(dir_path)
-            .into_iter()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().is_file())
-            .filter(|e| {
-                let is_supported = e
-                    .path()
-                    .extension()
-                    .map(|ext| {
-                        let ext_str = ext.to_string_lossy().to_lowercase();
-                        matches!(ext_str.as_str(), "flac" | "mp3" | "m4a" | "wav" | "ogg" | "aac" | "aiff" | "alac" | "wma")
-                    })
-                    .unwrap_or(false);
-                if !is_supported {
-                    return false;
-                }
+        for p_buf in target_paths {
+            if !p_buf.exists() {
+                continue;
+            }
 
-                let file_path = e.path();
-                for exc in &excluded_paths {
-                    if file_path.starts_with(exc) {
+            let paths: Vec<PathBuf> = WalkDir::new(&p_buf)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .filter(|e| e.path().is_file())
+                .filter(|e| {
+                    let is_supported = e
+                        .path()
+                        .extension()
+                        .map(|ext| {
+                            let ext_str = ext.to_string_lossy().to_lowercase();
+                            matches!(
+                                ext_str.as_str(),
+                                "flac" | "mp3" | "m4a" | "wav" | "ogg" | "aac" | "aiff" | "alac" | "wma"
+                            )
+                        })
+                        .unwrap_or(false);
+                    if !is_supported {
                         return false;
                     }
-                }
 
-                true
-            })
-            .map(|e| e.path().to_path_buf())
-            .collect();
+                    let file_path = e.path();
+                    for exc in &excluded_paths {
+                        if file_path.starts_with(exc) {
+                            return false;
+                        }
+                    }
 
-        all_audio_paths.extend(paths);
+                    true
+                })
+                .map(|e| e.path().to_path_buf())
+                .collect();
+
+            all_audio_paths.extend(paths);
+        }
     }
 
     all_audio_paths.sort();

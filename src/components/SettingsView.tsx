@@ -50,9 +50,16 @@ export const SettingsView: React.FC = () => {
   const lyricsFontSizePreset = usePlayerStore((s) => s.lyricsFontSizePreset);
   const setLyricsFontSizePreset = usePlayerStore((s) => s.setLyricsFontSizePreset);
 
-  const [isScanning, setIsScanning] = useState(false);
+  const isScanningStore = usePlayerStore((s) => s.isScanning);
+  const scanStatusMessage = usePlayerStore((s) => s.scanStatusMessage);
+  const setScanStatusMessage = usePlayerStore((s) => s.setScanStatusMessage);
+
+  const [isScanningLocal, setIsScanningLocal] = useState(false);
+  const isScanning = isScanningStore || isScanningLocal;
+
   const [isAnalyzingAudio, setIsAnalyzingAudio] = useState(false);
   const [showWipeModal, setShowWipeModal] = useState(false);
+  const [customPathInput, setCustomPathInput] = useState('');
 
   // Compute Tag Indexing Stats
   const totalTracks = tracks.length;
@@ -62,12 +69,24 @@ export const SettingsView: React.FC = () => {
   const bpmCount = tracks.filter((t) => Boolean(t.bpm)).length;
   const keyOrBpmCount = tracks.filter((t) => Boolean(t.key || t.bpm)).length;
 
-
+  const handleManualAddPath = async (pathToAdd?: string) => {
+    const target = (pathToAdd || customPathInput).trim();
+    if (!target) return;
+    try {
+      setIsScanningLocal(true);
+      await addIncludedDirectory(target);
+      setCustomPathInput('');
+      setIsScanningLocal(false);
+    } catch (e) {
+      console.warn('Add path error:', e);
+      setIsScanningLocal(false);
+    }
+  };
 
   const handleRescan = async () => {
-    setIsScanning(true);
+    setIsScanningLocal(true);
     await rescanConfiguredLibraries();
-    setIsScanning(false);
+    setIsScanningLocal(false);
   };
 
   const handleAnalyzeAudio = async () => {
@@ -87,13 +106,13 @@ export const SettingsView: React.FC = () => {
       const selected = await pickDirectory();
       console.log('Picked directory URI:', selected);
       if (selected) {
-        setIsScanning(true);
+        setIsScanningLocal(true);
         await addIncludedDirectory(selected);
-        setIsScanning(false);
+        setIsScanningLocal(false);
       }
     } catch (e) {
       console.warn('Picker error:', e);
-      setIsScanning(false);
+      setIsScanningLocal(false);
     }
   };
 
@@ -102,13 +121,13 @@ export const SettingsView: React.FC = () => {
       const selected = await pickDirectory();
       console.log('Picked directory URI:', selected);
       if (selected) {
-        setIsScanning(true);
+        setIsScanningLocal(true);
         await addExcludedDirectory(selected);
-        setIsScanning(false);
+        setIsScanningLocal(false);
       }
     } catch (e) {
       console.warn('Picker error:', e);
-      setIsScanning(false);
+      setIsScanningLocal(false);
     }
   };
 
@@ -220,24 +239,101 @@ export const SettingsView: React.FC = () => {
 
 
 
+      {/* Live Folder Scan Status Banner */}
+      {scanStatusMessage && (
+        <div
+          className={`p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-xl transition-all ${
+            isScanning
+              ? 'bg-indigo-950/60 border-indigo-500/50 text-indigo-200 animate-pulse'
+              : scanStatusMessage.includes('Success') || totalTracks > 0
+              ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-200'
+              : 'bg-amber-950/60 border-amber-500/50 text-amber-200'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <RefreshCw className={`w-5 h-5 shrink-0 ${isScanning ? 'animate-spin text-indigo-400' : 'text-emerald-400'}`} />
+            <div>
+              <p className="text-xs font-bold text-white">{scanStatusMessage}</p>
+              {!isScanning && totalTracks === 0 && (
+                <p className="text-[11px] text-amber-300/80 mt-0.5">
+                  Tip: Tap a Quick-Add preset below or type your folder path manually. Supported formats: FLAC, MP3, M4A, WAV, OGG, AAC.
+                </p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={() => setScanStatusMessage(null)}
+            className="text-xs text-zinc-400 hover:text-white px-2 py-1 rounded-lg hover:bg-white/10"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* 1. Included Music Folders */}
       <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <FolderPlus className="w-5 h-5 text-indigo-400" />
+            <FolderPlus className="w-5 h-5 text-indigo-400 shrink-0" />
             <div>
               <h3 className="text-base font-bold text-white">Included Music Directories</h3>
               <p className="text-xs text-zinc-400">
-                Prism automatically indexes FLAC tracks from these folders. Album cover art and lyrics are lazy-loaded on demand.
+                Add local or Android storage directories to automatically scan and play your music files.
               </p>
             </div>
           </div>
           <button
             onClick={handleAddIncludedDir}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 text-white text-xs font-semibold transition-all hover:scale-105"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all hover:scale-105 shadow-md"
           >
             <FolderPlus className="w-4 h-4" />
-            <span>Add Folder</span>
+            <span>Open Folder Picker</span>
+          </button>
+        </div>
+
+        {/* Android & Mobile Quick Presets */}
+        <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+          <span className="text-[11px] font-semibold text-zinc-400">Quick-Add Common Android Music Folders:</span>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => handleManualAddPath('/storage/emulated/0/Music')}
+              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-mono text-indigo-300 hover:text-white transition-all active:scale-95"
+            >
+              📁 /storage/emulated/0/Music
+            </button>
+            <button
+              onClick={() => handleManualAddPath('/storage/emulated/0/Download')}
+              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-mono text-indigo-300 hover:text-white transition-all active:scale-95"
+            >
+              📁 /storage/emulated/0/Download
+            </button>
+            <button
+              onClick={() => handleManualAddPath('/sdcard/Music')}
+              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-mono text-indigo-300 hover:text-white transition-all active:scale-95"
+            >
+              📁 /sdcard/Music
+            </button>
+          </div>
+        </div>
+
+        {/* Manual Folder Path Input */}
+        <div className="flex items-center gap-2 pt-2">
+          <input
+            type="text"
+            value={customPathInput}
+            onChange={(e) => setCustomPathInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleManualAddPath();
+            }}
+            placeholder="Type or paste custom folder path (e.g. /storage/emulated/0/Music)"
+            className="flex-1 bg-zinc-900 border border-white/10 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none transition-colors"
+          />
+          <button
+            onClick={() => handleManualAddPath()}
+            disabled={!customPathInput.trim() || isScanning}
+            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white text-xs font-semibold transition-all shrink-0"
+          >
+            Add Path
           </button>
         </div>
 

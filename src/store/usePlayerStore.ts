@@ -28,6 +28,8 @@ interface PlayerState {
   autoHideLyricsControls: boolean;
   includedDirectories: string[];
   excludedDirectories: string[];
+  isScanning: boolean;
+  scanStatusMessage: string | null;
   infoModalTrack: Track | null;
   lyricsFontSizePreset: 'normal' | 'balanced' | 'large' | 'maximum' | 'manual';
   lyricsFontSize: number;
@@ -51,7 +53,7 @@ interface PlayerState {
   removeExcludedDirectory: (dir: string) => Promise<void>;
   rescanConfiguredLibraries: () => Promise<void>;
   analyzeAndIndexAudio: () => Promise<void>;
-
+  setScanStatusMessage: (msg: string | null) => void;
 
   // Actions
   setTracks: (tracks: Track[]) => void;
@@ -112,6 +114,24 @@ interface PlayerState {
   onTrackFinished: () => void;
 }
 
+export const normalizePath = (dir: string): string => {
+  if (!dir) return '';
+  let path = dir.trim();
+  try {
+    path = decodeURIComponent(path);
+  } catch (e) {
+    // Ignore decode error
+  }
+  if (path.includes('primary:')) {
+    const relative = path.split('primary:')[1]?.replace(/^\/+/, '') || '';
+    return relative ? `/storage/emulated/0/${relative}` : '/storage/emulated/0';
+  }
+  if (path.includes('raw:')) {
+    return path.split('raw:')[1] || path;
+  }
+  return path;
+};
+
 export const usePlayerStore = create<PlayerState>()(
   persist(
     (set, get) => ({
@@ -144,6 +164,8 @@ export const usePlayerStore = create<PlayerState>()(
       autoHideLyricsControls: true,
       includedDirectories: [],
       excludedDirectories: [],
+      isScanning: false,
+      scanStatusMessage: null,
       infoModalTrack: null,
       lyricsFontSizePreset: 'normal',
       lyricsFontSize: 24,
@@ -160,11 +182,16 @@ export const usePlayerStore = create<PlayerState>()(
       playlists: [],
       activePlaylistId: null,
 
+      setScanStatusMessage: (msg) => set({ scanStatusMessage: msg }),
+
       addIncludedDirectory: async (dir) => {
+        const normalized = normalizePath(dir);
         const { includedDirectories, rescanConfiguredLibraries } = get();
-        if (!includedDirectories.includes(dir)) {
-          const updated = [...includedDirectories, dir];
+        if (!includedDirectories.includes(normalized)) {
+          const updated = [...includedDirectories, normalized];
           set({ includedDirectories: updated });
+          await rescanConfiguredLibraries();
+        } else {
           await rescanConfiguredLibraries();
         }
       },
@@ -177,9 +204,10 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       addExcludedDirectory: async (dir) => {
+        const normalized = normalizePath(dir);
         const { excludedDirectories, rescanConfiguredLibraries } = get();
-        if (!excludedDirectories.includes(dir)) {
-          const updated = [...excludedDirectories, dir];
+        if (!excludedDirectories.includes(normalized)) {
+          const updated = [...excludedDirectories, normalized];
           set({ excludedDirectories: updated });
           await rescanConfiguredLibraries();
         }
@@ -194,7 +222,16 @@ export const usePlayerStore = create<PlayerState>()(
 
       rescanConfiguredLibraries: async () => {
         const { includedDirectories, excludedDirectories, setTracks } = get();
-        if (includedDirectories.length === 0) return;
+        if (includedDirectories.length === 0) {
+          set({ isScanning: false, scanStatusMessage: 'No music folders configured yet.' });
+          return;
+        }
+
+        set({
+          isScanning: true,
+          scanStatusMessage: `Indexing ${includedDirectories.length} directory path(s)...`,
+        });
+
         try {
           if (window.__TAURI_INTERNALS__) {
             const scannedTracks: Track[] = await invoke('scan_libraries', {
@@ -202,12 +239,34 @@ export const usePlayerStore = create<PlayerState>()(
               excludedDirs: excludedDirectories,
             });
             setTracks(scannedTracks);
+
+            if (scannedTracks.length === 0) {
+              set({
+                isScanning: false,
+                scanStatusMessage: `Scan completed: Found 0 audio files. Please ensure your folder contains supported audio files (MP3, FLAC, M4A, WAV, OGG, AAC, AIFF).`,
+              });
+            } else {
+              set({
+                isScanning: false,
+                scanStatusMessage: `Success! Loaded ${scannedTracks.length} tracks into library.`,
+              });
+            }
+
             // Run background audio waveform analysis to detect missing Key & BPM
             const analyzedTracks: Track[] = await invoke('analyze_library_audio');
             setTracks(analyzedTracks);
+          } else {
+            set({
+              isScanning: false,
+              scanStatusMessage: 'Running in standard web mode (Tauri filesystem APIs unavailable).',
+            });
           }
-        } catch (e) {
+        } catch (e: any) {
           console.warn('Rescan libraries error:', e);
+          set({
+            isScanning: false,
+            scanStatusMessage: `Folder scan warning: ${e?.message || String(e)}`,
+          });
         }
       },
 

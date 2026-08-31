@@ -9,7 +9,6 @@
     "core:window:allow-is-fullscreen",
     "opener:default",
     "dialog:default",
-    "dialog:allow-open",
-    "android-fs:default"
+    "dialog:allow-open"
   ]
 }

@@ -397,6 +397,7 @@ async fn analyze_library_audio(app_handle: AppHandle, paths: Vec<String>) -> Res
     }
 
     let processed_count = std::sync::atomic::AtomicUsize::new(0);
+    let handle = app_handle.clone();
 
     // Parallel processing across all CPU cores using Rayon par_iter()
     let results: Vec<(usize, String, Option<u32>, Option<String>)> = tokio::task::spawn_blocking(move || {
@@ -411,7 +412,7 @@ async fn analyze_library_audio(app_handle: AppHandle, paths: Vec<String>) -> Res
                 };
 
                 let c = processed_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-                let _ = app_handle.emit(
+                let _ = handle.emit(
                     "audio_analysis_progress",
                     AudioAnalysisProgress {
                         current: c,

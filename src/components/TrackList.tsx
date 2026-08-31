@@ -1,393 +1,144 @@
-import React, { useState } from 'react';
-import Checkbox from '@mui/material/Checkbox';
+import React, { useState, useRef, memo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import Card from '@mui/material/Card';
+import IconButton from '@mui/material/IconButton';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import PauseIcon from '@mui/icons-material/Pause';
+import FavoriteIcon from '@mui/icons-material/Favorite';
+import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
+import QueueMusicIcon from '@mui/icons-material/QueueMusic';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import MusicNoteIcon from '@mui/icons-material/MusicNote';
+import RadioIcon from '@mui/icons-material/Radio';
+
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { Track } from '../types/player';
-import { Play, Pause, Heart, MoreVertical, Music, ListPlus, Radio, Sparkles, Check, FolderPlus, Info } from 'lucide-react';
 
 interface TrackListProps {
   tracks: Track[];
 }
 
-const TrackRow: React.FC<{
-  track: Track;
-  idx: number;
-  isSelected: boolean;
-  isMultiSelected: boolean;
-  isLiked: boolean;
-  isPlaying: boolean;
-  activeMenuTrackId: string | null;
-  setActiveMenuTrackId: (id: string | null) => void;
-  onTrackClick: (e: React.MouseEvent, forceToggle?: boolean) => void;
-  onDragStart: (e: React.DragEvent) => void;
-  togglePlay: () => void;
-  toggleLikeTrack: (id: string) => void;
-  addToQueue: (track: Track) => void;
-  playNext: (track: Track) => void;
-  showAudioSpecsInLibrary: boolean;
-}> = ({
+const formatDuration = (secs: number) => {
+  if (!secs || isNaN(secs)) return '0:00';
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+};
+
+const TrackCardRow = memo(({
   track,
   idx,
   isSelected,
-  isMultiSelected,
-  isLiked,
   isPlaying,
-  activeMenuTrackId,
-  setActiveMenuTrackId,
-  onTrackClick,
-  onDragStart,
-  togglePlay,
-  toggleLikeTrack,
-  addToQueue,
-  playNext,
-  showAudioSpecsInLibrary,
+  onPlay,
+  onOpenMenu,
+}: {
+  track: Track;
+  idx: number;
+  isSelected: boolean;
+  isPlaying: boolean;
+  onPlay: () => void;
+  onOpenMenu: (e: React.MouseEvent<HTMLButtonElement>, track: Track) => void;
 }) => {
   const art = useTrackArt(track);
-  const [addedToast, setAddedToast] = useState(false);
-  const [showPlaylistSub, setShowPlaylistSub] = useState(false);
-  const playlists = usePlayerStore((s) => s.playlists);
-  const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
-  const setInfoModalTrack = usePlayerStore((s) => s.setInfoModalTrack);
-
-  const formatDuration = (secs: number) => {
-    if (!secs || isNaN(secs)) return '0:00';
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
-
-  const formatSampleRate = (rate: number) => {
-    if (!rate) return '44.1kHz';
-    if (rate >= 1000) {
-      return `${(rate / 1000).toFixed(1).replace('.0', '')}kHz`;
-    }
-    return `${rate}Hz`;
-  };
-
-  const isHighRes = (rate: number, depth: number) => {
-    return rate >= 88200 || depth >= 24;
-  };
-
-  const hiRes = isHighRes(track.sample_rate, track.bit_depth);
-
-  const handleAddQueue = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    addToQueue(track);
-    setAddedToast(true);
-    setTimeout(() => setAddedToast(false), 1500);
-  };
-
-  const gridCols = showAudioSpecsInLibrary
-    ? 'grid-cols-[48px_1fr_1fr_120px_90px_80px]'
-    : 'grid-cols-[48px_1fr_1fr_90px_80px]';
 
   return (
-    <div
-      draggable
-      onDragStart={onDragStart}
-      onClick={onTrackClick}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setActiveMenuTrackId(track.id);
+    <Card
+      elevation={isSelected ? 4 : 0}
+      onClick={onPlay}
+      className="group transition-all duration-150 cursor-pointer active:scale-[0.995]"
+      sx={{
+        backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.22)' : 'rgba(24, 24, 27, 0.75)',
+        backdropFilter: 'blur(12px)',
+        border: isSelected ? '1px solid rgba(129, 140, 248, 0.45)' : '1px solid rgba(255, 255, 255, 0.07)',
+        borderRadius: '16px',
+        padding: '8px 12px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+        margin: '0 2px',
+        width: '100%',
+        '&:hover': {
+          backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.3)' : 'rgba(39, 39, 42, 0.85)',
+          borderColor: isSelected ? 'rgba(129, 140, 248, 0.6)' : 'rgba(255, 255, 255, 0.15)',
+        },
       }}
-      className={`group grid ${gridCols} items-center px-4 py-3 rounded-xl cursor-pointer transition-all duration-150 relative ${
-        isSelected
-          ? 'bg-indigo-600/20 border border-indigo-500/30 text-white shadow-lg shadow-indigo-950/40'
-          : isMultiSelected
-          ? 'bg-white/10 border border-white/20 text-white shadow-lg'
-          : 'hover:bg-white/5 text-zinc-300 hover:text-white border border-transparent'
-      }`}
     >
-      {/* Play / Index Column */}
-      <div className="flex items-center justify-center font-mono text-sm w-8">
-        {isMultiSelected ? (
-          <Checkbox
-            checked={isMultiSelected}
-            onChange={() => {}}
-            onClick={(e) => {
-              e.stopPropagation();
-              onTrackClick(e, true);
-            }}
-            size="small"
-            sx={{
-              color: 'var(--color-stop-1, #6366f1)',
-              '&.Mui-checked': {
-                color: 'var(--color-stop-1, #6366f1)',
-              },
-              padding: 0,
-              '& .MuiSvgIcon-root': {
-                fontSize: 20,
-              },
-            }}
-          />
+      {/* 1. Skinny Index / Number Column */}
+      <div className="w-6 shrink-0 text-center font-mono text-xs font-semibold text-zinc-400">
+        {isSelected ? (
+          <div className="w-5 h-5 mx-auto rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-md">
+            {isPlaying ? <PauseIcon sx={{ fontSize: 13 }} /> : <PlayArrowIcon sx={{ fontSize: 13 }} />}
+          </div>
         ) : (
-          <div className="relative flex items-center justify-center w-full h-full">
-            {isSelected ? (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  togglePlay();
-                }}
-                className="w-8 h-8 rounded-full bg-indigo-500 text-white flex items-center justify-center shadow-md hover:scale-105 transition-transform group-hover:hidden"
-              >
-                {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white ml-0.5" />}
-              </button>
-            ) : (
-              <span className="group-hover:opacity-0 transition-opacity text-zinc-500">{idx + 1}</span>
-            )}
+          <span>{idx + 1}</span>
+        )}
+      </div>
 
-            <Checkbox
-              checked={isMultiSelected}
-              onChange={() => {}}
-              onClick={(e) => {
-                e.stopPropagation();
-                onTrackClick(e, true);
-              }}
-              size="small"
-              className="opacity-0 group-hover:opacity-100 transition-opacity"
-              sx={{
-                position: 'absolute',
-                color: 'var(--color-stop-1, #6366f1)',
-                '&.Mui-checked': {
-                  color: 'var(--color-stop-1, #6366f1)',
-                },
-                padding: 0,
-                '& .MuiSvgIcon-root': {
-                  fontSize: 20,
-                },
-              }}
-            />
+      {/* 2. Album Art */}
+      <div className="w-12 h-12 shrink-0 rounded-xl overflow-hidden bg-zinc-800 border border-white/10 shadow-sm relative">
+        {art ? (
+          <img src={art} alt={track.title} className="w-full h-full object-cover" loading="lazy" />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-indigo-900/60 to-purple-900/60 flex items-center justify-center">
+            <MusicNoteIcon sx={{ color: '#818cf8', fontSize: 22 }} />
           </div>
         )}
       </div>
 
-      {/* Title & Artist & Artwork */}
-      <div className="flex items-center gap-3 min-w-0 pr-4">
-        <div className="w-11 h-11 rounded-lg overflow-hidden shrink-0 bg-zinc-800/80 border border-white/10 relative group-hover:shadow-md transition-shadow">
-          {art ? (
-            <img src={art} alt={track.title} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-indigo-900/60 to-purple-900/60 flex items-center justify-center">
-              <Music className="w-5 h-5 text-indigo-300/70" />
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-col min-w-0">
-          <span
-            className={`font-semibold text-sm truncate ${
-              isSelected ? 'text-indigo-400' : 'text-white group-hover:text-white'
-            }`}
-          >
-            {track.title}
-          </span>
-          <span className="text-xs text-zinc-400 truncate mt-0.5">{track.artist}</span>
-        </div>
+      {/* 3. Title on top of Artist (Stacked, taking max space) */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
+        <span className={`font-bold text-sm truncate leading-snug ${isSelected ? 'text-indigo-300' : 'text-white'}`}>
+          {track.title}
+        </span>
+        <span className="text-xs text-zinc-400 truncate mt-0.5 font-normal">
+          {track.artist}
+        </span>
       </div>
 
-      {/* Album */}
-      <div className="text-xs text-zinc-400 truncate pr-4">{track.album}</div>
-
-      {/* Audio Format Badge (conditionally shown) */}
-      {showAudioSpecsInLibrary && (
-        <div className="flex items-center gap-1.5">
-          <span
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-mono font-semibold tracking-tight ${
-              hiRes
-                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                : 'bg-zinc-800 text-zinc-300 border border-white/5'
-            }`}
-          >
-            {hiRes && <Sparkles className="w-3 h-3 text-amber-400" />}
-            {formatSampleRate(track.sample_rate)} / {track.bit_depth || 16}b
-          </span>
-        </div>
-      )}
-
-      {/* Duration & ReplayGain badge */}
-      <div className="flex flex-col text-xs font-mono text-zinc-400">
-        <span>{formatDuration(track.duration_secs)}</span>
-        {track.replay_gain_db != null && (
-          <span className="text-[10px] text-zinc-500">
-            {track.replay_gain_db > 0 ? `+${track.replay_gain_db.toFixed(1)}dB` : `${track.replay_gain_db.toFixed(1)}dB`}
-          </span>
-        )}
+      {/* 4. Duration */}
+      <div className="shrink-0 text-xs font-mono font-medium text-zinc-400 pl-1">
+        {formatDuration(track.duration_secs)}
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-        {/* Quick Add To Queue Button on Hover */}
-        <button
-          onClick={handleAddQueue}
-          className="p-1.5 text-zinc-400 hover:text-indigo-400 rounded-lg hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all"
-          title="Add to Queue"
+      {/* 5. 3 Dots Menu Button */}
+      <div className="shrink-0 flex items-center" onClick={(e) => e.stopPropagation()}>
+        <IconButton
+          size="small"
+          onClick={(e) => onOpenMenu(e, track)}
+          sx={{
+            color: '#a1a1aa',
+            '&:hover': { color: '#ffffff', backgroundColor: 'rgba(255, 255, 255, 0.12)' },
+          }}
         >
-          {addedToast ? <Check className="w-4 h-4 text-emerald-400" /> : <ListPlus className="w-4 h-4" />}
-        </button>
-
-        <button
-          onClick={() => toggleLikeTrack(track.id)}
-          className={`p-1.5 rounded-lg transition-colors ${
-            isLiked ? 'text-pink-500 hover:text-pink-400' : 'text-zinc-500 hover:text-zinc-300'
-          }`}
-        >
-          <Heart className={`w-4 h-4 ${isLiked ? 'fill-pink-500' : ''}`} />
-        </button>
-
-                <div className="relative">
-                  <button
-                    onClick={() => {
-                      setActiveMenuTrackId(activeMenuTrackId === track.id ? null : track.id);
-                      setShowPlaylistSub(false);
-                    }}
-                    className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/10"
-                  >
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
-
-                  {/* Dropdown Menu */}
-                  {activeMenuTrackId === track.id && (
-                    <div
-                      className="absolute right-0 top-8 w-48 glass-panel border border-white/10 rounded-xl shadow-2xl py-1 z-30 flex flex-col"
-                      onMouseLeave={() => {
-                        setActiveMenuTrackId(null);
-                        setShowPlaylistSub(false);
-                      }}
-                    >
-                      <button
-                        onClick={() => {
-                          setInfoModalTrack(track);
-                          setActiveMenuTrackId(null);
-                        }}
-                        className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left"
-                      >
-                        <Info className="w-3.5 h-3.5 text-blue-400" />
-                        Song Info / Details
-                      </button>
-                      <button
-                        onClick={() => {
-                          playNext(track);
-                          setActiveMenuTrackId(null);
-                        }}
-                        className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left"
-                      >
-                        <Radio className="w-3.5 h-3.5 text-indigo-400" />
-                        Play Next
-                      </button>
-                      <button
-                        onClick={() => {
-                          addToQueue(track);
-                          setActiveMenuTrackId(null);
-                        }}
-                        className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left"
-                      >
-                        <ListPlus className="w-3.5 h-3.5 text-emerald-400" />
-                        Add to Queue
-                      </button>
-                      {/* Add to Playlist submenu */}
-                      <div className="relative">
-                        <button
-                          onClick={() => setShowPlaylistSub(!showPlaylistSub)}
-                          className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left w-full"
-                        >
-                          <FolderPlus className="w-3.5 h-3.5 text-purple-400" />
-                          Add to Playlist
-                        </button>
-                        {showPlaylistSub && (
-                          <div className="absolute left-full top-0 w-44 glass-panel border border-white/10 rounded-xl shadow-2xl py-1 z-40 flex flex-col ml-1">
-                            {playlists.length === 0 ? (
-                              <span className="px-3 py-2 text-xs text-zinc-500 italic">No playlists yet</span>
-                            ) : (
-                              playlists.map((pl) => (
-                                <button
-                                  key={pl.id}
-                                  onClick={() => {
-                                    addTrackToPlaylist(pl.id, track.id);
-                                    setActiveMenuTrackId(null);
-                                    setShowPlaylistSub(false);
-                                  }}
-                                  className="px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left truncate"
-                                >
-                                  {pl.name}
-                                </button>
-                              ))
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-    </div>
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
+      </div>
+    </Card>
   );
-};
-
-import { useVirtualizer } from '@tanstack/react-virtual';
+});
 
 export const TrackList: React.FC<TrackListProps> = ({ tracks }) => {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const playTrack = usePlayerStore((s) => s.playTrack);
-  const togglePlay = usePlayerStore((s) => s.togglePlay);
   const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
   const toggleLikeTrack = usePlayerStore((s) => s.toggleLikeTrack);
   const addToQueue = usePlayerStore((s) => s.addToQueue);
   const playNext = usePlayerStore((s) => s.playNext);
-  const showAudioSpecsInLibrary = usePlayerStore((s) => s.showAudioSpecsInLibrary);
-  const [activeMenuTrackId, setActiveMenuTrackId] = useState<string | null>(null);
+  const setInfoModalTrack = usePlayerStore((s) => s.setInfoModalTrack);
 
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [selectedMenuTrack, setSelectedMenuTrack] = useState<Track | null>(null);
 
-  const parentRef = React.useRef<HTMLDivElement>(null);
-
-  const handleTrackClick = (e: React.MouseEvent, track: Track, idx: number, forceToggle?: boolean) => {
-    if (e.ctrlKey || e.metaKey || forceToggle) {
-      const newSel = new Set(selectedIds);
-      if (newSel.has(track.id)) newSel.delete(track.id);
-      else newSel.add(track.id);
-      setSelectedIds(newSel);
-      setLastClickedIdx(idx);
-    } else if (e.shiftKey && lastClickedIdx !== null) {
-      const newSel = new Set(selectedIds);
-      const start = Math.min(lastClickedIdx, idx);
-      const end = Math.max(lastClickedIdx, idx);
-      for (let i = start; i <= end; i++) {
-        newSel.add(tracks[i].id);
-      }
-      setSelectedIds(newSel);
-    } else {
-      setSelectedIds(new Set());
-      setLastClickedIdx(idx);
-      playTrack(track, tracks);
-    }
-  };
-
-  const handleDragStart = (e: React.DragEvent, track: Track) => {
-    const idsToDrag = selectedIds.has(track.id) ? Array.from(selectedIds) : [track.id];
-    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'tracks', ids: idsToDrag }));
-    e.dataTransfer.effectAllowed = 'copy';
-
-    // Create a compact custom drag preview pill
-    const ghost = document.createElement('div');
-    ghost.style.position = 'absolute';
-    ghost.style.top = '-9999px';
-    ghost.style.left = '-9999px';
-    ghost.className = 'bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-2xl z-50 flex items-center gap-2 border border-indigo-400';
-    ghost.innerHTML = idsToDrag.length > 1
-      ? `<span>🎵 Moving ${idsToDrag.length} tracks</span>`
-      : `<span style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🎵 ${track.title}</span>`;
-
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 15, 15);
-    setTimeout(() => {
-      if (document.body.contains(ghost)) {
-        document.body.removeChild(ghost);
-      }
-    }, 0);
-  };
+  const parentRef = useRef<HTMLDivElement>(null);
 
   const rowVirtualizer = useVirtualizer({
     count: tracks.length,
@@ -396,84 +147,150 @@ export const TrackList: React.FC<TrackListProps> = ({ tracks }) => {
     overscan: 5,
   });
 
-  const gridCols = showAudioSpecsInLibrary
-    ? 'grid-cols-[48px_1fr_1fr_120px_90px_80px]'
-    : 'grid-cols-[48px_1fr_1fr_90px_80px]';
+  const handleOpenMenu = (e: React.MouseEvent<HTMLButtonElement>, track: Track) => {
+    e.stopPropagation();
+    setMenuAnchorEl(e.currentTarget);
+    setSelectedMenuTrack(track);
+  };
+
+  const handleCloseMenu = () => {
+    setMenuAnchorEl(null);
+    setSelectedMenuTrack(null);
+  };
+
+  if (tracks.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center gap-3 glass-card rounded-2xl border border-dashed border-white/10 my-4">
+        <div className="w-14 h-14 rounded-full bg-zinc-800/80 flex items-center justify-center text-zinc-500">
+          <MusicNoteIcon sx={{ fontSize: 32 }} />
+        </div>
+        <div>
+          <h3 className="text-base font-semibold text-white">No tracks in library</h3>
+          <p className="text-xs text-zinc-400 mt-1 max-w-sm">
+            Add your music folders in Settings to start listening.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full h-full flex flex-col gap-2 overflow-hidden">
-      {/* Table Header */}
-      <div className={`grid ${gridCols} items-center px-4 py-2 text-xs font-semibold text-zinc-400 uppercase tracking-wider border-b border-white/5 shrink-0 pr-6`}>
-        <span className="text-center">#</span>
-        <span>Title</span>
-        <span>Album</span>
-        {showAudioSpecsInLibrary && <span>Audio Format</span>}
-        <span>Duration</span>
-        <span className="text-right">Actions</span>
+    <div className="w-full h-full flex flex-col overflow-hidden">
+      {/* Scrollable Virtualized Container */}
+      <div ref={parentRef} className="flex-1 overflow-y-auto custom-scrollbar pr-1">
+        <div
+          style={{
+            height: `${rowVirtualizer.getTotalSize()}px`,
+            width: '100%',
+            position: 'relative',
+          }}
+        >
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const idx = virtualRow.index;
+            const track = tracks[idx];
+            const isSelected = currentTrack?.id === track.id;
+
+            return (
+              <div
+                key={virtualRow.key}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                  paddingBottom: '6px',
+                }}
+              >
+                <TrackCardRow
+                  track={track}
+                  idx={idx}
+                  isSelected={isSelected}
+                  isPlaying={isPlaying}
+                  onPlay={() => playTrack(track, tracks)}
+                  onOpenMenu={handleOpenMenu}
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Track Rows Virtualized */}
-      <div ref={parentRef} className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-        {tracks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center gap-3 glass-card rounded-2xl border border-dashed border-white/10 my-4">
-            <div className="w-14 h-14 rounded-full bg-zinc-800/80 flex items-center justify-center text-zinc-500">
-              <Music className="w-7 h-7" />
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-white">No tracks loaded yet</h3>
-              <p className="text-xs text-zinc-400 mt-1 max-w-sm">
-                Import a directory with FLAC files using the sidebar button to get started.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div
-            style={{
-              height: `${rowVirtualizer.getTotalSize()}px`,
-              width: '100%',
-              position: 'relative',
-            }}
-          >
-            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const idx = virtualRow.index;
-              const track = tracks[idx];
-              return (
-                <div
-                  key={virtualRow.key}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`,
-                    paddingBottom: '4px',
-                    zIndex: activeMenuTrackId === track.id ? 50 : 1,
-                  }}
-                >
-                  <TrackRow
-                    track={track}
-                    idx={idx}
-                    isSelected={currentTrack?.id === track.id}
-                    isMultiSelected={selectedIds.has(track.id)}
-                    isLiked={likedTrackIds.includes(track.id)}
-                    isPlaying={isPlaying}
-                    activeMenuTrackId={activeMenuTrackId}
-                    setActiveMenuTrackId={setActiveMenuTrackId}
-                    onTrackClick={(e, forceToggle) => handleTrackClick(e, track, idx, forceToggle)}
-                    onDragStart={(e) => handleDragStart(e, track)}
-                    togglePlay={togglePlay}
-                    toggleLikeTrack={toggleLikeTrack}
-                    addToQueue={addToQueue}
-                    playNext={playNext}
-                    showAudioSpecsInLibrary={showAudioSpecsInLibrary}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {/* Material UI Options Context Menu */}
+      <Menu
+        anchorEl={menuAnchorEl}
+        open={Boolean(menuAnchorEl)}
+        onClose={handleCloseMenu}
+        slotProps={{
+          paper: {
+            sx: {
+              backgroundColor: '#18181b',
+              color: '#ffffff',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: '16px',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
+              padding: '4px 0',
+            },
+          },
+        }}
+      >
+        <MenuItem
+          onClick={() => {
+            if (selectedMenuTrack) setInfoModalTrack(selectedMenuTrack);
+            handleCloseMenu();
+          }}
+          sx={{ fontSize: '0.85rem', '&:hover': { backgroundColor: 'rgba(255,255,255,0.08)' } }}
+        >
+          <ListItemIcon>
+            <InfoOutlinedIcon sx={{ color: '#60a5fa', fontSize: 20 }} />
+          </ListItemIcon>
+          <ListItemText primary="Song Info / Details" />
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            if (selectedMenuTrack) playNext(selectedMenuTrack);
+            handleCloseMenu();
+          }}
+          sx={{ fontSize: '0.85rem', '&:hover': { backgroundColor: 'rgba(255,255,255,0.08)' } }}
+        >
+          <ListItemIcon>
+            <RadioIcon sx={{ color: '#818cf8', fontSize: 20 }} />
+          </ListItemIcon>
+          <ListItemText primary="Play Next" />
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            if (selectedMenuTrack) addToQueue(selectedMenuTrack);
+            handleCloseMenu();
+          }}
+          sx={{ fontSize: '0.85rem', '&:hover': { backgroundColor: 'rgba(255,255,255,0.08)' } }}
+        >
+          <ListItemIcon>
+            <QueueMusicIcon sx={{ color: '#34d399', fontSize: 20 }} />
+          </ListItemIcon>
+          <ListItemText primary="Add to Queue" />
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            if (selectedMenuTrack) toggleLikeTrack(selectedMenuTrack.id);
+            handleCloseMenu();
+          }}
+          sx={{ fontSize: '0.85rem', '&:hover': { backgroundColor: 'rgba(255,255,255,0.08)' } }}
+        >
+          <ListItemIcon>
+            {selectedMenuTrack && likedTrackIds.includes(selectedMenuTrack.id) ? (
+              <FavoriteIcon sx={{ color: '#ec4899', fontSize: 20 }} />
+            ) : (
+              <FavoriteBorderIcon sx={{ color: '#a1a1aa', fontSize: 20 }} />
+            )}
+          </ListItemIcon>
+          <ListItemText primary={selectedMenuTrack && likedTrackIds.includes(selectedMenuTrack.id) ? 'Unlike' : 'Like'} />
+        </MenuItem>
+      </Menu>
     </div>
   );
 };

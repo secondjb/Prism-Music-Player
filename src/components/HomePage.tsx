@@ -6,11 +6,18 @@ export const HomePage: React.FC = () => {
   const tracks = usePlayerStore((s) => s.tracks);
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto pb-32">
-      <h1 className="text-2xl font-bold p-4 mt-2">Good afternoon</h1>
-      <div className="px-4">
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="px-3 pt-2 pb-2 shrink-0 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Good afternoon</h1>
+          <p className="text-xs text-zinc-400 font-mono mt-0.5">{tracks.length} tracks in library</p>
+        </div>
+      </div>
+
+      <div className="flex-1 min-h-0 px-1 sm:px-2 pb-20">
         <TrackList tracks={tracks} />
       </div>
     </div>
   );
 };
+

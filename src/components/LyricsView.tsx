@@ -1035,7 +1035,7 @@ export const LyricsView: React.FC = () => {
               style={{
                 background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${volume * 100}%, #27272a ${volume * 100}%)`,
               }}
-              className="w-20 h-2 rounded-full appearance-none cursor-pointer slider-m3"
+              className="w-20 h-2 rounded-full appearance-none cursor-pointer slider-m3 hover:brightness-125 transition-all"
             />
             <span
               style={{ color: 'var(--color-stop-1, #6366f1)' }}
@@ -1087,7 +1087,7 @@ export const LyricsView: React.FC = () => {
               style={{
                 background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${volume * 100}%, #27272a ${volume * 100}%)`,
               }}
-              className="w-24 sm:w-28 md:w-32 h-2 hover:h-3 rounded-full appearance-none cursor-pointer slider-m3 transition-all"
+              className="w-24 sm:w-28 md:w-32 h-2 hover:h-3 rounded-full appearance-none cursor-pointer slider-m3 transition-all hover:brightness-125"
             />
             <span
               style={{ color: 'var(--color-stop-1, #6366f1)' }}

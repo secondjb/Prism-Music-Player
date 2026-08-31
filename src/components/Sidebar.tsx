@@ -99,7 +99,9 @@ export const Sidebar: React.FC = () => {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <span className={isActive ? 'text-indigo-400' : 'text-zinc-400'}>{item.icon}</span>
+                    <span className={isActive ? '' : 'text-zinc-400'} style={isActive ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}>
+                      {item.icon}
+                    </span>
                     <span>{item.label}</span>
                   </div>
                   {isPlaylists && (

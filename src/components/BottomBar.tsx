@@ -498,7 +498,10 @@ export const BottomBar: React.FC = () => {
         >
           <ListMusic className="w-5 h-5" />
           {usePlayerStore.getState().queue.length > 0 && (
-            <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-indigo-600 text-[9px] font-mono font-bold text-white">
+            <span
+              className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold text-white shadow-md"
+              style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+            >
               {usePlayerStore.getState().queue.length}
             </span>
           )}
@@ -558,7 +561,7 @@ export const BottomBar: React.FC = () => {
                 style={{
                   background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${volPercent}%, #27272a ${volPercent}%)`,
                 }}
-                className="w-full h-2 group-hover:h-3 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3 shadow-sm"
+                className="w-full h-2 group-hover:h-3 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3 shadow-sm hover:brightness-125"
               />
             </div>
 

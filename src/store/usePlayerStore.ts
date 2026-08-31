@@ -113,6 +113,10 @@ interface PlayerState {
   setVisibleTrackColumns: (cols: TrackColumnId[]) => void;
   toggleTrackColumn: (col: TrackColumnId) => void;
   setTrackGridDensity: (density: TrackGridDensity) => void;
+  columnOrder: TrackColumnId[];
+  setColumnOrder: (order: TrackColumnId[]) => void;
+  showSubArtistUnderTitle: boolean;
+  setShowSubArtistUnderTitle: (show: boolean) => void;
 
   // Shuffle & Repeat actions
   toggleShuffle: () => void;
@@ -222,6 +226,25 @@ export const usePlayerStore = create<PlayerState>()(
           return { visibleTrackColumns: updated };
         }),
       setTrackGridDensity: (density) => set({ trackGridDensity: density }),
+
+      columnOrder: [
+        'order',
+        'art',
+        'title',
+        'artist',
+        'album',
+        'date',
+        'genre',
+        'duration',
+        'favorite',
+        'playNext',
+        'addToQueue',
+        'actions',
+      ],
+      setColumnOrder: (order) => set({ columnOrder: order }),
+
+      showSubArtistUnderTitle: true,
+      setShowSubArtistUnderTitle: (show) => set({ showSubArtistUnderTitle: show }),
 
       // Shuffle & Repeat
       shuffleEnabled: false,

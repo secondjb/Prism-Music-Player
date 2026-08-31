@@ -11,6 +11,9 @@ export const Header: React.FC = () => {
   const activeTab = usePlayerStore((s) => s.activeTab);
   const setActiveTab = usePlayerStore((s) => s.setActiveTab);
 
+  const tracks = usePlayerStore((s) => s.tracks);
+  const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setSearchQuery(val);
@@ -39,8 +42,20 @@ export const Header: React.FC = () => {
 
   return (
     <header className="w-full py-4 px-8 flex items-center justify-between z-10 shrink-0">
-      <div>
+      <div className="flex items-center gap-3">
         <h2 className="text-2xl font-bold text-white tracking-tight">{getTitle()}</h2>
+        {(activeTab === 'library' || activeTab === 'liked') && (
+          <span
+            className="px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold border"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+              color: 'var(--color-stop-1, #6366f1)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+            }}
+          >
+            {activeTab === 'liked' ? `${likedTrackIds.length} tracks` : `${tracks.length} tracks`}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-4">

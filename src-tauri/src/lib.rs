@@ -352,6 +352,19 @@ struct AudioAnalysisProgress {
 }
 
 #[tauri::command]
+async fn analyze_track_audio(path: String) -> Result<audio_analysis::AudioAnalysisResult, String> {
+    let path_buf = std::path::PathBuf::from(path);
+
+    let result = tokio::task::spawn_blocking(move || {
+        audio_analysis::analyze_audio_waveform(&path_buf)
+    })
+    .await
+    .map_err(|e| format!("Task execution failed: {}", e))?;
+
+    Ok(result)
+}
+
+#[tauri::command]
 fn analyze_library_audio(app_handle: AppHandle) -> Result<(), String> {
     let app_data_dir = app_handle
         .path()
@@ -512,6 +525,7 @@ pub fn run() {
             get_playback_position,
             filter_tracks,
             analyze_library_audio,
+            analyze_track_audio,
             stats::log_listening_event,
             stats::fetch_listening_events,
             stats::delete_listening_history

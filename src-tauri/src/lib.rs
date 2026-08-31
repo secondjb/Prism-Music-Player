@@ -365,89 +365,95 @@ async fn analyze_track_audio(path: String) -> Result<audio_analysis::AudioAnalys
 }
 
 #[tauri::command]
-fn analyze_library_audio(app_handle: AppHandle) -> Result<(), String> {
+async fn analyze_library_audio(app_handle: AppHandle, paths: Vec<String>) -> Result<(), String> {
+    use futures::StreamExt;
+    
     let app_data_dir = app_handle
         .path()
         .app_data_dir()
         .map_err(|e| e.to_string())?;
 
-    std::thread::spawn(move || {
-        let mut tracks = load_library_from_disk(&app_data_dir).unwrap_or_default();
-        let total = tracks.len();
-        if total == 0 {
-            let _ = app_handle.emit("audio_analysis_completed", Vec::<TrackMetadata>::new());
-            return;
+    let mut tracks = load_library_from_disk(&app_data_dir).unwrap_or_default();
+    
+    let mut tasks = Vec::new();
+    for path in paths {
+        if let Some(idx) = tracks.iter().position(|t| t.path == path) {
+            let track = &tracks[idx];
+            // Skip if already analyzed to save time
+            if track.bpm.is_none() || track.key.is_none() {
+                tasks.push((idx, path, track.id.clone()));
+            }
         }
+    }
+    
+    let total = tasks.len();
+    if total == 0 {
+        let _ = app_handle.emit("audio_analysis_completed", tracks);
+        return Ok(());
+    }
+    
+    let (tx, mut rx) = tokio::sync::mpsc::channel(100);
+    
+    let limit = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(8);
 
-        // Maximize multi-threading by utilizing all available CPU logical cores
-        let num_threads = std::thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(8);
-
-        let pool = match rayon::ThreadPoolBuilder::new().num_threads(num_threads).build() {
-            Ok(p) => p,
-            Err(_) => return,
-        };
-
-        use rayon::prelude::*;
-        let processed_count = std::sync::atomic::AtomicUsize::new(0);
-
-        // Process in batches (100) to minimize disk serialization frequency
-        let chunk_size = 100;
-        let num_tracks = tracks.len();
-        for i in (0..num_tracks).step_by(chunk_size) {
-            let end = (i + chunk_size).min(num_tracks);
-            pool.install(|| {
-                tracks[i..end].par_iter_mut().for_each(|track| {
-                    // Fast path: if track already has both BPM and Key, skip heavy DSP!
-                    if track.bpm.is_some() && track.key.is_some() {
-                        let c = processed_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-                        let _ = app_handle.emit(
-                            "audio_analysis_progress",
-                            AudioAnalysisProgress {
-                                current: c,
-                                total,
-                                track_id: track.id.clone(),
-                                bpm: track.bpm,
-                                key: track.key.clone(),
-                            },
-                        );
-                        return;
-                    }
-
-                    let p = std::path::Path::new(&track.path);
-                    if p.exists() {
-                        let analysis = audio_analysis::analyze_audio_waveform(p);
-                        if let Some(bpm) = analysis.bpm {
-                            track.bpm = Some(bpm);
+    let processor_handle = tokio::spawn(async move {
+        futures::stream::iter(tasks)
+            .for_each_concurrent(limit, |(idx, path, track_id)| {
+                let tx = tx.clone();
+                async move {
+                    let path_buf = std::path::PathBuf::from(&path);
+                    
+                    let analysis_result = tokio::task::spawn_blocking(move || {
+                        if path_buf.exists() {
+                            Some(audio_analysis::analyze_audio_waveform(&path_buf))
+                        } else {
+                            None
                         }
-                        if let Some(key) = analysis.key {
-                            track.key = Some(key);
-                        }
-                    }
+                    })
+                    .await;
 
-                    let c = processed_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-                    let _ = app_handle.emit(
-                        "audio_analysis_progress",
-                        AudioAnalysisProgress {
-                            current: c,
-                            total,
-                            track_id: track.id.clone(),
-                            bpm: track.bpm,
-                            key: track.key.clone(),
-                        },
-                    );
-                });
-            });
+                    let (bpm, key) = match analysis_result {
+                        Ok(Some(res)) => (res.bpm, res.key),
+                        _ => (None, None),
+                    };
 
-            // Periodically dump progress to disk
+                    let _ = tx.send((idx, track_id, bpm, key)).await;
+                }
+            })
+            .await;
+    });
+
+    let mut current = 0;
+    while let Some((idx, track_id, bpm, key)) = rx.recv().await {
+        current += 1;
+        
+        if let Some(track) = tracks.get_mut(idx) {
+            if let Some(b) = bpm { track.bpm = Some(b); }
+            if let Some(ref k) = key { track.key = Some(k.clone()); }
+        }
+        
+        let _ = app_handle.emit(
+            "audio_analysis_progress",
+            AudioAnalysisProgress {
+                current,
+                total,
+                track_id,
+                bpm,
+                key,
+            },
+        );
+        
+        if current % 100 == 0 {
             let _ = save_library_to_disk(&app_data_dir, &tracks);
         }
-
-        // Final save & notify frontend
-        let _ = save_library_to_disk(&app_data_dir, &tracks);
-        let _ = app_handle.emit("audio_analysis_completed", tracks);
-    });
+    }
+    
+    let _ = save_library_to_disk(&app_data_dir, &tracks);
+    let _ = app_handle.emit("audio_analysis_completed", tracks);
+    
+    processor_handle.await.map_err(|e| e.to_string())?;
 
     Ok(())
 }

@@ -330,8 +330,8 @@ export const usePlayerStore = create<PlayerState>()(
             }
 
             // Run background audio waveform analysis to detect missing Key & BPM
-            const analyzedTracks: Track[] = await invoke('analyze_library_audio');
-            setTracks(analyzedTracks);
+            const paths = scannedTracks.map((t) => t.path);
+            await invoke('analyze_library_audio', { paths });
           } else {
             set({
               isScanning: false,
@@ -350,7 +350,8 @@ export const usePlayerStore = create<PlayerState>()(
       analyzeAndIndexAudio: async () => {
         try {
           if (window.__TAURI_INTERNALS__) {
-            await invoke('analyze_library_audio');
+            const paths = get().tracks.map((t) => t.path);
+            await invoke('analyze_library_audio', { paths });
           }
         } catch (e) {
           console.warn('Audio analysis error:', e);

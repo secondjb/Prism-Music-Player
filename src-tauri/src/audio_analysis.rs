@@ -49,9 +49,9 @@ pub fn analyze_audio_waveform(path: &Path) -> AudioAnalysisResult {
         Err(_) => return AudioAnalysisResult { bpm: None, key: None },
     };
 
-    // Decode up to 90 seconds of mono PCM audio samples (skipping first 2 seconds)
-    let max_samples = (sample_rate as usize) * 90;
-    let skip_samples = (sample_rate as usize) * 2;
+    // Decode up to 35 seconds of mono PCM audio samples (skipping first 5 seconds for intros)
+    let max_samples = (sample_rate as usize) * 35;
+    let skip_samples = (sample_rate as usize) * 5;
     let mut samples: Vec<f32> = Vec::with_capacity(max_samples);
     let mut total_read = 0;
 

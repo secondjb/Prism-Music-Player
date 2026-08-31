@@ -366,8 +366,12 @@ fn analyze_library_audio(app_handle: AppHandle) -> Result<(), String> {
             return;
         }
 
-        // Use a 4-thread worker pool for faster background processing
-        let pool = match rayon::ThreadPoolBuilder::new().num_threads(4).build() {
+        // Maximize multi-threading by utilizing all available CPU logical cores
+        let num_threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(8);
+
+        let pool = match rayon::ThreadPoolBuilder::new().num_threads(num_threads).build() {
             Ok(p) => p,
             Err(_) => return,
         };
@@ -375,13 +379,29 @@ fn analyze_library_audio(app_handle: AppHandle) -> Result<(), String> {
         use rayon::prelude::*;
         let processed_count = std::sync::atomic::AtomicUsize::new(0);
 
-        // Process in larger batches (100) to drastically reduce disk I/O locking
+        // Process in batches (100) to minimize disk serialization frequency
         let chunk_size = 100;
         let num_tracks = tracks.len();
         for i in (0..num_tracks).step_by(chunk_size) {
             let end = (i + chunk_size).min(num_tracks);
             pool.install(|| {
                 tracks[i..end].par_iter_mut().for_each(|track| {
+                    // Fast path: if track already has both BPM and Key, skip heavy DSP!
+                    if track.bpm.is_some() && track.key.is_some() {
+                        let c = processed_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                        let _ = app_handle.emit(
+                            "audio_analysis_progress",
+                            AudioAnalysisProgress {
+                                current: c,
+                                total,
+                                track_id: track.id.clone(),
+                                bpm: track.bpm,
+                                key: track.key.clone(),
+                            },
+                        );
+                        return;
+                    }
+
                     let p = std::path::Path::new(&track.path);
                     if p.exists() {
                         let analysis = audio_analysis::analyze_audio_waveform(p);
@@ -409,9 +429,6 @@ fn analyze_library_audio(app_handle: AppHandle) -> Result<(), String> {
 
             // Periodically dump progress to disk
             let _ = save_library_to_disk(&app_data_dir, &tracks);
-
-            // Yield thread momentarily to ensure UI remains highly responsive
-            std::thread::sleep(std::time::Duration::from_millis(10));
         }
 
         // Final save & notify frontend

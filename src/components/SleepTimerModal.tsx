@@ -23,7 +23,7 @@ export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({ isOpen, onClos
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-white/10 text-[var(--color-stop-1)] flex items-center justify-center">
               <Timer className="w-5 h-5" />
             </div>
             <div>
@@ -41,7 +41,7 @@ export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({ isOpen, onClos
 
         {/* Status banner if active */}
         {sleepTimer.active && (
-          <div className="flex items-center justify-between p-3 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-200 text-xs">
+          <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 text-[var(--color-stop-1)] text-xs">
             <span className="font-medium">
               Active: {sleepTimer.mode === 'time'
                 ? `Stops in ${Math.ceil(sleepTimer.remainingSeconds / 60)} min(s)`
@@ -49,7 +49,8 @@ export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({ isOpen, onClos
             </span>
             <button
               onClick={cancelSleepTimer}
-              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-colors"
+              className="px-2.5 py-1 rounded-lg text-white font-semibold transition-colors hover:brightness-110"
+              style={{ backgroundColor: 'var(--color-stop-1)' }}
             >
               Cancel
             </button>
@@ -61,8 +62,9 @@ export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({ isOpen, onClos
           <button
             onClick={() => setTab('time')}
             className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
-              tab === 'time' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'
+              tab === 'time' ? 'text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'
             }`}
+            style={tab === 'time' ? { backgroundColor: 'var(--color-stop-1)' } : undefined}
           >
             <Timer className="w-4 h-4" />
             Time-based
@@ -70,8 +72,9 @@ export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({ isOpen, onClos
           <button
             onClick={() => setTab('tracks')}
             className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
-              tab === 'tracks' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'
+              tab === 'tracks' ? 'text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'
             }`}
+            style={tab === 'tracks' ? { backgroundColor: 'var(--color-stop-1)' } : undefined}
           >
             <Music className="w-4 h-4" />
             Track-based
@@ -90,7 +93,7 @@ export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({ isOpen, onClos
                     startSleepTimer('time', mins);
                     onClose();
                   }}
-                  className="py-2.5 rounded-xl glass-card text-sm font-semibold text-zinc-200 hover:text-white hover:bg-indigo-600/30 hover:border-indigo-500/40 transition-all"
+                  className="py-2.5 rounded-xl glass-card text-sm font-semibold text-zinc-200 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all"
                 >
                   {mins}m
                 </button>
@@ -104,7 +107,7 @@ export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({ isOpen, onClos
                 max="300"
                 value={customTime}
                 onChange={(e) => setCustomTime(parseInt(e.target.value) || 1)}
-                className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--color-stop-1)]"
                 placeholder="Custom mins"
               />
               <button
@@ -112,7 +115,7 @@ export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({ isOpen, onClos
                   startSleepTimer('time', customTime);
                   onClose();
                 }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shrink-0 transition-colors"
+                className="px-4 py-2 text-white hover:brightness-110 text-xs font-semibold rounded-xl shrink-0 transition-colors" style={{ backgroundColor: 'var(--color-stop-1)' }}
               >
                 Set Custom
               </button>
@@ -129,7 +132,7 @@ export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({ isOpen, onClos
                     startSleepTimer('tracks', cnt);
                     onClose();
                   }}
-                  className="py-2.5 rounded-xl glass-card text-sm font-semibold text-zinc-200 hover:text-white hover:bg-indigo-600/30 hover:border-indigo-500/40 transition-all"
+                  className="py-2.5 rounded-xl glass-card text-sm font-semibold text-zinc-200 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all"
                 >
                   {cnt} track{cnt > 1 ? 's' : ''}
                 </button>
@@ -143,7 +146,7 @@ export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({ isOpen, onClos
                 max="50"
                 value={customTracks}
                 onChange={(e) => setCustomTracks(parseInt(e.target.value) || 1)}
-                className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-zinc-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-[var(--color-stop-1)]"
                 placeholder="Custom tracks"
               />
               <button
@@ -151,7 +154,7 @@ export const SleepTimerModal: React.FC<SleepTimerModalProps> = ({ isOpen, onClos
                   startSleepTimer('tracks', customTracks);
                   onClose();
                 }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shrink-0 transition-colors"
+                className="px-4 py-2 text-white hover:brightness-110 text-xs font-semibold rounded-xl shrink-0 transition-colors" style={{ backgroundColor: 'var(--color-stop-1)' }}
               >
                 Set Custom
               </button>

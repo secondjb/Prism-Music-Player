@@ -357,7 +357,7 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
-      setTracks: (tracks) => set({ tracks }),
+      setTracks: (tracks) => set({ tracks: Array.isArray(tracks) ? tracks : [] }),
 
       playTrack: async (track, contextTracks) => {
         const { shuffleEnabled } = get();
@@ -981,7 +981,8 @@ if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
     (e) => {
       const { current, total, track_id, bpm, key } = e.payload;
       const store = usePlayerStore.getState();
-      const updated = store.tracks.map((t) =>
+      const currentTracks = Array.isArray(store.tracks) ? store.tracks : [];
+      const updated = currentTracks.map((t) =>
         t.id === track_id
           ? {
               ...t,

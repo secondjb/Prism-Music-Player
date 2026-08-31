@@ -443,13 +443,13 @@ export const BottomBar: React.FC = () => {
           <button
             onClick={() => setIsTimerModalOpen(!isTimerModalOpen)}
             className={`p-1.5 sm:p-2 rounded-xl transition-all relative ${
-              sleepTimer.active ? 'bg-indigo-600/30 text-indigo-400 border border-indigo-500/40' : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              sleepTimer.active ? 'bg-white/10 text-[var(--color-stop-1)] border border-white/20' : 'text-zinc-400 hover:text-white hover:bg-white/5'
             }`}
             title="Sleep Timer"
           >
             <Timer className="w-5 h-5" />
             {sleepTimer.active && (
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[var(--color-stop-1)] animate-pulse" />
             )}
           </button>
           <SleepTimerModal isOpen={isTimerModalOpen} onClose={() => setIsTimerModalOpen(false)} />

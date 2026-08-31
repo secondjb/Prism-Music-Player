@@ -363,7 +363,16 @@ export const StatsView: React.FC = () => {
                     >
                       {i + 1}
                     </span>
-                    <span className="text-sm font-medium text-zinc-200 truncate">{artist.name}</span>
+                    <span 
+                      className="text-sm font-medium text-zinc-200 truncate cursor-pointer hover:underline hover:text-indigo-400"
+                      onClick={() => {
+                        if (artist.name && artist.name !== 'Unknown Artist') {
+                          usePlayerStore.getState().navigateToArtist(artist.name);
+                        }
+                      }}
+                    >
+                      {artist.name}
+                    </span>
                   </div>
                   <div className="flex flex-col items-end shrink-0">
                     <span className="text-xs font-bold text-white">{formatDuration(artist.listened_ms)}</span>

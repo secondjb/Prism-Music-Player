@@ -20,7 +20,7 @@ export interface Track {
   bpm?: number | null;
 }
 
-export type ActiveTab = 'home' | 'search' | 'library' | 'playlists' | 'liked' | 'albums' | 'folders' | 'lyrics' | 'settings' | 'filter' | 'stats';
+export type ActiveTab = 'home' | 'search' | 'library' | 'playlists' | 'liked' | 'albums' | 'artists' | 'folders' | 'lyrics' | 'settings' | 'filter' | 'stats' | 'artistView' | 'albumView';
 
 
 export type RepeatMode = 'off' | 'all' | 'one';

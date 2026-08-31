@@ -25,6 +25,12 @@ export const Header: React.FC = () => {
         return 'Music Library';
       case 'albums':
         return 'Albums';
+      case 'artists':
+        return 'Artists';
+      case 'artistView':
+        return 'Artist Details';
+      case 'albumView':
+        return 'Album Details';
       case 'liked':
         return 'Liked Songs';
       case 'playlists':
@@ -76,12 +82,12 @@ export const Header: React.FC = () => {
             onClick={() => setActiveTab('settings')}
             sx={{
               color: activeTab === 'settings' ? '#ffffff' : '#a1a1aa',
-              backgroundColor: activeTab === 'settings' ? '#4f46e5' : 'rgba(255, 255, 255, 0.05)',
+              backgroundColor: activeTab === 'settings' ? 'var(--color-stop-1, #4f46e5)' : 'rgba(255, 255, 255, 0.05)',
               border: '1px solid rgba(255, 255, 255, 0.1)',
               borderRadius: '12px',
               padding: '8px',
               '&:hover': {
-                backgroundColor: activeTab === 'settings' ? '#4338ca' : 'rgba(255, 255, 255, 0.12)',
+                backgroundColor: activeTab === 'settings' ? 'color-mix(in srgb, var(--color-stop-1, #4f46e5) 85%, black)' : 'rgba(255, 255, 255, 0.12)',
                 color: '#ffffff',
               },
             }}

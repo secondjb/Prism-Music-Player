@@ -210,7 +210,17 @@ export const TrackGridView: React.FC<TrackGridViewProps> = ({ tracks, playlistId
               {track.title}
             </span>
             {showSubArtistUnderTitle && (
-              <span className={`text-zinc-400 truncate ${densityConfig.subTextSize}`}>{track.artist}</span>
+              <span 
+                className={`text-zinc-400 truncate ${densityConfig.subTextSize} cursor-pointer hover:underline hover:text-indigo-400`}
+                onClick={(e) => {
+                  if (track.artist && track.artist !== 'Unknown Artist') {
+                    e.stopPropagation();
+                    usePlayerStore.getState().navigateToArtist(track.artist);
+                  }
+                }}
+              >
+                {track.artist}
+              </span>
             )}
           </div>
         );
@@ -220,14 +230,36 @@ export const TrackGridView: React.FC<TrackGridViewProps> = ({ tracks, playlistId
       id: 'artist', accessorKey: 'artist', header: 'Artist',
       size: 160, minSize: 90,
       cell: (info) => (
-        <div className={`truncate font-normal ${densityConfig.subTextSize} text-zinc-300 px-2`}>{info.getValue<string>()}</div>
+        <div 
+          onClick={(e) => {
+            const val = info.getValue<string>();
+            if (val && val !== 'Unknown Artist') {
+              e.stopPropagation();
+              usePlayerStore.getState().navigateToArtist(val);
+            }
+          }}
+          className={`truncate font-normal ${densityConfig.subTextSize} text-zinc-300 px-2 cursor-pointer hover:underline hover:text-indigo-400`}
+        >
+          {info.getValue<string>()}
+        </div>
       ),
     },
     {
       id: 'album', accessorKey: 'album', header: 'Album',
       size: 160, minSize: 90,
       cell: (info) => (
-        <div className={`truncate font-normal ${densityConfig.subTextSize} text-zinc-400 px-2`}>{info.getValue<string>() || '—'}</div>
+        <div 
+          onClick={(e) => {
+            const val = info.getValue<string>();
+            if (val && val !== 'Unknown Album') {
+              e.stopPropagation();
+              usePlayerStore.getState().navigateToAlbum(val);
+            }
+          }}
+          className={`truncate font-normal ${densityConfig.subTextSize} text-zinc-400 px-2 cursor-pointer hover:underline hover:text-indigo-400`}
+        >
+          {info.getValue<string>() || '—'}
+        </div>
       ),
     },
     {
@@ -383,7 +415,7 @@ export const TrackGridView: React.FC<TrackGridViewProps> = ({ tracks, playlistId
           </button>
 
           {showSettingsMenu && (
-            <div className="absolute right-0 top-10 w-64 glass-panel border border-white/10 rounded-2xl shadow-2xl p-3 z-50 flex flex-col gap-3 text-xs max-h-[28rem] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100">
+            <div className="fixed right-8 top-20 w-64 glass-panel border border-white/10 rounded-2xl shadow-2xl p-3 z-50 flex flex-col gap-3 text-xs max-h-[28rem] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100 bg-[#121212]/95 text-white">
               {/* Reset Entire Grid */}
               <button onClick={handleResetEntireGrid}
                 className="w-full py-2 px-3 rounded-xl font-semibold flex items-center justify-center gap-2 border transition-all cursor-pointer shadow-md"

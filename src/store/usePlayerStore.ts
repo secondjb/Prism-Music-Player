@@ -143,6 +143,11 @@ interface PlayerState {
   cancelSleepTimer: () => void;
   tickSleepTimerSecond: () => void;
   onTrackFinished: () => void;
+
+  selectedArtist: string | null;
+  selectedAlbum: string | null;
+  navigateToArtist: (artist: string) => void;
+  navigateToAlbum: (album: string) => void;
 }
 
 export const normalizePath = (dir: string): string => {
@@ -203,6 +208,11 @@ export const usePlayerStore = create<PlayerState>()(
       lyricsFontSize: 24,
       lyricsArtScale: 100,
       isStatsCollectionEnabled: false,
+
+      selectedArtist: null,
+      selectedAlbum: null,
+      navigateToArtist: (artist) => set({ selectedArtist: artist, activeTab: 'artistView', infoModalTrack: null }),
+      navigateToAlbum: (album) => set({ selectedAlbum: album, activeTab: 'albumView', infoModalTrack: null }),
 
       // Track Grid View Customization
       visibleTrackColumns: [

@@ -112,8 +112,28 @@ export const SongInfoModal: React.FC = () => {
 
           <div className="flex flex-col gap-1">
             <h2 className="text-4xl font-black text-white drop-shadow-sm">{infoModalTrack.title}</h2>
-            <p className="text-2xl font-bold text-indigo-400 mt-1">{infoModalTrack.artist}</p>
-            <p className="text-lg text-zinc-400 mt-2">{infoModalTrack.album || 'Unknown Album'}</p>
+            <p 
+              className="text-2xl font-bold text-indigo-400 mt-1 cursor-pointer hover:underline"
+              onClick={() => {
+                if (infoModalTrack.artist && infoModalTrack.artist !== 'Unknown Artist') {
+                  usePlayerStore.getState().navigateToArtist(infoModalTrack.artist);
+                  setInfoModalTrack(null);
+                }
+              }}
+            >
+              {infoModalTrack.artist}
+            </p>
+            <p 
+              className="text-lg text-zinc-400 mt-2 cursor-pointer hover:underline hover:text-indigo-400"
+              onClick={() => {
+                if (infoModalTrack.album && infoModalTrack.album !== 'Unknown Album') {
+                  usePlayerStore.getState().navigateToAlbum(infoModalTrack.album);
+                  setInfoModalTrack(null);
+                }
+              }}
+            >
+              {infoModalTrack.album || 'Unknown Album'}
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-2 text-sm font-mono text-zinc-300">

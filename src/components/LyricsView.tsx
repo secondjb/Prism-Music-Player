@@ -930,17 +930,31 @@ export const LyricsView: React.FC = () => {
               {currentTrack.title}
             </span>
             <span
-              className={`font-medium text-zinc-300 truncate mt-0.5 transition-all ${
+              className={`font-medium text-zinc-300 truncate mt-0.5 transition-all cursor-pointer hover:underline hover:text-indigo-400 ${
                 artExpanded ? 'text-sm md:text-lg' : 'text-xs md:text-sm'
               }`}
+              onClick={(e) => {
+                if (currentTrack.artist && currentTrack.artist !== 'Unknown Artist') {
+                  e.stopPropagation();
+                  setShowLyricsFullscreen(false);
+                  usePlayerStore.getState().navigateToArtist(currentTrack.artist);
+                }
+              }}
             >
               {currentTrack.artist}
             </span>
             {currentTrack.album && (
               <span
-                className={`text-zinc-400 truncate mt-0.5 transition-all ${
+                className={`text-zinc-400 truncate mt-0.5 transition-all cursor-pointer hover:underline hover:text-indigo-400 ${
                   artExpanded ? 'text-xs md:text-sm' : 'text-[11px]'
                 }`}
+                onClick={(e) => {
+                  if (currentTrack.album && currentTrack.album !== 'Unknown Album') {
+                    e.stopPropagation();
+                    setShowLyricsFullscreen(false);
+                    usePlayerStore.getState().navigateToAlbum(currentTrack.album);
+                  }
+                }}
               >
                 {currentTrack.album}
               </span>

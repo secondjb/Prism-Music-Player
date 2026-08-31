@@ -75,8 +75,34 @@ const FilterTrackRow: React.FC<{
 
         <div className="flex flex-col min-w-0 flex-1">
           <span className="font-semibold text-sm truncate text-white">{track.title}</span>
-          <span className="text-xs text-zinc-400 truncate">
-            {track.artist} {track.album ? `• ${track.album}` : ''}
+          <span className="text-xs text-zinc-400 truncate pointer-events-auto">
+            <span 
+              className="cursor-pointer hover:underline hover:text-indigo-400"
+              onClick={(e) => {
+                if (track.artist && track.artist !== 'Unknown Artist') {
+                  e.stopPropagation();
+                  usePlayerStore.getState().navigateToArtist(track.artist);
+                }
+              }}
+            >
+              {track.artist}
+            </span>
+            {track.album && (
+              <>
+                {' • '}
+                <span 
+                  className="cursor-pointer hover:underline hover:text-indigo-400"
+                  onClick={(e) => {
+                    if (track.album && track.album !== 'Unknown Album') {
+                      e.stopPropagation();
+                      usePlayerStore.getState().navigateToAlbum(track.album);
+                    }
+                  }}
+                >
+                  {track.album}
+                </span>
+              </>
+            )}
           </span>
         </div>
       </div>

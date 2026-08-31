@@ -36,6 +36,7 @@ interface TrackTableViewProps {
   tracks: Track[];
   playlistId?: string;
   onRemoveFromPlaylist?: (trackId: string) => void;
+  hideControls?: boolean;
 }
 
 const formatDuration = (secs: number) => {
@@ -83,6 +84,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   tracks,
   playlistId,
   onRemoveFromPlaylist,
+  hideControls = false,
 }) => {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -188,49 +190,51 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       onKeyDown={handleKeyDown}
     >
       {/* Table Header Bar / Controls */}
-      <div className="flex items-center justify-between px-4 py-2 bg-transparent shrink-0 border-b border-white/5 z-40">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-            Songs
-          </span>
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-white/10 text-zinc-300">
-            {tracks.length}
-          </span>
-        </div>
+      {!hideControls && (
+        <div className="flex items-center justify-between px-4 py-2 bg-transparent shrink-0 border-b border-white/5 z-40">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+              Songs
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-white/10 text-zinc-300">
+              {tracks.length}
+            </span>
+          </div>
 
-        {/* Grid Customization Popover Anchor */}
-        <div className="relative">
-          <button
-            onClick={() => setShowConfigModal((p) => !p)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer shadow-sm active:scale-95"
-            style={{
-              backgroundColor:
-                'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
-              color: 'var(--color-stop-1, #6366f1)',
-              borderColor:
-                'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
-            }}
-          >
-            <SlidersHorizontal
-              className="w-3.5 h-3.5"
-              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+          {/* Grid Customization Popover Anchor */}
+          <div className="relative">
+            <button
+              onClick={() => setShowConfigModal((p) => !p)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer shadow-sm active:scale-95"
+              style={{
+                backgroundColor:
+                  'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
+                color: 'var(--color-stop-1, #6366f1)',
+                borderColor:
+                  'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
+              }}
+            >
+              <SlidersHorizontal
+                className="w-3.5 h-3.5"
+                style={{ color: 'var(--color-stop-1, #6366f1)' }}
+              />
+              <span className="text-white">Grid Customization</span>
+            </button>
+
+            {/* Settings Popover */}
+            <ColumnConfigModal
+              isOpen={showConfigModal}
+              onClose={() => setShowConfigModal(false)}
+              columns={table.getAllLeafColumns() as Column<Track, unknown>[]}
+              density={trackGridDensity}
+              onDensityChange={setTrackGridDensity}
+              showSubArtistUnderTitle={showSubArtistUnderTitle}
+              onToggleSubArtist={setShowSubArtistUnderTitle}
+              onResetGrid={resetGrid}
             />
-            <span className="text-white">Grid Customization</span>
-          </button>
-
-          {/* Settings Popover */}
-          <ColumnConfigModal
-            isOpen={showConfigModal}
-            onClose={() => setShowConfigModal(false)}
-            columns={table.getAllLeafColumns() as Column<Track, unknown>[]}
-            density={trackGridDensity}
-            onDensityChange={setTrackGridDensity}
-            showSubArtistUnderTitle={showSubArtistUnderTitle}
-            onToggleSubArtist={setShowSubArtistUnderTitle}
-            onResetGrid={resetGrid}
-          />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main Table Scroll Container */}
       <div
@@ -247,7 +251,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
           >
             <div
               style={{ display: 'grid', gridTemplateColumns }}
-              className="sticky top-0 z-30 bg-[#121212]/90 backdrop-blur-md border-b border-white/10 px-2 shadow-sm"
+              className="sticky top-0 z-30 bg-zinc-950/40 backdrop-blur-xl border-b border-white/10 px-2 shadow-sm"
             >
               <SortableContext
                 items={visibleColumnIds}
@@ -387,7 +391,13 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                             {showSubArtistUnderTitle && (
                               <span
                                 title={track.artist}
-                                className={`text-zinc-400 truncate hover:underline ${
+                                onClick={(e) => {
+                                  if (track.artist && track.artist !== 'Unknown Artist') {
+                                    e.stopPropagation();
+                                    usePlayerStore.getState().navigateToArtist(track.artist);
+                                  }
+                                }}
+                                className={`text-zinc-400 truncate hover:underline hover:text-indigo-400 cursor-pointer ${
                                   trackGridDensity === 'massive'
                                     ? 'text-sm mt-0.5'
                                     : trackGridDensity === 'huge'
@@ -404,7 +414,13 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                         {colId === 'artist' && (
                           <span
                             title={track.artist}
-                            className={`truncate text-zinc-300 hover:underline ${
+                            onClick={(e) => {
+                              if (track.artist && track.artist !== 'Unknown Artist') {
+                                e.stopPropagation();
+                                usePlayerStore.getState().navigateToArtist(track.artist);
+                              }
+                            }}
+                            className={`truncate text-zinc-300 hover:underline hover:text-indigo-400 cursor-pointer ${
                               trackGridDensity === 'massive'
                                 ? 'text-base'
                                 : trackGridDensity === 'huge'
@@ -419,7 +435,13 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                         {colId === 'album' && (
                           <span
                             title={track.album}
-                            className={`truncate text-zinc-400 hover:underline ${
+                            onClick={(e) => {
+                              if (track.album && track.album !== 'Unknown Album') {
+                                e.stopPropagation();
+                                usePlayerStore.getState().navigateToAlbum(track.album);
+                              }
+                            }}
+                            className={`truncate text-zinc-400 hover:underline hover:text-indigo-400 cursor-pointer ${
                               trackGridDensity === 'massive'
                                 ? 'text-base'
                                 : trackGridDensity === 'huge'

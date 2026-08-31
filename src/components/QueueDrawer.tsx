@@ -133,7 +133,17 @@ const QueueItemRow: React.FC<{
             <span className={`text-xs font-semibold truncate ${isPlaying ? 'text-indigo-400' : 'text-white'}`}>
               {track.title}
             </span>
-            <span className="text-[11px] text-zinc-400 truncate">{track.artist}</span>
+            <span 
+              className="text-[11px] text-zinc-400 truncate hover:underline hover:text-indigo-400 cursor-pointer pointer-events-auto"
+              onClick={(e) => {
+                if (track.artist && track.artist !== 'Unknown Artist') {
+                  e.stopPropagation();
+                  usePlayerStore.getState().navigateToArtist(track.artist);
+                }
+              }}
+            >
+              {track.artist}
+            </span>
           </div>
         </div>
 
@@ -420,7 +430,17 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                       <span className="text-[10px] font-mono text-zinc-500">{idx + 1}</span>
                       <span className="text-xs font-medium truncate">{track.title}</span>
                     </div>
-                    <span className="text-[10px] text-zinc-500 truncate ml-2">{track.artist}</span>
+                    <span 
+                      className="text-[10px] text-zinc-500 truncate ml-2 hover:underline hover:text-indigo-400 cursor-pointer pointer-events-auto"
+                      onClick={(e) => {
+                        if (track.artist && track.artist !== 'Unknown Artist') {
+                          e.stopPropagation();
+                          usePlayerStore.getState().navigateToArtist(track.artist);
+                        }
+                      }}
+                    >
+                      {track.artist}
+                    </span>
                   </div>
                 ))}
               </div>

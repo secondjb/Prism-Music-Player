@@ -5,6 +5,9 @@ import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { TrackList } from './components/TrackList';
 import { AlbumGrid } from './components/AlbumGrid';
+import { ArtistsGrid } from './components/ArtistsGrid';
+import { ArtistView } from './components/ArtistView';
+import { AlbumView } from './components/AlbumView';
 import { SettingsView } from './components/SettingsView';
 import { PlaylistView } from './components/PlaylistView';
 import { BottomBar } from './components/BottomBar';
@@ -279,6 +282,12 @@ export const App: React.FC = () => {
         return <StatsView />;
       case 'albums':
         return <AlbumGrid tracks={filteredTracks} />;
+      case 'artists':
+        return <ArtistsGrid tracks={filteredTracks} />;
+      case 'artistView':
+        return <ArtistView />;
+      case 'albumView':
+        return <AlbumView />;
       case 'playlists':
         return <PlaylistView />;
       default:

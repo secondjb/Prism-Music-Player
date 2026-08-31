@@ -228,7 +228,16 @@ export const BottomBar: React.FC = () => {
                   <Heart className={`w-4 h-4 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
                 </button>
               </div>
-              <span className="text-xs text-zinc-400 truncate max-w-[140px]" title={currentTrack.artist}>
+              <span 
+                className="text-xs text-zinc-400 truncate max-w-[140px] hover:underline hover:text-indigo-400 cursor-pointer" 
+                title={currentTrack.artist}
+                onClick={(e) => {
+                  if (currentTrack.artist && currentTrack.artist !== 'Unknown Artist') {
+                    e.stopPropagation();
+                    usePlayerStore.getState().navigateToArtist(currentTrack.artist);
+                  }
+                }}
+              >
                 {currentTrack.artist}
               </span>
               

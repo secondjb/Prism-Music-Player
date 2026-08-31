@@ -8,10 +8,12 @@ interface AlbumGridProps {
   tracks: Track[];
 }
 
-const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () => void }> = ({
+const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () => void; onNavigate: () => void; artist: string }> = ({
   albumName,
   albumTracks,
   onPlay,
+  onNavigate,
+  artist
 }) => {
   const [isVisible, setIsVisible] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -28,14 +30,14 @@ const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () 
   }, []);
 
   const firstTrack = albumTracks[0];
-  const artist = firstTrack?.artist || 'Unknown Artist';
   // Only fetch art if it has come into view once
   const art = useTrackArt(isVisible ? firstTrack : null);
+  const navigateToArtist = usePlayerStore(s => s.navigateToArtist);
 
   return (
     <div
       ref={ref}
-      onClick={onPlay}
+      onClick={onNavigate}
       className="group glass-card rounded-2xl p-4 flex flex-col gap-3 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-950/30 h-[280px]"
     >
       {/* Album Cover Art */}
@@ -49,7 +51,10 @@ const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () 
         )}
 
         {/* Play Overlay Button */}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+        <div 
+          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+          onClick={(e) => { e.stopPropagation(); onPlay(); }}
+        >
           <div className="w-12 h-12 rounded-full bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-600/40 group-hover:scale-110 transition-transform">
             <Play className="w-6 h-6 fill-white ml-1" />
           </div>
@@ -58,8 +63,18 @@ const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () 
 
       {/* Album Details */}
       <div className="flex flex-col min-w-0">
-        <h4 className="font-bold text-sm text-white truncate">{isVisible ? albumName : '...'}</h4>
-        <p className="text-xs text-zinc-400 truncate mt-0.5">{isVisible ? artist : '...'}</p>
+        <h4 className="font-bold text-sm text-white truncate hover:underline">{isVisible ? albumName : '...'}</h4>
+        <p 
+          className="text-xs text-zinc-400 truncate mt-0.5 hover:underline hover:text-indigo-400 z-10"
+          onClick={(e) => {
+            if (isVisible && artist !== 'Unknown Artist') {
+              e.stopPropagation();
+              navigateToArtist(artist);
+            }
+          }}
+        >
+          {isVisible ? artist : '...'}
+        </p>
         <span className="text-[11px] text-zinc-500 font-mono mt-1">
           {albumTracks.length} track{albumTracks.length > 1 ? 's' : ''}
         </span>
@@ -71,6 +86,7 @@ const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () 
 export const AlbumGrid: React.FC<AlbumGridProps> = ({ tracks }) => {
   const setQueue = usePlayerStore((s) => s.setQueue);
   const playIndex = usePlayerStore((s) => s.playIndex);
+  const navigateToAlbum = usePlayerStore((s) => s.navigateToAlbum);
 
   // Group tracks by album name
   const albumsMap: Record<string, Track[]> = {};
@@ -99,13 +115,15 @@ export const AlbumGrid: React.FC<AlbumGridProps> = ({ tracks }) => {
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 pb-8">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 pb-8 overflow-y-auto h-full pr-2" style={{ alignContent: 'start' }}>
       {albumList.map(([albumName, albumTracks]) => (
         <AlbumCard
           key={albumName}
           albumName={albumName}
           albumTracks={albumTracks}
+          artist={albumTracks[0]?.artist || 'Unknown Artist'}
           onPlay={() => handlePlayAlbum(albumTracks)}
+          onNavigate={() => navigateToAlbum(albumName)}
         />
       ))}
     </div>

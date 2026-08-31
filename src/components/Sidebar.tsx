@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { ActiveTab, Track } from '../types/player';
-import { Library, Heart, Disc, Folder, Music, Mic2, FolderPlus, Settings, ChevronDown, ChevronRight, SlidersHorizontal, BarChart2, ListPlus, ListVideo, Play } from 'lucide-react';
+import { Library, Heart, Disc, Folder, Music, Mic2, FolderPlus, Settings, ChevronDown, ChevronRight, SlidersHorizontal, BarChart2, ListPlus, ListVideo, Play, User } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { GeminiLogo } from './GeminiLogo';
 
@@ -41,6 +41,7 @@ export const Sidebar: React.FC = () => {
   const navItems: { id: ActiveTab; label: string; icon: React.ReactNode }[] = [
     { id: 'library', label: 'All Tracks', icon: <Library className="w-5 h-5" /> },
     { id: 'filter', label: 'Advanced Filter', icon: <SlidersHorizontal className="w-5 h-5" /> },
+    { id: 'artists', label: 'Artists', icon: <User className="w-5 h-5" /> },
     { id: 'albums', label: 'Albums', icon: <Disc className="w-5 h-5" /> },
     { id: 'liked', label: 'Liked Songs', icon: <Heart className="w-5 h-5" /> },
     { id: 'playlists', label: 'Playlists', icon: <Music className="w-5 h-5" /> },

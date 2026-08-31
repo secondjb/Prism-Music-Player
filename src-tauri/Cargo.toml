@@ -39,4 +39,5 @@ stratum-dsp = "1.0.0"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 futures = "0.3"
 num_cpus = "1.16"
+rubato = "0.12"
 

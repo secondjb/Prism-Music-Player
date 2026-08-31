@@ -1,3 +1,4 @@
+use rubato::{InterpolationParameters, InterpolationType, Resampler, SincFixedIn, WindowFunction};
 use std::path::Path;
 use stratum_dsp::{analyze_audio, AnalysisConfig};
 use symphonia::core::audio::SampleBuffer;
@@ -50,9 +51,8 @@ pub fn analyze_audio_waveform(path: &Path) -> AudioAnalysisResult {
     };
 
     // TURBO MODE OPTIMIZATIONS:
-    // Skip first 45 seconds (focusing on chorus/drop), decimate sample rate by factor 2 for 24s window
-    let effective_sample_rate = sample_rate / 2;
-    let max_samples = (effective_sample_rate as usize) * 24;
+    // Skip first 45 seconds (focusing on chorus/drop), collect 15 seconds of full-resolution mono audio
+    let max_samples = (sample_rate as usize) * 15;
     let skip_samples = (sample_rate as usize) * 45;
     let mut samples: Vec<f32> = Vec::with_capacity(max_samples);
     let mut total_read = 0;
@@ -89,11 +89,6 @@ pub fn analyze_audio_waveform(path: &Path) -> AudioAnalysisResult {
                         continue;
                     }
 
-                    // Decimation factor of 2: keep every 2nd sample
-                    if (total_read - skip_samples) % 2 != 0 {
-                        continue;
-                    }
-
                     // Downmix interleaved channels to mono
                     let mut sum = 0.0f32;
                     for c in 0..num_channels {
@@ -116,16 +111,72 @@ pub fn analyze_audio_waveform(path: &Path) -> AudioAnalysisResult {
         }
     }
 
-    if samples.len() < (effective_sample_rate as usize) * 3 {
+    if samples.len() < (sample_rate as usize) * 3 {
         return AudioAnalysisResult { bpm: None, key: None };
     }
 
+    // High-resolution Audio Anti-Aliased Resampling via Rubato (downsample >48kHz to 44.1kHz)
+    let (final_samples, final_sample_rate) = if sample_rate > 48000 {
+        let target_sr = 44100u32;
+        let resample_ratio = target_sr as f64 / sample_rate as f64;
+        let params = InterpolationParameters {
+            sinc_len: 128,
+            f_cutoff: 0.95,
+            interpolation: InterpolationType::Linear,
+            oversampling_factor: 256,
+            window: WindowFunction::BlackmanHarris2,
+        };
+        let chunk_size = 1024;
+        let mut resampler = match SincFixedIn::<f32>::new(
+            resample_ratio,
+            2.0,
+            params,
+            chunk_size,
+            1,
+        ) {
+            Ok(r) => r,
+            Err(_) => return AudioAnalysisResult { bpm: None, key: None },
+        };
+
+        let mut out_vec = Vec::with_capacity((samples.len() as f64 * resample_ratio) as usize + 1024);
+        let mut input_waves = vec![vec![0.0f32; chunk_size]];
+        let total_input_frames = samples.len();
+        let mut read_idx = 0;
+
+        while read_idx < total_input_frames {
+            let remaining = total_input_frames - read_idx;
+            if remaining >= chunk_size {
+                input_waves[0].copy_from_slice(&samples[read_idx..read_idx + chunk_size]);
+                read_idx += chunk_size;
+                if let Ok(resampled) = resampler.process(&input_waves, None) {
+                    if let Some(chan) = resampled.first() {
+                        out_vec.extend_from_slice(chan);
+                    }
+                }
+            } else {
+                input_waves[0][..remaining].copy_from_slice(&samples[read_idx..read_idx + remaining]);
+                input_waves[0][remaining..].fill(0.0);
+                read_idx += remaining;
+                if let Ok(resampled) = resampler.process(&input_waves, None) {
+                    if let Some(chan) = resampled.first() {
+                        let take_len = (remaining as f64 * resample_ratio).round() as usize;
+                        let chunk_len = chan.len().min(take_len);
+                        out_vec.extend_from_slice(&chan[..chunk_len]);
+                    }
+                }
+            }
+        }
+
+        (out_vec, target_sr)
+    } else {
+        (samples, sample_rate)
+    };
+
     let config = AnalysisConfig::default();
-    match analyze_audio(&samples, effective_sample_rate, config) {
+    match analyze_audio(&final_samples, final_sample_rate, config) {
         Ok(result) => {
             let bpm = if result.bpm > 0.0 && result.bpm.is_finite() {
                 let mut bpm_val = result.bpm;
-                // Post-processing octave heuristics: double if < 80, halve if > 190
                 if bpm_val < 80.0 {
                     bpm_val *= 2.0;
                 } else if bpm_val > 190.0 {

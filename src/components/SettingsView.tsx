@@ -63,6 +63,11 @@ export const SettingsView: React.FC = () => {
   const keyOrBpmCount = tracks.filter((t) => Boolean(t.key || t.bpm)).length;
 
   const handleAddIncludedDir = async () => {
+    if (isAndroid) {
+      setAndroidFolderMode('include');
+      setShowAndroidFolderModal(true);
+      return;
+    }
     try {
       if (window.__TAURI_INTERNALS__) {
         const selected = await open({
@@ -83,6 +88,11 @@ export const SettingsView: React.FC = () => {
   };
 
   const handleAddExcludedDir = async () => {
+    if (isAndroid) {
+      setAndroidFolderMode('exclude');
+      setShowAndroidFolderModal(true);
+      return;
+    }
     try {
       if (window.__TAURI_INTERNALS__) {
         const selected = await open({
@@ -114,18 +124,34 @@ export const SettingsView: React.FC = () => {
     setIsAnalyzingAudio(false);
   };
 
+  const [showAndroidFolderModal, setShowAndroidFolderModal] = useState(false);
+  const [androidFolderMode, setAndroidFolderMode] = useState<'include' | 'exclude'>('include');
+  const [androidCustomPath, setAndroidCustomPath] = useState('/storage/emulated/0/Music');
+  const isAndroid = /android/i.test(navigator.userAgent);
+
+  const handleAndroidFolderAdd = async () => {
+    setIsScanning(true);
+    if (androidFolderMode === 'include') {
+      await addIncludedDirectory(androidCustomPath);
+    } else {
+      await addExcludedDirectory(androidCustomPath);
+    }
+    setShowAndroidFolderModal(false);
+    setIsScanning(false);
+  };
+
   return (
     <div className="w-full max-w-4xl mx-auto flex flex-col gap-8 pb-36 overflow-y-auto custom-scrollbar pr-2 h-full">
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600/30 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shadow-lg shadow-indigo-950/30">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-white/10 pb-5 text-center sm:text-left">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-600/30 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shadow-lg shadow-indigo-950/30 shrink-0">
             <Settings2 className="w-6 h-6" />
           </div>
           <div>
             <h2 className="text-xl font-bold text-white tracking-wide">Settings & Library Folders</h2>
-            <p className="text-xs text-zinc-400 mt-0.5">
+            <p className="text-xs text-zinc-400 mt-0.5 max-w-sm">
               Manage watched music directories, background tag indexing, audio waveform analysis, and lyrics.
             </p>
           </div>
@@ -573,22 +599,22 @@ export const SettingsView: React.FC = () => {
       </div>
 
       {/* 4. Privacy, App Reset & Storage (Danger Zone) */}
-      <div className="glass-card rounded-2xl p-6 border border-rose-500/20 bg-rose-950/10 flex flex-col gap-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start md:items-center gap-3 flex-1 min-w-0 pr-2">
+      <div className="glass-card rounded-2xl p-6 border border-rose-500/20 bg-rose-950/10 flex flex-col gap-4 items-center sm:items-stretch text-center sm:text-left">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 flex-1 min-w-0 pr-2">
             <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30 shrink-0">
               <AlertTriangle className="w-5 h-5" />
             </div>
-            <div className="flex flex-col min-w-0">
+            <div className="flex flex-col min-w-0 items-center sm:items-start">
               <h3 className="text-base font-bold text-white">Reset App Data & Synced Folders</h3>
-              <p className="text-xs text-zinc-400 leading-relaxed mt-0.5">
+              <p className="text-xs text-zinc-400 leading-relaxed mt-0.5 max-w-md">
                 Removes all synced directory paths, clears app cache, and resets settings. Your audio files on disk will NOT be deleted or modified.
               </p>
             </div>
           </div>
           <button
             onClick={() => setShowWipeModal(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-semibold transition-all hover:scale-105 shadow-md shadow-rose-950/50 shrink-0 self-start md:self-auto"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-semibold transition-all hover:scale-105 shadow-md shadow-rose-950/50 shrink-0 self-center sm:self-auto"
           >
             <Trash2 className="w-4 h-4" />
             <span>Wipe Personal Data</span>
@@ -631,6 +657,61 @@ export const SettingsView: React.FC = () => {
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition-all shadow-md shadow-rose-950/50"
               >
                 Yes, Reset Everything
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Android Custom Folder Picker Modal */}
+      {showAndroidFolderModal && (
+        <div className="fixed inset-0 z-[60] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="glass-panel border border-indigo-500/30 rounded-2xl p-6 max-w-md w-full shadow-2xl flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shrink-0">
+                {androidFolderMode === 'include' ? <FolderPlus className="w-5 h-5" /> : <FolderMinus className="w-5 h-5" />}
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-white">
+                  {androidFolderMode === 'include' ? 'Add Music Folder' : 'Exclude Subfolder'}
+                </h4>
+                <p className="text-xs text-indigo-300 font-medium">Enter absolute path for Android</p>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-zinc-300 bg-white/5 p-3 rounded-xl border border-white/5">
+              Since Android 11, selecting folders requires entering the native path. Common paths:
+              <br />
+              • <strong className="text-white">/storage/emulated/0/Music</strong>
+              <br />
+              • <strong className="text-white">/storage/emulated/0/Downloads</strong>
+              <br /><br />
+              <strong className="text-amber-400">Important:</strong> Ensure you have granted Prism "All Files Access" in Android Settings or it won't be able to scan!
+            </p>
+
+            <div className="flex flex-col gap-2 pt-2">
+              <label className="text-xs font-semibold text-zinc-400">Folder Path</label>
+              <input 
+                type="text" 
+                value={androidCustomPath}
+                onChange={(e) => setAndroidCustomPath(e.target.value)}
+                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+                placeholder="/storage/emulated/0/Music"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10 mt-2">
+              <button
+                onClick={() => setShowAndroidFolderModal(false)}
+                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAndroidFolderAdd}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-md"
+              >
+                {androidFolderMode === 'include' ? 'Add Folder' : 'Exclude Folder'}
               </button>
             </div>
           </div>

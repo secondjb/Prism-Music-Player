@@ -1,6 +1,8 @@
 use std::path::Path;
+use rustfft::num_complex::Complex;
+use rustfft::FftPlanner;
 use symphonia::core::codecs::DecoderOptions;
-use symphonia::core::formats::FormatOptions;
+use symphonia::core::formats::{FormatOptions, SeekMode, SeekTo};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
@@ -12,13 +14,13 @@ const MINOR_PROFILE: [f32; 12] = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75
 const NOTE_NAMES: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 /// Result of audio waveform analysis
-#[derive(Debug)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AudioAnalysisResult {
     pub bpm: Option<u32>,
     pub key: Option<String>,
 }
 
-/// Analyze audio file waveform to estimate BPM and Key
+/// Analyze audio file waveform to estimate BPM and Key using STFT Chromagram and Spectral Flux
 pub fn analyze_audio_waveform(path: &Path) -> AudioAnalysisResult {
     let file = match std::fs::File::open(path) {
         Ok(f) => f,
@@ -41,7 +43,6 @@ pub fn analyze_audio_waveform(path: &Path) -> AudioAnalysisResult {
     };
 
     let mut format = probed.format;
-
     let track = match format.default_track() {
         Some(t) => t,
         None => return AudioAnalysisResult { bpm: None, key: None },
@@ -49,48 +50,197 @@ pub fn analyze_audio_waveform(path: &Path) -> AudioAnalysisResult {
 
     let sample_rate = track.codec_params.sample_rate.unwrap_or(44100) as usize;
     let track_id = track.id;
+    let n_frames = track.codec_params.n_frames;
 
     let mut decoder = match symphonia::default::get_codecs().make(&track.codec_params, &decoder_opts) {
         Ok(d) => d,
         Err(_) => return AudioAnalysisResult { bpm: None, key: None },
     };
 
-    // Collect up to 40 seconds of mono PCM audio samples (skip first 2 seconds)
-    let target_samples = sample_rate * 40;
-    let skip_samples = sample_rate * 2;
+    // Extract 3 representative 15-second windows at 25%, 50%, and 75% of the song
+    let window_secs = 15;
+    let window_samples = sample_rate * window_secs;
 
-    let mut samples: Vec<f32> = Vec::with_capacity(target_samples);
-    let mut total_read = 0;
+    let mut windows: Vec<Vec<f32>> = Vec::new();
+
+    // If seeking is supported and total frames known, seek to target positions
+    if let Some(total_f) = n_frames {
+        if total_f > (sample_rate as u64 * 30) {
+            let marks = [0.25f64, 0.50f64, 0.75f64];
+            for &pct in &marks {
+                let target_ts = (total_f as f64 * pct) as u64;
+                if format.seek(SeekMode::Coarse, SeekTo::TimeStamp { ts: target_ts, track_id }).is_ok() {
+                    decoder.reset();
+                    if let Some(chunk) = decode_pcm_window(&mut format, &mut decoder, track_id, window_samples) {
+                        if chunk.len() >= sample_rate * 5 {
+                            windows.push(chunk);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback: Streaming decode if seeking didn't produce windows
+    if windows.is_empty() {
+        let stream_windows = decode_streaming_windows(&mut format, &mut decoder, track_id, sample_rate);
+        for w in stream_windows {
+            if w.len() >= sample_rate * 5 {
+                windows.push(w);
+            }
+        }
+    }
+
+    if windows.is_empty() {
+        return AudioAnalysisResult { bpm: None, key: None };
+    }
+
+    // Downsample each window to 11025 Hz for efficient STFT processing
+    let target_rate = 11025;
+    let step = (sample_rate / target_rate).max(1);
+
+    let mut bpms: Vec<u32> = Vec::new();
+    let mut key_candidates: Vec<(String, f32)> = Vec::new();
+
+    for w in &windows {
+        let downsampled: Vec<f32> = w.iter().step_by(step).copied().collect();
+        if downsampled.len() < target_rate * 5 {
+            continue;
+        }
+
+        if let Some(bpm) = estimate_bpm_spectral_flux(&downsampled, target_rate) {
+            bpms.push(bpm);
+        }
+
+        if let Some((key, score)) = estimate_key_stft(&downsampled, target_rate) {
+            key_candidates.push((key, score));
+        }
+    }
+
+    // Median BPM across windows to avoid intro/outro anomalies
+    let final_bpm = if !bpms.is_empty() {
+        bpms.sort_unstable();
+        Some(bpms[bpms.len() / 2])
+    } else {
+        None
+    };
+
+    // Highest confidence key across windows
+    let final_key = key_candidates
+        .into_iter()
+        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+        .map(|(k, _)| k);
+
+    AudioAnalysisResult {
+        bpm: final_bpm,
+        key: final_key,
+    }
+}
+
+/// Decode a mono PCM window of given sample length
+fn decode_pcm_window(
+    format: &mut Box<dyn symphonia::core::formats::FormatReader>,
+    decoder: &mut Box<dyn symphonia::core::codecs::Decoder>,
+    track_id: u32,
+    max_samples: usize,
+) -> Option<Vec<f32>> {
+    let mut samples: Vec<f32> = Vec::with_capacity(max_samples);
 
     while let Ok(packet) = format.next_packet() {
         if packet.track_id() != track_id {
             continue;
         }
 
-        match decoder.decode(&packet) {
-            Ok(audio_buf) => {
-                let spec = *audio_buf.spec();
-                let num_channels = spec.channels.count();
-                let num_frames = audio_buf.frames();
+        if let Ok(audio_buf) = decoder.decode(&packet) {
+            let spec = *audio_buf.spec();
+            let num_channels = spec.channels.count();
+            let num_frames = audio_buf.frames();
+            if num_frames == 0 {
+                continue;
+            }
 
-                if num_frames == 0 {
-                    continue;
-                }
+            let mut sample_buf = symphonia::core::audio::SampleBuffer::<f32>::new(
+                audio_buf.capacity() as u64,
+                spec,
+            );
+            sample_buf.copy_interleaved_ref(audio_buf);
+            let pcm = sample_buf.samples();
 
-                let mut sample_buf = symphonia::core::audio::SampleBuffer::<f32>::new(
-                    audio_buf.capacity() as u64,
-                    spec,
-                );
-                sample_buf.copy_interleaved_ref(audio_buf);
-                let pcm = sample_buf.samples();
-
-                for frame in 0..num_frames {
-                    total_read += 1;
-                    if total_read < skip_samples {
-                        continue;
+            for frame in 0..num_frames {
+                let mut sum = 0.0f32;
+                for c in 0..num_channels {
+                    let idx = frame * num_channels + c;
+                    if idx < pcm.len() {
+                        sum += pcm[idx];
                     }
+                }
+                samples.push(sum / (num_channels as f32));
+                if samples.len() >= max_samples {
+                    return Some(samples);
+                }
+            }
+        }
+    }
 
-                    // Convert channels to mono
+    if samples.is_empty() {
+        None
+    } else {
+        Some(samples)
+    }
+}
+
+/// Streaming decode fallback collecting up to three 15-second windows (at 10-25s, 40-55s, 70-85s)
+fn decode_streaming_windows(
+    format: &mut Box<dyn symphonia::core::formats::FormatReader>,
+    decoder: &mut Box<dyn symphonia::core::codecs::Decoder>,
+    track_id: u32,
+    sample_rate: usize,
+) -> Vec<Vec<f32>> {
+    let mut windows = Vec::new();
+    let win_len = sample_rate * 15;
+
+    // Boundaries in total frames decoded
+    let w1_start = sample_rate * 10;
+    let w1_end = w1_start + win_len;
+    let w2_start = sample_rate * 40;
+    let w2_end = w2_start + win_len;
+    let w3_start = sample_rate * 70;
+    let w3_end = w3_start + win_len;
+
+    let mut w1 = Vec::with_capacity(win_len);
+    let mut w2 = Vec::with_capacity(win_len);
+    let mut w3 = Vec::with_capacity(win_len);
+
+    let mut current_frame = 0;
+
+    while let Ok(packet) = format.next_packet() {
+        if packet.track_id() != track_id {
+            continue;
+        }
+
+        if let Ok(audio_buf) = decoder.decode(&packet) {
+            let spec = *audio_buf.spec();
+            let num_channels = spec.channels.count();
+            let num_frames = audio_buf.frames();
+            if num_frames == 0 {
+                continue;
+            }
+
+            let mut sample_buf = symphonia::core::audio::SampleBuffer::<f32>::new(
+                audio_buf.capacity() as u64,
+                spec,
+            );
+            sample_buf.copy_interleaved_ref(audio_buf);
+            let pcm = sample_buf.samples();
+
+            for frame in 0..num_frames {
+                let f_idx = current_frame;
+                current_frame += 1;
+
+                if (f_idx >= w1_start && f_idx < w1_end)
+                    || (f_idx >= w2_start && f_idx < w2_end)
+                    || (f_idx >= w3_start && f_idx < w3_end)
+                {
                     let mut sum = 0.0f32;
                     for c in 0..num_channels {
                         let idx = frame * num_channels + c;
@@ -98,175 +248,82 @@ pub fn analyze_audio_waveform(path: &Path) -> AudioAnalysisResult {
                             sum += pcm[idx];
                         }
                     }
-                    samples.push(sum / (num_channels as f32));
+                    let mono = sum / (num_channels as f32);
 
-                    if samples.len() >= target_samples {
-                        break;
+                    if f_idx >= w1_start && f_idx < w1_end {
+                        w1.push(mono);
+                    } else if f_idx >= w2_start && f_idx < w2_end {
+                        w2.push(mono);
+                    } else if f_idx >= w3_start && f_idx < w3_end {
+                        w3.push(mono);
                     }
                 }
+
+                if f_idx >= w3_end {
+                    break;
+                }
             }
-            Err(_) => break,
-        }
 
-        if samples.len() >= target_samples {
-            break;
+            if current_frame >= w3_end {
+                break;
+            }
         }
     }
 
-    if samples.len() < sample_rate * 3 {
-        return AudioAnalysisResult { bpm: None, key: None };
-    }
-
-    // Downsample to 11025 Hz for fast processing
-    let target_rate = 11025;
-    let step = (sample_rate / target_rate).max(1);
-    let downsampled: Vec<f32> = samples.iter().step_by(step).copied().collect();
-
-    let bpm = estimate_bpm(&downsampled, target_rate);
-    let key = estimate_key(&downsampled, target_rate);
-
-    AudioAnalysisResult { bpm, key }
+    if !w1.is_empty() { windows.push(w1); }
+    if !w2.is_empty() { windows.push(w2); }
+    if !w3.is_empty() { windows.push(w3); }
+    windows
 }
 
-/// Estimate BPM from mono audio buffer using onset autocorrelation & log-normal tempo prior weighting
-fn estimate_bpm(samples: &[f32], sample_rate: usize) -> Option<u32> {
-    let frame_size = 256;
-    let num_frames = samples.len() / frame_size;
-    if num_frames < 100 {
-        return None;
-    }
-
-    // Compute frame energies with onset envelope derivative
-    let mut energies = Vec::with_capacity(num_frames);
-    for f in 0..num_frames {
-        let start = f * frame_size;
-        let mut e = 0.0f32;
-        for i in 0..frame_size {
-            let s = samples[start + i];
-            e += s * s;
-        }
-        energies.push(e.sqrt());
-    }
-
-    let mut onset = vec![0.0f32; num_frames];
-    for f in 1..num_frames {
-        let diff = energies[f] - energies[f - 1];
-        if diff > 0.0 {
-            onset[f] = diff;
-        }
-    }
-
-    // Autocorrelation for tempo lags corresponding to 55 BPM to 195 BPM
-    let frame_rate = sample_rate as f32 / frame_size as f32; // ~43.066 Hz
-
-    let min_bpm = 55.0f32;
-    let max_bpm = 195.0f32;
-
-    let min_lag = (frame_rate * 60.0 / max_bpm).round() as usize;
-    let max_lag = (frame_rate * 60.0 / min_bpm).round() as usize;
-
-    if max_lag >= num_frames {
-        return None;
-    }
-
-    let mut raw_corrs = vec![0.0f32; max_lag + 1];
-
-    for lag in min_lag..=max_lag {
-        let mut corr = 0.0f32;
-        let mut count = 0;
-
-        for i in 0..(num_frames - lag) {
-            corr += onset[i] * onset[i + lag];
-            count += 1;
-        }
-
-        if count > 0 {
-            raw_corrs[lag] = corr / (count as f32);
-        }
-    }
-
-    // Weighted correlation with a broad log-normal tempo prior centered around 125 BPM
-    let mut best_lag = 0;
-    let mut max_weighted_score = -1.0f32;
-
-    for lag in min_lag..=max_lag {
-        let raw = raw_corrs[lag];
-        if raw <= 0.0 {
-            continue;
-        }
-
-        let bpm_cand = frame_rate * 60.0 / lag as f32;
-        let log_ratio = (bpm_cand / 125.0).ln();
-        let prior_weight = (-0.5 * (log_ratio / 0.50).powi(2)).exp();
-
-        let score = raw * (0.6 + 0.4 * prior_weight);
-        if score > max_weighted_score {
-            max_weighted_score = score;
-            best_lag = lag;
-        }
-    }
-
-    if best_lag == 0 {
-        return None;
-    }
-
-    let final_bpm = (frame_rate * 60.0 / best_lag as f32).round() as u32;
-    if (50..=220).contains(&final_bpm) {
-        Some(final_bpm)
-    } else {
-        None
-    }
-}
-
-/// Estimate Musical Key using Hanning-windowed Goertzel chromagram across 5 octaves (C2 to B6) & Krumhansl-Schmuckler profiles
-fn estimate_key(samples: &[f32], sample_rate: usize) -> Option<String> {
-    let mut chroma = [0.0f32; 12];
-
-    // Evaluate DFT Goertzel energy for notes across 5 octaves (C2 to B6, ~65.4 Hz to 1975 Hz)
-    let f0_c2 = 65.4063f32;
-    let window_size = 4096;
-    let step_size = 2048; // 50% overlap
+/// Estimate Musical Key using Short-Time Fourier Transform (STFT) via rustfft and log-frequency Chromagram
+fn estimate_key_stft(samples: &[f32], sample_rate: usize) -> Option<(String, f32)> {
+    let window_size = 2048;
+    let hop_size = 512;
 
     if samples.len() < window_size {
         return None;
     }
 
-    // Precompute Hanning window function
+    let mut planner = FftPlanner::<f32>::new();
+    let fft = planner.plan_fft_forward(window_size);
+
+    // Precompute Hanning window
     let hanning: Vec<f32> = (0..window_size)
         .map(|n| 0.5 * (1.0 - (2.0 * std::f32::consts::PI * n as f32 / (window_size - 1) as f32).cos()))
         .collect();
 
-    let mut window_count = 0;
+    let mut chroma = [0.0f32; 12];
+    let mut fft_buffer = vec![Complex { re: 0.0f32, im: 0.0f32 }; window_size];
 
-    for chunk_start in (0..samples.len().saturating_sub(window_size)).step_by(step_size) {
+    let bin_freq_step = sample_rate as f32 / window_size as f32; // ~5.38 Hz per bin
+
+    // Map FFT bins to semitone pitch classes (approx. C2 at ~65 Hz to C7 at ~2093 Hz)
+    let min_freq = 65.0f32;
+    let max_freq = 2093.0f32;
+
+    for chunk_start in (0..samples.len().saturating_sub(window_size)).step_by(hop_size) {
         let chunk = &samples[chunk_start..chunk_start + window_size];
-        window_count += 1;
 
-        for note in 0..12 {
-            for octave in 0..5 {
-                let freq = f0_c2 * (2.0f32).powf((note as f32 + octave as f32 * 12.0) / 12.0);
-                let omega = 2.0 * std::f32::consts::PI * freq / sample_rate as f32;
-                let cos_w = omega.cos();
-                let coeff = 2.0 * cos_w;
+        for i in 0..window_size {
+            fft_buffer[i] = Complex {
+                re: chunk[i] * hanning[i],
+                im: 0.0,
+            };
+        }
 
-                let mut s_prev = 0.0f32;
-                let mut s_prev2 = 0.0f32;
+        fft.process(&mut fft_buffer);
 
-                for (i, &s) in chunk.iter().enumerate() {
-                    let windowed_sample = s * hanning[i];
-                    let s_curr = windowed_sample + coeff * s_prev - s_prev2;
-                    s_prev2 = s_prev;
-                    s_prev = s_curr;
-                }
-
-                let power = (s_prev2 * s_prev2 + s_prev * s_prev - coeff * s_prev * s_prev2).max(0.0).sqrt();
-                chroma[note] += power;
+        for k in 1..(window_size / 2) {
+            let freq = k as f32 * bin_freq_step;
+            if freq >= min_freq && freq <= max_freq {
+                let mag = (fft_buffer[k].re * fft_buffer[k].re + fft_buffer[k].im * fft_buffer[k].im).sqrt();
+                // MIDI pitch number from frequency: 69 + 12 * log2(freq / 440.0)
+                let midi_pitch = 12.0 * (freq / 440.0).log2() + 69.0;
+                let pitch_class = (midi_pitch.round() as i32).rem_euclid(12) as usize;
+                chroma[pitch_class] += mag;
             }
         }
-    }
-
-    if window_count == 0 {
-        return None;
     }
 
     // Normalize chromagram vector
@@ -278,7 +335,7 @@ fn estimate_key(samples: &[f32], sample_rate: usize) -> Option<String> {
         *c /= sum;
     }
 
-    // Correlate chromagram with 12 Major and 12 Minor keys
+    // Correlate chromagram with 12 Major and 12 Minor keys using Krumhansl-Schmuckler profiles
     let mut best_score = -1e9f32;
     let mut best_key = None;
 
@@ -291,17 +348,153 @@ fn estimate_key(samples: &[f32], sample_rate: usize) -> Option<String> {
         let major_score = pearson_correlation(&rotated, &MAJOR_PROFILE);
         if major_score > best_score {
             best_score = major_score;
-            best_key = Some(format!("{} Major", NOTE_NAMES[shift]));
+            best_key = Some((format!("{} Major", NOTE_NAMES[shift]), major_score));
         }
 
         let minor_score = pearson_correlation(&rotated, &MINOR_PROFILE);
         if minor_score > best_score {
             best_score = minor_score;
-            best_key = Some(format!("{} Minor", NOTE_NAMES[shift]));
+            best_key = Some((format!("{} Minor", NOTE_NAMES[shift]), minor_score));
         }
     }
 
     best_key
+}
+
+/// Estimate BPM using Spectral Flux onset detection across STFT frames with parabolic peak interpolation
+fn estimate_bpm_spectral_flux(samples: &[f32], sample_rate: usize) -> Option<u32> {
+    let window_size = 1024;
+    let hop_size = 128; // High temporal resolution (~86.13 Hz frame rate at 11025 Hz)
+
+    if samples.len() < window_size * 2 {
+        return None;
+    }
+
+    let mut planner = FftPlanner::<f32>::new();
+    let fft = planner.plan_fft_forward(window_size);
+
+    let hanning: Vec<f32> = (0..window_size)
+        .map(|n| 0.5 * (1.0 - (2.0 * std::f32::consts::PI * n as f32 / (window_size - 1) as f32).cos()))
+        .collect();
+
+    let mut fft_buffer = vec![Complex { re: 0.0f32, im: 0.0f32 }; window_size];
+    let mut prev_mag = vec![0.0f32; window_size / 2];
+    let mut spectral_flux = Vec::new();
+
+    for chunk_start in (0..samples.len().saturating_sub(window_size)).step_by(hop_size) {
+        let chunk = &samples[chunk_start..chunk_start + window_size];
+
+        for i in 0..window_size {
+            fft_buffer[i] = Complex {
+                re: chunk[i] * hanning[i],
+                im: 0.0,
+            };
+        }
+
+        fft.process(&mut fft_buffer);
+
+        let mut flux = 0.0f32;
+        // Ignore low sub-rumble bins (k < 2)
+        for k in 2..(window_size / 2) {
+            let mag = (fft_buffer[k].re * fft_buffer[k].re + fft_buffer[k].im * fft_buffer[k].im).sqrt();
+            let diff = mag - prev_mag[k];
+            if diff > 0.0 {
+                flux += diff;
+            }
+            prev_mag[k] = mag;
+        }
+
+        spectral_flux.push(flux);
+    }
+
+    let num_frames = spectral_flux.len();
+    if num_frames < 200 {
+        return None;
+    }
+
+    // Adaptive local thresholding / subtraction to isolate sharp onsets
+    let mut onset = vec![0.0f32; num_frames];
+    let half_win = 8;
+    for i in 0..num_frames {
+        let start = i.saturating_sub(half_win);
+        let end = (i + half_win).min(num_frames);
+        let local_mean = spectral_flux[start..end].iter().sum::<f32>() / (end - start) as f32;
+        let val = spectral_flux[i] - local_mean;
+        if val > 0.0 {
+            onset[i] = val;
+        }
+    }
+
+    let frame_rate = sample_rate as f32 / hop_size as f32; // ~86.1328 Hz
+
+    let min_bpm = 55.0f32;
+    let max_bpm = 195.0f32;
+
+    let min_lag = (frame_rate * 60.0 / max_bpm).round() as usize; // ~26 frames
+    let max_lag = (frame_rate * 60.0 / min_bpm).round() as usize; // ~94 frames
+
+    if max_lag >= num_frames {
+        return None;
+    }
+
+    let mut corrs = vec![0.0f32; max_lag + 2];
+
+    for lag in min_lag..=max_lag {
+        let mut sum = 0.0f32;
+        let mut count = 0;
+        for i in 0..(num_frames - lag) {
+            sum += onset[i] * onset[i + lag];
+            count += 1;
+        }
+        if count > 0 {
+            corrs[lag] = sum / count as f32;
+        }
+    }
+
+    // Apply log-normal tempo prior centered around 125 BPM
+    let mut best_lag = 0;
+    let mut max_score = -1.0f32;
+
+    for lag in min_lag..=max_lag {
+        let raw = corrs[lag];
+        if raw <= 0.0 {
+            continue;
+        }
+
+        let bpm_cand = frame_rate * 60.0 / lag as f32;
+        let log_ratio = (bpm_cand / 125.0).ln();
+        let prior_weight = (-0.5 * (log_ratio / 0.45).powi(2)).exp();
+
+        let score = raw * (0.60 + 0.40 * prior_weight);
+        if score > max_score {
+            max_score = score;
+            best_lag = lag;
+        }
+    }
+
+    if best_lag == 0 || best_lag <= min_lag || best_lag >= max_lag {
+        return None;
+    }
+
+    // Parabolic interpolation for sub-frame precision
+    let y1 = corrs[best_lag - 1];
+    let y2 = corrs[best_lag];
+    let y3 = corrs[best_lag + 1];
+    let denom = 2.0 * (2.0 * y2 - y1 - y3);
+    let delta = if denom.abs() > 1e-6 {
+        (y1 - y3) / denom
+    } else {
+        0.0
+    };
+
+    let refined_lag = best_lag as f32 + delta.clamp(-0.5, 0.5);
+    let final_bpm = (frame_rate * 60.0 / refined_lag).round() as u32;
+
+    if (50..=220).contains(&final_bpm) {
+        Some(final_bpm)
+    } else {
+        None
+    }
 }
 
 fn pearson_correlation(x: &[f32; 12], y: &[f32; 12]) -> f32 {

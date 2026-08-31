@@ -53,7 +53,7 @@ const COLUMN_LABELS: Record<TrackColumnId, string> = {
 };
 
 const ART_COL_WIDTHS: Record<TrackGridDensity, number> = {
-  compact: 36, normal: 48, large: 64, 'extra-large': 80, huge: 96,
+  compact: 36, normal: 48, large: 64, 'extra-large': 80, huge: 96, massive: 120,
 };
 
 const DENSITY_CONFIG = {
@@ -82,10 +82,12 @@ const DENSITY_CONFIG = {
     textSize: 'text-xl', subTextSize: 'text-base',
     numTextSize: 'text-xl', playBadgeSize: 'w-10 h-10', playIconSize: 'w-6 h-6',
   },
-} satisfies Record<TrackGridDensity, {
-  rowHeight: number; artSize: string; artIconSize: string; textSize: string;
-  subTextSize: string; numTextSize: string; playBadgeSize: string; playIconSize: string;
-}>;
+  massive: {
+    rowHeight: 120, artSize: 'w-24 h-24', artIconSize: 'w-8 h-8',
+    textSize: 'text-2xl', subTextSize: 'text-lg',
+    numTextSize: 'text-2xl', playBadgeSize: 'w-12 h-12', playIconSize: 'w-7 h-7',
+  },
+};
 
 const formatDuration = (secs: number) => {
   if (!secs || isNaN(secs)) return '0:00';

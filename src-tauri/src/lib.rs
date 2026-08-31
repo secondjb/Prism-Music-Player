@@ -342,32 +342,84 @@ fn filter_tracks(app_handle: AppHandle, params: FilterParams) -> Result<Vec<Stri
 
 mod audio_analysis;
 
+#[derive(Clone, serde::Serialize)]
+struct AudioAnalysisProgress {
+    current: usize,
+    total: usize,
+    track_id: String,
+    bpm: Option<u32>,
+    key: Option<String>,
+}
+
 #[tauri::command]
-fn analyze_library_audio(app_handle: AppHandle) -> Result<Vec<TrackMetadata>, String> {
-    use rayon::prelude::*;
+fn analyze_library_audio(app_handle: AppHandle) -> Result<(), String> {
     let app_data_dir = app_handle
         .path()
         .app_data_dir()
         .map_err(|e| e.to_string())?;
 
-    let mut tracks = load_library_from_disk(&app_data_dir).unwrap_or_default();
-
-    // Parallel background analysis of audio waveforms for all tracks in library
-    tracks.par_iter_mut().for_each(|track| {
-        let p = std::path::Path::new(&track.path);
-        if p.exists() {
-            let analysis = audio_analysis::analyze_audio_waveform(p);
-            if let Some(bpm) = analysis.bpm {
-                track.bpm = Some(bpm);
-            }
-            if let Some(key) = analysis.key {
-                track.key = Some(key);
-            }
+    std::thread::spawn(move || {
+        let mut tracks = load_library_from_disk(&app_data_dir).unwrap_or_default();
+        let total = tracks.len();
+        if total == 0 {
+            let _ = app_handle.emit("audio_analysis_completed", Vec::<TrackMetadata>::new());
+            return;
         }
+
+        // Dedicated 2-thread worker pool so the CPU remains completely responsive
+        let pool = match rayon::ThreadPoolBuilder::new().num_threads(2).build() {
+            Ok(p) => p,
+            Err(_) => return,
+        };
+
+        use rayon::prelude::*;
+        let processed_count = std::sync::atomic::AtomicUsize::new(0);
+
+        // Process in small batches of 10 tracks, saving to disk continuously
+        let chunk_size = 10;
+        let num_tracks = tracks.len();
+        for i in (0..num_tracks).step_by(chunk_size) {
+            let end = (i + chunk_size).min(num_tracks);
+            pool.install(|| {
+                tracks[i..end].par_iter_mut().for_each(|track| {
+                    let p = std::path::Path::new(&track.path);
+                    if p.exists() {
+                        let analysis = audio_analysis::analyze_audio_waveform(p);
+                        if let Some(bpm) = analysis.bpm {
+                            track.bpm = Some(bpm);
+                        }
+                        if let Some(key) = analysis.key {
+                            track.key = Some(key);
+                        }
+                    }
+
+                    let c = processed_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                    let _ = app_handle.emit(
+                        "audio_analysis_progress",
+                        AudioAnalysisProgress {
+                            current: c,
+                            total,
+                            track_id: track.id.clone(),
+                            bpm: track.bpm,
+                            key: track.key.clone(),
+                        },
+                    );
+                });
+            });
+
+            // Immediately dump progress to disk every 10 songs
+            let _ = save_library_to_disk(&app_data_dir, &tracks);
+
+            // Yield thread momentarily to prevent system stutter
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+
+        // Final save & notify frontend
+        let _ = save_library_to_disk(&app_data_dir, &tracks);
+        let _ = app_handle.emit("audio_analysis_completed", tracks);
     });
 
-    let _ = save_library_to_disk(&app_data_dir, &tracks);
-    Ok(tracks)
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

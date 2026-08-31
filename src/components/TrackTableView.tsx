@@ -49,11 +49,22 @@ const TrackArtCell: React.FC<{ track: Track; density: string }> = ({ track, dens
   const art = useTrackArt(track);
   const artSizes: Record<string, string> = {
     compact: 'w-6 h-6 rounded',
-    normal: 'w-9 h-9 rounded-md',
+    normal: 'w-10 h-10 rounded-md',
     large: 'w-12 h-12 rounded-lg',
     'extra-large': 'w-14 h-14 rounded-xl',
+    huge: 'w-20 h-20 rounded-xl',
+    massive: 'w-24 h-24 rounded-2xl',
+  };
+  const iconSizes: Record<string, string> = {
+    compact: 'w-3 h-3',
+    normal: 'w-4 h-4',
+    large: 'w-5 h-5',
+    'extra-large': 'w-6 h-6',
+    huge: 'w-8 h-8',
+    massive: 'w-10 h-10',
   };
   const sizeClass = artSizes[density] || artSizes.normal;
+  const iconClass = iconSizes[density] || iconSizes.normal;
 
   return (
     <div className={`${sizeClass} overflow-hidden shrink-0 bg-zinc-800 border border-white/10 shadow-sm flex items-center justify-center`}>
@@ -61,7 +72,7 @@ const TrackArtCell: React.FC<{ track: Track; density: string }> = ({ track, dens
         <img src={art} alt={track.title} className="w-full h-full object-cover" loading="lazy" />
       ) : (
         <div className="w-full h-full bg-gradient-to-br from-indigo-950/60 to-purple-950/60 flex items-center justify-center text-indigo-400">
-          <Music className="w-3.5 h-3.5" />
+          <Music className={iconClass} />
         </div>
       )}
     </div>
@@ -353,7 +364,15 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                           <div className="flex flex-col justify-center truncate min-w-0 pr-2">
                             <span
                               title={track.title}
-                              className="truncate font-medium"
+                              className={`truncate font-medium ${
+                                trackGridDensity === 'massive'
+                                  ? 'text-xl'
+                                  : trackGridDensity === 'huge'
+                                  ? 'text-lg'
+                                  : trackGridDensity === 'extra-large'
+                                  ? 'text-base'
+                                  : 'text-sm'
+                              }`}
                               style={
                                 isCurrentPlaying
                                   ? {
@@ -368,7 +387,13 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                             {showSubArtistUnderTitle && (
                               <span
                                 title={track.artist}
-                                className="text-[11px] text-zinc-400 truncate hover:underline"
+                                className={`text-zinc-400 truncate hover:underline ${
+                                  trackGridDensity === 'massive'
+                                    ? 'text-sm mt-0.5'
+                                    : trackGridDensity === 'huge'
+                                    ? 'text-xs mt-0.5'
+                                    : 'text-[11px]'
+                                }`}
                               >
                                 {track.artist}
                               </span>
@@ -377,31 +402,74 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                         )}
 
                         {colId === 'artist' && (
-                          <span title={track.artist} className="truncate text-zinc-300 hover:underline">
+                          <span
+                            title={track.artist}
+                            className={`truncate text-zinc-300 hover:underline ${
+                              trackGridDensity === 'massive'
+                                ? 'text-base'
+                                : trackGridDensity === 'huge'
+                                ? 'text-sm'
+                                : 'text-xs'
+                            }`}
+                          >
                             {track.artist}
                           </span>
                         )}
 
                         {colId === 'album' && (
-                          <span title={track.album} className="truncate text-zinc-400 hover:underline">
+                          <span
+                            title={track.album}
+                            className={`truncate text-zinc-400 hover:underline ${
+                              trackGridDensity === 'massive'
+                                ? 'text-base'
+                                : trackGridDensity === 'huge'
+                                ? 'text-sm'
+                                : 'text-xs'
+                            }`}
+                          >
                             {track.album || '—'}
                           </span>
                         )}
 
                         {colId === 'date' && (
-                          <span className="font-mono text-zinc-400 truncate">
+                          <span
+                            className={`font-mono text-zinc-400 truncate ${
+                              trackGridDensity === 'massive'
+                                ? 'text-base'
+                                : trackGridDensity === 'huge'
+                                ? 'text-sm'
+                                : 'text-xs'
+                            }`}
+                          >
                             {track.year || '—'}
                           </span>
                         )}
 
                         {colId === 'genre' && (
-                          <span title={track.genre || undefined} className="truncate text-zinc-400">
+                          <span
+                            title={track.genre || undefined}
+                            className={`truncate text-zinc-400 ${
+                              trackGridDensity === 'massive'
+                                ? 'text-base'
+                                : trackGridDensity === 'huge'
+                                ? 'text-sm'
+                                : 'text-xs'
+                            }`}
+                          >
                             {track.genre || '—'}
                           </span>
                         )}
 
                         {colId === 'duration' && (
-                          <span className="font-mono text-zinc-400 text-right w-full pr-1">
+                          <span
+                            className={`font-mono text-zinc-400 text-right w-full pr-1 ${
+                              trackGridDensity === 'massive'
+                                ? 'text-base'
+                                : trackGridDensity === 'huge'
+                                ? 'text-sm'
+                                : 'text-xs'
+                            }`}
+                          >
                             {formatDuration(track.duration_secs)}
                           </span>
                         )}

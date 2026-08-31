@@ -89,6 +89,9 @@ export const SettingsView: React.FC = () => {
     setIsScanningLocal(false);
   };
 
+  const audioAnalysisProgress = usePlayerStore((s) => s.audioAnalysisProgress);
+  const isAnalyzing = isAnalyzingAudio || audioAnalysisProgress !== null;
+
   const handleAnalyzeAudio = async () => {
     setIsAnalyzingAudio(true);
     await analyzeAndIndexAudio();
@@ -161,21 +164,29 @@ export const SettingsView: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={handleAnalyzeAudio}
-            disabled={isAnalyzingAudio || totalTracks === 0}
+            disabled={isAnalyzing || totalTracks === 0}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-medium text-xs transition-all shadow-md ${
-              isAnalyzingAudio || totalTracks === 0
-                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
+              isAnalyzing || totalTracks === 0
+                ? 'bg-zinc-800 text-zinc-400 cursor-not-allowed border border-white/10'
                 : 'text-white hover:scale-[1.02] active:scale-[0.98]'
             }`}
             style={
-              !isAnalyzingAudio && totalTracks > 0
+              !isAnalyzing && totalTracks > 0
                 ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
                 : undefined
             }
             title="Analyze audio waveforms asynchronously to calculate missing Key and BPM"
           >
-            <RefreshCw className={`w-4 h-4 ${isAnalyzingAudio ? 'animate-spin' : ''}`} />
-            <span>{isAnalyzingAudio ? 'Analyzing Audio Waveforms...' : 'Detect Key & BPM'}</span>
+            <RefreshCw className={`w-4 h-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
+            <span>
+              {audioAnalysisProgress
+                ? `Analyzing: ${audioAnalysisProgress.current} / ${audioAnalysisProgress.total} (${Math.round(
+                    (audioAnalysisProgress.current / audioAnalysisProgress.total) * 100
+                  )}%)`
+                : isAnalyzing
+                ? 'Starting background analysis...'
+                : 'Detect Key & BPM'}
+            </span>
           </button>
 
           <button

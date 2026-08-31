@@ -85,6 +85,7 @@ export const DENSITY_ROW_HEIGHTS: Record<TrackGridDensity, number> = {
   large: 68,
   'extra-large': 80,
   huge: 96,
+  massive: 120,
 };
 
 export interface UseTrackTableStateOptions {
@@ -324,10 +325,11 @@ export function useTrackTableState({ tracks, parentRef }: UseTrackTableStateOpti
         if (id === 'art') {
           const artSizeMap: Record<TrackGridDensity, number> = {
             compact: 32,
-            normal: 44,
-            large: 56,
-            'extra-large': 68,
-            huge: 80,
+            normal: 48,
+            large: 60,
+            'extra-large': 72,
+            huge: 88,
+            massive: 108,
           };
           return `${artSizeMap[trackGridDensity]}px`;
         }

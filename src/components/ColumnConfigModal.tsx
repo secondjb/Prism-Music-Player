@@ -38,9 +38,10 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
     { key: 'large', label: 'Large', height: '68px' },
     { key: 'extra-large', label: 'XL', height: '80px' },
     { key: 'huge', label: 'Huge', height: '96px' },
+    { key: 'massive', label: 'Massive', height: '120px' },
   ];
 
-  const densitySteps: TrackGridDensity[] = ['compact', 'normal', 'large', 'extra-large', 'huge'];
+  const densitySteps: TrackGridDensity[] = ['compact', 'normal', 'large', 'extra-large', 'huge', 'massive'];
   const currentStepIndex = Math.max(0, densitySteps.indexOf(density));
 
   return (
@@ -49,7 +50,7 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
       <div className="fixed inset-0 z-40 bg-transparent" onClick={onClose} />
 
       {/* Popover Card anchored near the Grid Customization button */}
-      <div className="absolute right-0 top-11 w-80 glass-panel border border-white/10 rounded-2xl shadow-2xl p-4 z-50 flex flex-col gap-3.5 text-xs max-h-[32rem] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150 bg-[#121212]/95 text-white">
+      <div className="absolute right-0 top-11 w-84 glass-panel border border-white/10 rounded-2xl shadow-2xl p-4 z-50 flex flex-col gap-3.5 text-xs max-h-[34rem] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150 bg-[#121212]/95 text-white">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
           <div className="flex items-center gap-2 font-bold text-sm text-white">
@@ -99,7 +100,7 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
             <Slider
               value={currentStepIndex}
               min={0}
-              max={4}
+              max={5}
               step={1}
               marks={[
                 { value: 0, label: '36p' },
@@ -107,6 +108,7 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
                 { value: 2, label: '68p' },
                 { value: 3, label: '80p' },
                 { value: 4, label: '96p' },
+                { value: 5, label: '120p' },
               ]}
               onChange={(_, val) => {
                 const idx = Array.isArray(val) ? val[0] : val;
@@ -115,7 +117,7 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
               sx={{
                 color: 'var(--color-stop-1, #6366f1)',
                 '& .MuiSlider-markLabel': {
-                  fontSize: '10px',
+                  fontSize: '9px',
                   color: '#a1a1aa',
                 },
                 '& .MuiSlider-thumb': {
@@ -126,14 +128,14 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
             />
           </div>
 
-          <div className="grid grid-cols-5 gap-1 bg-white/5 p-1 rounded-xl border border-white/5">
+          <div className="grid grid-cols-6 gap-1 bg-white/5 p-1 rounded-xl border border-white/5">
             {densities.map((d) => {
               const active = density === d.key;
               return (
                 <button
                   key={d.key}
                   onClick={() => onDensityChange(d.key)}
-                  className={`py-1.5 px-0.5 rounded-lg text-[11px] font-medium transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                  className={`py-1.5 px-0.5 rounded-lg text-[10px] font-medium transition-all text-center cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
                     active
                       ? 'text-white shadow-md font-semibold'
                       : 'text-zinc-400 hover:text-white hover:bg-white/10'
@@ -141,7 +143,7 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
                   style={active ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
                 >
                   <span className="truncate w-full text-center">{d.label}</span>
-                  <span className="text-[9px] opacity-75 font-mono">{d.height}</span>
+                  <span className="text-[8px] opacity-75 font-mono">{d.height}</span>
                 </button>
               );
             })}

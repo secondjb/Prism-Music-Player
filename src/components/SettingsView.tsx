@@ -191,22 +191,6 @@ export const SettingsView: React.FC = () => {
           </button>
 
           <button
-            onClick={async () => {
-              await clearAudioAnalysis();
-            }}
-            disabled={isAnalyzing || isScanning}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-medium text-xs transition-all shadow-md ${
-              isAnalyzing || isScanning
-                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
-                : 'bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700 border border-white/10 active:scale-[0.98]'
-            }`}
-            title="Clear all analyzed Key and BPM tags so you can re-run analysis"
-          >
-            <Trash2 className="w-4 h-4 text-rose-400" />
-            <span>Clear Key & BPM</span>
-          </button>
-
-          <button
             onClick={handleRescan}
             disabled={isScanning || includedDirectories.length === 0}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-medium text-xs transition-all shadow-md ${
@@ -708,6 +692,27 @@ export const SettingsView: React.FC = () => {
               className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600/20 text-rose-400 hover:bg-rose-600/40 transition-colors"
             >
               Clear History
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 col-span-1 md:col-span-2">
+            <div className="flex items-center gap-3">
+              <Trash2 className="w-4 h-4 text-rose-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Clear Key & BPM Analysis</span>
+                <span className="text-[11px] text-zinc-400">Reset analyzed Key and BPM tags across all library tracks</span>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                if (window.confirm("Are you sure you want to reset all analyzed Key & BPM tags? You can re-analyze them anytime.")) {
+                  await clearAudioAnalysis();
+                }
+              }}
+              disabled={isAnalyzing || isScanning}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600/20 text-rose-400 hover:bg-rose-600/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Clear Key & BPM
             </button>
           </div>
         </div>

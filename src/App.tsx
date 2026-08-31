@@ -284,6 +284,18 @@ export const App: React.FC = () => {
         return <SearchPage />;
       case 'library':
         return <LibraryPage />;
+      case 'settings':
+        return <SettingsView />;
+      case 'stats':
+        return <StatsView />;
+      case 'filter':
+        return <FilterView />;
+      case 'albums':
+        return <AlbumGrid tracks={filteredTracks} />;
+      case 'playlists':
+        return <PlaylistView />;
+      case 'liked':
+        return <TrackList tracks={filteredTracks} />;
       default:
         return <HomePage />;
     }
@@ -327,8 +339,8 @@ export const App: React.FC = () => {
         </main>
       </div>
 
-      {/* Mobile App Body Layout */}
-      <div className="flex md:hidden flex-1 min-h-0 z-10 flex-col">
+      {/* Mobile App Body Layout with Safe Area Top Padding */}
+      <div className="flex md:hidden flex-1 min-h-0 z-10 flex-col pt-[calc(env(safe-area-inset-top,28px)+4px)]">
         <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           <div className="flex-1 overflow-hidden flex flex-col">
             {renderMobileContent()}

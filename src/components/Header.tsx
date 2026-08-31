@@ -1,6 +1,9 @@
 import React from 'react';
+import IconButton from '@mui/material/IconButton';
+import SearchIcon from '@mui/icons-material/Search';
+import SettingsIcon from '@mui/icons-material/Settings';
+import Tooltip from '@mui/material/Tooltip';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { Search, Settings } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const searchQuery = usePlayerStore((s) => s.searchQuery);
@@ -42,7 +45,7 @@ export const Header: React.FC = () => {
 
       <div className="flex items-center gap-4">
         <div className="relative w-72">
-          <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <SearchIcon className="w-5 h-5 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
@@ -53,18 +56,26 @@ export const Header: React.FC = () => {
         </div>
 
         {/* Settings Button */}
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={`p-2 rounded-xl transition-all border ${
-            activeTab === 'settings'
-              ? 'bg-indigo-600 text-white border-indigo-500 shadow-md'
-              : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
-          }`}
-          title="Library Folders & Settings"
-        >
-          <Settings className="w-5 h-5" />
-        </button>
+        <Tooltip title="Library Folders & Settings">
+          <IconButton
+            onClick={() => setActiveTab('settings')}
+            sx={{
+              color: activeTab === 'settings' ? '#ffffff' : '#a1a1aa',
+              backgroundColor: activeTab === 'settings' ? '#4f46e5' : 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '12px',
+              padding: '8px',
+              '&:hover': {
+                backgroundColor: activeTab === 'settings' ? '#4338ca' : 'rgba(255, 255, 255, 0.12)',
+                color: '#ffffff',
+              },
+            }}
+          >
+            <SettingsIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
       </div>
     </header>
   );
 };
+

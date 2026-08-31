@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search } from 'lucide-react';
+import SearchIcon from '@mui/icons-material/Search';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { TrackList } from './TrackList';
 
@@ -29,38 +29,37 @@ export const SearchPage: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto pb-32">
-      <div className="sticky top-0 z-10 bg-black/95 p-4 pt-6">
-        <h1 className="text-2xl font-bold mb-4">Search</h1>
+      <div className="sticky top-0 z-10 bg-zinc-950/90 backdrop-blur-xl p-4 pt-4 border-b border-zinc-800/60">
+        <h1 className="text-2xl font-bold mb-3 tracking-tight text-white">Search</h1>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={20} />
+          <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
             placeholder="What do you want to listen to?"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white text-black rounded-sm py-3 pl-10 pr-4 font-medium focus:outline-none"
+            className="w-full bg-zinc-900 border border-zinc-700/70 text-white rounded-2xl py-3 pl-11 pr-4 font-medium placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors shadow-inner"
           />
         </div>
       </div>
 
-      <div className="px-4 mt-2">
+      <div className="px-4 mt-4">
         {searchQuery ? (
           <div>
-            <h2 className="text-lg font-bold mb-4">Top Results</h2>
+            <h2 className="text-lg font-bold mb-4 text-white">Top Results</h2>
             <TrackList tracks={filteredTracks} />
           </div>
         ) : (
           <div>
-            <h2 className="text-lg font-bold mb-4">Browse All</h2>
+            <h2 className="text-lg font-bold mb-4 text-white">Browse All</h2>
             <div className="grid grid-cols-2 gap-4">
               {CATEGORIES.map((cat) => (
                 <div
                   key={cat.id}
-                  className={`${cat.color} rounded-md p-3 h-24 relative overflow-hidden`}
+                  className={`${cat.color} rounded-2xl p-4 h-24 relative overflow-hidden shadow-lg transform active:scale-95 transition-transform`}
                 >
-                  <span className="font-bold text-white text-sm">{cat.name}</span>
-                  {/* Fake angled image block */}
-                  <div className="absolute -bottom-2 -right-4 w-16 h-16 bg-black/20 rotate-[25deg] rounded-sm" />
+                  <span className="font-bold text-white text-base">{cat.name}</span>
+                  <div className="absolute -bottom-2 -right-4 w-16 h-16 bg-black/20 rotate-[25deg] rounded-lg" />
                 </div>
               ))}
             </div>
@@ -70,3 +69,4 @@ export const SearchPage: React.FC = () => {
     </div>
   );
 };
+

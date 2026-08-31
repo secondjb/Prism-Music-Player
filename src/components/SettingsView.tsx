@@ -62,55 +62,7 @@ export const SettingsView: React.FC = () => {
   const bpmCount = tracks.filter((t) => Boolean(t.bpm)).length;
   const keyOrBpmCount = tracks.filter((t) => Boolean(t.key || t.bpm)).length;
 
-  const handleAddIncludedDir = async () => {
-    if (isAndroid) {
-      setAndroidFolderMode('include');
-      setShowAndroidFolderModal(true);
-      return;
-    }
-    try {
-      if (window.__TAURI_INTERNALS__) {
-        const selected = await open({
-          directory: true,
-          multiple: false,
-          title: 'Select Music Library Folder to Include',
-        });
-        if (selected && typeof selected === 'string') {
-          setIsScanning(true);
-          await addIncludedDirectory(selected);
-          setIsScanning(false);
-        }
-      }
-    } catch (e) {
-      console.warn('Dialog error:', e);
-      setIsScanning(false);
-    }
-  };
 
-  const handleAddExcludedDir = async () => {
-    if (isAndroid) {
-      setAndroidFolderMode('exclude');
-      setShowAndroidFolderModal(true);
-      return;
-    }
-    try {
-      if (window.__TAURI_INTERNALS__) {
-        const selected = await open({
-          directory: true,
-          multiple: false,
-          title: 'Select Folder to Exclude from Library',
-        });
-        if (selected && typeof selected === 'string') {
-          setIsScanning(true);
-          await addExcludedDirectory(selected);
-          setIsScanning(false);
-        }
-      }
-    } catch (e) {
-      console.warn('Dialog error:', e);
-      setIsScanning(false);
-    }
-  };
 
   const handleRescan = async () => {
     setIsScanning(true);
@@ -124,20 +76,69 @@ export const SettingsView: React.FC = () => {
     setIsAnalyzingAudio(false);
   };
 
-  const [showAndroidFolderModal, setShowAndroidFolderModal] = useState(false);
-  const [androidFolderMode, setAndroidFolderMode] = useState<'include' | 'exclude'>('include');
-  const [androidCustomPath, setAndroidCustomPath] = useState('/storage/emulated/0/Music');
-  const isAndroid = /android/i.test(navigator.userAgent);
-
-  const handleAndroidFolderAdd = async () => {
-    setIsScanning(true);
-    if (androidFolderMode === 'include') {
-      await addIncludedDirectory(androidCustomPath);
-    } else {
-      await addExcludedDirectory(androidCustomPath);
+  const resolveAndroidContentUri = (uri: string): string => {
+    // Example: content://com.android.externalstorage.documents/tree/primary%3AMusic
+    if (uri.startsWith('content://com.android.externalstorage.documents/tree/')) {
+      try {
+        const encodedPath = uri.replace('content://com.android.externalstorage.documents/tree/', '');
+        const decodedPath = decodeURIComponent(encodedPath); // e.g. "primary:Music"
+        const parts = decodedPath.split(':');
+        if (parts.length === 2) {
+          const volume = parts[0];
+          const folder = parts[1];
+          if (volume === 'primary') {
+            return `/storage/emulated/0/${folder}`;
+          } else {
+            return `/storage/${volume}/${folder}`;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to parse Android content URI:', e);
+      }
     }
-    setShowAndroidFolderModal(false);
-    setIsScanning(false);
+    return uri; // Fallback to returning the raw URI
+  };
+
+  const handleAddIncludedDir = async () => {
+    try {
+      if (window.__TAURI_INTERNALS__) {
+        const selected = await open({
+          directory: true,
+          multiple: false,
+          title: 'Select Music Library Folder to Include',
+        });
+        if (selected && typeof selected === 'string') {
+          setIsScanning(true);
+          const resolvedPath = resolveAndroidContentUri(selected);
+          await addIncludedDirectory(resolvedPath);
+          setIsScanning(false);
+        }
+      }
+    } catch (e) {
+      console.warn('Dialog error:', e);
+      setIsScanning(false);
+    }
+  };
+
+  const handleAddExcludedDir = async () => {
+    try {
+      if (window.__TAURI_INTERNALS__) {
+        const selected = await open({
+          directory: true,
+          multiple: false,
+          title: 'Select Folder to Exclude from Library',
+        });
+        if (selected && typeof selected === 'string') {
+          setIsScanning(true);
+          const resolvedPath = resolveAndroidContentUri(selected);
+          await addExcludedDirectory(resolvedPath);
+          setIsScanning(false);
+        }
+      }
+    } catch (e) {
+      console.warn('Dialog error:', e);
+      setIsScanning(false);
+    }
   };
 
   return (
@@ -663,60 +664,6 @@ export const SettingsView: React.FC = () => {
         </div>
       )}
 
-      {/* Android Custom Folder Picker Modal */}
-      {showAndroidFolderModal && (
-        <div className="fixed inset-0 z-[60] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="glass-panel border border-indigo-500/30 rounded-2xl p-6 max-w-md w-full shadow-2xl flex flex-col gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shrink-0">
-                {androidFolderMode === 'include' ? <FolderPlus className="w-5 h-5" /> : <FolderMinus className="w-5 h-5" />}
-              </div>
-              <div>
-                <h4 className="text-base font-bold text-white">
-                  {androidFolderMode === 'include' ? 'Add Music Folder' : 'Exclude Subfolder'}
-                </h4>
-                <p className="text-xs text-indigo-300 font-medium">Enter absolute path for Android</p>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-zinc-300 bg-white/5 p-3 rounded-xl border border-white/5">
-              Since Android 11, selecting folders requires entering the native path. Common paths:
-              <br />
-              • <strong className="text-white">/storage/emulated/0/Music</strong>
-              <br />
-              • <strong className="text-white">/storage/emulated/0/Downloads</strong>
-              <br /><br />
-              <strong className="text-amber-400">Important:</strong> Ensure you have granted Prism "All Files Access" in Android Settings or it won't be able to scan!
-            </p>
-
-            <div className="flex flex-col gap-2 pt-2">
-              <label className="text-xs font-semibold text-zinc-400">Folder Path</label>
-              <input 
-                type="text" 
-                value={androidCustomPath}
-                onChange={(e) => setAndroidCustomPath(e.target.value)}
-                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
-                placeholder="/storage/emulated/0/Music"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10 mt-2">
-              <button
-                onClick={() => setShowAndroidFolderModal(false)}
-                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAndroidFolderAdd}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-md"
-              >
-                {androidFolderMode === 'include' ? 'Add Folder' : 'Exclude Folder'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

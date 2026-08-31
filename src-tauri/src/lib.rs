@@ -15,6 +15,11 @@ use std::sync::Mutex;
 
 struct MediaControlState(Mutex<Option<MediaControls>>);
 
+#[no_mangle]
+pub extern "C" fn __cxa_pure_virtual() {
+    eprintln!("C++ __cxa_pure_virtual called");
+}
+
 #[tauri::command]
 fn scan_directory(app_handle: AppHandle, dir_path: String) -> Result<Vec<TrackMetadata>, String> {
     let tracks = scan_directory_for_tracks(&dir_path);

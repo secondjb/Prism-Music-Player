@@ -29,6 +29,7 @@ export const SettingsView: React.FC = () => {
   const removeExcludedDirectory = usePlayerStore((s) => s.removeExcludedDirectory);
   const rescanConfiguredLibraries = usePlayerStore((s) => s.rescanConfiguredLibraries);
   const analyzeAndIndexAudio = usePlayerStore((s) => s.analyzeAndIndexAudio);
+  const clearAudioAnalysis = usePlayerStore((s) => s.clearAudioAnalysis);
   const wipeDataAndReset = usePlayerStore((s) => s.wipeDataAndReset);
 
   const lrclibAutoFetch = usePlayerStore((s) => s.lrclibAutoFetch);
@@ -187,6 +188,22 @@ export const SettingsView: React.FC = () => {
                 ? 'Starting background analysis...'
                 : 'Detect Key & BPM'}
             </span>
+          </button>
+
+          <button
+            onClick={async () => {
+              await clearAudioAnalysis();
+            }}
+            disabled={isAnalyzing || isScanning}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-medium text-xs transition-all shadow-md ${
+              isAnalyzing || isScanning
+                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
+                : 'bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700 border border-white/10 active:scale-[0.98]'
+            }`}
+            title="Clear all analyzed Key and BPM tags so you can re-run analysis"
+          >
+            <Trash2 className="w-4 h-4 text-rose-400" />
+            <span>Clear Key & BPM</span>
           </button>
 
           <button

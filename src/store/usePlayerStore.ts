@@ -75,6 +75,7 @@ interface PlayerState {
   removeExcludedDirectory: (dir: string) => Promise<void>;
   rescanConfiguredLibraries: () => Promise<void>;
   analyzeAndIndexAudio: () => Promise<void>;
+  clearAudioAnalysis: () => Promise<void>;
   setScanStatusMessage: (msg: string | null) => void;
 
   // Actions
@@ -365,6 +366,20 @@ export const usePlayerStore = create<PlayerState>()(
           }
         } catch (e) {
           console.warn('Audio analysis error:', e);
+        }
+      },
+
+      clearAudioAnalysis: async () => {
+        try {
+          if (window.__TAURI_INTERNALS__) {
+            const updatedTracks: Track[] = await invoke('clear_library_audio_analysis');
+            set({ tracks: updatedTracks });
+          } else {
+            const reset = get().tracks.map((t) => ({ ...t, bpm: undefined, key: undefined }));
+            set({ tracks: reset });
+          }
+        } catch (e) {
+          console.warn('Clear audio analysis error:', e);
         }
       },
 

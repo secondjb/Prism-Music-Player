@@ -366,96 +366,97 @@ async fn analyze_track_audio(path: String) -> Result<audio_analysis::AudioAnalys
 
 #[tauri::command]
 async fn analyze_library_audio(app_handle: AppHandle, paths: Vec<String>) -> Result<(), String> {
-    use futures::StreamExt;
-    
+    use rayon::prelude::*;
+
     let app_data_dir = app_handle
         .path()
         .app_data_dir()
         .map_err(|e| e.to_string())?;
 
     let mut tracks = load_library_from_disk(&app_data_dir).unwrap_or_default();
-    
-    let mut tasks = Vec::new();
-    for path in paths {
-        if let Some(idx) = tracks.iter().position(|t| t.path == path) {
-            let track = &tracks[idx];
-            // Skip if already analyzed to save time
-            if track.bpm.is_none() || track.key.is_none() {
-                tasks.push((idx, path, track.id.clone()));
-            }
-        }
-    }
-    
+
+    let tasks: Vec<(usize, String, String)> = paths
+        .into_iter()
+        .filter_map(|path| {
+            tracks.iter().position(|t| t.path == path).and_then(|idx| {
+                let t = &tracks[idx];
+                // Only process tracks missing BPM or Key
+                if t.bpm.is_none() || t.key.is_none() {
+                    Some((idx, path, t.id.clone()))
+                } else {
+                    None
+                }
+            })
+        })
+        .collect();
+
     let total = tasks.len();
     if total == 0 {
         let _ = app_handle.emit("audio_analysis_completed", tracks);
         return Ok(());
     }
-    
-    let (tx, mut rx) = tokio::sync::mpsc::channel(100);
-    
-    let limit = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(8);
 
-    let processor_handle = tokio::spawn(async move {
-        futures::stream::iter(tasks)
-            .for_each_concurrent(limit, |(idx, path, track_id)| {
-                let tx = tx.clone();
-                async move {
-                    let path_buf = std::path::PathBuf::from(&path);
-                    
-                    let analysis_result = tokio::task::spawn_blocking(move || {
-                        if path_buf.exists() {
-                            Some(audio_analysis::analyze_audio_waveform(&path_buf))
-                        } else {
-                            None
-                        }
-                    })
-                    .await;
+    let processed_count = std::sync::atomic::AtomicUsize::new(0);
 
-                    let (bpm, key) = match analysis_result {
-                        Ok(Some(res)) => (res.bpm, res.key),
-                        _ => (None, None),
-                    };
+    // Parallel processing across all CPU cores using Rayon par_iter()
+    let results: Vec<(usize, String, Option<u32>, Option<String>)> = tokio::task::spawn_blocking(move || {
+        tasks
+            .into_par_iter()
+            .map(|(idx, path, track_id)| {
+                let path_buf = std::path::PathBuf::from(&path);
+                let analysis = if path_buf.exists() {
+                    audio_analysis::analyze_audio_waveform(&path_buf)
+                } else {
+                    audio_analysis::AudioAnalysisResult { bpm: None, key: None }
+                };
 
-                    let _ = tx.send((idx, track_id, bpm, key)).await;
-                }
+                let c = processed_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                let _ = app_handle.emit(
+                    "audio_analysis_progress",
+                    AudioAnalysisProgress {
+                        current: c,
+                        total,
+                        track_id: track_id.clone(),
+                        bpm: analysis.bpm,
+                        key: analysis.key.clone(),
+                    },
+                );
+
+                (idx, track_id, analysis.bpm, analysis.key)
             })
-            .await;
-    });
+            .collect()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
 
-    let mut current = 0;
-    while let Some((idx, track_id, bpm, key)) = rx.recv().await {
-        current += 1;
-        
+    for (idx, _track_id, bpm, key) in results {
         if let Some(track) = tracks.get_mut(idx) {
             if let Some(b) = bpm { track.bpm = Some(b); }
-            if let Some(ref k) = key { track.key = Some(k.clone()); }
-        }
-        
-        let _ = app_handle.emit(
-            "audio_analysis_progress",
-            AudioAnalysisProgress {
-                current,
-                total,
-                track_id,
-                bpm,
-                key,
-            },
-        );
-        
-        if current % 100 == 0 {
-            let _ = save_library_to_disk(&app_data_dir, &tracks);
+            if let Some(k) = key { track.key = Some(k); }
         }
     }
-    
+
     let _ = save_library_to_disk(&app_data_dir, &tracks);
     let _ = app_handle.emit("audio_analysis_completed", tracks);
-    
-    processor_handle.await.map_err(|e| e.to_string())?;
 
     Ok(())
+}
+
+#[tauri::command]
+fn clear_library_audio_analysis(app_handle: AppHandle) -> Result<Vec<TrackMetadata>, String> {
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+
+    let mut tracks = load_library_from_disk(&app_data_dir).unwrap_or_default();
+    for track in &mut tracks {
+        track.bpm = None;
+        track.key = None;
+    }
+
+    save_library_to_disk(&app_data_dir, &tracks)?;
+    Ok(tracks)
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -588,6 +589,7 @@ pub fn run() {
             get_playback_position,
             filter_tracks,
             analyze_library_audio,
+            clear_library_audio_analysis,
             analyze_library_batch_turbo,
             analyze_track_audio,
             stats::log_listening_event,

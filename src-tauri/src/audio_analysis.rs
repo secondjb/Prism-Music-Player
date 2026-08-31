@@ -49,9 +49,11 @@ pub fn analyze_audio_waveform(path: &Path) -> AudioAnalysisResult {
         Err(_) => return AudioAnalysisResult { bpm: None, key: None },
     };
 
-    // Decode up to 12 seconds of mono PCM audio samples (skip first 15 seconds for turbo mode)
-    let max_samples = (sample_rate as usize) * 12;
-    let skip_samples = (sample_rate as usize) * 15;
+    // TURBO MODE OPTIMIZATIONS:
+    // Skip first 45 seconds (focusing on chorus/drop), decimate sample rate by factor 2 for 24s window
+    let effective_sample_rate = sample_rate / 2;
+    let max_samples = (effective_sample_rate as usize) * 24;
+    let skip_samples = (sample_rate as usize) * 45;
     let mut samples: Vec<f32> = Vec::with_capacity(max_samples);
     let mut total_read = 0;
 
@@ -87,6 +89,11 @@ pub fn analyze_audio_waveform(path: &Path) -> AudioAnalysisResult {
                         continue;
                     }
 
+                    // Decimation factor of 2: keep every 2nd sample
+                    if (total_read - skip_samples) % 2 != 0 {
+                        continue;
+                    }
+
                     // Downmix interleaved channels to mono
                     let mut sum = 0.0f32;
                     for c in 0..num_channels {
@@ -109,15 +116,22 @@ pub fn analyze_audio_waveform(path: &Path) -> AudioAnalysisResult {
         }
     }
 
-    if samples.len() < (sample_rate as usize) * 3 {
+    if samples.len() < (effective_sample_rate as usize) * 3 {
         return AudioAnalysisResult { bpm: None, key: None };
     }
 
     let config = AnalysisConfig::default();
-    match analyze_audio(&samples, sample_rate, config) {
+    match analyze_audio(&samples, effective_sample_rate, config) {
         Ok(result) => {
             let bpm = if result.bpm > 0.0 && result.bpm.is_finite() {
-                Some(result.bpm.round() as u32)
+                let mut bpm_val = result.bpm;
+                // Post-processing octave heuristics: double if < 80, halve if > 190
+                if bpm_val < 80.0 {
+                    bpm_val *= 2.0;
+                } else if bpm_val > 190.0 {
+                    bpm_val /= 2.0;
+                }
+                Some(bpm_val.round() as u32)
             } else {
                 None
             };

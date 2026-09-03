@@ -996,6 +996,9 @@ export const usePlayerStore = create<PlayerState>()(
         shuffleEnabled: state.shuffleEnabled,
         repeatMode: state.repeatMode,
         playlists: state.playlists,
+        visibleTrackColumns: state.visibleTrackColumns,
+        trackGridDensity: state.trackGridDensity,
+        columnOrder: state.columnOrder,
       }),
     }
   )

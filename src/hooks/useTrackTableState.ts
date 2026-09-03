@@ -20,6 +20,21 @@ export const ALL_COLUMN_IDS: TrackColumnId[] = [
   'actions',
 ];
 
+export const DEFAULT_COLUMN_ORDER: TrackColumnId[] = [
+  'order',
+  'art',
+  'title',
+  'artist',
+  'album',
+  'date',
+  'genre',
+  'duration',
+  'favorite',
+  'playNext',
+  'addToQueue',
+  'actions',
+];
+
 export const LOCKED_COLUMN_IDS: TrackColumnId[] = ['order', 'art'];
 
 export const DEFAULT_VISIBLE_COLUMNS: TrackColumnId[] = [

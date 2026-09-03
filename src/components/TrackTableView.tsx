@@ -28,6 +28,7 @@ import {
   MIN_COLUMN_WIDTHS,
   ACTION_DENSITY_CONFIG,
   ORDER_DENSITY_CONFIG,
+  DEFAULT_COLUMN_ORDER,
 } from '../hooks/useTrackTableState';
 import { ColumnConfigModal } from './ColumnConfigModal';
 
@@ -73,7 +74,7 @@ const ColumnHeader: React.FC<any> = (props) => {
         className="relative flex items-center justify-end w-full h-full select-none text-zinc-400 hover:text-white transition-colors cursor-pointer pr-3 overflow-visible"
         title="Sort by Duration"
       >
-        <span className="flex items-center">
+        <span className="flex items-center pointer-events-none">
           <Clock className="w-3.5 h-3.5 text-zinc-400 hover:text-white transition-colors" />
         </span>
         {order && (
@@ -82,9 +83,9 @@ const ColumnHeader: React.FC<any> = (props) => {
             style={{ color: 'var(--color-stop-1, #6366f1)' }}
           >
             {order === 'asc' ? (
-              <ChevronUp className="w-3.5 h-3.5" />
+              <ChevronUp className="w-3.5 h-3.5 pointer-events-none" />
             ) : (
-              <ChevronDown className="w-3.5 h-3.5" />
+              <ChevronDown className="w-3.5 h-3.5 pointer-events-none" />
             )}
           </span>
         )}
@@ -99,20 +100,20 @@ const ColumnHeader: React.FC<any> = (props) => {
       } ${isOrder ? 'justify-center' : 'justify-start'}`}
     >
       {isOrder ? (
-        <span>#</span>
+        <span className="pointer-events-none">#</span>
       ) : (
-        <span className="truncate">{props.name}</span>
+        <span className="truncate pointer-events-none">{props.name}</span>
       )}
 
       {order === 'asc' && (
         <ChevronUp
-          className="w-3.5 h-3.5 shrink-0"
+          className="w-3.5 h-3.5 shrink-0 pointer-events-none"
           style={{ color: 'var(--color-stop-1, #6366f1)' }}
         />
       )}
       {order === 'desc' && (
         <ChevronDown
-          className="w-3.5 h-3.5 shrink-0"
+          className="w-3.5 h-3.5 shrink-0 pointer-events-none"
           style={{ color: 'var(--color-stop-1, #6366f1)' }}
         />
       )}
@@ -730,6 +731,44 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<any>(null);
   const [containerWidth, setContainerWidth] = useState<number>(() => window.innerWidth);
+  const [sortState, setSortState] = useState<{ prop: string; order: 'asc' | 'desc' } | null>(null);
+
+  // Synchronize RevoGrid sorting lifecycle with React state to maintain and toggle sort orders correctly
+  useEffect(() => {
+    const gridEl = gridRef.current;
+    if (!gridEl) return;
+
+    const handleBeforeSorting = (e: any) => {
+      const { column, order } = e.detail || {};
+      if (column?.prop) {
+        if (order === 'asc' || order === 'desc') {
+          setSortState({ prop: column.prop, order });
+        } else {
+          setSortState(null);
+        }
+      }
+    };
+
+    const handleAfterSortingApply = (e: any) => {
+      const sorting = e.detail?.sorting;
+      if (sorting && typeof sorting === 'object') {
+        const prop = Object.keys(sorting)[0];
+        const order = sorting[prop];
+        if (prop && (order === 'asc' || order === 'desc')) {
+          setSortState({ prop, order });
+          return;
+        }
+      }
+      setSortState(null);
+    };
+
+    gridEl.addEventListener('beforesorting', handleBeforeSorting);
+    gridEl.addEventListener('aftersortingapply', handleAfterSortingApply);
+    return () => {
+      gridEl.removeEventListener('beforesorting', handleBeforeSorting);
+      gridEl.removeEventListener('aftersortingapply', handleAfterSortingApply);
+    };
+  }, []);
 
   // ResizeObserver to track container width and dynamically recalculate fractional columns
   useEffect(() => {
@@ -798,7 +837,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const dateCellTemplate = useMemo(() => Template(DateCell), []);
   const genreCellTemplate = useMemo(() => Template(GenreCell), []);
   const durationCellTemplate = useMemo(() => Template(DurationCell), []);
-  const columnHeaderTemplate = useMemo(() => Template(ColumnHeader), []);
+  const columnHeaderTemplate = useMemo(() => Template(ColumnHeader), [sortState]);
   const favoriteCellTemplate = useMemo(() => Template(FavoriteCell), []);
   const playNextCellTemplate = useMemo(() => Template(PlayNextCell), []);
   const addToQueueCellTemplate = useMemo(() => Template(AddToQueueCell), []);
@@ -808,9 +847,10 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const orderedVisibleColumnIds = useMemo(() => {
     const isVisible = (id: TrackColumnId) => visibleTrackColumns.includes(id);
     const pinnedStartIds: TrackColumnId[] = ['order', 'art'];
+    const effectiveOrder = columnOrder && columnOrder.length > 0 ? columnOrder : DEFAULT_COLUMN_ORDER;
 
     const left: TrackColumnId[] = pinnedStartIds.filter(isVisible);
-    const middle: TrackColumnId[] = columnOrder.filter(
+    const middle: TrackColumnId[] = effectiveOrder.filter(
       (id) => !pinnedStartIds.includes(id) && isVisible(id)
     );
 
@@ -871,6 +911,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         size: widths.title,
         minSize: MIN_COLUMN_WIDTHS.title,
         sortable: true,
+        order: sortState?.prop === 'title' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: titleCellTemplate,
@@ -881,6 +922,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         size: widths.artist,
         minSize: MIN_COLUMN_WIDTHS.artist,
         sortable: true,
+        order: sortState?.prop === 'artist' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: artistCellTemplate,
@@ -891,6 +933,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         size: widths.album,
         minSize: MIN_COLUMN_WIDTHS.album,
         sortable: true,
+        order: sortState?.prop === 'album' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: albumCellTemplate,
@@ -901,6 +944,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         size: widths.date,
         minSize: MIN_COLUMN_WIDTHS.date,
         sortable: true,
+        order: sortState?.prop === 'year' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: dateCellTemplate,
@@ -911,6 +955,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         size: widths.genre,
         minSize: MIN_COLUMN_WIDTHS.genre,
         sortable: true,
+        order: sortState?.prop === 'genre' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: genreCellTemplate,
@@ -921,6 +966,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         size: widths.duration,
         minSize: MIN_COLUMN_WIDTHS.duration,
         sortable: true,
+        order: sortState?.prop === 'duration_secs' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: durationCellTemplate,
@@ -970,6 +1016,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     visibleTrackColumns,
     trackGridDensity,
     columnWidths,
+    sortState,
+    columnHeaderTemplate,
     orderCellTemplate,
     artCellTemplate,
     titleCellTemplate,

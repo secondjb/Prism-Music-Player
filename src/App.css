@@ -83,64 +83,126 @@
   }
 }
 
-/* AG Grid Vertical Scrollbar: 100% overlay, auto-hides when idle */
-.ag-body-vertical-scroll {
-  position: absolute !important;
-  right: 0 !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  width: 8px !important;
+/* RevoGrid Glassmorphism Theming & Native CSS Variable Overrides */
+revo-grid {
+  --revogrid-color-bg: transparent !important;
+  --revogrid-header-bg: rgba(9, 9, 11, 0.45) !important;
+  --revogrid-row-hover-color: rgba(255, 255, 255, 0.06) !important;
+  --revogrid-row-hover: rgba(255, 255, 255, 0.06) !important;
+  --revogrid-row-bg: transparent !important;
+  --revogrid-border-color: rgba(255, 255, 255, 0.05) !important;
+  --revogrid-header-border-color: rgba(255, 255, 255, 0.08) !important;
+  --revogrid-header-color: #b3b3b3 !important;
+  --revogrid-content-color: #f4f4f5 !important;
+  --revogrid-cell-color: #f4f4f5 !important;
+  --revogrid-font-family: inherit !important;
+  --revo-grid-background: transparent !important;
+  --revo-grid-header-bg: rgba(9, 9, 11, 0.45) !important;
+  --revo-grid-row-hover: rgba(255, 255, 255, 0.06) !important;
+  --revo-grid-row-bg: transparent !important;
+  --revo-grid-border: rgba(255, 255, 255, 0.05) !important;
+  --revo-grid-color: #f4f4f5 !important;
+  --revo-grid-font-family: inherit !important;
   background: transparent !important;
-  border: none !important;
-  z-index: 10 !important;
-  pointer-events: none !important;
-  opacity: 0 !important;
-  transition: opacity 0.3s ease !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
 }
 
-.ag-body-vertical-scroll:hover,
-.ag-grid-is-scrolling .ag-body-vertical-scroll {
-  opacity: 1 !important;
-  pointer-events: all !important;
+/* Ensure internal elements & shadow DOM don't render solid white */
+revo-grid,
+revo-grid *,
+revo-grid revogr-viewport-scroll,
+revo-grid revogr-data,
+revo-grid revogr-row,
+revo-grid revogr-cell,
+revo-grid revogr-header,
+revo-grid .main-viewport,
+revo-grid .inner-cropper,
+revo-grid .content-wrapper,
+revo-grid .row,
+revo-grid .cell {
+  background-color: transparent !important;
+  box-sizing: border-box;
 }
 
-.ag-body-vertical-scroll-viewport {
+/* Glassmorphism Header */
+revo-grid revogr-header,
+revo-grid .header-wrapper,
+revo-grid .header-row,
+revo-grid .group-header-wrapper {
+  background: rgba(9, 9, 11, 0.45) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+revo-grid .header-cell,
+revo-grid .header-rgRow {
   background: transparent !important;
-  border: none !important;
-  pointer-events: all !important;
-  overflow-y: scroll !important;
-  scrollbar-width: thin !important;
-  scrollbar-color: transparent transparent !important;
+  color: #b3b3b3 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  border-right: none !important;
 }
 
-.ag-body-vertical-scroll-viewport::-webkit-scrollbar {
-  width: 6px !important;
-  height: 6px !important;
-  background: transparent !important;
+/* Row Hover State */
+revo-grid revogr-row:hover,
+revo-grid .row:hover {
+  background-color: rgba(255, 255, 255, 0.06) !important;
 }
 
-.ag-body-vertical-scroll-viewport::-webkit-scrollbar-track {
-  background: transparent !important;
-  border: none !important;
+/* Playing Row Tint */
+revo-grid revogr-row.is-current-playing,
+revo-grid .row.is-current-playing {
+  background-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent) !important;
 }
 
-.ag-body-vertical-scroll-viewport::-webkit-scrollbar-corner {
-  background: transparent !important;
+/* Disable any horizontal scroll capabilities */
+revo-grid,
+revo-grid .main-viewport,
+revo-grid .inner-cropper,
+revo-grid revogr-viewport-scroll {
+  overflow-x: hidden !important;
 }
 
-.ag-body-vertical-scroll-viewport::-webkit-scrollbar-button {
+revo-grid revogr-viewport-scroll .horizontal,
+revo-grid .scroll-horizontal {
   display: none !important;
-  width: 0 !important;
   height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
-.ag-body-vertical-scroll-viewport::-webkit-scrollbar-thumb {
+/* Vertical Scrollbar styling for RevoGrid */
+revo-grid revogr-viewport-scroll .vertical,
+revo-grid .scroll-vertical {
+  background: transparent !important;
+  width: 6px !important;
+}
+
+revo-grid revogr-viewport-scroll .vertical::-webkit-scrollbar,
+revo-grid .scroll-vertical::-webkit-scrollbar {
+  width: 6px !important;
+  background: transparent !important;
+}
+
+revo-grid revogr-viewport-scroll .vertical::-webkit-scrollbar-track,
+revo-grid .scroll-vertical::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+revo-grid revogr-viewport-scroll .vertical::-webkit-scrollbar-thumb,
+revo-grid .scroll-vertical::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--color-stop-1, #6366f1) 60%, rgba(255, 255, 255, 0.4)) !important;
   border-radius: 9999px !important;
   transition: background-color 0.2s ease !important;
 }
 
-.ag-body-vertical-scroll-viewport::-webkit-scrollbar-thumb:hover {
+revo-grid revogr-viewport-scroll .vertical::-webkit-scrollbar-thumb:hover,
+revo-grid .scroll-vertical::-webkit-scrollbar-thumb:hover {
   background: var(--color-stop-1, #6366f1) !important;
   box-shadow: 0 0 8px var(--color-stop-1, #6366f1) !important;
 }

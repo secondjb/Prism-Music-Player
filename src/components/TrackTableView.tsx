@@ -1,16 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { AgGridReact } from 'ag-grid-react';
-import {
-  ColDef,
-  ModuleRegistry,
-  AllCommunityModule,
-  CellKeyDownEvent,
-  ColumnResizedEvent,
-  ColumnMovedEvent,
-  GridReadyEvent,
-  themeQuartz,
-  colorSchemeDark,
-} from 'ag-grid-community';
+import { RevoGrid, Template } from '@revolist/react-datagrid';
+import type { ColumnRegular } from '@revolist/revogrid';
 import {
   Play,
   Pause,
@@ -21,23 +11,22 @@ import {
   Info,
   SlidersHorizontal,
   Music,
-  Clock,
-  ChevronUp,
-  ChevronDown,
 } from 'lucide-react';
 
 import { Track } from '../types/player';
-import { usePlayerStore, TrackColumnId, TrackGridDensity } from '../store/usePlayerStore';
+import { usePlayerStore, TrackColumnId } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import {
   useTrackTableState,
+  calculateColumnWidths,
+  enforceBrickWallResize,
   DENSITY_ROW_HEIGHTS,
   DEFAULT_COLUMN_WIDTHS,
   MIN_COLUMN_WIDTHS,
+  ACTION_DENSITY_CONFIG,
+  ORDER_DENSITY_CONFIG,
 } from '../hooks/useTrackTableState';
 import { ColumnConfigModal } from './ColumnConfigModal';
-
-ModuleRegistry.registerModules([AllCommunityModule]);
 
 interface TrackTableViewProps {
   tracks: Track[];
@@ -53,125 +42,10 @@ const formatDuration = (secs: number) => {
   return `${m}:${s < 10 ? '0' : ''}${s}`;
 };
 
-const ART_COLUMN_WIDTHS: Record<TrackGridDensity, number> = {
-  compact: 40,
-  normal: 56,
-  large: 64,
-  'extra-large': 76,
-  huge: 96,
-  massive: 116,
-};
+// Custom Cell Components for RevoGrid Templates
 
-const ACTION_DENSITY_CONFIG: Record<
-  TrackGridDensity,
-  { buttonClass: string; iconClass: string; colWidth: number }
-> = {
-  compact: {
-    buttonClass: 'p-1',
-    iconClass: 'w-3.5 h-3.5',
-    colWidth: 36,
-  },
-  normal: {
-    buttonClass: 'p-1.5',
-    iconClass: 'w-4 h-4',
-    colWidth: 42,
-  },
-  large: {
-    buttonClass: 'p-1.5',
-    iconClass: 'w-4.5 h-4.5',
-    colWidth: 46,
-  },
-  'extra-large': {
-    buttonClass: 'p-2',
-    iconClass: 'w-5 h-5',
-    colWidth: 52,
-  },
-  huge: {
-    buttonClass: 'p-2.5',
-    iconClass: 'w-6 h-6',
-    colWidth: 60,
-  },
-  massive: {
-    buttonClass: 'p-3',
-    iconClass: 'w-7 h-7',
-    colWidth: 70,
-  },
-};
-
-const ORDER_DENSITY_CONFIG: Record<
-  TrackGridDensity,
-  { buttonClass: string; iconClass: string; textClass: string }
-> = {
-  compact: { buttonClass: 'w-5 h-5', iconClass: 'w-3 h-3', textClass: 'text-xs' },
-  normal: { buttonClass: 'w-6 h-6', iconClass: 'w-3.5 h-3.5', textClass: 'text-xs' },
-  large: { buttonClass: 'w-7 h-7', iconClass: 'w-4 h-4', textClass: 'text-sm' },
-  'extra-large': { buttonClass: 'w-8 h-8', iconClass: 'w-4.5 h-4.5', textClass: 'text-sm' },
-  huge: { buttonClass: 'w-9 h-9', iconClass: 'w-5 h-5', textClass: 'text-base' },
-  massive: { buttonClass: 'w-11 h-11', iconClass: 'w-6 h-6', textClass: 'text-lg' },
-};
-
-// Custom Header Component matching legacy styling
-const CustomHeader: React.FC<any> = (props) => {
-  const [sort, setSort] = useState<'asc' | 'desc' | null>(props.column.getSort());
-
-  useEffect(() => {
-    const onSortChanged = () => {
-      setSort(props.column.getSort());
-    };
-    props.column.addEventListener('sortChanged', onSortChanged);
-    return () => {
-      props.column.removeEventListener('sortChanged', onSortChanged);
-    };
-  }, [props.column]);
-
-  const onHeaderClick = (e: React.MouseEvent) => {
-    if (props.enableSorting) {
-      props.progressSort(e.shiftKey);
-    }
-  };
-
-  const colId = props.column.getColId();
-  if (['art', 'favorite', 'playNext', 'addToQueue', 'actions', 'buffer'].includes(colId)) {
-    return null;
-  }
-
-  const isDuration = colId === 'duration';
-  const isOrder = colId === 'order';
-
-  return (
-    <div
-      onClick={onHeaderClick}
-      className={`flex items-center gap-1.5 w-full h-full select-none text-[11px] font-semibold uppercase tracking-wider text-[#b3b3b3] hover:text-white transition-colors ${
-        props.enableSorting ? 'cursor-pointer' : ''
-      } ${isDuration ? 'justify-end pr-1' : isOrder ? 'justify-center' : ''}`}
-    >
-      {isDuration ? (
-        <span title="Duration" className="flex items-center">
-          <Clock className="w-3.5 h-3.5 text-zinc-400 hover:text-white transition-colors" />
-        </span>
-      ) : (
-        <span className="truncate">{props.displayName}</span>
-      )}
-
-      {sort === 'asc' && (
-        <ChevronUp
-          className="w-3.5 h-3.5 shrink-0"
-          style={{ color: 'var(--color-stop-1, #6366f1)' }}
-        />
-      )}
-      {sort === 'desc' && (
-        <ChevronDown
-          className="w-3.5 h-3.5 shrink-0"
-          style={{ color: 'var(--color-stop-1, #6366f1)' }}
-        />
-      )}
-    </div>
-  );
-};
-
-// Custom Cell Renderers
-const OrderCell: React.FC<any> = ({ data, node }) => {
-  const track = data as Track;
+const OrderCell: React.FC<any> = ({ model, rowIndex }) => {
+  const track = (model || {}) as Track;
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const playTrack = usePlayerStore((s) => s.playTrack);
@@ -179,13 +53,32 @@ const OrderCell: React.FC<any> = ({ data, node }) => {
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
   const tracks = usePlayerStore((s) => s.tracks);
 
-  if (!track) return null;
+  if (!track.id) return null;
   const isCurrentPlaying = currentTrack?.id === track.id;
   const config = ORDER_DENSITY_CONFIG[trackGridDensity] || ORDER_DENSITY_CONFIG.normal;
 
   return (
-    <div className="w-full h-full flex items-center justify-center font-mono text-zinc-400 pointer-events-none">
+    <div
+      className="w-full h-full flex items-center justify-center font-mono text-zinc-400"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        const evt = new CustomEvent('prism-open-context-menu', {
+          bubbles: true,
+          detail: { x: e.clientX, y: e.clientY, track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+      onDoubleClick={(e) => {
+        if ((e.target as HTMLElement)?.closest('button')) return;
+        const evt = new CustomEvent('prism-play-track', {
+          bubbles: true,
+          detail: { track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+    >
       <button
+        type="button"
         onClick={(e) => {
           e.stopPropagation();
           if (isCurrentPlaying) {
@@ -195,7 +88,7 @@ const OrderCell: React.FC<any> = ({ data, node }) => {
           }
         }}
         onDoubleClick={(e) => e.stopPropagation()}
-        className={`${config.buttonClass} rounded-full flex items-center justify-center transition-transform hover:scale-105 cursor-pointer pointer-events-auto`}
+        className={`${config.buttonClass} rounded-full flex items-center justify-center transition-transform hover:scale-105 cursor-pointer`}
       >
         {isCurrentPlaying ? (
           isPlaying ? (
@@ -212,7 +105,7 @@ const OrderCell: React.FC<any> = ({ data, node }) => {
         ) : (
           <>
             <span className={`group-hover/row:hidden text-zinc-400 font-medium ${config.textClass}`}>
-              {node.rowIndex + 1}
+              {(rowIndex ?? 0) + 1}
             </span>
             <Play className={`${config.iconClass} hidden group-hover/row:block fill-white text-white ml-0.5`} />
           </>
@@ -222,9 +115,11 @@ const OrderCell: React.FC<any> = ({ data, node }) => {
   );
 };
 
-const TrackArtCell: React.FC<{ data: Track; density: string }> = ({ data, density }) => {
-  const track = data;
+const TrackArtCell: React.FC<any> = ({ model }) => {
+  const track = (model || {}) as Track;
+  const density = usePlayerStore((s) => s.trackGridDensity);
   const art = useTrackArt(track);
+
   const artSizes: Record<string, string> = {
     compact: 'w-6 h-6 rounded',
     normal: 'w-10 h-10 rounded-md',
@@ -245,12 +140,29 @@ const TrackArtCell: React.FC<{ data: Track; density: string }> = ({ data, densit
   const iconClass = iconSizes[density] || iconSizes.normal;
 
   return (
-    <div className="w-full h-full flex items-center justify-center pointer-events-none">
+    <div
+      className="w-full h-full flex items-center justify-center pointer-events-none"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        const evt = new CustomEvent('prism-open-context-menu', {
+          bubbles: true,
+          detail: { x: e.clientX, y: e.clientY, track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+      onDoubleClick={(e) => {
+        const evt = new CustomEvent('prism-play-track', {
+          bubbles: true,
+          detail: { track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+    >
       <div
         className={`${sizeClass} overflow-hidden shrink-0 bg-zinc-800 border border-white/10 shadow-sm flex items-center justify-center`}
       >
         {art ? (
-          <img src={art} alt={track.title} className="w-full h-full object-cover" loading="lazy" />
+          <img src={art} alt={track.title || ''} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-indigo-950/60 to-purple-950/60 flex items-center justify-center text-indigo-400">
             <Music className={iconClass} />
@@ -261,13 +173,13 @@ const TrackArtCell: React.FC<{ data: Track; density: string }> = ({ data, densit
   );
 };
 
-const TitleCell: React.FC<any> = ({ data }) => {
-  const track = data as Track;
+const TitleCell: React.FC<any> = ({ model }) => {
+  const track = (model || {}) as Track;
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const showSubArtistUnderTitle = usePlayerStore((s) => s.showSubArtistUnderTitle);
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
 
-  if (!track) return null;
+  if (!track.title) return null;
   const isCurrentPlaying = currentTrack?.id === track.id;
 
   const hasSubArtistLink = Boolean(
@@ -275,7 +187,25 @@ const TitleCell: React.FC<any> = ({ data }) => {
   );
 
   return (
-    <div className="flex flex-col justify-center h-full min-w-0 pr-2 w-full select-none">
+    <div
+      className="flex flex-col justify-center h-full min-w-0 pr-2 w-full select-none cursor-pointer"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        const evt = new CustomEvent('prism-open-context-menu', {
+          bubbles: true,
+          detail: { x: e.clientX, y: e.clientY, track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+      onDoubleClick={(e) => {
+        if ((e.target as HTMLElement)?.closest('a') || (e.target as HTMLElement)?.closest('button')) return;
+        const evt = new CustomEvent('prism-play-track', {
+          bubbles: true,
+          detail: { track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+    >
       <span
         title={track.title}
         className={`truncate font-medium min-w-0 leading-snug pb-0.5 ${
@@ -299,7 +229,7 @@ const TitleCell: React.FC<any> = ({ data }) => {
         {track.title}
       </span>
       {showSubArtistUnderTitle && (
-        <div className="flex items-center min-w-0 pointer-events-none leading-none -mt-0.5">
+        <div className="flex items-center min-w-0 leading-none -mt-0.5">
           {hasSubArtistLink ? (
             <span
               title={track.artist}
@@ -307,7 +237,7 @@ const TitleCell: React.FC<any> = ({ data }) => {
                 e.stopPropagation();
                 usePlayerStore.getState().navigateToArtist(track.artist);
               }}
-              className={`text-zinc-400 truncate hover:underline hover:text-indigo-400 cursor-pointer pointer-events-auto shrink-0 max-w-full leading-tight ${
+              className={`text-zinc-400 truncate hover:underline hover:text-indigo-400 cursor-pointer shrink-0 max-w-full leading-tight ${
                 trackGridDensity === 'massive'
                   ? 'text-sm'
                   : trackGridDensity === 'huge'
@@ -336,15 +266,33 @@ const TitleCell: React.FC<any> = ({ data }) => {
   );
 };
 
-const ArtistCell: React.FC<any> = ({ data }) => {
-  const track = data as Track;
+const ArtistCell: React.FC<any> = ({ model }) => {
+  const track = (model || {}) as Track;
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  if (!track) return null;
+  if (!track.id) return null;
 
   const hasArtistLink = Boolean(track.artist && track.artist !== 'Unknown Artist');
 
   return (
-    <div className="flex items-center h-full w-full min-w-0 overflow-hidden pointer-events-none">
+    <div
+      className="flex items-center h-full w-full min-w-0 overflow-hidden cursor-pointer"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        const evt = new CustomEvent('prism-open-context-menu', {
+          bubbles: true,
+          detail: { x: e.clientX, y: e.clientY, track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+      onDoubleClick={(e) => {
+        if ((e.target as HTMLElement)?.closest('a') || (e.target as HTMLElement)?.closest('button')) return;
+        const evt = new CustomEvent('prism-play-track', {
+          bubbles: true,
+          detail: { track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+    >
       {hasArtistLink ? (
         <span
           title={track.artist}
@@ -352,7 +300,7 @@ const ArtistCell: React.FC<any> = ({ data }) => {
             e.stopPropagation();
             usePlayerStore.getState().navigateToArtist(track.artist);
           }}
-          className={`truncate text-zinc-300 hover:underline hover:text-indigo-400 cursor-pointer pointer-events-auto shrink-0 max-w-full ${
+          className={`truncate text-zinc-300 hover:underline hover:text-indigo-400 cursor-pointer shrink-0 max-w-full ${
             trackGridDensity === 'massive'
               ? 'text-base'
               : trackGridDensity === 'huge'
@@ -379,15 +327,33 @@ const ArtistCell: React.FC<any> = ({ data }) => {
   );
 };
 
-const AlbumCell: React.FC<any> = ({ data }) => {
-  const track = data as Track;
+const AlbumCell: React.FC<any> = ({ model }) => {
+  const track = (model || {}) as Track;
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  if (!track) return null;
+  if (!track.id) return null;
 
   const hasAlbumLink = Boolean(track.album && track.album !== 'Unknown Album');
 
   return (
-    <div className="flex items-center h-full w-full min-w-0 overflow-hidden pointer-events-none">
+    <div
+      className="flex items-center h-full w-full min-w-0 overflow-hidden cursor-pointer"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        const evt = new CustomEvent('prism-open-context-menu', {
+          bubbles: true,
+          detail: { x: e.clientX, y: e.clientY, track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+      onDoubleClick={(e) => {
+        if ((e.target as HTMLElement)?.closest('a') || (e.target as HTMLElement)?.closest('button')) return;
+        const evt = new CustomEvent('prism-play-track', {
+          bubbles: true,
+          detail: { track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+    >
       {hasAlbumLink ? (
         <span
           title={track.album}
@@ -395,7 +361,7 @@ const AlbumCell: React.FC<any> = ({ data }) => {
             e.stopPropagation();
             usePlayerStore.getState().navigateToAlbum(track.album);
           }}
-          className={`truncate text-zinc-400 hover:underline hover:text-indigo-400 cursor-pointer pointer-events-auto shrink-0 max-w-full ${
+          className={`truncate text-zinc-400 hover:underline hover:text-indigo-400 cursor-pointer shrink-0 max-w-full ${
             trackGridDensity === 'massive'
               ? 'text-base'
               : trackGridDensity === 'huge'
@@ -422,13 +388,30 @@ const AlbumCell: React.FC<any> = ({ data }) => {
   );
 };
 
-const DateCell: React.FC<any> = ({ data }) => {
-  const track = data as Track;
+const DateCell: React.FC<any> = ({ model }) => {
+  const track = (model || {}) as Track;
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  if (!track) return null;
+  if (!track.id) return null;
 
   return (
-    <div className="flex items-center h-full w-full min-w-0 pointer-events-none">
+    <div
+      className="flex items-center h-full w-full min-w-0 cursor-pointer"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        const evt = new CustomEvent('prism-open-context-menu', {
+          bubbles: true,
+          detail: { x: e.clientX, y: e.clientY, track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+      onDoubleClick={() => {
+        const evt = new CustomEvent('prism-play-track', {
+          bubbles: true,
+          detail: { track },
+        });
+        window.dispatchEvent(evt);
+      }}
+    >
       <span
         className={`font-mono text-zinc-400 truncate ${
           trackGridDensity === 'massive'
@@ -444,13 +427,30 @@ const DateCell: React.FC<any> = ({ data }) => {
   );
 };
 
-const GenreCell: React.FC<any> = ({ data }) => {
-  const track = data as Track;
+const GenreCell: React.FC<any> = ({ model }) => {
+  const track = (model || {}) as Track;
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  if (!track) return null;
+  if (!track.id) return null;
 
   return (
-    <div className="flex items-center h-full w-full min-w-0 pointer-events-none">
+    <div
+      className="flex items-center h-full w-full min-w-0 cursor-pointer"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        const evt = new CustomEvent('prism-open-context-menu', {
+          bubbles: true,
+          detail: { x: e.clientX, y: e.clientY, track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+      onDoubleClick={() => {
+        const evt = new CustomEvent('prism-play-track', {
+          bubbles: true,
+          detail: { track },
+        });
+        window.dispatchEvent(evt);
+      }}
+    >
       <span
         className={`truncate text-zinc-400 ${
           trackGridDensity === 'massive'
@@ -466,13 +466,30 @@ const GenreCell: React.FC<any> = ({ data }) => {
   );
 };
 
-const DurationCell: React.FC<any> = ({ data }) => {
-  const track = data as Track;
+const DurationCell: React.FC<any> = ({ model }) => {
+  const track = (model || {}) as Track;
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  if (!track) return null;
+  if (!track.id) return null;
 
   return (
-    <div className="flex items-center justify-end h-full w-full pr-1 pointer-events-none">
+    <div
+      className="flex items-center justify-end h-full w-full pr-2 cursor-pointer"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        const evt = new CustomEvent('prism-open-context-menu', {
+          bubbles: true,
+          detail: { x: e.clientX, y: e.clientY, track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+      onDoubleClick={() => {
+        const evt = new CustomEvent('prism-play-track', {
+          bubbles: true,
+          detail: { track },
+        });
+        window.dispatchEvent(evt);
+      }}
+    >
       <span
         className={`font-mono text-zinc-400 text-right ${
           trackGridDensity === 'massive'
@@ -488,24 +505,25 @@ const DurationCell: React.FC<any> = ({ data }) => {
   );
 };
 
-const FavoriteCell: React.FC<any> = ({ data }) => {
-  const track = data as Track;
+const FavoriteCell: React.FC<any> = ({ model }) => {
+  const track = (model || {}) as Track;
   const isLiked = usePlayerStore((s) => s.likedTrackIds.includes(track?.id));
   const toggleLikeTrack = usePlayerStore((s) => s.toggleLikeTrack);
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  if (!track) return null;
+  if (!track.id) return null;
 
   const config = ACTION_DENSITY_CONFIG[trackGridDensity] || ACTION_DENSITY_CONFIG.normal;
 
   return (
-    <div className="w-full h-full flex items-center justify-center pointer-events-none">
+    <div className="w-full h-full flex items-center justify-center">
       <button
+        type="button"
         onClick={(e) => {
           e.stopPropagation();
           toggleLikeTrack(track.id);
         }}
         onDoubleClick={(e) => e.stopPropagation()}
-        className={`${config.buttonClass} rounded-lg transition-all cursor-pointer pointer-events-auto flex items-center justify-center ${
+        className={`${config.buttonClass} rounded-lg transition-all cursor-pointer flex items-center justify-center ${
           isLiked
             ? 'text-pink-500 hover:scale-110'
             : 'text-zinc-500 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10'
@@ -518,23 +536,24 @@ const FavoriteCell: React.FC<any> = ({ data }) => {
   );
 };
 
-const PlayNextCell: React.FC<any> = ({ data }) => {
-  const track = data as Track;
+const PlayNextCell: React.FC<any> = ({ model }) => {
+  const track = (model || {}) as Track;
   const playNext = usePlayerStore((s) => s.playNext);
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  if (!track) return null;
+  if (!track.id) return null;
 
   const config = ACTION_DENSITY_CONFIG[trackGridDensity] || ACTION_DENSITY_CONFIG.normal;
 
   return (
-    <div className="w-full h-full flex items-center justify-center pointer-events-none">
+    <div className="w-full h-full flex items-center justify-center">
       <button
+        type="button"
         onClick={(e) => {
           e.stopPropagation();
           playNext(track);
         }}
         onDoubleClick={(e) => e.stopPropagation()}
-        className={`${config.buttonClass} rounded-lg text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10 transition-all cursor-pointer pointer-events-auto flex items-center justify-center`}
+        className={`${config.buttonClass} rounded-lg text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10 transition-all cursor-pointer flex items-center justify-center`}
         title="Play Next"
       >
         <ListPlus className={config.iconClass} />
@@ -543,23 +562,24 @@ const PlayNextCell: React.FC<any> = ({ data }) => {
   );
 };
 
-const AddToQueueCell: React.FC<any> = ({ data }) => {
-  const track = data as Track;
+const AddToQueueCell: React.FC<any> = ({ model }) => {
+  const track = (model || {}) as Track;
   const addToQueue = usePlayerStore((s) => s.addToQueue);
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  if (!track) return null;
+  if (!track.id) return null;
 
   const config = ACTION_DENSITY_CONFIG[trackGridDensity] || ACTION_DENSITY_CONFIG.normal;
 
   return (
-    <div className="w-full h-full flex items-center justify-center pointer-events-none">
+    <div className="w-full h-full flex items-center justify-center">
       <button
+        type="button"
         onClick={(e) => {
           e.stopPropagation();
           addToQueue(track);
         }}
         onDoubleClick={(e) => e.stopPropagation()}
-        className={`${config.buttonClass} rounded-lg text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10 transition-all cursor-pointer pointer-events-auto flex items-center justify-center`}
+        className={`${config.buttonClass} rounded-lg text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10 transition-all cursor-pointer flex items-center justify-center`}
         title="Add to Queue"
       >
         <PlusCircle className={config.iconClass} />
@@ -568,22 +588,27 @@ const AddToQueueCell: React.FC<any> = ({ data }) => {
   );
 };
 
-const ActionsCell: React.FC<any> = ({ data, onContextMenu }) => {
-  const track = data as Track;
+const ActionsCell: React.FC<any> = ({ model }) => {
+  const track = (model || {}) as Track;
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  if (!track) return null;
+  if (!track.id) return null;
 
   const config = ACTION_DENSITY_CONFIG[trackGridDensity] || ACTION_DENSITY_CONFIG.normal;
 
   return (
-    <div className="w-full h-full flex items-center justify-center pointer-events-none">
+    <div className="w-full h-full flex items-center justify-center">
       <button
+        type="button"
         onClick={(e) => {
           e.stopPropagation();
-          onContextMenu(e, track);
+          const evt = new CustomEvent('prism-open-context-menu', {
+            bubbles: true,
+            detail: { x: e.clientX, y: e.clientY, track },
+          });
+          e.currentTarget.dispatchEvent(evt);
         }}
         onDoubleClick={(e) => e.stopPropagation()}
-        className={`${config.buttonClass} rounded-lg text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10 transition-all cursor-pointer pointer-events-auto flex items-center justify-center`}
+        className={`${config.buttonClass} rounded-lg text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10 transition-all cursor-pointer flex items-center justify-center`}
         title="More Options"
       >
         <MoreVertical className={config.iconClass} />
@@ -599,7 +624,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   hideControls = false,
 }) => {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
-  const isPlaying = usePlayerStore((s) => s.isPlaying);
   const playTrack = usePlayerStore((s) => s.playTrack);
   const togglePlay = usePlayerStore((s) => s.togglePlay);
   const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
@@ -615,10 +639,10 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     resetGrid,
     setTrackGridDensity,
     setShowSubArtistUnderTitle,
-    COLUMN_SIZING_STORAGE_KEY,
-    setColumnOrder,
     columnOrder,
     setVisibleTrackColumns,
+    columnWidths,
+    saveColumnWidths,
   } = useTrackTableState();
 
   const [showConfigModal, setShowConfigModal] = useState(false);
@@ -626,199 +650,55 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     null
   );
 
-  const gridRef = useRef<AgGridReact<Track>>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const scrollTimerRef = useRef<any>(null);
-  const [isScrolling, setIsScrolling] = useState(false);
+  const gridRef = useRef<any>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(() => window.innerWidth);
 
-  const onBodyScroll = useCallback(() => {
-    setIsScrolling(true);
-    if (scrollTimerRef.current) {
-      clearTimeout(scrollTimerRef.current);
-    }
-    scrollTimerRef.current = setTimeout(() => {
-      setIsScrolling(false);
-    }, 1000);
-  }, []);
+  // ResizeObserver to track container width and dynamically recalculate fractional columns
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
 
-  // AG Grid v32 Native Theme API
-  const playerTheme = useMemo(() => {
-    return themeQuartz.withPart(colorSchemeDark).withParams({
-      backgroundColor: 'transparent',
-      wrapperBackgroundColor: 'transparent',
-      headerBackgroundColor: 'rgba(9, 9, 11, 0.45)',
-      rowHoverColor: 'rgba(255, 255, 255, 0.06)',
-      borderColor: 'transparent',
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0) {
+          setContainerWidth(entry.contentRect.width);
+        }
+      }
     });
+    ro.observe(el);
+    setContainerWidth(el.clientWidth || window.innerWidth);
+
+    return () => ro.disconnect();
   }, []);
 
-  // Keyboard navigation
-  const onCellKeyDown = useCallback(
-    (e: CellKeyDownEvent<Track>) => {
-      const keyEvent = e.event as KeyboardEvent;
-      if (keyEvent.key === 'Enter' && e.data) {
-        keyEvent.preventDefault();
-        if (currentTrack?.id === e.data.id) {
-          togglePlay();
-        } else {
-          playTrack(e.data, tracks);
-        }
-      }
-    },
-    [currentTrack, togglePlay, playTrack, tracks]
-  );
-
-  // Context menu triggered from right-click anywhere on row/cell
-  const onCellContextMenu = useCallback((e: any) => {
-    e.event.preventDefault();
-    if (e.data) {
-      setContextMenu({ x: e.event.clientX, y: e.event.clientY, track: e.data });
-    }
-  }, []);
-
-  // Save column resize, dynamically absorb overflow into adjacent columns, and enforce "Brick Wall" (hard stop)
-  const onColumnResized = useCallback(
-    (params: ColumnResizedEvent) => {
-      const containerWidth = containerRef.current?.clientWidth || window.innerWidth;
-      const api = params.api;
-
-      if (!params.finished) {
-        if (params.column) {
-          const activeCol = params.column;
-          const displayedCols = api.getAllDisplayedColumns();
-
-          // Calculate total width of all visible columns except buffer
-          let totalWidth = 0;
-          displayedCols.forEach((col) => {
-            if (col.getColId() !== 'buffer') {
-              totalWidth += col.getActualWidth();
-            }
-          });
-
-          // If total width attempts to exceed container width, absorb into right columns
-          let overflow = totalWidth - containerWidth;
-          if (overflow > 0) {
-            const activeIndex = displayedCols.indexOf(activeCol);
-            const rightResizableCols = displayedCols
-              .slice(activeIndex + 1)
-              .filter(
-                (col) =>
-                  col.isResizable() &&
-                  col.getColId() !== 'buffer' &&
-                  col.getActualWidth() > (col.getMinWidth() || 40)
-              );
-
-            const updates: { key: string; newWidth: number }[] = [];
-
-            // Shrink resizable columns to the right down to their minWidth
-            for (const rCol of rightResizableCols) {
-              const currentW = rCol.getActualWidth();
-              const minW = rCol.getMinWidth() || 40;
-              const shrinkable = currentW - minW;
-
-              if (shrinkable > 0) {
-                const shrinkBy = Math.min(shrinkable, overflow);
-                const newW = currentW - shrinkBy;
-                updates.push({ key: rCol.getColId(), newWidth: newW });
-                overflow -= shrinkBy;
-                if (overflow <= 0) break;
-              }
-            }
-
-            if (updates.length > 0) {
-              api.setColumnWidths(updates);
-            }
-
-            // If there is still overflow after shrinking all right columns to minWidth,
-            // strictly clamp the active column at the physical right edge
-            if (overflow > 0) {
-              const currentActiveW = activeCol.getActualWidth();
-              const minW = activeCol.getMinWidth() || 40;
-              const clampedActiveW = Math.max(minW, currentActiveW - overflow);
-              api.setColumnWidths([{ key: activeCol.getColId(), newWidth: clampedActiveW }]);
-            }
-          }
-        }
-        return;
-      }
-
-      // Drag finished: save column widths to localStorage
-      const state = api.getColumnState();
-      const sizingMap: Record<string, number> = {};
-      state.forEach((c) => {
-        if (c.width && c.colId && c.colId !== 'buffer') {
-          sizingMap[c.colId] = c.width;
-        }
-      });
-      localStorage.setItem(COLUMN_SIZING_STORAGE_KEY, JSON.stringify(sizingMap));
-
-      // Clear any temporary maxWidth to prevent columns from being permanently locked
-      const allCols = api.getAllDisplayedColumns();
-      allCols.forEach((col) => {
-        delete (col as any).maxWidth;
-        if (col.getColDef()) {
-          delete (col.getColDef() as any).maxWidth;
-        }
-      });
-    },
-    [COLUMN_SIZING_STORAGE_KEY]
-  );
-
-  // Save column order when drag is finished
-  const onColumnMoved = useCallback(
-    (params: ColumnMovedEvent) => {
-      if (!params.finished) return;
-      const state = params.api.getColumnState();
-      const nonMovable = ['order', 'art', 'favorite', 'playNext', 'addToQueue', 'actions', 'buffer'];
-      const orderedIds = state
-        .map((c) => c.colId as TrackColumnId)
-        .filter((id) => !nonMovable.includes(id as string));
-      setColumnOrder(orderedIds);
-    },
-    [setColumnOrder]
-  );
-
-  // Dynamic row height mapping from density
-  const getRowHeight = useCallback(() => {
-    return DENSITY_ROW_HEIGHTS[trackGridDensity] || 56;
-  }, [trackGridDensity]);
-
-  // Recalculate row heights, art column width, and action column widths when density changes
+  // Listen to custom events bubbled up from RevoGrid cell templates
   useEffect(() => {
-    if (gridRef.current?.api) {
-      gridRef.current.api.resetRowHeights();
-      const newArtWidth = ART_COLUMN_WIDTHS[trackGridDensity] || 56;
-      const newActionWidth = ACTION_DENSITY_CONFIG[trackGridDensity]?.colWidth || 42;
-      gridRef.current.api.setColumnWidths([
-        { key: 'art', newWidth: newArtWidth },
-        { key: 'favorite', newWidth: newActionWidth },
-        { key: 'playNext', newWidth: newActionWidth },
-        { key: 'addToQueue', newWidth: newActionWidth },
-        { key: 'actions', newWidth: newActionWidth },
-      ]);
-      gridRef.current.api.redrawRows();
-    }
-  }, [trackGridDensity]);
+    const container = containerRef.current;
+    if (!container) return;
 
-  // Redraw rows on track change to re-apply theme tint & play icons
-  useEffect(() => {
-    if (gridRef.current?.api) {
-      gridRef.current.api.redrawRows();
-    }
-  }, [currentTrack?.id, isPlaying]);
-
-  // Row styling for currently playing track
-  const getRowStyle = useCallback(
-    (params: any) => {
-      if (params.data && currentTrack?.id === params.data.id) {
-        return {
-          backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent)',
-        };
+    const handleOpenMenu = (e: Event) => {
+      const customEvt = e as CustomEvent<{ x: number; y: number; track: Track }>;
+      if (customEvt.detail) {
+        setContextMenu(customEvt.detail);
       }
-      return undefined;
-    },
-    [currentTrack?.id]
-  );
+    };
+
+    const handlePlayTrackEvt = (e: Event) => {
+      const customEvt = e as CustomEvent<{ track: Track }>;
+      if (customEvt.detail?.track) {
+        playTrack(customEvt.detail.track, tracks);
+      }
+    };
+
+    container.addEventListener('prism-open-context-menu', handleOpenMenu);
+    container.addEventListener('prism-play-track', handlePlayTrackEvt);
+
+    return () => {
+      container.removeEventListener('prism-open-context-menu', handleOpenMenu);
+      container.removeEventListener('prism-play-track', handlePlayTrackEvt);
+    };
+  }, [playTrack, tracks]);
 
   // Toggle visibility helper
   const handleToggleColumn = useCallback(
@@ -832,299 +712,244 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     [visibleTrackColumns, setVisibleTrackColumns]
   );
 
-  // Reset Grid handler
-  const handleResetGrid = useCallback(() => {
-    resetGrid();
-    if (gridRef.current?.api) {
-      gridRef.current.api.resetColumnState();
-      gridRef.current.api.resetRowHeights();
-    }
-  }, [resetGrid]);
+  // Cell Template instances memoized
+  const orderCellTemplate = useMemo(() => Template(OrderCell), []);
+  const artCellTemplate = useMemo(() => Template(TrackArtCell), []);
+  const titleCellTemplate = useMemo(() => Template(TitleCell), []);
+  const artistCellTemplate = useMemo(() => Template(ArtistCell), []);
+  const albumCellTemplate = useMemo(() => Template(AlbumCell), []);
+  const dateCellTemplate = useMemo(() => Template(DateCell), []);
+  const genreCellTemplate = useMemo(() => Template(GenreCell), []);
+  const durationCellTemplate = useMemo(() => Template(DurationCell), []);
+  const favoriteCellTemplate = useMemo(() => Template(FavoriteCell), []);
+  const playNextCellTemplate = useMemo(() => Template(PlayNextCell), []);
+  const addToQueueCellTemplate = useMemo(() => Template(AddToQueueCell), []);
+  const actionsCellTemplate = useMemo(() => Template(ActionsCell), []);
 
-  const defaultColDef = useMemo(
-    () => ({
-      headerComponent: CustomHeader,
-      suppressMovable: false,
-    }),
-    []
-  );
-
-  // Column definitions with initial/saved widths, flex distribution, and buffer column
-  const colDefs = useMemo<ColDef<Track>[]>(() => {
-    let savedSizing: Record<string, number> = {};
-    try {
-      const saved = localStorage.getItem(COLUMN_SIZING_STORAGE_KEY);
-      if (saved) savedSizing = JSON.parse(saved);
-    } catch {}
-
+  // Ordered visible column IDs
+  const orderedVisibleColumnIds = useMemo(() => {
     const isVisible = (id: TrackColumnId) => visibleTrackColumns.includes(id);
-
-    return [
-      {
-        colId: 'order',
-        headerName: '#',
-        width: savedSizing['order'] ?? DEFAULT_COLUMN_WIDTHS.order,
-        minWidth: MIN_COLUMN_WIDTHS.order,
-        resizable: false,
-        sortable: false,
-        suppressMovable: true,
-        lockPosition: 'left',
-        hide: !isVisible('order'),
-        cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-        cellRenderer: OrderCell,
-      },
-      {
-        colId: 'art',
-        headerName: '',
-        width: ART_COLUMN_WIDTHS[trackGridDensity] || 56,
-        minWidth: MIN_COLUMN_WIDTHS.art,
-        resizable: false,
-        sortable: false,
-        suppressMovable: true,
-        lockPosition: 'left',
-        hide: !isVisible('art'),
-        cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-        cellRenderer: (params: any) =>
-          params.data ? <TrackArtCell data={params.data} density={trackGridDensity} /> : null,
-      },
-      {
-        colId: 'title',
-        headerName: 'Title',
-        field: 'title',
-        width: savedSizing['title'] ?? DEFAULT_COLUMN_WIDTHS.title,
-        flex: savedSizing['title'] ? undefined : 2,
-        minWidth: MIN_COLUMN_WIDTHS.title,
-        sortable: true,
-        resizable: true,
-        hide: !isVisible('title'),
-        cellRenderer: TitleCell,
-      },
-      {
-        colId: 'artist',
-        headerName: 'Artist',
-        field: 'artist',
-        width: savedSizing['artist'] ?? DEFAULT_COLUMN_WIDTHS.artist,
-        flex: savedSizing['artist'] ? undefined : 1,
-        minWidth: MIN_COLUMN_WIDTHS.artist,
-        sortable: true,
-        resizable: true,
-        hide: !isVisible('artist'),
-        cellRenderer: ArtistCell,
-      },
-      {
-        colId: 'album',
-        headerName: 'Album',
-        field: 'album',
-        width: savedSizing['album'] ?? DEFAULT_COLUMN_WIDTHS.album,
-        flex: savedSizing['album'] ? undefined : 1,
-        minWidth: MIN_COLUMN_WIDTHS.album,
-        sortable: true,
-        resizable: true,
-        hide: !isVisible('album'),
-        cellRenderer: AlbumCell,
-      },
-      {
-        colId: 'date',
-        headerName: 'Date',
-        field: 'year',
-        width: savedSizing['date'] ?? DEFAULT_COLUMN_WIDTHS.date,
-        minWidth: MIN_COLUMN_WIDTHS.date,
-        sortable: true,
-        resizable: true,
-        hide: !isVisible('date'),
-        cellRenderer: DateCell,
-      },
-      {
-        colId: 'genre',
-        headerName: 'Genre',
-        field: 'genre',
-        width: savedSizing['genre'] ?? DEFAULT_COLUMN_WIDTHS.genre,
-        minWidth: MIN_COLUMN_WIDTHS.genre,
-        sortable: true,
-        resizable: true,
-        hide: !isVisible('genre'),
-        cellRenderer: GenreCell,
-      },
-      {
-        colId: 'duration',
-        headerName: 'Duration',
-        field: 'duration_secs',
-        width: savedSizing['duration'] ?? DEFAULT_COLUMN_WIDTHS.duration,
-        minWidth: MIN_COLUMN_WIDTHS.duration,
-        sortable: true,
-        resizable: true,
-        hide: !isVisible('duration'),
-        cellRenderer: DurationCell,
-      },
-      {
-        colId: 'favorite',
-        headerName: '',
-        width: ACTION_DENSITY_CONFIG[trackGridDensity]?.colWidth || 42,
-        minWidth: 32,
-        resizable: false,
-        sortable: false,
-        suppressMovable: true,
-        lockPosition: 'right',
-        hide: !isVisible('favorite'),
-        cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-        cellRenderer: FavoriteCell,
-      },
-      {
-        colId: 'playNext',
-        headerName: '',
-        width: ACTION_DENSITY_CONFIG[trackGridDensity]?.colWidth || 42,
-        minWidth: 32,
-        resizable: false,
-        sortable: false,
-        suppressMovable: true,
-        lockPosition: 'right',
-        hide: !isVisible('playNext'),
-        cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-        cellRenderer: PlayNextCell,
-      },
-      {
-        colId: 'addToQueue',
-        headerName: '',
-        width: ACTION_DENSITY_CONFIG[trackGridDensity]?.colWidth || 42,
-        minWidth: 32,
-        resizable: false,
-        sortable: false,
-        suppressMovable: true,
-        lockPosition: 'right',
-        hide: !isVisible('addToQueue'),
-        cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-        cellRenderer: AddToQueueCell,
-      },
-      {
-        colId: 'actions',
-        headerName: '',
-        width: ACTION_DENSITY_CONFIG[trackGridDensity]?.colWidth || 42,
-        minWidth: 32,
-        resizable: false,
-        sortable: false,
-        suppressMovable: true,
-        lockPosition: 'right',
-        hide: !isVisible('actions'),
-        cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-        cellRenderer: (params: any) =>
-          params.data ? (
-            <ActionsCell
-              data={params.data}
-              onContextMenu={(e: any, track: Track) => {
-                setContextMenu({ x: e.clientX, y: e.clientY, track });
-              }}
-            />
-          ) : null,
-      },
-      // Invisible Buffer Column to act as a shock absorber and prevent right-overflow
-      {
-        colId: 'buffer',
-        headerName: '',
-        flex: 1,
-        minWidth: 0,
-        resizable: false,
-        sortable: false,
-        suppressMovable: true,
-        lockPosition: 'right',
-        cellRenderer: () => null,
-      },
-    ];
-  }, [visibleTrackColumns, trackGridDensity, COLUMN_SIZING_STORAGE_KEY]);
-
-  // Guarantee: order & art locked left, title/artist/album in middle, actions all the way right, buffer at end
-  const orderedColDefs = useMemo(() => {
-    const leftCols: ColDef<Track>[] = [];
-    const middleCols: ColDef<Track>[] = [];
-    const rightCols: ColDef<Track>[] = [];
-    const colDefMap = new Map<string, ColDef<Track>>();
-    colDefs.forEach((c) => colDefMap.set(c.colId as string, c));
-
     const leftIds: TrackColumnId[] = ['order', 'art'];
     const rightIds: TrackColumnId[] = ['favorite', 'playNext', 'addToQueue', 'actions'];
 
-    // 1. Collect left columns (#, art)
-    leftIds.forEach((id) => {
-      if (colDefMap.has(id)) leftCols.push(colDefMap.get(id)!);
-    });
+    const left: TrackColumnId[] = leftIds.filter(isVisible);
+    const middle: TrackColumnId[] = columnOrder.filter(
+      (id) => !leftIds.includes(id) && !rightIds.includes(id) && isVisible(id)
+    );
 
-    // 2. Collect middle content columns according to columnOrder
-    columnOrder.forEach((id) => {
-      if (!leftIds.includes(id) && !rightIds.includes(id) && (id as string) !== 'buffer') {
-        if (colDefMap.has(id)) {
-          middleCols.push(colDefMap.get(id)!);
-        }
-      }
-    });
-
-    // Fallback: any content columns (title, artist, album, date, genre, duration) missing from columnOrder
     const contentIds: TrackColumnId[] = ['title', 'artist', 'album', 'date', 'genre', 'duration'];
     contentIds.forEach((id) => {
-      if (!middleCols.some((c) => c.colId === id) && colDefMap.has(id)) {
-        middleCols.push(colDefMap.get(id)!);
+      if (!middle.includes(id) && isVisible(id)) {
+        middle.push(id);
       }
     });
 
-    // 3. Collect right action columns in fixed order (all the way to the right)
-    rightIds.forEach((id) => {
-      if (colDefMap.has(id)) rightCols.push(colDefMap.get(id)!);
-    });
+    const right: TrackColumnId[] = rightIds.filter(isVisible);
+    return [...left, ...middle, ...right];
+  }, [visibleTrackColumns, columnOrder]);
 
-    // 4. Buffer column at very end
-    const bufferCol = colDefMap.get('buffer');
+  // Column definitions with fractional auto-sizing and strict layout boundaries
+  const columns = useMemo<ColumnRegular[]>(() => {
+    const widths = calculateColumnWidths(
+      containerWidth,
+      visibleTrackColumns,
+      trackGridDensity,
+      columnWidths
+    );
 
-    return [...leftCols, ...middleCols, ...rightCols, ...(bufferCol ? [bufferCol] : [])];
-  }, [colDefs, columnOrder]);
+    const colMap: Record<TrackColumnId, ColumnRegular> = {
+      order: {
+        prop: 'order',
+        name: '#',
+        size: widths.order,
+        minSize: MIN_COLUMN_WIDTHS.order,
+        sortable: false,
+        pin: 'colPinStart',
+        cellTemplate: orderCellTemplate,
+      },
+      art: {
+        prop: 'art',
+        name: '',
+        size: widths.art,
+        minSize: MIN_COLUMN_WIDTHS.art,
+        sortable: false,
+        pin: 'colPinStart',
+        cellTemplate: artCellTemplate,
+      },
+      title: {
+        prop: 'title',
+        name: 'Title',
+        size: widths.title,
+        minSize: MIN_COLUMN_WIDTHS.title,
+        sortable: true,
+        cellTemplate: titleCellTemplate,
+      },
+      artist: {
+        prop: 'artist',
+        name: 'Artist',
+        size: widths.artist,
+        minSize: MIN_COLUMN_WIDTHS.artist,
+        sortable: true,
+        cellTemplate: artistCellTemplate,
+      },
+      album: {
+        prop: 'album',
+        name: 'Album',
+        size: widths.album,
+        minSize: MIN_COLUMN_WIDTHS.album,
+        sortable: true,
+        cellTemplate: albumCellTemplate,
+      },
+      date: {
+        prop: 'year',
+        name: 'Date',
+        size: widths.date,
+        minSize: MIN_COLUMN_WIDTHS.date,
+        sortable: true,
+        cellTemplate: dateCellTemplate,
+      },
+      genre: {
+        prop: 'genre',
+        name: 'Genre',
+        size: widths.genre,
+        minSize: MIN_COLUMN_WIDTHS.genre,
+        sortable: true,
+        cellTemplate: genreCellTemplate,
+      },
+      duration: {
+        prop: 'duration_secs',
+        name: 'Duration',
+        size: widths.duration,
+        minSize: MIN_COLUMN_WIDTHS.duration,
+        sortable: true,
+        cellTemplate: durationCellTemplate,
+      },
+      favorite: {
+        prop: 'favorite',
+        name: '',
+        size: widths.favorite,
+        minSize: MIN_COLUMN_WIDTHS.favorite,
+        sortable: false,
+        pin: 'colPinEnd',
+        cellTemplate: favoriteCellTemplate,
+      },
+      playNext: {
+        prop: 'playNext',
+        name: '',
+        size: widths.playNext,
+        minSize: MIN_COLUMN_WIDTHS.playNext,
+        sortable: false,
+        pin: 'colPinEnd',
+        cellTemplate: playNextCellTemplate,
+      },
+      addToQueue: {
+        prop: 'addToQueue',
+        name: '',
+        size: widths.addToQueue,
+        minSize: MIN_COLUMN_WIDTHS.addToQueue,
+        sortable: false,
+        pin: 'colPinEnd',
+        cellTemplate: addToQueueCellTemplate,
+      },
+      actions: {
+        prop: 'actions',
+        name: '',
+        size: widths.actions,
+        minSize: MIN_COLUMN_WIDTHS.actions,
+        sortable: false,
+        pin: 'colPinEnd',
+        cellTemplate: actionsCellTemplate,
+      },
+    };
 
-  const handlePlayRow = useCallback(
-    (track: Track) => {
-      if (track) {
-        playTrack(track, tracks);
-      }
-    },
-    [playTrack, tracks]
-  );
+    return orderedVisibleColumnIds.map((id) => colMap[id]).filter(Boolean);
+  }, [
+    orderedVisibleColumnIds,
+    containerWidth,
+    visibleTrackColumns,
+    trackGridDensity,
+    columnWidths,
+    orderCellTemplate,
+    artCellTemplate,
+    titleCellTemplate,
+    artistCellTemplate,
+    albumCellTemplate,
+    dateCellTemplate,
+    genreCellTemplate,
+    durationCellTemplate,
+    favoriteCellTemplate,
+    playNextCellTemplate,
+    addToQueueCellTemplate,
+    actionsCellTemplate,
+  ]);
 
-  const onRowDoubleClicked = useCallback(
+  // Data source for RevoGrid with current-playing row classes
+  const source = useMemo(() => {
+    return tracks.map((track, idx) => ({
+      ...track,
+      rowIndex: idx,
+      rowClass: `group/row select-none ${currentTrack?.id === track.id ? 'is-current-playing' : ''}`,
+    }));
+  }, [tracks, currentTrack?.id]);
+
+  // Handle column resizing with strict "brick wall" right boundary constraint
+  const onAfterColumnResize = useCallback(
     (e: any) => {
-      if (e.event?.target?.closest('button') || e.event?.target?.closest('a')) {
-        return;
-      }
-      if (e.data) {
-        handlePlayRow(e.data);
-      }
-    },
-    [handlePlayRow]
-  );
+      const detail = e.detail;
+      if (!detail || !containerRef.current) return;
+      const containerW = containerRef.current.clientWidth;
 
-  const onCellDoubleClicked = useCallback(
-    (e: any) => {
-      if (e.event?.target?.closest('button') || e.event?.target?.closest('a')) {
-        return;
-      }
-      if (e.data) {
-        handlePlayRow(e.data);
-      }
-    },
-    [handlePlayRow]
-  );
-
-  const onGridReady = useCallback(
-    (params: GridReadyEvent) => {
-      try {
-        const saved = localStorage.getItem(COLUMN_SIZING_STORAGE_KEY);
-        if (saved) {
-          const sizing = JSON.parse(saved);
-          const state = params.api.getColumnState().map((col) => {
-            if (sizing[col.colId] && col.colId !== 'buffer') {
-              return { ...col, width: sizing[col.colId], flex: undefined };
-            }
-            return col;
-          });
-          params.api.applyColumnState({ state, applyOrder: false });
+      let resizedCol: ColumnRegular | null = null;
+      if (Array.isArray(detail)) {
+        resizedCol = detail[0];
+      } else if (typeof detail === 'object') {
+        const keys = Object.keys(detail);
+        if (keys.length > 0) {
+          resizedCol = detail[keys[0]];
         }
-      } catch {}
+      }
+
+      if (resizedCol && resizedCol.prop) {
+        let colId: TrackColumnId | null = null;
+        if (resizedCol.prop === 'year') colId = 'date';
+        else if (resizedCol.prop === 'duration_secs') colId = 'duration';
+        else colId = resizedCol.prop as TrackColumnId;
+
+        if (colId) {
+          const newWidth = resizedCol.size || DEFAULT_COLUMN_WIDTHS[colId] || 100;
+          const currentWidths = calculateColumnWidths(
+            containerW,
+            visibleTrackColumns,
+            trackGridDensity,
+            columnWidths
+          );
+          const { updatedWidths } = enforceBrickWallResize(
+            colId,
+            newWidth,
+            currentWidths,
+            orderedVisibleColumnIds,
+            containerW
+          );
+          saveColumnWidths(updatedWidths);
+        }
+      }
     },
-    [COLUMN_SIZING_STORAGE_KEY]
+    [visibleTrackColumns, trackGridDensity, columnWidths, orderedVisibleColumnIds, saveColumnWidths]
+  );
+
+  // Keyboard navigation: Enter to toggle or play
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (currentTrack) {
+          togglePlay();
+        } else if (tracks.length > 0) {
+          playTrack(tracks[0], tracks);
+        }
+      }
+    },
+    [currentTrack, togglePlay, playTrack, tracks]
   );
 
   if (tracks.length === 0) {
@@ -1159,6 +984,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
 
           <div className="relative">
             <button
+              type="button"
               onClick={() => setShowConfigModal((p) => !p)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer shadow-sm active:scale-95"
               style={{
@@ -1178,7 +1004,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               onDensityChange={setTrackGridDensity}
               showSubArtistUnderTitle={showSubArtistUnderTitle}
               onToggleSubArtist={setShowSubArtistUnderTitle}
-              onResetGrid={handleResetGrid}
+              onResetGrid={resetGrid}
               visibleTrackColumns={visibleTrackColumns}
               onToggleColumn={handleToggleColumn}
             />
@@ -1186,35 +1012,25 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         </div>
       )}
 
-      {/* Main AG Grid Container using native theme API */}
+      {/* Main RevoGrid Container with strict boundary constraints */}
       <div
         ref={containerRef}
-        className={`flex-1 w-full relative ${isScrolling ? 'ag-grid-is-scrolling' : ''}`}
+        tabIndex={0}
+        onKeyDown={onKeyDown}
+        className="flex-1 w-full relative outline-none overflow-hidden"
+        style={{ minHeight: 0 }}
       >
-        <AgGridReact
+        <RevoGrid
           ref={gridRef}
-          theme={playerTheme}
-          rowData={tracks}
-          columnDefs={orderedColDefs}
-          defaultColDef={defaultColDef}
-          rowHeight={currentDensityHeight}
-          getRowHeight={getRowHeight}
-          getRowStyle={getRowStyle}
-          rowClass="group/row"
-          suppressHorizontalScroll={true}
-          scrollbarWidth={0}
-          onGridReady={onGridReady}
-          onBodyScroll={onBodyScroll}
-          onCellKeyDown={onCellKeyDown}
-          onCellContextMenu={onCellContextMenu}
-          onRowDoubleClicked={onRowDoubleClicked}
-          onCellDoubleClicked={onCellDoubleClicked}
-          onColumnMoved={onColumnMoved}
-          onColumnResized={onColumnResized}
-          rowSelection="single"
-          animateRows={false}
-          headerHeight={36}
-          suppressCellFocus={true}
+          theme="darkMaterial"
+          source={source}
+          columns={columns}
+          rowSize={currentDensityHeight}
+          resize={true}
+          canFocus={true}
+          accessible={true}
+          rowClass="rowClass"
+          onAftercolumnresize={onAfterColumnResize}
         />
       </div>
 
@@ -1240,6 +1056,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               {contextMenu.track.title}
             </div>
             <button
+              type="button"
               onClick={() => {
                 playTrack(contextMenu.track, tracks);
                 setContextMenu(null);
@@ -1250,6 +1067,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               <span>Play Now</span>
             </button>
             <button
+              type="button"
               onClick={() => {
                 playNext(contextMenu.track);
                 setContextMenu(null);
@@ -1260,6 +1078,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               <span>Play Next</span>
             </button>
             <button
+              type="button"
               onClick={() => {
                 addToQueue(contextMenu.track);
                 setContextMenu(null);
@@ -1270,6 +1089,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               <span>Add to Queue</span>
             </button>
             <button
+              type="button"
               onClick={() => {
                 toggleLikeTrack(contextMenu.track.id);
                 setContextMenu(null);
@@ -1286,6 +1106,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               <span>{likedTrackIds.includes(contextMenu.track.id) ? 'Unlike' : 'Like'}</span>
             </button>
             <button
+              type="button"
               onClick={() => {
                 setInfoModalTrack(contextMenu.track);
                 setContextMenu(null);
@@ -1298,6 +1119,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
 
             {playlistId && onRemoveFromPlaylist && (
               <button
+                type="button"
                 onClick={() => {
                   onRemoveFromPlaylist(contextMenu.track.id);
                   setContextMenu(null);

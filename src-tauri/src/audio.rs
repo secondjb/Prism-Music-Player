@@ -368,6 +368,21 @@ impl GlobalAudioEngine {
                 }
             }
         }
+
+        // Synchronize in-memory cached devices active flags immediately
+        let mut cached_guard = state.cached_devices.lock();
+        if let Some((_, ref mut list)) = *cached_guard {
+            let target = device_name.as_deref();
+            for dev in list.iter_mut() {
+                dev.is_active = if let Some(t) = target {
+                    dev.name == t
+                } else {
+                    dev.is_default
+                };
+            }
+        }
+        drop(cached_guard);
+
         state.device_switch_requested.store(true, Ordering::SeqCst);
     }
 }
@@ -513,16 +528,17 @@ fn run_audio_thread(
         Ok((stream, tx, device_changed, dev_name, target_sample_rate, target_channels))
     };
 
-    let (mut stream, mut tx, mut device_changed, mut active_device_name, mut target_sample_rate, mut target_channels) = create_stream_fn()?;
+    let (init_stream, mut tx, mut device_changed, mut active_device_name, mut target_sample_rate, mut target_channels) = create_stream_fn()?;
+    let mut stream_opt = Some(init_stream);
 
     let mut sample_buf = None;
     let mut last_device_check = std::time::Instant::now();
 
     loop {
-        // Periodically (every 100ms) check if device needs switching
+        // Periodically (every 200ms) check if OS default device changed when in default mode
         let manual_switch = device_switch_requested.swap(false, Ordering::SeqCst);
         let mut need_device_switch = device_changed.load(Ordering::SeqCst) || manual_switch;
-        if !need_device_switch && selected_device_name.lock().is_none() && last_device_check.elapsed() >= Duration::from_millis(100) {
+        if !need_device_switch && selected_device_name.lock().is_none() && last_device_check.elapsed() >= Duration::from_millis(200) {
             last_device_check = std::time::Instant::now();
             if let Some(def_dev) = cpal::default_host().default_output_device() {
                 if let Ok(name) = def_dev.name() {
@@ -538,26 +554,39 @@ fn run_audio_thread(
         }
 
         if need_device_switch {
-            println!("Audio device change detected! Instantly re-creating WASAPI stream...");
-            drop(stream);
-            thread::sleep(Duration::from_millis(50));
+            println!("Audio device change detected! Migrating WASAPI stream...");
+            // Drain any intermediate spam clicks so we migrate directly to the latest chosen device!
+            loop {
+                device_switch_requested.store(false, Ordering::SeqCst);
+                let current_target = selected_device_name.lock().clone();
 
-            match create_stream_fn() {
-                Ok((new_stream, new_tx, new_dc, new_name, new_rate, new_ch)) => {
-                    stream = new_stream;
-                    tx = new_tx;
-                    device_changed = new_dc;
-                    active_device_name = new_name;
-                    target_sample_rate = new_rate;
-                    target_channels = new_ch;
-                    println!(
-                        "Successfully migrated audio stream to device: {}",
-                        active_device_name
-                    );
-                }
-                Err(e) => {
-                    eprintln!("Failed to recreate stream after device change: {}", e);
-                    break;
+                stream_opt = None;
+                thread::sleep(Duration::from_millis(20));
+
+                match create_stream_fn() {
+                    Ok((new_stream, new_tx, new_dc, new_name, new_rate, new_ch)) => {
+                        stream_opt = Some(new_stream);
+                        tx = new_tx;
+                        device_changed = new_dc;
+                        active_device_name = new_name;
+                        target_sample_rate = new_rate;
+                        target_channels = new_ch;
+
+                        let latest_target = selected_device_name.lock().clone();
+                        if latest_target != current_target {
+                            // User clicked another device while this one was initializing; loop immediately!
+                            continue;
+                        }
+                        println!(
+                            "Successfully migrated audio stream to device: {}",
+                            active_device_name
+                        );
+                        break;
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to recreate stream after device change: {}", e);
+                        break;
+                    }
                 }
             }
         }

@@ -50,6 +50,9 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
   const [details, setDetails] = useState<AudioOutputDetails | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
+  const [switchingDeviceName, setSwitchingDeviceName] = useState<string | null>(null);
+
+  const activeSwitchSeqRef = useRef(0);
 
   // Load hidden devices from localStorage
   const [hiddenDeviceNames, setHiddenDeviceNames] = useState<string[]>(() => {
@@ -123,6 +126,9 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
       return;
     }
 
+    const currentSeq = ++activeSwitchSeqRef.current;
+    setSwitchingDeviceName(dev.name);
+
     // 1. Instant optimistic UI update
     setDetails((prev) => {
       if (!prev) return prev;
@@ -142,10 +148,22 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
     try {
       const targetName = dev.is_default ? null : dev.name;
       await invoke('set_audio_output_device', { deviceName: targetName });
+
+      // If a newer switch was initiated while this was in flight, discard stale response
+      if (currentSeq !== activeSwitchSeqRef.current) {
+        return;
+      }
+
       const updated = await invoke<AudioOutputDetails>('get_audio_output_details', { forceRefresh: false });
-      setDetails(updated);
+      if (currentSeq === activeSwitchSeqRef.current) {
+        setDetails(updated);
+        setSwitchingDeviceName(null);
+      }
     } catch (e) {
-      console.warn('Failed to set audio output device:', e);
+      if (currentSeq === activeSwitchSeqRef.current) {
+        console.warn('Failed to set audio output device:', e);
+        setSwitchingDeviceName(null);
+      }
     }
   };
 
@@ -413,6 +431,11 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
                             >
                               <CheckCircle2 className="w-2.5 h-2.5" />
                               Active
+                            </span>
+                          ) : switchingDeviceName === dev.name ? (
+                            <span className="text-[10px] text-zinc-200 font-medium px-2 py-0.5 rounded bg-white/10 flex items-center gap-1 animate-pulse">
+                              <RefreshCw className="w-2.5 h-2.5 animate-spin text-zinc-400" />
+                              Switching...
                             </span>
                           ) : (
                             <span className="text-[10px] text-zinc-400 font-medium px-2 py-0.5 rounded bg-white/5 group-hover:bg-white/10 group-hover:text-white transition-colors">

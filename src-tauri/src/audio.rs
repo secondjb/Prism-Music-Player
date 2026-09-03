@@ -378,6 +378,10 @@ impl GlobalAudioEngine {
                 }
             }
         }
+        *state.active_sample_rate.lock() = 0;
+        *state.active_channels.lock() = 0;
+        *state.active_format.lock() = "".to_string();
+
 
         // Synchronize in-memory cached devices active flags immediately
         let mut cached_guard = state.cached_devices.lock();

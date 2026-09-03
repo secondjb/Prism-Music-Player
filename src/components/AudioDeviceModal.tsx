@@ -161,6 +161,11 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
         return;
       }
 
+      // Wait 600ms for the background audio thread to finish rebuilding the stream
+      await new Promise((resolve) => setTimeout(resolve, 600));
+
+      if (currentSeq !== activeSwitchSeqRef.current) return;
+
       const updated = await invoke<AudioOutputDetails>('get_audio_output_details', { forceRefresh: false });
       if (currentSeq === activeSwitchSeqRef.current) {
         setDetails(updated);

@@ -324,7 +324,16 @@ impl GlobalAudioEngine {
 
         let (final_active_name, final_rate, final_ch, final_fmt) = if let Some(ref sel) = selected_name {
             if let Some(d) = device_infos.iter().find(|d| &d.name == sel) {
-                (d.name.clone(), d.default_sample_rate, d.default_channels, d.default_format.clone())
+                let rate = if active_rate > 0 {
+                    active_rate
+                } else if d.max_sample_rate > d.default_sample_rate {
+                    d.max_sample_rate
+                } else {
+                    d.default_sample_rate
+                };
+                let ch = if active_ch > 0 { active_ch } else { d.default_channels };
+                let fmt = if !active_fmt.is_empty() { active_fmt.clone() } else { d.default_format.clone() };
+                (d.name.clone(), rate, ch, fmt)
             } else {
                 (sel.clone(), active_rate, active_ch, active_fmt)
             }
@@ -333,7 +342,8 @@ impl GlobalAudioEngine {
         } else if let Some(ref d) = default_dev {
             let name = d.name().unwrap_or_else(|_| "Default Device".to_string());
             if let Ok(cfg) = d.default_output_config() {
-                (name, cfg.sample_rate().0, cfg.channels(), format!("{:?}", cfg.sample_format()))
+                let rate = if active_rate > 0 { active_rate } else { cfg.sample_rate().0 };
+                (name, rate, cfg.channels(), format!("{:?}", cfg.sample_format()))
             } else {
                 (name, 48000, 2, "F32".to_string())
             }
@@ -466,62 +476,100 @@ fn run_audio_thread(
             .default_output_config()
             .map_err(|e| format!("Failed to get default output config: {}", e))?;
 
-        let target_sample_rate = default_config.sample_rate().0;
-        let target_channels = default_config.channels() as usize;
-        let stream_config: StreamConfig = default_config.clone().into();
-        let sample_format = default_config.sample_format();
+        // Check if device natively supports the track's sample rate (e.g. 192000, 96000, 44100) for bit-perfect output
+        let mut candidate_configs = Vec::new();
+        if let Ok(configs) = device.supported_output_configs() {
+            for c in configs {
+                if c.min_sample_rate().0 <= input_sample_rate && input_sample_rate <= c.max_sample_rate().0 {
+                    let cfg = c.with_sample_rate(cpal::SampleRate(input_sample_rate));
+                    candidate_configs.push(cfg);
+                }
+            }
+        }
+
+        // Helper to attempt building stream with a given config
+        let build_stream_with = |cfg: &cpal::SupportedStreamConfig| -> Result<(cpal::Stream, crossbeam_channel::Sender<f32>, Arc<AtomicBool>, u32, usize, String), String> {
+            let target_sample_rate = cfg.sample_rate().0;
+            let target_channels = cfg.channels() as usize;
+            let stream_config: StreamConfig = cfg.clone().into();
+            let sample_format = cfg.sample_format();
+            let format_str = format!("{:?}", sample_format);
+
+            let ring_buffer_capacity = (target_sample_rate as usize * target_channels / 10).max(8192);
+            let (tx, rx) = crossbeam_channel::bounded::<f32>(ring_buffer_capacity);
+
+            let device_changed = Arc::new(AtomicBool::new(false));
+            let dc_clone = Arc::clone(&device_changed);
+
+            let err_fn = move |err| {
+                eprintln!("CPAL Stream error: {}", err);
+                dc_clone.store(true, Ordering::SeqCst);
+            };
+
+            let stream = match sample_format {
+                SampleFormat::F32 => device.build_output_stream(
+                    &stream_config,
+                    move |data: &mut [f32], _| {
+                        for sample in data.iter_mut() {
+                            *sample = rx.try_recv().unwrap_or(0.0);
+                        }
+                    },
+                    err_fn,
+                    None,
+                ),
+                SampleFormat::I16 => device.build_output_stream(
+                    &stream_config,
+                    move |data: &mut [i16], _| {
+                        for sample in data.iter_mut() {
+                            let f_sample = rx.try_recv().unwrap_or(0.0);
+                            *sample = (f_sample * i16::MAX as f32) as i16;
+                        }
+                    },
+                    err_fn,
+                    None,
+                ),
+                SampleFormat::U16 => device.build_output_stream(
+                    &stream_config,
+                    move |data: &mut [u16], _| {
+                        for sample in data.iter_mut() {
+                            let f_sample = rx.try_recv().unwrap_or(0.0);
+                            *sample = ((f_sample + 1.0) * 0.5 * u16::MAX as f32) as u16;
+                        }
+                    },
+                    err_fn,
+                    None,
+                ),
+                _ => return Err("Unsupported sample format".into()),
+            }.map_err(|e| format!("Failed to build output stream: {}", e))?;
+
+            stream.play().map_err(|e| format!("Failed to play audio stream: {}", e))?;
+            Ok((stream, tx, device_changed, target_sample_rate, target_channels, format_str))
+        };
+
+        // Try candidate matching input_sample_rate first for Bit-Perfect Direct playback
+        let mut stream_result = None;
+        for cfg in &candidate_configs {
+            if let Ok(res) = build_stream_with(cfg) {
+                println!(
+                    "Configured Bit-Perfect Direct stream at {} kHz on device '{}'",
+                    cfg.sample_rate().0 as f32 / 1000.0,
+                    dev_name
+                );
+                stream_result = Some(res);
+                break;
+            }
+        }
+
+        // Fall back to default config if matching failed
+        let (stream, tx, device_changed, target_sample_rate, target_channels, active_fmt_str) = match stream_result {
+            Some(res) => res,
+            None => build_stream_with(&default_config)?,
+        };
 
         *active_device_name_out.lock() = dev_name.clone();
         *active_sample_rate_out.lock() = target_sample_rate;
         *active_channels_out.lock() = target_channels as u16;
-        *active_format_out.lock() = format!("{:?}", sample_format);
-
-        let ring_buffer_capacity = (target_sample_rate as usize * target_channels / 10).max(8192);
-        let (tx, rx) = crossbeam_channel::bounded::<f32>(ring_buffer_capacity);
-
-        let device_changed = Arc::new(AtomicBool::new(false));
-        let dc_clone = Arc::clone(&device_changed);
-
-        let err_fn = move |err| {
-            eprintln!("CPAL Stream error: {}", err);
-            dc_clone.store(true, Ordering::SeqCst);
-        };
-
-        let stream = match sample_format {
-            SampleFormat::F32 => device.build_output_stream(
-                &stream_config,
-                move |data: &mut [f32], _| {
-                    for sample in data.iter_mut() {
-                        *sample = rx.try_recv().unwrap_or(0.0);
-                    }
-                },
-                err_fn,
-                None,
-            ),
-            SampleFormat::I16 => device.build_output_stream(
-                &stream_config,
-                move |data: &mut [i16], _| {
-                    for sample in data.iter_mut() {
-                        let f_sample = rx.try_recv().unwrap_or(0.0);
-                        *sample = (f_sample * i16::MAX as f32) as i16;
-                    }
-                },
-                err_fn,
-                None,
-            ),
-            SampleFormat::U16 => device.build_output_stream(
-                &stream_config,
-                move |data: &mut [u16], _| {
-                    for sample in data.iter_mut() {
-                        let f_sample = rx.try_recv().unwrap_or(0.0);
-                        *sample = ((f_sample + 1.0) * 0.5 * u16::MAX as f32) as u16;
-                    }
-                },
-                err_fn,
-                None,
-            ),
-            _ => return Err("Unsupported sample format".into()),
-        }.map_err(|e| format!("Failed to build output stream: {}", e))?;
+        *active_format_out.lock() = active_fmt_str;
 
         stream.play().map_err(|e| format!("Failed to play audio stream: {}", e))?;
 

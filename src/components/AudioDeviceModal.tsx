@@ -135,7 +135,14 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
       return {
         ...prev,
         active_device_name: dev.name,
-        active_sample_rate: dev.default_sample_rate,
+        active_sample_rate:
+          currentTrack?.sample_rate &&
+          currentTrack.sample_rate >= dev.min_sample_rate &&
+          currentTrack.sample_rate <= dev.max_sample_rate
+            ? currentTrack.sample_rate
+            : dev.max_sample_rate > dev.default_sample_rate
+            ? dev.max_sample_rate
+            : dev.default_sample_rate,
         active_channels: dev.default_channels,
         active_format: dev.default_format,
         devices: prev.devices.map((d) => ({

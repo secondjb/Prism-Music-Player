@@ -222,10 +222,10 @@ const TitleCell: React.FC<any> = ({ data }) => {
   );
 
   return (
-    <div className="flex flex-col justify-center truncate min-w-0 pr-2 w-full h-full select-none">
+    <div className="flex flex-col justify-center h-full min-w-0 pr-2 w-full select-none">
       <span
         title={track.title}
-        className={`truncate font-medium min-w-0 ${
+        className={`truncate font-medium min-w-0 leading-snug pb-0.5 ${
           trackGridDensity === 'massive'
             ? 'text-xl'
             : trackGridDensity === 'huge'
@@ -246,7 +246,7 @@ const TitleCell: React.FC<any> = ({ data }) => {
         {track.title}
       </span>
       {showSubArtistUnderTitle && (
-        <div className="flex items-center min-w-0 pointer-events-none">
+        <div className="flex items-center min-w-0 pointer-events-none leading-none -mt-0.5">
           {hasSubArtistLink ? (
             <span
               title={track.artist}
@@ -254,11 +254,11 @@ const TitleCell: React.FC<any> = ({ data }) => {
                 e.stopPropagation();
                 usePlayerStore.getState().navigateToArtist(track.artist);
               }}
-              className={`text-zinc-400 truncate hover:underline hover:text-indigo-400 cursor-pointer pointer-events-auto shrink-0 max-w-full ${
+              className={`text-zinc-400 truncate hover:underline hover:text-indigo-400 cursor-pointer pointer-events-auto shrink-0 max-w-full leading-tight ${
                 trackGridDensity === 'massive'
-                  ? 'text-sm mt-0.5'
+                  ? 'text-sm'
                   : trackGridDensity === 'huge'
-                  ? 'text-xs mt-0.5'
+                  ? 'text-xs'
                   : 'text-[11px]'
               }`}
             >
@@ -266,11 +266,11 @@ const TitleCell: React.FC<any> = ({ data }) => {
             </span>
           ) : (
             <span
-              className={`text-zinc-500 truncate ${
+              className={`text-zinc-500 truncate leading-tight ${
                 trackGridDensity === 'massive'
-                  ? 'text-sm mt-0.5'
+                  ? 'text-sm'
                   : trackGridDensity === 'huge'
-                  ? 'text-xs mt-0.5'
+                  ? 'text-xs'
                   : 'text-[11px]'
               }`}
             >
@@ -375,17 +375,19 @@ const DateCell: React.FC<any> = ({ data }) => {
   if (!track) return null;
 
   return (
-    <span
-      className={`font-mono text-zinc-400 truncate pointer-events-none ${
-        trackGridDensity === 'massive'
-          ? 'text-base'
-          : trackGridDensity === 'huge'
-          ? 'text-sm'
-          : 'text-xs'
-      }`}
-    >
-      {track.year || '—'}
-    </span>
+    <div className="flex items-center h-full w-full min-w-0 pointer-events-none">
+      <span
+        className={`font-mono text-zinc-400 truncate ${
+          trackGridDensity === 'massive'
+            ? 'text-base'
+            : trackGridDensity === 'huge'
+            ? 'text-sm'
+            : 'text-xs'
+        }`}
+      >
+        {track.year || '—'}
+      </span>
+    </div>
   );
 };
 
@@ -395,17 +397,19 @@ const GenreCell: React.FC<any> = ({ data }) => {
   if (!track) return null;
 
   return (
-    <span
-      className={`truncate text-zinc-400 pointer-events-none ${
-        trackGridDensity === 'massive'
-          ? 'text-base'
-          : trackGridDensity === 'huge'
-          ? 'text-sm'
-          : 'text-xs'
-      }`}
-    >
-      {track.genre || '—'}
-    </span>
+    <div className="flex items-center h-full w-full min-w-0 pointer-events-none">
+      <span
+        className={`truncate text-zinc-400 ${
+          trackGridDensity === 'massive'
+            ? 'text-base'
+            : trackGridDensity === 'huge'
+            ? 'text-sm'
+            : 'text-xs'
+        }`}
+      >
+        {track.genre || '—'}
+      </span>
+    </div>
   );
 };
 
@@ -415,17 +419,19 @@ const DurationCell: React.FC<any> = ({ data }) => {
   if (!track) return null;
 
   return (
-    <span
-      className={`font-mono text-zinc-400 text-right w-full pr-1 pointer-events-none ${
-        trackGridDensity === 'massive'
-          ? 'text-base'
-          : trackGridDensity === 'huge'
-          ? 'text-sm'
-          : 'text-xs'
-      }`}
-    >
-      {formatDuration(track.duration_secs)}
-    </span>
+    <div className="flex items-center justify-end h-full w-full pr-1 pointer-events-none">
+      <span
+        className={`font-mono text-zinc-400 text-right ${
+          trackGridDensity === 'massive'
+            ? 'text-base'
+            : trackGridDensity === 'huge'
+            ? 'text-sm'
+            : 'text-xs'
+        }`}
+      >
+        {formatDuration(track.duration_secs)}
+      </span>
+    </div>
   );
 };
 

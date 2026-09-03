@@ -530,6 +530,7 @@ export const BottomBar: React.FC = () => {
           {/* Audio Output Devices & Quality Modal Button */}
           <div className="relative shrink-0">
             <button
+              data-audio-speaker-btn="true"
               onClick={() => setIsDeviceModalOpen(!isDeviceModalOpen)}
               className={`p-1.5 sm:p-2 rounded-xl transition-all shrink-0 ${
                 isDeviceModalOpen

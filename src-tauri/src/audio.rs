@@ -51,6 +51,7 @@ pub struct AudioPlayerState {
     pub active_channels: Arc<Mutex<u16>>,
     pub active_format: Arc<Mutex<String>>,
     pub device_switch_requested: Arc<AtomicBool>,
+    pub device_caps_cache: Arc<Mutex<std::collections::HashMap<String, (u32, u32, Vec<u16>, Vec<String>)>>>,
 }
 
 impl AudioPlayerState {
@@ -69,10 +70,12 @@ impl AudioPlayerState {
             active_channels: Arc::new(Mutex::new(0)),
             active_format: Arc::new(Mutex::new(String::new())),
             device_switch_requested: Arc::new(AtomicBool::new(false)),
+            device_caps_cache: Arc::new(Mutex::new(std::collections::HashMap::new())),
         }
     }
 }
 
+#[derive(Clone)]
 pub struct GlobalAudioEngine {
     pub state: Arc<Mutex<AudioPlayerState>>,
     pub thread_handle: Arc<Mutex<Option<thread::JoinHandle<()>>>>,
@@ -205,6 +208,7 @@ impl GlobalAudioEngine {
         let active_ch = *state.active_channels.lock();
         let active_fmt = state.active_format.lock().clone();
         let selected_name = state.selected_device_name.lock().clone();
+        let caps_cache_arc = Arc::clone(&state.device_caps_cache);
         drop(state);
 
         let default_dev = host.default_output_device();
@@ -212,6 +216,8 @@ impl GlobalAudioEngine {
 
         let mut device_infos = Vec::new();
         if let Ok(devices) = host.output_devices() {
+            let mut caps_cache = caps_cache_arc.lock();
+
             for dev in devices {
                 if let Ok(name) = dev.name() {
                     let is_default = default_name.as_ref().map(|dn| dn == &name).unwrap_or(false);
@@ -233,32 +239,47 @@ impl GlobalAudioEngine {
                         default_format = format!("{:?}", cfg.sample_format());
                     }
 
-                    let mut min_sample_rate = default_sample_rate;
-                    let mut max_sample_rate = default_sample_rate;
-                    let mut supported_channels_set = std::collections::BTreeSet::new();
-                    let mut supported_formats_set = std::collections::BTreeSet::new();
+                    // Check cache first to avoid slow synchronous COM queries on Windows
+                    let (min_sample_rate, max_sample_rate, supported_channels, supported_formats) =
+                        if let Some(cached) = caps_cache.get(&name) {
+                            cached.clone()
+                        } else {
+                            let mut min_r = default_sample_rate;
+                            let mut max_r = default_sample_rate;
+                            let mut supported_channels_set = std::collections::BTreeSet::new();
+                            let mut supported_formats_set = std::collections::BTreeSet::new();
 
-                    if let Ok(configs) = dev.supported_output_configs() {
-                        for c in configs {
-                            let min_r = c.min_sample_rate().0;
-                            let max_r = c.max_sample_rate().0;
-                            if min_sample_rate == 0 || min_r < min_sample_rate {
-                                min_sample_rate = min_r;
+                            if let Ok(configs) = dev.supported_output_configs() {
+                                for c in configs {
+                                    let c_min = c.min_sample_rate().0;
+                                    let c_max = c.max_sample_rate().0;
+                                    if min_r == 0 || c_min < min_r {
+                                        min_r = c_min;
+                                    }
+                                    if c_max > max_r {
+                                        max_r = c_max;
+                                    }
+                                    supported_channels_set.insert(c.channels());
+                                    supported_formats_set.insert(format!("{:?}", c.sample_format()));
+                                }
                             }
-                            if max_r > max_sample_rate {
-                                max_sample_rate = max_r;
-                            }
-                            supported_channels_set.insert(c.channels());
-                            supported_formats_set.insert(format!("{:?}", c.sample_format()));
-                        }
-                    }
 
-                    if supported_formats_set.is_empty() {
-                        supported_formats_set.insert(default_format.clone());
-                    }
-                    if supported_channels_set.is_empty() {
-                        supported_channels_set.insert(default_channels);
-                    }
+                            if supported_formats_set.is_empty() {
+                                supported_formats_set.insert(default_format.clone());
+                            }
+                            if supported_channels_set.is_empty() {
+                                supported_channels_set.insert(default_channels);
+                            }
+
+                            let entry = (
+                                min_r,
+                                max_r,
+                                supported_channels_set.into_iter().collect(),
+                                supported_formats_set.into_iter().collect(),
+                            );
+                            caps_cache.insert(name.clone(), entry.clone());
+                            entry
+                        };
 
                     device_infos.push(AudioDeviceInfo {
                         name,
@@ -269,8 +290,8 @@ impl GlobalAudioEngine {
                         default_format,
                         min_sample_rate,
                         max_sample_rate,
-                        supported_channels: supported_channels_set.into_iter().collect(),
-                        supported_formats: supported_formats_set.into_iter().collect(),
+                        supported_channels,
+                        supported_formats,
                     });
                 }
             }
@@ -303,6 +324,11 @@ impl GlobalAudioEngine {
 
     pub fn set_output_device(&self, device_name: Option<String>) {
         let state = self.state.lock();
+        let current_sel = state.selected_device_name.lock().clone();
+        if current_sel == device_name {
+            // Already selected target device, do not interrupt playback
+            return;
+        }
         *state.selected_device_name.lock() = device_name;
         state.device_switch_requested.store(true, Ordering::SeqCst);
     }

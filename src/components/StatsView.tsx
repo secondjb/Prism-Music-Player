@@ -7,7 +7,8 @@ import {
   getListeningHabits, 
   getTotalListeningTime,
   getListeningTimeByPeriod,
-  formatDuration
+  formatDuration,
+  generateMockListeningEvents,
 } from '../utils/statsAggregation';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { BarChart2, AlertCircle, Clock, Sparkles } from 'lucide-react';
@@ -73,19 +74,30 @@ export const StatsView: React.FC = () => {
   const [timePeriod, setTimePeriod] = useState<'day' | 'week' | 'month'>('day');
   
   const isStatsCollectionEnabled = usePlayerStore((s) => s.isStatsCollectionEnabled);
+  const showDemoStats = usePlayerStore((s) => s.showDemoStats);
+  const toggleShowDemoStats = usePlayerStore((s) => s.toggleShowDemoStats);
+  const libraryTracks = usePlayerStore((s) => s.tracks);
   const setTab = usePlayerStore((s) => s.setActiveTab);
   const themeColors = useThemeColors();
 
   useEffect(() => {
     async function loadData() {
-      if (isStatsCollectionEnabled) {
+      if (showDemoStats) {
+        setEvents(generateMockListeningEvents(libraryTracks));
+      } else if (isStatsCollectionEnabled) {
         const data = await fetchListeningEvents();
-        setEvents(data);
+        if (data.length === 0) {
+          setEvents(generateMockListeningEvents(libraryTracks));
+        } else {
+          setEvents(data);
+        }
+      } else {
+        setEvents([]);
       }
       setLoading(false);
     }
     loadData();
-  }, [isStatsCollectionEnabled]);
+  }, [isStatsCollectionEnabled, showDemoStats, libraryTracks]);
 
   const stats = useMemo(() => {
     return {
@@ -98,23 +110,31 @@ export const StatsView: React.FC = () => {
     };
   }, [events, timePeriod]);
 
-  if (!isStatsCollectionEnabled) {
+  if (!isStatsCollectionEnabled && !showDemoStats) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center p-8 gap-4 text-center">
         <AlertCircle className="w-12 h-12 text-zinc-500 mb-2" />
         <h2 className="text-xl font-bold text-white">Statistics Disabled</h2>
         <p className="text-sm text-zinc-400 max-w-sm">
-          Listening statistics are currently disabled. You can enable them in the settings to start tracking your listening history.
+          Listening statistics are currently disabled. You can enable them in settings or preview with demo data.
         </p>
-        <button
-          onClick={() => setTab('settings')}
-          style={{
-            background: `linear-gradient(135deg, ${themeColors.stop1}, ${themeColors.stop3})`
-          }}
-          className="mt-4 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
-        >
-          Go to Settings
-        </button>
+        <div className="flex items-center gap-3 mt-4">
+          <button
+            onClick={() => setTab('settings')}
+            style={{
+              background: `linear-gradient(135deg, ${themeColors.stop1}, ${themeColors.stop3})`
+            }}
+            className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+          >
+            Go to Settings
+          </button>
+          <button
+            onClick={toggleShowDemoStats}
+            className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-white/10 hover:bg-white/20 text-white border border-white/10 transition-transform hover:scale-105 active:scale-95"
+          >
+            Preview Demo Stats
+          </button>
+        </div>
       </div>
     );
   }
@@ -251,6 +271,21 @@ export const StatsView: React.FC = () => {
           <p className="text-xs text-zinc-400 mt-0.5">Your personal music listening statistics.</p>
         </div>
       </div>
+
+      {showDemoStats && (
+        <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-xs text-indigo-300 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-indigo-400" />
+            <span><strong>Showcase Demo Mode Active:</strong> Displaying simulated analytics data for screenshots and testing.</span>
+          </div>
+          <button
+            onClick={toggleShowDemoStats}
+            className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium transition-colors text-[11px]"
+          >
+            Turn Off Demo
+          </button>
+        </div>
+      )}
       
       {/* Hero Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

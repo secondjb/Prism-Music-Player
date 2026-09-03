@@ -100,3 +100,60 @@ export function getListeningTimeByPeriod(events: ListeningEvent[], period: 'day'
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([label, ms]) => ({ label, ms }));
 }
+
+export function generateMockListeningEvents(
+  libraryTracks: { title?: string | null; artist?: string | null; album?: string | null; genre?: string | null }[] = []
+): ListeningEvent[] {
+  const now = Date.now();
+  const sampleArtists = [
+    { artist: 'Daft Punk', song: 'Get Lucky', album: 'Random Access Memories', genre: 'Electronic' },
+    { artist: 'Porter Robinson', song: 'Shelter', album: 'Worlds', genre: 'Synthwave' },
+    { artist: 'Tycho', song: 'Awake', album: 'Awake', genre: 'Ambient' },
+    { artist: 'CHVRCHES', song: 'The Mother We Share', album: 'The Bones of What You Believe', genre: 'Synthpop' },
+    { artist: 'Hans Zimmer', song: 'Time', album: 'Inception OST', genre: 'Soundtrack' },
+    { artist: 'Kendrick Lamar', song: 'DNA.', album: 'DAMN.', genre: 'Hip-Hop' },
+    { artist: 'Fleetwood Mac', song: 'Dreams', album: 'Rumours', genre: 'Rock' },
+    { artist: 'Kavinsky', song: 'Nightcall', album: 'OutRun', genre: 'Synthwave' },
+    { artist: 'M83', song: 'Midnight City', album: "Hurry Up, We're Dreaming", genre: 'Electronic' },
+  ];
+
+  const pool = libraryTracks && libraryTracks.length >= 3
+    ? libraryTracks.map((t) => ({
+        artist: t.artist || 'Unknown Artist',
+        song: t.title || 'Untitled Track',
+        album: t.album || 'Unknown Album',
+        genre: t.genre || 'Electronic',
+      }))
+    : sampleArtists;
+
+  const mock: ListeningEvent[] = [];
+  for (let i = 0; i < 120; i++) {
+    const item = pool[i % pool.length];
+    const dayOffset = Math.floor(Math.random() * 28);
+    const hour = Math.random() < 0.75 
+      ? 14 + Math.floor(Math.random() * 9) 
+      : 8 + Math.floor(Math.random() * 6);
+    const minute = Math.floor(Math.random() * 60);
+    const eventDate = new Date(now - dayOffset * 86400000);
+    eventDate.setHours(hour, minute, Math.floor(Math.random() * 60));
+
+    const yyyy = eventDate.getFullYear();
+    const mm = String(eventDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(eventDate.getDate()).padStart(2, '0');
+    const hh = String(eventDate.getHours()).padStart(2, '0');
+    const min = String(eventDate.getMinutes()).padStart(2, '0');
+    const ss = String(eventDate.getSeconds()).padStart(2, '0');
+
+    mock.push({
+      id: i + 1,
+      song_title: item.song,
+      artist_name: item.artist,
+      album_name: item.album || null,
+      genre: item.genre || 'Electronic',
+      duration_ms: Math.floor(180000 + Math.random() * 140000),
+      played_at: `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`,
+    });
+  }
+
+  return mock.sort((a, b) => new Date(b.played_at).getTime() - new Date(a.played_at).getTime());
+}

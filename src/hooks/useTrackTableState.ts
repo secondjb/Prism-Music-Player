@@ -24,8 +24,8 @@ export const DEFAULT_COLUMN_ORDER: TrackColumnId[] = [
   'order',
   'art',
   'title',
-  'artist',
   'album',
+  'artist',
   'date',
   'genre',
   'duration',
@@ -41,8 +41,8 @@ export const DEFAULT_VISIBLE_COLUMNS: TrackColumnId[] = [
   'order',
   'art',
   'title',
-  'artist',
   'album',
+  'artist',
   'duration',
   'favorite',
   'playNext',
@@ -384,7 +384,7 @@ export function useTrackTableState() {
     setTrackGridDensity('normal');
     setShowSubArtistUnderTitle(true);
     setVisibleTrackColumns(DEFAULT_VISIBLE_COLUMNS);
-    setColumnOrder(ALL_COLUMN_IDS);
+    setColumnOrder(DEFAULT_COLUMN_ORDER);
   }, [setTrackGridDensity, setShowSubArtistUnderTitle, setVisibleTrackColumns, setColumnOrder]);
 
   const saveColumnWidths = useCallback((widths: Record<string, number>) => {

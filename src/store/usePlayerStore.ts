@@ -53,6 +53,7 @@ interface PlayerState {
   lyricsFontSize: number;
   lyricsArtScale: number;
   isStatsCollectionEnabled: boolean;
+  showDemoStats: boolean;
 
   // Track Grid View Customization
   visibleTrackColumns: TrackColumnId[];
@@ -135,6 +136,8 @@ interface PlayerState {
   setActivePlaylistId: (id: string | null) => void;
   playPlaylistNext: (playlistId: string) => void;
   addPlaylistToQueue: (playlistId: string) => void;
+  generateDemoPlaylists: () => void;
+  toggleShowDemoStats: () => void;
 
   // Reset & Wipe Action
   wipeDataAndReset: () => Promise<void>;
@@ -209,6 +212,7 @@ export const usePlayerStore = create<PlayerState>()(
       lyricsFontSize: 24,
       lyricsArtScale: 100,
       isStatsCollectionEnabled: false,
+      showDemoStats: false,
 
       selectedArtist: null,
       selectedAlbum: null,
@@ -220,8 +224,8 @@ export const usePlayerStore = create<PlayerState>()(
         'order',
         'art',
         'title',
-        'artist',
         'album',
+        'artist',
         'duration',
         'favorite',
         'playNext',
@@ -245,8 +249,8 @@ export const usePlayerStore = create<PlayerState>()(
         'order',
         'art',
         'title',
-        'artist',
         'album',
+        'artist',
         'date',
         'genre',
         'duration',
@@ -859,6 +863,37 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
+      toggleShowDemoStats: () => set((state) => ({ showDemoStats: !state.showDemoStats })),
+
+      generateDemoPlaylists: () => {
+        const { tracks, playlists } = get();
+        const demoThemes = [
+          { name: '🌙 Midnight Synthwave', desc: 'Retrowave, synthpop & night driving' },
+          { name: '⚡ High-Energy Flow', desc: 'Uptempo electronic & workout beats' },
+          { name: '☕ Lo-Fi Chill & Focus', desc: 'Mellow ambient & study vibes' },
+          { name: '✨ Audiophile Mastercuts', desc: 'Lossless hi-res acoustic & orchestral references' },
+        ];
+        const newPlaylists = [...playlists];
+        demoThemes.forEach((theme, idx) => {
+          if (!newPlaylists.some((p) => p.name === theme.name)) {
+            let trackIds: string[] = [];
+            if (tracks.length > 0) {
+              const start = (idx * 3) % tracks.length;
+              const count = Math.min(6, tracks.length);
+              const slice = tracks.slice(start, start + count);
+              trackIds = slice.length > 0 ? slice.map((t) => t.id) : tracks.slice(0, 4).map((t) => t.id);
+            }
+            newPlaylists.push({
+              id: `pl-demo-${Date.now()}-${idx}`,
+              name: theme.name,
+              trackIds,
+              createdAt: Date.now() - (idx + 1) * 86400000 * 2,
+            });
+          }
+        });
+        set({ playlists: newPlaylists });
+      },
+
       startSleepTimer: (mode, value) => {
         if (mode === 'time') {
           set({
@@ -982,6 +1017,7 @@ export const usePlayerStore = create<PlayerState>()(
         romanizationMode: state.romanizationMode,
         autoHideLyricsControls: state.autoHideLyricsControls,
         isStatsCollectionEnabled: state.isStatsCollectionEnabled,
+        showDemoStats: state.showDemoStats,
         lrclibAutoFetch: state.lrclibAutoFetch,
         preferOnlineLyrics: state.preferOnlineLyrics,
         lyricsFontSizePreset: state.lyricsFontSizePreset,

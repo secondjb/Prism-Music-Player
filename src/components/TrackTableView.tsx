@@ -676,42 +676,74 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     }
   }, []);
 
-  // Save column resize and enforce "Brick Wall" (hard stop) during drag
+  // Save column resize, dynamically absorb overflow into adjacent columns, and enforce "Brick Wall" (hard stop)
   const onColumnResized = useCallback(
     (params: ColumnResizedEvent) => {
       const containerWidth = containerRef.current?.clientWidth || window.innerWidth;
+      const api = params.api;
 
       if (!params.finished) {
         if (params.column) {
-          const displayedCols = params.api.getAllDisplayedColumns();
-          let sumOtherCols = 0;
+          const activeCol = params.column;
+          const displayedCols = api.getAllDisplayedColumns();
+
+          // Calculate total width of all visible columns except buffer
+          let totalWidth = 0;
           displayedCols.forEach((col) => {
-            if (col !== params.column && col.getColId() !== 'buffer') {
-              sumOtherCols += col.getActualWidth();
+            if (col.getColId() !== 'buffer') {
+              totalWidth += col.getActualWidth();
             }
           });
 
-          const minW = params.column.getMinWidth() || 40;
-          const availableSpace = Math.max(minW, containerWidth - sumOtherCols);
+          // If total width attempts to exceed container width, absorb into right columns
+          let overflow = totalWidth - containerWidth;
+          if (overflow > 0) {
+            const activeIndex = displayedCols.indexOf(activeCol);
+            const rightResizableCols = displayedCols
+              .slice(activeIndex + 1)
+              .filter(
+                (col) =>
+                  col.isResizable() &&
+                  col.getColId() !== 'buffer' &&
+                  col.getActualWidth() > (col.getMinWidth() || 40)
+              );
 
-          // Dynamically enforce maxWidth on the active column to hit a hard stop at the right wall
-          (params.column as any).maxWidth = availableSpace;
-          if (params.column.getColDef()) {
-            (params.column.getColDef() as any).maxWidth = availableSpace;
-          }
+            const updates: { key: string; newWidth: number }[] = [];
 
-          // If current width exceeds availableSpace, clamp it immediately
-          if (params.column.getActualWidth() > availableSpace) {
-            params.api.setColumnWidths([
-              { key: params.column.getColId(), newWidth: availableSpace },
-            ]);
+            // Shrink resizable columns to the right down to their minWidth
+            for (const rCol of rightResizableCols) {
+              const currentW = rCol.getActualWidth();
+              const minW = rCol.getMinWidth() || 40;
+              const shrinkable = currentW - minW;
+
+              if (shrinkable > 0) {
+                const shrinkBy = Math.min(shrinkable, overflow);
+                const newW = currentW - shrinkBy;
+                updates.push({ key: rCol.getColId(), newWidth: newW });
+                overflow -= shrinkBy;
+                if (overflow <= 0) break;
+              }
+            }
+
+            if (updates.length > 0) {
+              api.setColumnWidths(updates);
+            }
+
+            // If there is still overflow after shrinking all right columns to minWidth,
+            // strictly clamp the active column at the physical right edge
+            if (overflow > 0) {
+              const currentActiveW = activeCol.getActualWidth();
+              const minW = activeCol.getMinWidth() || 40;
+              const clampedActiveW = Math.max(minW, currentActiveW - overflow);
+              api.setColumnWidths([{ key: activeCol.getColId(), newWidth: clampedActiveW }]);
+            }
           }
         }
         return;
       }
 
       // Drag finished: save column widths to localStorage
-      const state = params.api.getColumnState();
+      const state = api.getColumnState();
       const sizingMap: Record<string, number> = {};
       state.forEach((c) => {
         if (c.width && c.colId && c.colId !== 'buffer') {
@@ -719,6 +751,15 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         }
       });
       localStorage.setItem(COLUMN_SIZING_STORAGE_KEY, JSON.stringify(sizingMap));
+
+      // Clear any temporary maxWidth to prevent columns from being permanently locked
+      const allCols = api.getAllDisplayedColumns();
+      allCols.forEach((col) => {
+        delete (col as any).maxWidth;
+        if (col.getColDef()) {
+          delete (col.getColDef() as any).maxWidth;
+        }
+      });
     },
     [COLUMN_SIZING_STORAGE_KEY]
   );

@@ -65,101 +65,19 @@ export const COLUMN_LABELS: Record<TrackColumnId, string> = {
 };
 
 export const MIN_COLUMN_WIDTHS: Partial<Record<TrackColumnId, number>> = {
-  order: 36,
-  art: 36,
-  title: 60,
-  artist: 50,
-  album: 50,
-  date: 50,
-  genre: 60,
-  duration: 48,
-  favorite: 30,
-  playNext: 30,
-  addToQueue: 30,
+  order: 40,
+  art: 40,
+  title: 140,
+  artist: 100,
+  album: 100,
+  date: 60,
+  genre: 80,
+  duration: 60,
+  favorite: 36,
+  playNext: 36,
+  addToQueue: 36,
   actions: 36,
 };
-
-export type Breakpoint = 'sm' | 'md' | 'lg';
-
-export function getBreakpoint(width: number): Breakpoint {
-  if (width < 768) return 'sm';
-  if (width < 1024) return 'md';
-  return 'lg';
-}
-
-export const BREAKPOINT_COLUMNS: Record<Breakpoint, TrackColumnId[]> = {
-  sm: ['order', 'art', 'title', 'actions'],
-  md: ['order', 'art', 'title', 'artist', 'duration', 'favorite', 'playNext', 'addToQueue', 'actions'],
-  lg: ALL_COLUMN_IDS,
-};
-
-export function getColumnFlexStyle({
-  colId,
-  size,
-  isResized,
-  isArtistVisible,
-  isAlbumVisible,
-}: {
-  colId: string;
-  size: number;
-  isResized: boolean;
-  breakpoint: Breakpoint;
-  isArtistVisible: boolean;
-  isAlbumVisible: boolean;
-}): React.CSSProperties {
-  // If explicitly resized by the user, lock strictly to pixel width
-  if (isResized) {
-    return {
-      width: `${size}px`,
-      flex: `0 0 ${size}px`,
-      minWidth: 0,
-      maxWidth: '100%',
-      boxSizing: 'border-box',
-    };
-  }
-
-  // Fluid fr units: title, artist, album
-  if (colId === 'title') {
-    const fr = isArtistVisible ? (isAlbumVisible ? 4 : 3) : 1;
-    return {
-      flex: `${fr} 1 0px`,
-      minWidth: 0,
-      boxSizing: 'border-box',
-    };
-  }
-
-  if (colId === 'artist') {
-    return {
-      flex: '2 1 0px',
-      minWidth: 0,
-      boxSizing: 'border-box',
-    };
-  }
-
-  if (colId === 'album') {
-    return {
-      flex: '2 1 0px',
-      minWidth: 0,
-      boxSizing: 'border-box',
-    };
-  }
-
-  if (colId === 'spacer') {
-    return {
-      flex: '0 0 0px',
-      minWidth: 0,
-      boxSizing: 'border-box',
-    };
-  }
-
-  // Fixed narrow columns
-  return {
-    width: `${size}px`,
-    flex: `0 0 ${size}px`,
-    minWidth: 0,
-    boxSizing: 'border-box',
-  };
-}
 
 export const DENSITY_ROW_HEIGHTS: Record<TrackGridDensity, number> = {
   compact: 36,
@@ -207,56 +125,22 @@ export function useTrackTableState({ tracks, parentRef }: UseTrackTableStateOpti
     }
   }, [columnSizing]);
 
-  // Window resize listener
-  const [windowWidth, setWindowWidth] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth : 1200
-  );
-  const [containerWidth, setContainerWidth] = useState(1200);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setWindowWidth(window.innerWidth);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Parent container resize observer
-  useEffect(() => {
-    if (!parentRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-      if (entries[0]) {
-        setContainerWidth(entries[0].contentRect.width);
-      }
-    });
-    observer.observe(parentRef.current);
-    return () => observer.disconnect();
-  }, [parentRef]);
-
-  const effectiveWidth = containerWidth > 0 ? containerWidth : windowWidth;
-  const breakpoint = useMemo<Breakpoint>(() => getBreakpoint(effectiveWidth), [effectiveWidth]);
-
   // Derived column visibility map for TanStack Table
   const columnVisibility = useMemo<VisibilityState>(() => {
     const vis: VisibilityState = {};
-    const allowed = BREAKPOINT_COLUMNS[breakpoint];
-
     ALL_COLUMN_IDS.forEach((id) => {
-      // Must be enabled by user in visibleTrackColumns AND permitted in the current breakpoint
-      vis[id] = visibleTrackColumns.includes(id) && allowed.includes(id);
+      vis[id] = visibleTrackColumns.includes(id);
     });
-
-    vis['spacer'] = true;
     return vis;
-  }, [visibleTrackColumns, breakpoint]);
+  }, [visibleTrackColumns]);
 
   // Columns definition (minimal layout data; cells rendered in component)
   const columns = useMemo<ColumnDef<Track>[]>(
     () => {
       const artSizeMap: Record<TrackGridDensity, number> = {
-        compact: breakpoint === 'sm' ? 24 : 32,
-        normal: breakpoint === 'sm' ? 36 : 48,
-        large: breakpoint === 'sm' ? 44 : 60,
+        compact: 32,
+        normal: 48,
+        large: 60,
         'extra-large': 72,
         huge: 88,
         massive: 108,
@@ -267,7 +151,7 @@ export function useTrackTableState({ tracks, parentRef }: UseTrackTableStateOpti
           id: 'order',
           accessorFn: (_row, idx) => (idx !== undefined ? idx + 1 : 1),
           header: '#',
-          size: columnSizing['order'] ?? (breakpoint === 'sm' ? 32 : 40),
+          size: columnSizing['order'] ?? 44,
           minSize: MIN_COLUMN_WIDTHS.order,
           enableResizing: false,
         },
@@ -283,7 +167,7 @@ export function useTrackTableState({ tracks, parentRef }: UseTrackTableStateOpti
           id: 'title',
           accessorKey: 'title',
           header: 'Title',
-          size: columnSizing['title'] ?? (breakpoint === 'sm' ? 180 : 240),
+          size: columnSizing['title'] ?? 280,
           minSize: MIN_COLUMN_WIDTHS.title,
           enableResizing: true,
         },
@@ -307,7 +191,7 @@ export function useTrackTableState({ tracks, parentRef }: UseTrackTableStateOpti
           id: 'date',
           accessorKey: 'year',
           header: 'Date',
-          size: columnSizing['date'] ?? 70,
+          size: columnSizing['date'] ?? 80,
           minSize: MIN_COLUMN_WIDTHS.date,
           enableResizing: true,
         },
@@ -315,7 +199,7 @@ export function useTrackTableState({ tracks, parentRef }: UseTrackTableStateOpti
           id: 'genre',
           accessorKey: 'genre',
           header: 'Genre',
-          size: columnSizing['genre'] ?? 90,
+          size: columnSizing['genre'] ?? 110,
           minSize: MIN_COLUMN_WIDTHS.genre,
           enableResizing: true,
         },
@@ -323,28 +207,28 @@ export function useTrackTableState({ tracks, parentRef }: UseTrackTableStateOpti
           id: 'duration',
           accessorKey: 'duration_secs',
           header: () => React.createElement(Clock, { className: 'w-4 h-4 text-zinc-400' }),
-          size: columnSizing['duration'] ?? 54,
+          size: columnSizing['duration'] ?? 64,
           minSize: MIN_COLUMN_WIDTHS.duration,
           enableResizing: true,
         },
         {
           id: 'favorite',
           header: '',
-          size: columnSizing['favorite'] ?? 32,
+          size: columnSizing['favorite'] ?? 36,
           minSize: MIN_COLUMN_WIDTHS.favorite,
           enableResizing: false,
         },
         {
           id: 'playNext',
           header: '',
-          size: columnSizing['playNext'] ?? 32,
+          size: columnSizing['playNext'] ?? 36,
           minSize: MIN_COLUMN_WIDTHS.playNext,
           enableResizing: false,
         },
         {
           id: 'addToQueue',
           header: '',
-          size: columnSizing['addToQueue'] ?? 32,
+          size: columnSizing['addToQueue'] ?? 36,
           minSize: MIN_COLUMN_WIDTHS.addToQueue,
           enableResizing: false,
         },
@@ -353,18 +237,11 @@ export function useTrackTableState({ tracks, parentRef }: UseTrackTableStateOpti
           header: '',
           size: columnSizing['actions'] ?? 36,
           minSize: MIN_COLUMN_WIDTHS.actions,
-          enableResizing: true,
+          enableResizing: false,
         },
-        {
-          id: 'spacer',
-          header: '',
-          size: columnSizing['spacer' as TrackColumnId] ?? 0,
-          minSize: 0,
-          enableResizing: true,
-        } as ColumnDef<Track>,
       ];
     },
-    [columnSizing, trackGridDensity, breakpoint]
+    [columnSizing, trackGridDensity]
   );
 
   // TanStack Table Instance
@@ -378,57 +255,7 @@ export function useTrackTableState({ tracks, parentRef }: UseTrackTableStateOpti
       sorting,
     },
     onSortingChange: setSorting,
-    onColumnSizingChange: (updater) => {
-      setColumnSizing((prev) => {
-        const next = typeof updater === 'function' ? updater(prev) : updater;
-
-        const containerW = parentRef.current?.clientWidth || containerWidth || windowWidth;
-        if (!containerW || containerW <= 0) return next;
-
-        // Find which column is being resized
-        let changedColId: string | null = null;
-        for (const k of Object.keys(next)) {
-          if (next[k] !== prev[k]) {
-            changedColId = k;
-            break;
-          }
-        }
-
-        if (!changedColId) return next;
-
-        // Calculate total width of all other visible columns
-        const visibleCols = table.getVisibleLeafColumns();
-        let otherColsWidth = 0;
-
-        visibleCols.forEach((col) => {
-          if (col.id !== changedColId) {
-            const minW = MIN_COLUMN_WIDTHS[col.id as TrackColumnId] ?? 36;
-            const currentSize = next[col.id] !== undefined ? next[col.id] : minW;
-            otherColsWidth += currentSize;
-          }
-        });
-
-        const minAllowed = MIN_COLUMN_WIDTHS[changedColId as TrackColumnId] ?? 36;
-        // Mathematical clamp: column width cannot push total table width beyond container width
-        const maxAllowed = Math.max(minAllowed, containerW - otherColsWidth);
-
-        if (next[changedColId] > maxAllowed) {
-          return {
-            ...next,
-            [changedColId]: maxAllowed,
-          };
-        }
-
-        if (next[changedColId] < minAllowed) {
-          return {
-            ...next,
-            [changedColId]: minAllowed,
-          };
-        }
-
-        return next;
-      });
-    },
+    onColumnSizingChange: setColumnSizing,
     onColumnOrderChange: (updater) => {
       const nextOrder = typeof updater === 'function' ? updater(columnOrder) : updater;
       setColumnOrder(nextOrder as TrackColumnId[]);
@@ -444,51 +271,6 @@ export function useTrackTableState({ tracks, parentRef }: UseTrackTableStateOpti
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
-
-  // Auto-clamp column sizes whenever containerWidth or breakpoint shrinks
-  useEffect(() => {
-    const containerW = parentRef.current?.clientWidth || containerWidth || windowWidth;
-    if (!containerW || containerW <= 0) return;
-
-    setColumnSizing((prev) => {
-      const visibleCols = table.getVisibleLeafColumns();
-      let totalSizedWidth = 0;
-
-      visibleCols.forEach((col) => {
-        const id = col.id;
-        const minW = MIN_COLUMN_WIDTHS[id as TrackColumnId] ?? 36;
-        const size = prev[id] !== undefined ? prev[id] : minW;
-        totalSizedWidth += size;
-      });
-
-      if (totalSizedWidth > containerW) {
-        let overflow = totalSizedWidth - containerW;
-        const next = { ...prev };
-        let hasChange = false;
-
-        const resizedIds = Object.keys(next).filter((id) =>
-          visibleCols.some((c) => c.id === id)
-        );
-
-        for (const id of resizedIds) {
-          const minW = MIN_COLUMN_WIDTHS[id as TrackColumnId] ?? 36;
-          const current = next[id];
-          const maxShrink = current - minW;
-          if (maxShrink > 0) {
-            const shrinkBy = Math.min(maxShrink, overflow);
-            next[id] = current - shrinkBy;
-            overflow -= shrinkBy;
-            hasChange = true;
-            if (overflow <= 0) break;
-          }
-        }
-
-        return hasChange ? next : prev;
-      }
-
-      return prev;
-    });
-  }, [effectiveWidth, table]);
 
   const { rows } = table.getRowModel();
   const rowHeight = DENSITY_ROW_HEIGHTS[trackGridDensity] || 56;
@@ -551,8 +333,6 @@ export function useTrackTableState({ tracks, parentRef }: UseTrackTableStateOpti
     visibleTrackColumns,
     trackGridDensity,
     showSubArtistUnderTitle,
-    breakpoint,
-    containerWidth: effectiveWidth,
     handleDragEnd,
     resetGrid,
     setTrackGridDensity,

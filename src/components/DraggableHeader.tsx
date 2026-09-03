@@ -4,28 +4,13 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { Track } from '../types/player';
-import {
-  LOCKED_COLUMN_IDS,
-  TrackColumnId,
-  Breakpoint,
-  getColumnFlexStyle,
-} from '../hooks/useTrackTableState';
+import { LOCKED_COLUMN_IDS, TrackColumnId } from '../hooks/useTrackTableState';
 
 interface DraggableHeaderProps {
   header: Header<Track, unknown>;
-  isResized?: boolean;
-  breakpoint: Breakpoint;
-  isArtistVisible: boolean;
-  isAlbumVisible: boolean;
 }
 
-export const DraggableHeader: React.FC<DraggableHeaderProps> = ({
-  header,
-  isResized = false,
-  breakpoint,
-  isArtistVisible,
-  isAlbumVisible,
-}) => {
+export const DraggableHeader: React.FC<DraggableHeaderProps> = ({ header }) => {
   const colId = header.id as TrackColumnId;
   const isLocked = LOCKED_COLUMN_IDS.includes(colId);
 
@@ -41,14 +26,7 @@ export const DraggableHeader: React.FC<DraggableHeaderProps> = ({
     disabled: isLocked,
   });
 
-  const flexStyle = getColumnFlexStyle({
-    colId: header.id,
-    size: header.getSize(),
-    isResized,
-    breakpoint,
-    isArtistVisible,
-    isAlbumVisible,
-  });
+  const width = header.getSize();
 
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
@@ -56,7 +34,12 @@ export const DraggableHeader: React.FC<DraggableHeaderProps> = ({
     opacity: isDragging ? 0.4 : 1,
     zIndex: isDragging ? 20 : 1,
     position: 'relative',
-    ...flexStyle,
+    width: `${width}px`,
+    minWidth: `${width}px`,
+    maxWidth: `${width}px`,
+    flexShrink: 0,
+    flexGrow: 0,
+    boxSizing: 'border-box',
   };
 
   const sorted = header.column.getIsSorted();
@@ -66,7 +49,7 @@ export const DraggableHeader: React.FC<DraggableHeaderProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className={`group/header flex items-center justify-between px-2 py-2 select-none text-[11px] font-semibold uppercase tracking-wider text-[#b3b3b3] hover:text-white transition-colors relative overflow-hidden min-w-0 ${
+      className={`group/header flex items-center justify-between px-2 py-2 select-none text-[11px] font-semibold uppercase tracking-wider text-[#b3b3b3] hover:text-white transition-colors relative overflow-hidden ${
         isDragging ? 'bg-white/10 rounded-md shadow-lg' : ''
       }`}
     >
@@ -75,7 +58,7 @@ export const DraggableHeader: React.FC<DraggableHeaderProps> = ({
         {...(!isLocked ? attributes : {})}
         {...(!isLocked ? listeners : {})}
         onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
-        className={`flex items-center gap-1.5 min-w-0 truncate ${
+        className={`flex items-center gap-1.5 min-w-0 truncate flex-1 ${
           canSort ? 'cursor-pointer hover:text-white' : ''
         } ${!isLocked ? 'cursor-grab active:cursor-grabbing' : ''}`}
       >
@@ -103,7 +86,7 @@ export const DraggableHeader: React.FC<DraggableHeaderProps> = ({
           onMouseDown={header.getResizeHandler()}
           onTouchStart={header.getResizeHandler()}
           onClick={(e) => e.stopPropagation()}
-          className={`absolute right-0 top-1/2 -translate-y-1/2 h-4 w-1.5 cursor-col-resize z-30 group/resizer flex items-center justify-center ${
+          className={`absolute right-0 top-0 bottom-0 w-2 cursor-col-resize z-30 group/resizer flex items-center justify-center select-none touch-none ${
             header.column.getIsResizing() ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100'
           }`}
         >
@@ -111,7 +94,7 @@ export const DraggableHeader: React.FC<DraggableHeaderProps> = ({
             className="w-0.5 h-full rounded-full transition-all"
             style={
               header.column.getIsResizing()
-                ? { backgroundColor: 'var(--color-stop-1, #6366f1)', transform: 'scaleX(1.5)' }
+                ? { backgroundColor: 'var(--color-stop-1, #6366f1)', transform: 'scaleX(2)' }
                 : { backgroundColor: 'rgba(255,255,255,0.3)' }
             }
           />

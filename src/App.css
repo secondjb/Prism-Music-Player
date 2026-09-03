@@ -90,8 +90,8 @@ revo-grid {
   --revogrid-row-hover-color: rgba(255, 255, 255, 0.06) !important;
   --revogrid-row-hover: rgba(255, 255, 255, 0.06) !important;
   --revogrid-row-bg: transparent !important;
-  --revogrid-border-color: rgba(255, 255, 255, 0.05) !important;
-  --revogrid-header-border-color: rgba(255, 255, 255, 0.08) !important;
+  --revogrid-border-color: transparent !important;
+  --revogrid-header-border-color: transparent !important;
   --revogrid-header-color: #b3b3b3 !important;
   --revogrid-content-color: #f4f4f5 !important;
   --revogrid-cell-color: #f4f4f5 !important;
@@ -100,16 +100,25 @@ revo-grid {
   --revo-grid-header-bg: rgba(9, 9, 11, 0.45) !important;
   --revo-grid-row-hover: rgba(255, 255, 255, 0.06) !important;
   --revo-grid-row-bg: transparent !important;
-  --revo-grid-border: rgba(255, 255, 255, 0.05) !important;
+  --revo-grid-border: transparent !important;
+  --revo-grid-header-border: transparent !important;
+  --revo-grid-cell-border: transparent !important;
+  --revo-grid-cell-vertical-border: transparent !important;
+  --rg-theme-border: transparent !important;
+  --rg-theme-header-border: transparent !important;
+  --rg-theme-cell-border: transparent !important;
+  --rg-theme-cell-vertical-border: transparent !important;
   --revo-grid-color: #f4f4f5 !important;
   --revo-grid-font-family: inherit !important;
+  --rg-theme-header-resize-hover: var(--color-stop-1, #6366f1) !important;
+  border: none !important;
   background: transparent !important;
   width: 100% !important;
   height: 100% !important;
   display: block;
 }
 
-/* Ensure internal elements & shadow DOM don't render solid white */
+/* Ensure internal elements & shadow DOM don't render solid white, and remove all lines */
 revo-grid,
 revo-grid *,
 revo-grid revogr-viewport-scroll,
@@ -121,8 +130,16 @@ revo-grid .main-viewport,
 revo-grid .inner-cropper,
 revo-grid .content-wrapper,
 revo-grid .row,
-revo-grid .cell {
+revo-grid .cell,
+revo-grid .rgRow,
+revo-grid .rgCell,
+revo-grid .rgHeaderCell,
+revo-grid .header-rgRow,
+revo-grid revogr-viewport-scroll.colPinStart,
+revo-grid revogr-viewport-scroll.colPinEnd {
   background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
   box-sizing: border-box;
 }
 
@@ -138,26 +155,77 @@ revo-grid .group-header-wrapper {
 }
 
 revo-grid .header-cell,
-revo-grid .header-rgRow {
+revo-grid .header-rgRow,
+revo-grid .rgHeaderCell {
   background: transparent !important;
   color: #b3b3b3 !important;
   font-size: 11px !important;
   font-weight: 600 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.05em !important;
-  border-right: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 /* Row Hover State */
 revo-grid revogr-row:hover,
-revo-grid .row:hover {
+revo-grid .row:hover,
+revo-grid .rgRow:hover {
   background-color: rgba(255, 255, 255, 0.06) !important;
 }
 
 /* Playing Row Tint */
 revo-grid revogr-row.is-current-playing,
-revo-grid .row.is-current-playing {
+revo-grid .row.is-current-playing,
+revo-grid .rgRow.is-current-playing {
   background-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent) !important;
+}
+
+/* Column Resize Handle & Real-Time Guideline (Demo Site Style) */
+revogr-header .rgHeaderCell > .resizable-r {
+  width: 10px !important;
+  right: -5px !important;
+  cursor: col-resize !important;
+  z-index: 50 !important;
+  opacity: 0;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+revogr-header .rgHeaderCell:hover > .resizable-r {
+  opacity: 0.75;
+  background-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+revogr-header .rgHeaderCell > .resizable-r:hover {
+  opacity: 1 !important;
+  background-color: var(--color-stop-1, #6366f1) !important;
+}
+
+/* Active Dragging Guide Line & Indicator Cap */
+revogr-header .rgHeaderCell.active > .resizable-r {
+  background-color: var(--color-stop-1, #6366f1) !important;
+  width: 2px !important;
+  height: 2000px !important;
+  max-height: 100vh !important;
+  position: absolute !important;
+  top: 0 !important;
+  z-index: 9999 !important;
+  pointer-events: none !important;
+  box-shadow: 0 0 10px var(--color-stop-1, #6366f1), 0 0 2px #fff !important;
+  opacity: 1 !important;
+}
+
+revogr-header .rgHeaderCell.active > .resizable-r::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: -4px;
+  width: 10px;
+  height: 28px;
+  background-color: var(--color-stop-1, #6366f1);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6), 0 0 8px var(--color-stop-1, #6366f1);
 }
 
 /* Disable any horizontal scroll capabilities */

@@ -11,6 +11,7 @@ import {
   Info,
   SlidersHorizontal,
   Music,
+  Clock,
 } from 'lucide-react';
 
 import { Track } from '../types/player';
@@ -43,6 +44,17 @@ const formatDuration = (secs: number) => {
 };
 
 // Custom Cell Components for RevoGrid Templates
+
+const DurationHeader: React.FC = () => {
+  return (
+    <div
+      className="flex items-center justify-end w-full h-full pr-3 text-zinc-400 hover:text-white transition-colors cursor-pointer select-none"
+      title="Duration"
+    >
+      <Clock className="w-3.5 h-3.5" />
+    </div>
+  );
+};
 
 const OrderCell: React.FC<any> = ({ model, rowIndex }) => {
   const track = (model || {}) as Track;
@@ -721,6 +733,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const dateCellTemplate = useMemo(() => Template(DateCell), []);
   const genreCellTemplate = useMemo(() => Template(GenreCell), []);
   const durationCellTemplate = useMemo(() => Template(DurationCell), []);
+  const durationHeaderTemplate = useMemo(() => Template(DurationHeader), []);
   const favoriteCellTemplate = useMemo(() => Template(FavoriteCell), []);
   const playNextCellTemplate = useMemo(() => Template(PlayNextCell), []);
   const addToQueueCellTemplate = useMemo(() => Template(AddToQueueCell), []);
@@ -818,10 +831,11 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       },
       duration: {
         prop: 'duration_secs',
-        name: 'Duration',
+        name: '',
         size: widths.duration,
         minSize: MIN_COLUMN_WIDTHS.duration,
         sortable: true,
+        columnTemplate: durationHeaderTemplate,
         cellTemplate: durationCellTemplate,
       },
       favorite: {

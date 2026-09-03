@@ -97,23 +97,23 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
     });
   };
 
-  const fetchDetails = useCallback(async () => {
+  const fetchDetails = useCallback(async (force = false) => {
     if (!window.__TAURI_INTERNALS__) return;
     try {
-      setIsLoading(true);
-      const res = await invoke<AudioOutputDetails>('get_audio_output_details');
+      if (force) setIsLoading(true);
+      const res = await invoke<AudioOutputDetails>('get_audio_output_details', { forceRefresh: force });
       setDetails(res);
     } catch (e) {
       console.warn('Failed to fetch audio output details:', e);
     } finally {
-      setIsLoading(false);
+      if (force) setIsLoading(false);
     }
   }, []);
 
-  // Fetch details ONCE when modal is opened - NO continuous 3-second polling that causes lag spikes
+  // Fetch details ONCE when modal is opened
   useEffect(() => {
     if (isOpen) {
-      fetchDetails();
+      fetchDetails(false);
     }
   }, [isOpen, fetchDetails]);
 
@@ -122,10 +122,28 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
     if (dev.is_active || dev.name === details?.active_device_name) {
       return;
     }
+
+    // 1. Instant optimistic UI update
+    setDetails((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        active_device_name: dev.name,
+        active_sample_rate: dev.default_sample_rate,
+        active_channels: dev.default_channels,
+        active_format: dev.default_format,
+        devices: prev.devices.map((d) => ({
+          ...d,
+          is_active: d.name === dev.name,
+        })),
+      };
+    });
+
     try {
       const targetName = dev.is_default ? null : dev.name;
       await invoke('set_audio_output_device', { deviceName: targetName });
-      await fetchDetails();
+      const updated = await invoke<AudioOutputDetails>('get_audio_output_details', { forceRefresh: false });
+      setDetails(updated);
     } catch (e) {
       console.warn('Failed to set audio output device:', e);
     }
@@ -202,10 +220,10 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
 
           <div className="flex items-center gap-1">
             <button
-              onClick={fetchDetails}
+              onClick={() => fetchDetails(true)}
               disabled={isLoading}
               className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50"
-              title="Refresh Devices"
+              title="Rescan audio devices"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             </button>

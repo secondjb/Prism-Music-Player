@@ -52,6 +52,7 @@ pub struct AudioPlayerState {
     pub active_format: Arc<Mutex<String>>,
     pub device_switch_requested: Arc<AtomicBool>,
     pub device_caps_cache: Arc<Mutex<std::collections::HashMap<String, (u32, u32, Vec<u16>, Vec<String>)>>>,
+    pub cached_devices: Arc<Mutex<Option<(std::time::Instant, Vec<AudioDeviceInfo>)>>>,
 }
 
 impl AudioPlayerState {
@@ -71,6 +72,7 @@ impl AudioPlayerState {
             active_format: Arc::new(Mutex::new(String::new())),
             device_switch_requested: Arc::new(AtomicBool::new(false)),
             device_caps_cache: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            cached_devices: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -199,7 +201,7 @@ impl GlobalAudioEngine {
         (pos, dur)
     }
 
-    pub fn get_output_details(&self) -> Result<AudioOutputDetails, String> {
+    pub fn get_output_details(&self, force_refresh: bool) -> Result<AudioOutputDetails, String> {
         let host = cpal::default_host();
         let state = self.state.lock();
         let is_playing = state.is_playing.load(Ordering::SeqCst);
@@ -209,107 +211,134 @@ impl GlobalAudioEngine {
         let active_fmt = state.active_format.lock().clone();
         let selected_name = state.selected_device_name.lock().clone();
         let caps_cache_arc = Arc::clone(&state.device_caps_cache);
+        let cached_devices_arc = Arc::clone(&state.cached_devices);
         drop(state);
 
         let default_dev = host.default_output_device();
         let default_name = default_dev.as_ref().and_then(|d| d.name().ok());
 
-        let mut device_infos = Vec::new();
-        if let Ok(devices) = host.output_devices() {
-            let mut caps_cache = caps_cache_arc.lock();
+        let mut cached_guard = cached_devices_arc.lock();
+        let device_infos: Vec<AudioDeviceInfo> = if !force_refresh
+            && cached_guard.is_some()
+            && cached_guard.as_ref().unwrap().0.elapsed() < Duration::from_secs(20)
+        {
+            let mut list = cached_guard.as_ref().unwrap().1.clone();
+            for dev in list.iter_mut() {
+                dev.is_default = default_name.as_ref().map(|dn| dn == &dev.name).unwrap_or(false);
+                dev.is_active = if let Some(ref sel) = selected_name {
+                    sel == &dev.name
+                } else if !active_name.is_empty() {
+                    active_name == dev.name
+                } else {
+                    dev.is_default
+                };
+            }
+            list
+        } else {
+            let mut list = Vec::new();
+            if let Ok(devices) = host.output_devices() {
+                let mut caps_cache = caps_cache_arc.lock();
 
-            for dev in devices {
-                if let Ok(name) = dev.name() {
-                    let is_default = default_name.as_ref().map(|dn| dn == &name).unwrap_or(false);
-                    let is_active = if !active_name.is_empty() {
-                        active_name == name
-                    } else if let Some(ref sel) = selected_name {
-                        sel == &name
-                    } else {
-                        is_default
-                    };
-
-                    let mut default_sample_rate = 48000;
-                    let mut default_channels = 2;
-                    let mut default_format = "F32".to_string();
-
-                    if let Ok(cfg) = dev.default_output_config() {
-                        default_sample_rate = cfg.sample_rate().0;
-                        default_channels = cfg.channels();
-                        default_format = format!("{:?}", cfg.sample_format());
-                    }
-
-                    // Check cache first to avoid slow synchronous COM queries on Windows
-                    let (min_sample_rate, max_sample_rate, supported_channels, supported_formats) =
-                        if let Some(cached) = caps_cache.get(&name) {
-                            cached.clone()
+                for dev in devices {
+                    if let Ok(name) = dev.name() {
+                        let is_default = default_name.as_ref().map(|dn| dn == &name).unwrap_or(false);
+                        let is_active = if let Some(ref sel) = selected_name {
+                            sel == &name
+                        } else if !active_name.is_empty() {
+                            active_name == name
                         } else {
-                            let mut min_r = default_sample_rate;
-                            let mut max_r = default_sample_rate;
-                            let mut supported_channels_set = std::collections::BTreeSet::new();
-                            let mut supported_formats_set = std::collections::BTreeSet::new();
-
-                            if let Ok(configs) = dev.supported_output_configs() {
-                                for c in configs {
-                                    let c_min = c.min_sample_rate().0;
-                                    let c_max = c.max_sample_rate().0;
-                                    if min_r == 0 || c_min < min_r {
-                                        min_r = c_min;
-                                    }
-                                    if c_max > max_r {
-                                        max_r = c_max;
-                                    }
-                                    supported_channels_set.insert(c.channels());
-                                    supported_formats_set.insert(format!("{:?}", c.sample_format()));
-                                }
-                            }
-
-                            if supported_formats_set.is_empty() {
-                                supported_formats_set.insert(default_format.clone());
-                            }
-                            if supported_channels_set.is_empty() {
-                                supported_channels_set.insert(default_channels);
-                            }
-
-                            let entry = (
-                                min_r,
-                                max_r,
-                                supported_channels_set.into_iter().collect(),
-                                supported_formats_set.into_iter().collect(),
-                            );
-                            caps_cache.insert(name.clone(), entry.clone());
-                            entry
+                            is_default
                         };
 
-                    device_infos.push(AudioDeviceInfo {
-                        name,
-                        is_default,
-                        is_active,
-                        default_sample_rate,
-                        default_channels,
-                        default_format,
-                        min_sample_rate,
-                        max_sample_rate,
-                        supported_channels,
-                        supported_formats,
-                    });
+                        let mut default_sample_rate = 48000;
+                        let mut default_channels = 2;
+                        let mut default_format = "F32".to_string();
+
+                        if let Ok(cfg) = dev.default_output_config() {
+                            default_sample_rate = cfg.sample_rate().0;
+                            default_channels = cfg.channels();
+                            default_format = format!("{:?}", cfg.sample_format());
+                        }
+
+                        // Check cache first to avoid slow synchronous COM queries on Windows
+                        let (min_sample_rate, max_sample_rate, supported_channels, supported_formats) =
+                            if let Some(cached) = caps_cache.get(&name) {
+                                cached.clone()
+                            } else {
+                                let mut min_r = default_sample_rate;
+                                let mut max_r = default_sample_rate;
+                                let mut supported_channels_set = std::collections::BTreeSet::new();
+                                let mut supported_formats_set = std::collections::BTreeSet::new();
+
+                                if let Ok(configs) = dev.supported_output_configs() {
+                                    for c in configs {
+                                        let c_min = c.min_sample_rate().0;
+                                        let c_max = c.max_sample_rate().0;
+                                        if min_r == 0 || c_min < min_r {
+                                            min_r = c_min;
+                                        }
+                                        if c_max > max_r {
+                                            max_r = c_max;
+                                        }
+                                        supported_channels_set.insert(c.channels());
+                                        supported_formats_set.insert(format!("{:?}", c.sample_format()));
+                                    }
+                                }
+
+                                if supported_formats_set.is_empty() {
+                                    supported_formats_set.insert(default_format.clone());
+                                }
+                                if supported_channels_set.is_empty() {
+                                    supported_channels_set.insert(default_channels);
+                                }
+
+                                let entry = (
+                                    min_r,
+                                    max_r,
+                                    supported_channels_set.into_iter().collect(),
+                                    supported_formats_set.into_iter().collect(),
+                                );
+                                caps_cache.insert(name.clone(), entry.clone());
+                                entry
+                            };
+
+                        list.push(AudioDeviceInfo {
+                            name,
+                            is_default,
+                            is_active,
+                            default_sample_rate,
+                            default_channels,
+                            default_format,
+                            min_sample_rate,
+                            max_sample_rate,
+                            supported_channels,
+                            supported_formats,
+                        });
+                    }
                 }
             }
-        }
+            *cached_guard = Some((std::time::Instant::now(), list.clone()));
+            list
+        };
+        drop(cached_guard);
 
-        let (final_active_name, final_rate, final_ch, final_fmt) = if active_name.is_empty() {
-            if let Some(ref d) = default_dev {
-                let name = d.name().unwrap_or_else(|_| "Default Device".to_string());
-                if let Ok(cfg) = d.default_output_config() {
-                    (name, cfg.sample_rate().0, cfg.channels(), format!("{:?}", cfg.sample_format()))
-                } else {
-                    (name, 48000, 2, "F32".to_string())
-                }
+        let (final_active_name, final_rate, final_ch, final_fmt) = if let Some(ref sel) = selected_name {
+            if let Some(d) = device_infos.iter().find(|d| &d.name == sel) {
+                (d.name.clone(), d.default_sample_rate, d.default_channels, d.default_format.clone())
             } else {
-                ("No Device Found".to_string(), 0, 0, "".to_string())
+                (sel.clone(), active_rate, active_ch, active_fmt)
+            }
+        } else if !active_name.is_empty() {
+            (active_name, active_rate, active_ch, active_fmt)
+        } else if let Some(ref d) = default_dev {
+            let name = d.name().unwrap_or_else(|_| "Default Device".to_string());
+            if let Ok(cfg) = d.default_output_config() {
+                (name, cfg.sample_rate().0, cfg.channels(), format!("{:?}", cfg.sample_format()))
+            } else {
+                (name, 48000, 2, "F32".to_string())
             }
         } else {
-            (active_name, active_rate, active_ch, active_fmt)
+            ("No Device Found".to_string(), 0, 0, "".to_string())
         };
 
         Ok(AudioOutputDetails {
@@ -326,10 +355,19 @@ impl GlobalAudioEngine {
         let state = self.state.lock();
         let current_sel = state.selected_device_name.lock().clone();
         if current_sel == device_name {
-            // Already selected target device, do not interrupt playback
             return;
         }
-        *state.selected_device_name.lock() = device_name;
+        *state.selected_device_name.lock() = device_name.clone();
+        if let Some(ref name) = device_name {
+            *state.active_device_name.lock() = name.clone();
+        } else {
+            let host = cpal::default_host();
+            if let Some(def) = host.default_output_device() {
+                if let Ok(name) = def.name() {
+                    *state.active_device_name.lock() = name;
+                }
+            }
+        }
         state.device_switch_requested.store(true, Ordering::SeqCst);
     }
 }

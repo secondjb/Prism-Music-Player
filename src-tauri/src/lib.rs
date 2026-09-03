@@ -193,10 +193,12 @@ fn get_playback_position(audio_engine: State<'_, GlobalAudioEngine>) -> (f64, f6
 #[tauri::command]
 async fn get_audio_output_details(
     audio_engine: State<'_, GlobalAudioEngine>,
+    force_refresh: Option<bool>,
 ) -> Result<audio::AudioOutputDetails, String> {
     let engine = audio_engine.inner().clone();
+    let force = force_refresh.unwrap_or(false);
     tokio::task::spawn_blocking(move || {
-        engine.get_output_details()
+        engine.get_output_details(force)
     })
     .await
     .map_err(|e| e.to_string())?

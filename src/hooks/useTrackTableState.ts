@@ -147,14 +147,15 @@ export const ORDER_DENSITY_CONFIG: Record<
 };
 
 export const FLEX_COLUMN_WEIGHTS: Partial<Record<TrackColumnId, number>> = {
-  title: 2,
-  artist: 1,
-  album: 1,
+  title: 1.8,
+  artist: 1.3,
+  album: 1.3,
 };
 
 export const FIXED_WIDTH_COLUMNS: TrackColumnId[] = [
   'order',
   'art',
+  'duration',
   'favorite',
   'playNext',
   'addToQueue',
@@ -189,8 +190,14 @@ export function calculateColumnWidths(
     } else if (['favorite', 'playNext', 'addToQueue', 'actions'].includes(colId)) {
       widths[colId] = actionWidth;
       fixedTotal += actionWidth;
+    } else if (colId === 'duration') {
+      const minW = MIN_COLUMN_WIDTHS.duration || 60;
+      const defW = DEFAULT_COLUMN_WIDTHS.duration || 64;
+      const w = savedSizing.duration ? Math.max(minW, savedSizing.duration) : defW;
+      widths.duration = w;
+      fixedTotal += w;
     } else if (!FLEX_COLUMN_WEIGHTS[colId]) {
-      // Date, Genre, Duration: fixed or manual
+      // Date, Genre: fixed or manual
       const minW = MIN_COLUMN_WIDTHS[colId] || 60;
       const defW = DEFAULT_COLUMN_WIDTHS[colId] || 80;
       const w = savedSizing[colId] ? Math.max(minW, savedSizing[colId]) : defW;

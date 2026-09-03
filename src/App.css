@@ -27,46 +27,46 @@
     -webkit-backdrop-filter: blur(32px);
   }
 
-  /* Theme-adaptive auto-hiding pill scrollbar */
-  ::-webkit-scrollbar {
+  /* Global custom-scrollbar rules for non-grid scrollable containers */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-  ::-webkit-scrollbar-track {
+
+  .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent !important;
     border: none !important;
   }
-  ::-webkit-scrollbar-corner {
+
+  .custom-scrollbar::-webkit-scrollbar-corner {
     background: transparent !important;
   }
-  ::-webkit-scrollbar-button {
+
+  .custom-scrollbar::-webkit-scrollbar-button {
     display: none !important;
     width: 0 !important;
     height: 0 !important;
   }
-  ::-webkit-scrollbar-thumb {
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
     background: transparent;
     border-radius: 9999px;
     transition: background-color 0.3s ease;
   }
 
-  /* Reveal pill on hover of container or scrollbar track */
-  *:hover::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--color-stop-1, #6366f1) 50%, rgba(255, 255, 255, 0.3));
+  .custom-scrollbar:hover::-webkit-scrollbar-thumb,
+  .is-scrolling.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-stop-1, #6366f1) 60%, rgba(255, 255, 255, 0.4));
   }
 
-  /* When hovered directly on the pill */
-  ::-webkit-scrollbar-thumb:hover {
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: var(--color-stop-1, #6366f1) !important;
     box-shadow: 0 0 8px var(--color-stop-1, #6366f1);
-  }
-
-  /* When actively scrolling */
-  .is-scrolling::-webkit-scrollbar-thumb,
-  .is-scrolling *::-webkit-scrollbar-thumb,
-  .ag-grid-is-scrolling ::-webkit-scrollbar-thumb,
-  .ag-body-vertical-scroll-viewport:hover::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--color-stop-1, #6366f1) 70%, rgba(255, 255, 255, 0.35)) !important;
   }
 
   .custom-scrollbar.scrollbar-hidden {
@@ -81,17 +81,68 @@
   .custom-scrollbar.scrollbar-hidden::-webkit-scrollbar-thumb {
     background: transparent !important;
   }
+}
 
-  /* Standard CSS scrollbar for Firefox/standards */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
-  }
-  *:hover,
-  .is-scrolling,
-  .ag-grid-is-scrolling {
-    scrollbar-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 60%, rgba(255, 255, 255, 0.3)) transparent;
-  }
+/* AG Grid Vertical Scrollbar: 100% overlay, auto-hides when idle */
+.ag-body-vertical-scroll {
+  position: absolute !important;
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 8px !important;
+  background: transparent !important;
+  border: none !important;
+  z-index: 10 !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  transition: opacity 0.3s ease !important;
+}
+
+.ag-body-vertical-scroll:hover,
+.ag-grid-is-scrolling .ag-body-vertical-scroll {
+  opacity: 1 !important;
+  pointer-events: all !important;
+}
+
+.ag-body-vertical-scroll-viewport {
+  background: transparent !important;
+  border: none !important;
+  pointer-events: all !important;
+  overflow-y: scroll !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: transparent transparent !important;
+}
+
+.ag-body-vertical-scroll-viewport::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+  background: transparent !important;
+}
+
+.ag-body-vertical-scroll-viewport::-webkit-scrollbar-track {
+  background: transparent !important;
+  border: none !important;
+}
+
+.ag-body-vertical-scroll-viewport::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+.ag-body-vertical-scroll-viewport::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.ag-body-vertical-scroll-viewport::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-stop-1, #6366f1) 60%, rgba(255, 255, 255, 0.4)) !important;
+  border-radius: 9999px !important;
+  transition: background-color 0.2s ease !important;
+}
+
+.ag-body-vertical-scroll-viewport::-webkit-scrollbar-thumb:hover {
+  background: var(--color-stop-1, #6366f1) !important;
+  box-shadow: 0 0 8px var(--color-stop-1, #6366f1) !important;
 }
 
 body {

@@ -769,9 +769,10 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     (params: ColumnMovedEvent) => {
       if (!params.finished) return;
       const state = params.api.getColumnState();
+      const nonMovable = ['order', 'art', 'favorite', 'playNext', 'addToQueue', 'actions', 'buffer'];
       const orderedIds = state
         .map((c) => c.colId as TrackColumnId)
-        .filter((id) => (id as string) !== 'buffer');
+        .filter((id) => !nonMovable.includes(id as string));
       setColumnOrder(orderedIds);
     },
     [setColumnOrder]
@@ -866,6 +867,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         minWidth: MIN_COLUMN_WIDTHS.order,
         resizable: false,
         sortable: false,
+        suppressMovable: true,
+        lockPosition: 'left',
         hide: !isVisible('order'),
         cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: OrderCell,
@@ -877,6 +880,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         minWidth: MIN_COLUMN_WIDTHS.art,
         resizable: false,
         sortable: false,
+        suppressMovable: true,
+        lockPosition: 'left',
         hide: !isVisible('art'),
         cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params: any) =>
@@ -959,6 +964,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         resizable: false,
         sortable: false,
         suppressMovable: true,
+        lockPosition: 'right',
         hide: !isVisible('favorite'),
         cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: FavoriteCell,
@@ -971,6 +977,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         resizable: false,
         sortable: false,
         suppressMovable: true,
+        lockPosition: 'right',
         hide: !isVisible('playNext'),
         cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: PlayNextCell,
@@ -983,6 +990,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         resizable: false,
         sortable: false,
         suppressMovable: true,
+        lockPosition: 'right',
         hide: !isVisible('addToQueue'),
         cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: AddToQueueCell,
@@ -995,6 +1003,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         resizable: false,
         sortable: false,
         suppressMovable: true,
+        lockPosition: 'right',
         hide: !isVisible('actions'),
         cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params: any) =>
@@ -1016,29 +1025,54 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         resizable: false,
         sortable: false,
         suppressMovable: true,
+        lockPosition: 'right',
         cellRenderer: () => null,
       },
     ];
   }, [visibleTrackColumns, trackGridDensity, COLUMN_SIZING_STORAGE_KEY]);
 
-  // Order columns based on persisted store order with buffer always at the end
+  // Guarantee: order & art locked left, title/artist/album in middle, actions all the way right, buffer at end
   const orderedColDefs = useMemo(() => {
-    const ordered: ColDef<Track>[] = [];
+    const leftCols: ColDef<Track>[] = [];
+    const middleCols: ColDef<Track>[] = [];
+    const rightCols: ColDef<Track>[] = [];
     const colDefMap = new Map<string, ColDef<Track>>();
     colDefs.forEach((c) => colDefMap.set(c.colId as string, c));
 
+    const leftIds: TrackColumnId[] = ['order', 'art'];
+    const rightIds: TrackColumnId[] = ['favorite', 'playNext', 'addToQueue', 'actions'];
+
+    // 1. Collect left columns (#, art)
+    leftIds.forEach((id) => {
+      if (colDefMap.has(id)) leftCols.push(colDefMap.get(id)!);
+    });
+
+    // 2. Collect middle content columns according to columnOrder
     columnOrder.forEach((id) => {
-      if ((id as string) !== 'buffer' && colDefMap.has(id)) {
-        ordered.push(colDefMap.get(id)!);
+      if (!leftIds.includes(id) && !rightIds.includes(id) && (id as string) !== 'buffer') {
+        if (colDefMap.has(id)) {
+          middleCols.push(colDefMap.get(id)!);
+        }
       }
     });
 
-    // Always append empty buffer column at the very end
-    if (colDefMap.has('buffer')) {
-      ordered.push(colDefMap.get('buffer')!);
-    }
+    // Fallback: any content columns (title, artist, album, date, genre, duration) missing from columnOrder
+    const contentIds: TrackColumnId[] = ['title', 'artist', 'album', 'date', 'genre', 'duration'];
+    contentIds.forEach((id) => {
+      if (!middleCols.some((c) => c.colId === id) && colDefMap.has(id)) {
+        middleCols.push(colDefMap.get(id)!);
+      }
+    });
 
-    return ordered;
+    // 3. Collect right action columns in fixed order (all the way to the right)
+    rightIds.forEach((id) => {
+      if (colDefMap.has(id)) rightCols.push(colDefMap.get(id)!);
+    });
+
+    // 4. Buffer column at very end
+    const bufferCol = colDefMap.get('buffer');
+
+    return [...leftCols, ...middleCols, ...rightCols, ...(bufferCol ? [bufferCol] : [])];
   }, [colDefs, columnOrder]);
 
   const handlePlayRow = useCallback(
@@ -1168,6 +1202,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
           getRowStyle={getRowStyle}
           rowClass="group/row"
           suppressHorizontalScroll={true}
+          scrollbarWidth={0}
           onGridReady={onGridReady}
           onBodyScroll={onBodyScroll}
           onCellKeyDown={onCellKeyDown}

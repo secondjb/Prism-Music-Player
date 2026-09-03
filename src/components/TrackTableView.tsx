@@ -8,9 +8,9 @@ import {
   ColumnResizedEvent,
   ColumnMovedEvent,
   GridReadyEvent,
+  themeQuartz,
+  colorSchemeDark,
 } from 'ag-grid-community';
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-quartz.css';
 import {
   Play,
   Pause,
@@ -83,7 +83,7 @@ const CustomHeader: React.FC<any> = (props) => {
   };
 
   const colId = props.column.getColId();
-  if (['art', 'favorite', 'playNext', 'addToQueue', 'actions'].includes(colId)) {
+  if (['art', 'favorite', 'playNext', 'addToQueue', 'actions', 'buffer'].includes(colId)) {
     return null;
   }
 
@@ -535,6 +535,18 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   );
 
   const gridRef = useRef<AgGridReact<Track>>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // AG Grid v32 Native Theme API
+  const playerTheme = useMemo(() => {
+    return themeQuartz.withPart(colorSchemeDark).withParams({
+      backgroundColor: 'transparent',
+      wrapperBackgroundColor: 'transparent',
+      headerBackgroundColor: 'rgba(9, 9, 11, 0.45)',
+      rowHoverColor: 'rgba(255, 255, 255, 0.06)',
+      borderColor: 'transparent',
+    });
+  }, []);
 
   // Keyboard navigation
   const onCellKeyDown = useCallback(
@@ -560,14 +572,38 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     }
   }, []);
 
-  // Save column resize when user releases mouse
+  // Save column resize and enforce "Right Wall" to prevent off-screen resizing
   const onColumnResized = useCallback(
     (params: ColumnResizedEvent) => {
+      const clientWidth = containerRef.current?.clientWidth || window.innerWidth;
+
+      // Calculate total width of all visible columns except buffer
+      const displayedColumns = params.api.getAllDisplayedColumns();
+      let totalWidth = 0;
+      displayedColumns.forEach((col) => {
+        if (col.getColId() !== 'buffer') {
+          totalWidth += col.getActualWidth();
+        }
+      });
+
+      // If total width exceeds the container clientWidth, clamp the resized column
+      if (totalWidth > clientWidth) {
+        if (params.column) {
+          const overflow = totalWidth - clientWidth;
+          const currentWidth = params.column.getActualWidth();
+          const cappedWidth = Math.max(36, currentWidth - overflow);
+          params.api.setColumnWidths([{ key: params.column.getColId(), newWidth: cappedWidth }]);
+        } else {
+          params.api.sizeColumnsToFit();
+        }
+      }
+
       if (!params.finished) return;
+
       const state = params.api.getColumnState();
       const sizingMap: Record<string, number> = {};
       state.forEach((c) => {
-        if (c.width && c.colId) {
+        if (c.width && c.colId && c.colId !== 'buffer') {
           sizingMap[c.colId] = c.width;
         }
       });
@@ -581,7 +617,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     (params: ColumnMovedEvent) => {
       if (!params.finished) return;
       const state = params.api.getColumnState();
-      const orderedIds = state.map((c) => c.colId as TrackColumnId);
+      const orderedIds = state
+        .map((c) => c.colId as TrackColumnId)
+        .filter((id) => (id as string) !== 'buffer');
       setColumnOrder(orderedIds);
     },
     [setColumnOrder]
@@ -651,7 +689,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     []
   );
 
-  // Column definitions with initial/saved widths and flex distribution
+  // Column definitions with initial/saved widths, flex distribution, and buffer column
   const colDefs = useMemo<ColDef<Track>[]>(() => {
     let savedSizing: Record<string, number> = {};
     try {
@@ -807,20 +845,36 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
             </div>
           ) : null,
       },
+      // Invisible Buffer Column to act as a shock absorber and prevent right-overflow
+      {
+        colId: 'buffer',
+        headerName: '',
+        flex: 1,
+        minWidth: 0,
+        resizable: false,
+        sortable: false,
+        suppressMovable: true,
+        cellRenderer: () => null,
+      },
     ];
   }, [visibleTrackColumns, trackGridDensity, COLUMN_SIZING_STORAGE_KEY]);
 
-  // Order columns based on persisted store order
+  // Order columns based on persisted store order with buffer always at the end
   const orderedColDefs = useMemo(() => {
     const ordered: ColDef<Track>[] = [];
     const colDefMap = new Map<string, ColDef<Track>>();
     colDefs.forEach((c) => colDefMap.set(c.colId as string, c));
 
     columnOrder.forEach((id) => {
-      if (colDefMap.has(id)) {
+      if ((id as string) !== 'buffer' && colDefMap.has(id)) {
         ordered.push(colDefMap.get(id)!);
       }
     });
+
+    // Always append empty buffer column at the very end
+    if (colDefMap.has('buffer')) {
+      ordered.push(colDefMap.get('buffer')!);
+    }
 
     return ordered;
   }, [colDefs, columnOrder]);
@@ -865,7 +919,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         if (saved) {
           const sizing = JSON.parse(saved);
           const state = params.api.getColumnState().map((col) => {
-            if (sizing[col.colId]) {
+            if (sizing[col.colId] && col.colId !== 'buffer') {
               return { ...col, width: sizing[col.colId], flex: undefined };
             }
             return col;
@@ -895,67 +949,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden relative select-none">
-      {/* Scoped CSS to enforce 100% transparency & theme styling regardless of CSS bundling order */}
-      <style>{`
-        .custom-ag-grid,
-        .custom-ag-grid .ag-root-wrapper,
-        .custom-ag-grid .ag-root-wrapper-body,
-        .custom-ag-grid .ag-root,
-        .custom-ag-grid .ag-body,
-        .custom-ag-grid .ag-body-viewport,
-        .custom-ag-grid .ag-center-cols-viewport,
-        .custom-ag-grid .ag-center-cols-container,
-        .custom-ag-grid .ag-center-cols-clipper,
-        .custom-ag-grid .ag-pinned-left-cols-container,
-        .custom-ag-grid .ag-pinned-right-cols-container,
-        .custom-ag-grid .ag-row {
-          background: transparent !important;
-          background-color: transparent !important;
-        }
-        .custom-ag-grid .ag-row::after,
-        .custom-ag-grid .ag-row-odd::after,
-        .custom-ag-grid .ag-row-even::after,
-        .custom-ag-grid .ag-header-row::after {
-          background: transparent !important;
-          background-color: transparent !important;
-        }
-        .custom-ag-grid .ag-row:hover::after,
-        .custom-ag-grid .ag-row-hover::after {
-          background-color: rgba(255, 255, 255, 0.06) !important;
-        }
-        .custom-ag-grid .ag-header {
-          background: rgba(9, 9, 11, 0.45) !important;
-          backdrop-filter: blur(20px) !important;
-          -webkit-backdrop-filter: blur(20px) !important;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-        }
-        .custom-ag-grid .ag-header-row {
-          background: transparent !important;
-        }
-        .custom-ag-grid .ag-header-cell {
-          padding-left: 8px !important;
-          padding-right: 8px !important;
-        }
-        .custom-ag-grid .ag-cell {
-          border: none !important;
-          outline: none !important;
-          display: flex !important;
-          align-items: center !important;
-          padding-left: 6px !important;
-          padding-right: 6px !important;
-          user-select: none !important;
-        }
-        .custom-ag-grid .ag-cell:focus,
-        .custom-ag-grid .ag-cell-focus {
-          border: none !important;
-          outline: none !important;
-        }
-        .custom-ag-grid .ag-row {
-          border-bottom: 1px solid rgba(255, 255, 255, 0.02) !important;
-          cursor: pointer !important;
-        }
-      `}</style>
-
       {/* Table Header Bar / Controls */}
       {!hideControls && (
         <div className="flex items-center justify-between px-4 py-2 bg-transparent shrink-0 border-b border-white/5 z-40">
@@ -997,35 +990,11 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         </div>
       )}
 
-      {/* Main AG Grid Container */}
-      <div
-        className="flex-1 w-full relative ag-theme-quartz-dark custom-ag-grid"
-        style={
-          {
-            '--ag-background-color': 'transparent',
-            '--ag-data-background-color': 'transparent',
-            '--ag-wrapper-background-color': 'transparent',
-            '--ag-header-background-color': 'transparent',
-            '--ag-odd-row-background-color': 'transparent',
-            '--ag-control-panel-background-color': 'transparent',
-            '--ag-subheader-background-color': 'transparent',
-            '--ag-border-color': 'transparent',
-            '--ag-row-border-color': 'rgba(255, 255, 255, 0.02)',
-            '--ag-row-hover-color': 'rgba(255, 255, 255, 0.06)',
-            '--ag-selected-row-background-color':
-              'color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent)',
-            '--ag-foreground-color': '#f4f4f5',
-            '--ag-secondary-foreground-color': '#a1a1aa',
-            '--ag-header-foreground-color': '#b3b3b3',
-            '--ag-font-size': '13px',
-            '--ag-font-family': 'inherit',
-            '--ag-header-column-separator-color': 'transparent',
-            '--ag-header-column-resize-handle-color': 'var(--color-stop-1, #6366f1)',
-          } as any
-        }
-      >
+      {/* Main AG Grid Container using native theme API */}
+      <div ref={containerRef} className="flex-1 w-full relative">
         <AgGridReact
           ref={gridRef}
+          theme={playerTheme}
           rowData={tracks}
           columnDefs={orderedColDefs}
           defaultColDef={defaultColDef}
@@ -1033,6 +1002,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
           getRowHeight={getRowHeight}
           getRowStyle={getRowStyle}
           rowClass="group/row"
+          suppressHorizontalScroll={true}
           onGridReady={onGridReady}
           onCellKeyDown={onCellKeyDown}
           onCellContextMenu={onCellContextMenu}

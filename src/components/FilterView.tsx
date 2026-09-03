@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { Track } from '../types/player';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { invoke } from '@tauri-apps/api/core';
 import Slider from '@mui/material/Slider';
 import Checkbox from '@mui/material/Checkbox';
@@ -419,15 +418,7 @@ export const FilterView: React.FC = () => {
     }
   };
 
-  // Virtualizer setup for 60 FPS performance on 1000+ tracks
   const parentRef = useRef<HTMLDivElement | null>(null);
-
-  const rowVirtualizer = useVirtualizer({
-    count: filteredTracks.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 56,
-    overscan: 10,
-  });
 
   const formatDuration = (secs: number) => {
     if (!secs) return '0:00';
@@ -994,31 +985,13 @@ export const FilterView: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div
-              style={{
-                height: `${rowVirtualizer.getTotalSize()}px`,
-                width: '100%',
-                position: 'relative',
-              }}
-            >
-              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                const track = filteredTracks[virtualRow.index];
+            <div className="flex flex-col gap-1 w-full relative">
+              {filteredTracks.slice(0, 150).map((track) => {
                 const isPlayingCurrent = currentTrack?.id === track.id;
                 const isLiked = likedTrackIds.includes(track.id);
 
                 return (
-                  <div
-                    key={track.id}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: `${virtualRow.size}px`,
-                      transform: `translateY(${virtualRow.start}px)`,
-                    }}
-                    className="px-1"
-                  >
+                  <div key={track.id} className="px-1 relative">
                     <FilterTrackRow
                       track={track}
                       isPlayingCurrent={isPlayingCurrent}
@@ -1031,6 +1004,11 @@ export const FilterView: React.FC = () => {
                   </div>
                 );
               })}
+              {filteredTracks.length > 150 && (
+                <div className="text-center text-xs text-zinc-500 py-2">
+                  + {filteredTracks.length - 150} more tracks. Use search to refine.
+                </div>
+              )}
             </div>
           )}
         </div>

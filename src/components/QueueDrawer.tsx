@@ -4,7 +4,6 @@ import { useTrackArt } from '../utils/useTrackArt';
 import { Track } from '../types/player';
 import { invoke } from '@tauri-apps/api/core';
 import { ListMusic, X, Trash2, GripVertical, Play, ChevronDown, ChevronRight, History } from 'lucide-react';
-import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface QueueDrawerProps {
   isOpen: boolean;
@@ -186,14 +185,6 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
   const previousSongs = queue.slice(0, Math.max(0, currentIndex));
   const upcomingContext = queue.slice(Math.max(0, currentIndex + 1));
 
-  const contextParentRef = useRef<HTMLDivElement>(null);
-  const contextVirtualizer = useVirtualizer({
-    count: upcomingContext.length,
-    getScrollElement: () => contextParentRef.current,
-    estimateSize: () => 58,
-    overscan: 5,
-  });
-
   // User Queue Drag Handlers
   const handleUserDragStart = (idx: number) => {
     setUserDraggedIdx(idx);
@@ -351,56 +342,38 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
         {upcomingContext.length > 0 && (
           <div className="flex flex-col gap-2 flex-1 min-h-0">
             <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Next from Playlist / Album</h4>
-            <div
-              ref={contextParentRef}
-              className="flex-1 overflow-y-auto custom-scrollbar min-h-0"
-              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
-            >
               <div
-                style={{
-                  height: `${contextVirtualizer.getTotalSize()}px`,
-                  width: '100%',
-                  position: 'relative',
-                }}
+                className="flex-1 overflow-y-auto custom-scrollbar min-h-0"
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
               >
-                {contextVirtualizer.getVirtualItems().map((virtualRow) => {
-                  const idx = virtualRow.index;
-                  const track = upcomingContext[idx];
-                  return (
-                    <div
-                      key={virtualRow.key}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: `${virtualRow.size}px`,
-                        transform: `translateY(${virtualRow.start}px)`,
-                        paddingBottom: '4px',
-                      }}
-                    >
-                      <QueueItemRow
-                        track={track}
-                        idx={idx}
-                        isPlaying={false}
-                        onPlay={() => handlePlayUpcomingIndex(idx)}
-                        onRemove={() => {
-                          const actualIdx = currentIndex + 1 + idx;
-                          const newQ = queue.filter((_, i) => i !== actualIdx);
-                          usePlayerStore.setState({ queue: newQ });
-                        }}
-                        onDragStart={handleCtxDragStart}
-                        onDragEnter={handleCtxDragEnter}
-                        onDrop={handleCtxDrop}
-                        onDragEnd={handleCtxDragEnd}
-                        isDragging={ctxDraggedIdx === idx}
-                        isDragOver={ctxDragOverIdx === idx}
-                      />
+                <div className="flex flex-col gap-1.5 w-full relative">
+                  {upcomingContext.slice(0, 100).map((track, idx) => (
+                        <QueueItemRow
+                          key={`ctx-${track.id}-${idx}`}
+                          track={track}
+                          idx={idx}
+                          isPlaying={false}
+                          onPlay={() => handlePlayUpcomingIndex(idx)}
+                          onRemove={() => {
+                            const actualIdx = currentIndex + 1 + idx;
+                            const newQ = queue.filter((_, i) => i !== actualIdx);
+                            usePlayerStore.setState({ queue: newQ });
+                          }}
+                          onDragStart={handleCtxDragStart}
+                          onDragEnter={handleCtxDragEnter}
+                          onDrop={handleCtxDrop}
+                          onDragEnd={handleCtxDragEnd}
+                          isDragging={ctxDraggedIdx === idx}
+                          isDragOver={ctxDragOverIdx === idx}
+                        />
+                  ))}
+                  {upcomingContext.length > 100 && (
+                    <div className="text-center text-xs text-zinc-500 py-2">
+                      + {upcomingContext.length - 100} more tracks
                     </div>
-                  );
-                })}
+                  )}
+                </div>
               </div>
-            </div>
           </div>
         )}
 

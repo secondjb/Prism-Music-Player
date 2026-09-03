@@ -1,23 +1,9 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  ColumnDef,
-  VisibilityState,
-  ColumnSizingState,
-  SortingState,
-} from '@tanstack/react-table';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { DragEndEvent } from '@dnd-kit/core';
-import { arrayMove } from '@dnd-kit/sortable';
+import { useCallback } from 'react';
 import { usePlayerStore, TrackColumnId, TrackGridDensity } from '../store/usePlayerStore';
-import { Track } from '../types/player';
-import { Clock } from 'lucide-react';
 
 export type { TrackColumnId, TrackGridDensity };
 
-const COLUMN_SIZING_STORAGE_KEY = 'prism_track_table_column_sizing_v1';
+export const COLUMN_SIZING_STORAGE_KEY = 'prism_track_table_column_sizing_v2';
 
 export const ALL_COLUMN_IDS: TrackColumnId[] = [
   'order',
@@ -88,13 +74,7 @@ export const DENSITY_ROW_HEIGHTS: Record<TrackGridDensity, number> = {
   massive: 120,
 };
 
-export interface UseTrackTableStateOptions {
-  tracks: Track[];
-  parentRef: React.RefObject<HTMLDivElement | null>;
-}
-
-export function useTrackTableState({ tracks, parentRef }: UseTrackTableStateOptions) {
-  // Global store states
+export function useTrackTableState() {
   const visibleTrackColumns = usePlayerStore((s) => s.visibleTrackColumns);
   const setVisibleTrackColumns = usePlayerStore((s) => s.setVisibleTrackColumns);
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
@@ -104,239 +84,24 @@ export function useTrackTableState({ tracks, parentRef }: UseTrackTableStateOpti
   const showSubArtistUnderTitle = usePlayerStore((s) => s.showSubArtistUnderTitle);
   const setShowSubArtistUnderTitle = usePlayerStore((s) => s.setShowSubArtistUnderTitle);
 
-  // Table local states
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(() => {
-    try {
-      const saved = localStorage.getItem(COLUMN_SIZING_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // Ignore fallback
-    }
-    return {};
-  });
-
-  // Persist column sizing to localStorage on change
-  useEffect(() => {
-    try {
-      localStorage.setItem(COLUMN_SIZING_STORAGE_KEY, JSON.stringify(columnSizing));
-    } catch {
-      // Ignore storage errors
-    }
-  }, [columnSizing]);
-
-  // Derived column visibility map for TanStack Table
-  const columnVisibility = useMemo<VisibilityState>(() => {
-    const vis: VisibilityState = {};
-    ALL_COLUMN_IDS.forEach((id) => {
-      vis[id] = visibleTrackColumns.includes(id);
-    });
-    return vis;
-  }, [visibleTrackColumns]);
-
-  // Columns definition (minimal layout data; cells rendered in component)
-  const columns = useMemo<ColumnDef<Track>[]>(
-    () => {
-      const artSizeMap: Record<TrackGridDensity, number> = {
-        compact: 32,
-        normal: 48,
-        large: 60,
-        'extra-large': 72,
-        huge: 88,
-        massive: 108,
-      };
-
-      return [
-        {
-          id: 'order',
-          accessorFn: (_row, idx) => (idx !== undefined ? idx + 1 : 1),
-          header: '#',
-          size: columnSizing['order'] ?? 44,
-          minSize: MIN_COLUMN_WIDTHS.order,
-          enableResizing: false,
-        },
-        {
-          id: 'art',
-          accessorKey: 'embedded_art_base64',
-          header: '',
-          size: artSizeMap[trackGridDensity] || 48,
-          minSize: MIN_COLUMN_WIDTHS.art,
-          enableResizing: false,
-        },
-        {
-          id: 'title',
-          accessorKey: 'title',
-          header: 'Title',
-          size: columnSizing['title'] ?? 280,
-          minSize: MIN_COLUMN_WIDTHS.title,
-          enableResizing: true,
-        },
-        {
-          id: 'artist',
-          accessorKey: 'artist',
-          header: 'Artist',
-          size: columnSizing['artist'] ?? 160,
-          minSize: MIN_COLUMN_WIDTHS.artist,
-          enableResizing: true,
-        },
-        {
-          id: 'album',
-          accessorKey: 'album',
-          header: 'Album',
-          size: columnSizing['album'] ?? 160,
-          minSize: MIN_COLUMN_WIDTHS.album,
-          enableResizing: true,
-        },
-        {
-          id: 'date',
-          accessorKey: 'year',
-          header: 'Date',
-          size: columnSizing['date'] ?? 80,
-          minSize: MIN_COLUMN_WIDTHS.date,
-          enableResizing: true,
-        },
-        {
-          id: 'genre',
-          accessorKey: 'genre',
-          header: 'Genre',
-          size: columnSizing['genre'] ?? 110,
-          minSize: MIN_COLUMN_WIDTHS.genre,
-          enableResizing: true,
-        },
-        {
-          id: 'duration',
-          accessorKey: 'duration_secs',
-          header: () => React.createElement(Clock, { className: 'w-4 h-4 text-zinc-400' }),
-          size: columnSizing['duration'] ?? 64,
-          minSize: MIN_COLUMN_WIDTHS.duration,
-          enableResizing: true,
-        },
-        {
-          id: 'favorite',
-          header: '',
-          size: columnSizing['favorite'] ?? 36,
-          minSize: MIN_COLUMN_WIDTHS.favorite,
-          enableResizing: false,
-        },
-        {
-          id: 'playNext',
-          header: '',
-          size: columnSizing['playNext'] ?? 36,
-          minSize: MIN_COLUMN_WIDTHS.playNext,
-          enableResizing: false,
-        },
-        {
-          id: 'addToQueue',
-          header: '',
-          size: columnSizing['addToQueue'] ?? 36,
-          minSize: MIN_COLUMN_WIDTHS.addToQueue,
-          enableResizing: false,
-        },
-        {
-          id: 'actions',
-          header: '',
-          size: columnSizing['actions'] ?? 36,
-          minSize: MIN_COLUMN_WIDTHS.actions,
-          enableResizing: false,
-        },
-      ];
-    },
-    [columnSizing, trackGridDensity]
-  );
-
-  // TanStack Table Instance
-  const table = useReactTable({
-    data: tracks,
-    columns,
-    state: {
-      columnVisibility,
-      columnOrder,
-      columnSizing,
-      sorting,
-    },
-    onSortingChange: setSorting,
-    onColumnSizingChange: setColumnSizing,
-    onColumnOrderChange: (updater) => {
-      const nextOrder = typeof updater === 'function' ? updater(columnOrder) : updater;
-      setColumnOrder(nextOrder as TrackColumnId[]);
-    },
-    onColumnVisibilityChange: (updater) => {
-      const nextVis = typeof updater === 'function' ? updater(columnVisibility) : updater;
-      const visibleCols = Object.keys(nextVis).filter((k) => nextVis[k]) as TrackColumnId[];
-      setVisibleTrackColumns(visibleCols);
-    },
-    columnResizeMode: 'onChange',
-    enableColumnResizing: true,
-    enableSorting: true,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  });
-
-  const { rows } = table.getRowModel();
-  const rowHeight = DENSITY_ROW_HEIGHTS[trackGridDensity] || 56;
-
-  // TanStack Row Virtualizer
-  const rowVirtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: useCallback(() => rowHeight, [rowHeight]),
-    overscan: 10,
-  });
-
-  // Remeasure virtualization whenever density or tracks count changes
-  useEffect(() => {
-    rowVirtualizer.measure();
-  }, [trackGridDensity, tracks.length, rowVirtualizer]);
-
-  // Handle Drag and Drop Column Reordering via dnd-kit
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
-
-      const activeId = active.id as TrackColumnId;
-      const overId = over.id as TrackColumnId;
-
-      // Do not allow moving locked columns or placing columns over locked positions
-      if (LOCKED_COLUMN_IDS.includes(activeId) || LOCKED_COLUMN_IDS.includes(overId)) {
-        return;
-      }
-
-      const oldIdx = columnOrder.indexOf(activeId);
-      const newIdx = columnOrder.indexOf(overId);
-      if (oldIdx !== -1 && newIdx !== -1) {
-        const nextOrder = arrayMove(columnOrder, oldIdx, newIdx);
-        setColumnOrder(nextOrder);
-      }
-    },
-    [columnOrder, setColumnOrder]
-  );
-
-  // Reset entire grid to factory defaults
   const resetGrid = useCallback(() => {
-    setColumnSizing({});
     localStorage.removeItem(COLUMN_SIZING_STORAGE_KEY);
     setTrackGridDensity('normal');
     setShowSubArtistUnderTitle(true);
     setVisibleTrackColumns(DEFAULT_VISIBLE_COLUMNS);
     setColumnOrder(ALL_COLUMN_IDS);
-    setSorting([]);
   }, [setTrackGridDensity, setShowSubArtistUnderTitle, setVisibleTrackColumns, setColumnOrder]);
 
   return {
-    table,
-    rows,
-    rowVirtualizer,
-    rowHeight,
-    columnOrder,
-    columnSizing,
     visibleTrackColumns,
-    trackGridDensity,
-    showSubArtistUnderTitle,
-    handleDragEnd,
-    resetGrid,
-    setTrackGridDensity,
-    setShowSubArtistUnderTitle,
     setVisibleTrackColumns,
+    trackGridDensity,
+    setTrackGridDensity,
+    columnOrder,
+    setColumnOrder,
+    showSubArtistUnderTitle,
+    setShowSubArtistUnderTitle,
+    resetGrid,
+    COLUMN_SIZING_STORAGE_KEY,
   };
 }

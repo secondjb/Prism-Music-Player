@@ -1,34 +1,36 @@
 import React from 'react';
-import { Column } from '@tanstack/react-table';
 import Slider from '@mui/material/Slider';
 import { RefreshCw, Check, X, SlidersHorizontal } from 'lucide-react';
-import { Track } from '../types/player';
 import {
   COLUMN_LABELS,
   TrackColumnId,
   TrackGridDensity,
+  ALL_COLUMN_IDS,
+  LOCKED_COLUMN_IDS,
 } from '../hooks/useTrackTableState';
 
 interface ColumnConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
-  columns: Column<Track, unknown>[];
   density: TrackGridDensity;
   onDensityChange: (density: TrackGridDensity) => void;
   showSubArtistUnderTitle: boolean;
   onToggleSubArtist: (show: boolean) => void;
   onResetGrid: () => void;
+  visibleTrackColumns: TrackColumnId[];
+  onToggleColumn: (col: TrackColumnId) => void;
 }
 
 export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
   isOpen,
   onClose,
-  columns,
   density,
   onDensityChange,
   showSubArtistUnderTitle,
   onToggleSubArtist,
   onResetGrid,
+  visibleTrackColumns,
+  onToggleColumn,
 }) => {
   if (!isOpen) return null;
 
@@ -171,15 +173,15 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
             Visible Columns
           </span>
           <div className="flex flex-col gap-1 max-h-44 overflow-y-auto custom-scrollbar pr-1">
-            {columns.map((col) => {
-              const colId = col.id as TrackColumnId;
-              const isVisible = col.getIsVisible();
-              const label = COLUMN_LABELS[colId as keyof typeof COLUMN_LABELS] || col.id;
+            {ALL_COLUMN_IDS.map((colId) => {
+              if (LOCKED_COLUMN_IDS.includes(colId)) return null;
+              const isVisible = visibleTrackColumns.includes(colId);
+              const label = COLUMN_LABELS[colId];
 
               return (
                 <button
-                  key={col.id}
-                  onClick={col.getToggleVisibilityHandler()}
+                  key={colId}
+                  onClick={() => onToggleColumn(colId)}
                   className={`flex items-center justify-between px-3 py-1.5 rounded-xl transition-all text-left cursor-pointer border ${
                     isVisible
                       ? 'text-white font-medium'

@@ -22,8 +22,10 @@ import {
   Radio,
   ListPlus,
   FolderPlus,
+  Speaker,
 } from 'lucide-react';
 import { SleepTimerModal } from './SleepTimerModal';
+import { AudioDeviceModal } from './AudioDeviceModal';
 import { updateLogoGradientFromImage } from '../utils/colorExtractor';
 
 export const BottomBar: React.FC = () => {
@@ -55,6 +57,7 @@ export const BottomBar: React.FC = () => {
   }, [trackArt]);
 
   const [isTimerModalOpen, setIsTimerModalOpen] = useState(false);
+  const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [prevVol, setPrevVol] = useState(volume);
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -522,6 +525,33 @@ export const BottomBar: React.FC = () => {
                 {Math.round(effectiveVol * 100)}%
               </button>
             )}
+          </div>
+
+          {/* Audio Output Devices & Quality Modal Button */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setIsDeviceModalOpen(!isDeviceModalOpen)}
+              className={`p-1.5 sm:p-2 rounded-xl transition-all shrink-0 ${
+                isDeviceModalOpen
+                  ? 'text-white shadow-md'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+              style={
+                isDeviceModalOpen
+                  ? {
+                      backgroundColor: 'var(--color-stop-1, #6366f1)',
+                      boxShadow: '0 0 14px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                    }
+                  : undefined
+              }
+              title="Audio Output & Quality"
+            >
+              <Speaker className="w-5 h-5" />
+            </button>
+            <AudioDeviceModal
+              isOpen={isDeviceModalOpen}
+              onClose={() => setIsDeviceModalOpen(false)}
+            />
           </div>
 
           {/* Karaoke / Lyrics Toggle (Moved to far right) */}

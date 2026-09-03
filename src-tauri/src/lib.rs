@@ -190,6 +190,21 @@ fn get_playback_position(audio_engine: State<'_, GlobalAudioEngine>) -> (f64, f6
     audio_engine.get_position()
 }
 
+#[tauri::command]
+fn get_audio_output_details(
+    audio_engine: State<'_, GlobalAudioEngine>,
+) -> Result<audio::AudioOutputDetails, String> {
+    audio_engine.get_output_details()
+}
+
+#[tauri::command]
+fn set_audio_output_device(
+    audio_engine: State<'_, GlobalAudioEngine>,
+    device_name: Option<String>,
+) {
+    audio_engine.set_output_device(device_name);
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct FilterParams {
     pub artist: Option<String>,
@@ -588,6 +603,8 @@ pub fn run() {
             seek_audio,
             set_volume,
             get_playback_position,
+            get_audio_output_details,
+            set_audio_output_device,
             filter_tracks,
             analyze_library_audio,
             clear_library_audio_analysis,

@@ -13,6 +13,30 @@ use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AudioDeviceInfo {
+    pub name: String,
+    pub is_default: bool,
+    pub is_active: bool,
+    pub default_sample_rate: u32,
+    pub default_channels: u16,
+    pub default_format: String,
+    pub min_sample_rate: u32,
+    pub max_sample_rate: u32,
+    pub supported_channels: Vec<u16>,
+    pub supported_formats: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AudioOutputDetails {
+    pub devices: Vec<AudioDeviceInfo>,
+    pub active_device_name: String,
+    pub active_sample_rate: u32,
+    pub active_channels: u16,
+    pub active_format: String,
+    pub is_playing: bool,
+}
+
 pub struct AudioPlayerState {
     pub is_playing: Arc<AtomicBool>,
     pub volume: Arc<Mutex<f32>>,
@@ -21,6 +45,12 @@ pub struct AudioPlayerState {
     pub current_position_secs: Arc<Mutex<f64>>,
     pub current_duration_secs: Arc<Mutex<f64>>,
     pub stop_signal: Arc<AtomicBool>,
+    pub selected_device_name: Arc<Mutex<Option<String>>>,
+    pub active_device_name: Arc<Mutex<String>>,
+    pub active_sample_rate: Arc<Mutex<u32>>,
+    pub active_channels: Arc<Mutex<u16>>,
+    pub active_format: Arc<Mutex<String>>,
+    pub device_switch_requested: Arc<AtomicBool>,
 }
 
 impl AudioPlayerState {
@@ -33,6 +63,12 @@ impl AudioPlayerState {
             current_position_secs: Arc::new(Mutex::new(0.0)),
             current_duration_secs: Arc::new(Mutex::new(0.0)),
             stop_signal: Arc::new(AtomicBool::new(false)),
+            selected_device_name: Arc::new(Mutex::new(None)),
+            active_device_name: Arc::new(Mutex::new(String::new())),
+            active_sample_rate: Arc::new(Mutex::new(0)),
+            active_channels: Arc::new(Mutex::new(0)),
+            active_format: Arc::new(Mutex::new(String::new())),
+            device_switch_requested: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -82,6 +118,13 @@ impl GlobalAudioEngine {
         *current_position_secs.lock() = initial_seek.unwrap_or(0.0);
         state_guard.is_playing.store(true, Ordering::SeqCst);
 
+        let selected_device_name = Arc::clone(&state_guard.selected_device_name);
+        let active_device_name = Arc::clone(&state_guard.active_device_name);
+        let active_sample_rate = Arc::clone(&state_guard.active_sample_rate);
+        let active_channels = Arc::clone(&state_guard.active_channels);
+        let active_format = Arc::clone(&state_guard.active_format);
+        let device_switch_requested = Arc::clone(&state_guard.device_switch_requested);
+
         let path_clone = file_path.clone();
         let stop_signal_clone = Arc::clone(&stop_signal);
         let is_playing_clone = Arc::clone(&is_playing);
@@ -110,6 +153,12 @@ impl GlobalAudioEngine {
                 seek_secs_clone,
                 position_clone,
                 duration_clone,
+                selected_device_name,
+                active_device_name,
+                active_sample_rate,
+                active_channels,
+                active_format,
+                device_switch_requested,
             ) {
                 eprintln!("Audio thread error: {}", e);
             }
@@ -146,6 +195,117 @@ impl GlobalAudioEngine {
         let dur = *state.current_duration_secs.lock();
         (pos, dur)
     }
+
+    pub fn get_output_details(&self) -> Result<AudioOutputDetails, String> {
+        let host = cpal::default_host();
+        let state = self.state.lock();
+        let is_playing = state.is_playing.load(Ordering::SeqCst);
+        let active_name = state.active_device_name.lock().clone();
+        let active_rate = *state.active_sample_rate.lock();
+        let active_ch = *state.active_channels.lock();
+        let active_fmt = state.active_format.lock().clone();
+        let selected_name = state.selected_device_name.lock().clone();
+        drop(state);
+
+        let default_dev = host.default_output_device();
+        let default_name = default_dev.as_ref().and_then(|d| d.name().ok());
+
+        let mut device_infos = Vec::new();
+        if let Ok(devices) = host.output_devices() {
+            for dev in devices {
+                if let Ok(name) = dev.name() {
+                    let is_default = default_name.as_ref().map(|dn| dn == &name).unwrap_or(false);
+                    let is_active = if !active_name.is_empty() {
+                        active_name == name
+                    } else if let Some(ref sel) = selected_name {
+                        sel == &name
+                    } else {
+                        is_default
+                    };
+
+                    let mut default_sample_rate = 48000;
+                    let mut default_channels = 2;
+                    let mut default_format = "F32".to_string();
+
+                    if let Ok(cfg) = dev.default_output_config() {
+                        default_sample_rate = cfg.sample_rate().0;
+                        default_channels = cfg.channels();
+                        default_format = format!("{:?}", cfg.sample_format());
+                    }
+
+                    let mut min_sample_rate = default_sample_rate;
+                    let mut max_sample_rate = default_sample_rate;
+                    let mut supported_channels_set = std::collections::BTreeSet::new();
+                    let mut supported_formats_set = std::collections::BTreeSet::new();
+
+                    if let Ok(configs) = dev.supported_output_configs() {
+                        for c in configs {
+                            let min_r = c.min_sample_rate().0;
+                            let max_r = c.max_sample_rate().0;
+                            if min_sample_rate == 0 || min_r < min_sample_rate {
+                                min_sample_rate = min_r;
+                            }
+                            if max_r > max_sample_rate {
+                                max_sample_rate = max_r;
+                            }
+                            supported_channels_set.insert(c.channels());
+                            supported_formats_set.insert(format!("{:?}", c.sample_format()));
+                        }
+                    }
+
+                    if supported_formats_set.is_empty() {
+                        supported_formats_set.insert(default_format.clone());
+                    }
+                    if supported_channels_set.is_empty() {
+                        supported_channels_set.insert(default_channels);
+                    }
+
+                    device_infos.push(AudioDeviceInfo {
+                        name,
+                        is_default,
+                        is_active,
+                        default_sample_rate,
+                        default_channels,
+                        default_format,
+                        min_sample_rate,
+                        max_sample_rate,
+                        supported_channels: supported_channels_set.into_iter().collect(),
+                        supported_formats: supported_formats_set.into_iter().collect(),
+                    });
+                }
+            }
+        }
+
+        let (final_active_name, final_rate, final_ch, final_fmt) = if active_name.is_empty() {
+            if let Some(ref d) = default_dev {
+                let name = d.name().unwrap_or_else(|_| "Default Device".to_string());
+                if let Ok(cfg) = d.default_output_config() {
+                    (name, cfg.sample_rate().0, cfg.channels(), format!("{:?}", cfg.sample_format()))
+                } else {
+                    (name, 48000, 2, "F32".to_string())
+                }
+            } else {
+                ("No Device Found".to_string(), 0, 0, "".to_string())
+            }
+        } else {
+            (active_name, active_rate, active_ch, active_fmt)
+        };
+
+        Ok(AudioOutputDetails {
+            devices: device_infos,
+            active_device_name: final_active_name,
+            active_sample_rate: final_rate,
+            active_channels: final_ch,
+            active_format: final_fmt,
+            is_playing,
+        })
+    }
+
+    pub fn set_output_device(&self, device_name: Option<String>) {
+        let state = self.state.lock();
+        *state.selected_device_name.lock() = device_name;
+        state.device_switch_requested.store(true, Ordering::SeqCst);
+    }
 }
 
 fn run_audio_thread(
@@ -157,6 +317,12 @@ fn run_audio_thread(
     seek_secs: Arc<Mutex<Option<f64>>>,
     current_position_secs: Arc<Mutex<f64>>,
     current_duration_secs: Arc<Mutex<f64>>,
+    selected_device_name: Arc<Mutex<Option<String>>>,
+    active_device_name_out: Arc<Mutex<String>>,
+    active_sample_rate_out: Arc<Mutex<u32>>,
+    active_channels_out: Arc<Mutex<u16>>,
+    active_format_out: Arc<Mutex<String>>,
+    device_switch_requested: Arc<AtomicBool>,
 ) -> Result<(), String> {
     let file = File::open(Path::new(path_str))
         .map_err(|e| format!("Failed to open file '{}': {}", path_str, e))?;
@@ -195,11 +361,25 @@ fn run_audio_thread(
         .map_err(|e| format!("Decoder creation error: {}", e))?;
 
     // Helper to create stream and channel
-    let create_stream_fn = || -> Result<(cpal::Stream, crossbeam_channel::Sender<f32>, Arc<AtomicBool>, String), String> {
+    let create_stream_fn = || -> Result<(cpal::Stream, crossbeam_channel::Sender<f32>, Arc<AtomicBool>, String, u32, usize), String> {
         let host = cpal::default_host();
-        let device = host
-            .default_output_device()
-            .ok_or_else(|| "No output audio device found".to_string())?;
+        let device = match selected_device_name.lock().as_ref() {
+            Some(sel_name) => {
+                let mut matched = None;
+                if let Ok(devices) = host.output_devices() {
+                    for d in devices {
+                        if let Ok(name) = d.name() {
+                            if &name == sel_name {
+                                matched = Some(d);
+                                break;
+                            }
+                        }
+                    }
+                }
+                matched.or_else(|| host.default_output_device())
+            }
+            None => host.default_output_device(),
+        }.ok_or_else(|| "No output audio device found".to_string())?;
 
         let dev_name = device.name().unwrap_or_else(|_| "Default Device".to_string());
 
@@ -211,6 +391,11 @@ fn run_audio_thread(
         let target_channels = default_config.channels() as usize;
         let stream_config: StreamConfig = default_config.clone().into();
         let sample_format = default_config.sample_format();
+
+        *active_device_name_out.lock() = dev_name.clone();
+        *active_sample_rate_out.lock() = target_sample_rate;
+        *active_channels_out.lock() = target_channels as u16;
+        *active_format_out.lock() = format!("{:?}", sample_format);
 
         let ring_buffer_capacity = (target_sample_rate as usize * target_channels / 10).max(8192);
         let (tx, rx) = crossbeam_channel::bounded::<f32>(ring_buffer_capacity);
@@ -261,29 +446,19 @@ fn run_audio_thread(
 
         stream.play().map_err(|e| format!("Failed to play audio stream: {}", e))?;
 
-        Ok((stream, tx, device_changed, dev_name))
+        Ok((stream, tx, device_changed, dev_name, target_sample_rate, target_channels))
     };
 
-    let (mut stream, mut tx, mut device_changed, mut active_device_name) = create_stream_fn()?;
-
-    // Track target config for resampling logic in loop
-    let mut target_sample_rate;
-    let mut target_channels;
-    {
-        let host = cpal::default_host();
-        let device = host.default_output_device().unwrap();
-        let default_config = device.default_output_config().unwrap();
-        target_sample_rate = default_config.sample_rate().0;
-        target_channels = default_config.channels() as usize;
-    }
+    let (mut stream, mut tx, mut device_changed, mut active_device_name, mut target_sample_rate, mut target_channels) = create_stream_fn()?;
 
     let mut sample_buf = None;
     let mut last_device_check = std::time::Instant::now();
 
     loop {
-        // Periodically (every 100ms) check if the OS default output device has changed
-        let mut need_device_switch = device_changed.load(Ordering::SeqCst);
-        if !need_device_switch && last_device_check.elapsed() >= Duration::from_millis(100) {
+        // Periodically (every 100ms) check if device needs switching
+        let manual_switch = device_switch_requested.swap(false, Ordering::SeqCst);
+        let mut need_device_switch = device_changed.load(Ordering::SeqCst) || manual_switch;
+        if !need_device_switch && selected_device_name.lock().is_none() && last_device_check.elapsed() >= Duration::from_millis(100) {
             last_device_check = std::time::Instant::now();
             if let Some(def_dev) = cpal::default_host().default_output_device() {
                 if let Ok(name) = def_dev.name() {
@@ -304,20 +479,15 @@ fn run_audio_thread(
             thread::sleep(Duration::from_millis(50));
 
             match create_stream_fn() {
-                Ok((new_stream, new_tx, new_dc, new_name)) => {
+                Ok((new_stream, new_tx, new_dc, new_name, new_rate, new_ch)) => {
                     stream = new_stream;
                     tx = new_tx;
                     device_changed = new_dc;
                     active_device_name = new_name;
-
-                    if let Some(device) = cpal::default_host().default_output_device() {
-                        if let Ok(config) = device.default_output_config() {
-                            target_sample_rate = config.sample_rate().0;
-                            target_channels = config.channels() as usize;
-                        }
-                    }
+                    target_sample_rate = new_rate;
+                    target_channels = new_ch;
                     println!(
-                        "Successfully migrated audio stream to new device: {}",
+                        "Successfully migrated audio stream to device: {}",
                         active_device_name
                     );
                 }

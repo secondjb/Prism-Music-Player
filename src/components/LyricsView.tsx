@@ -393,6 +393,7 @@ export const LyricsView: React.FC = () => {
       if (lineEl) {
         const targetTop = lineEl.offsetTop - containerEl.clientHeight / 2 + lineEl.clientHeight / 2;
         isProgrammaticScrollRef.current = true;
+        setIsScrollbarVisible(false);
         containerEl.scrollTo({
           top: targetTop,
           behavior: 'smooth',
@@ -403,6 +404,39 @@ export const LyricsView: React.FC = () => {
       }
     }
   };
+
+  // Scroll to top when track changes / skips
+  useEffect(() => {
+    setIsUserScrolled(false);
+    setIsScrollbarVisible(false);
+    if (containerRef.current) {
+      isProgrammaticScrollRef.current = true;
+      containerRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth',
+      });
+      const timer = setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [currentTrack?.id]);
+
+  // Keep at top if lyrics load and song is at intro (activeIndex === -1)
+  useEffect(() => {
+    if (activeIndex === -1 && !isUserScrolled && containerRef.current) {
+      isProgrammaticScrollRef.current = true;
+      setIsScrollbarVisible(false);
+      containerRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth',
+      });
+      const timer = setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [lines, activeIndex, isUserScrolled]);
 
   // 5. Detect genuine user scrolling (wheel/touch/drag) away from current lyric line
   useEffect(() => {
@@ -418,11 +452,16 @@ export const LyricsView: React.FC = () => {
     };
 
     const handleScroll = () => {
-      setIsScrollbarVisible(true);
-      if (scrollbarTimerRef.current) clearTimeout(scrollbarTimerRef.current);
-      scrollbarTimerRef.current = setTimeout(() => {
+      // Only show scrollbar if user is genuinely interacting and it is NOT an auto-scroll!
+      if (!isProgrammaticScrollRef.current && userInteractingRef.current) {
+        setIsScrollbarVisible(true);
+        if (scrollbarTimerRef.current) clearTimeout(scrollbarTimerRef.current);
+        scrollbarTimerRef.current = setTimeout(() => {
+          setIsScrollbarVisible(false);
+        }, 2000);
+      } else if (isProgrammaticScrollRef.current) {
         setIsScrollbarVisible(false);
-      }, 3000);
+      }
 
       // Only unsync if it's NOT a programmatic scroll, user is actively scrolling, and scrolled away from active line
       if (!isProgrammaticScrollRef.current && userInteractingRef.current && activeIndex !== -1) {
@@ -801,7 +840,12 @@ export const LyricsView: React.FC = () => {
               setIsUserScrolled(false);
               scrollToActive();
             }}
-            className="fixed bottom-28 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-600/90 hover:bg-indigo-500 text-white text-xs font-semibold shadow-xl backdrop-blur-md transition-all border border-indigo-400/40 animate-in fade-in slide-in-from-bottom-3 cursor-pointer"
+            style={{
+              background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #818cf8))',
+              borderColor: 'color-mix(in srgb, var(--color-stop-2, #818cf8) 60%, white)',
+              boxShadow: '0 8px 24px -4px color-mix(in srgb, var(--color-stop-1, #6366f1) 50%, transparent)',
+            }}
+            className="fixed bottom-28 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-xs font-semibold shadow-xl backdrop-blur-md transition-all border animate-in fade-in slide-in-from-bottom-3 cursor-pointer hover:brightness-110 active:scale-95"
           >
             <Target className="w-4 h-4" />
             <span>Re-sync to music</span>
@@ -810,7 +854,10 @@ export const LyricsView: React.FC = () => {
 
         {isLoading ? (
           <div className="flex flex-col items-center gap-3 my-auto">
-            <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+            <RefreshCw
+              className="w-8 h-8 animate-spin"
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+            />
             <span className="text-sm text-zinc-400 font-medium">Loading synchronized lyrics...</span>
           </div>
         ) : lines.length === 0 ? (
@@ -822,7 +869,8 @@ export const LyricsView: React.FC = () => {
             </p>
             <button
               onClick={handleManualRefresh}
-              className="mt-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 transition-colors"
+              style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+              className="mt-2 px-4 py-2 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110"
             >
               Search Online
             </button>

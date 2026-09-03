@@ -62,6 +62,54 @@ const ART_COLUMN_WIDTHS: Record<TrackGridDensity, number> = {
   massive: 116,
 };
 
+const ACTION_DENSITY_CONFIG: Record<
+  TrackGridDensity,
+  { buttonClass: string; iconClass: string; colWidth: number }
+> = {
+  compact: {
+    buttonClass: 'p-1',
+    iconClass: 'w-3.5 h-3.5',
+    colWidth: 36,
+  },
+  normal: {
+    buttonClass: 'p-1.5',
+    iconClass: 'w-4 h-4',
+    colWidth: 42,
+  },
+  large: {
+    buttonClass: 'p-1.5',
+    iconClass: 'w-4.5 h-4.5',
+    colWidth: 46,
+  },
+  'extra-large': {
+    buttonClass: 'p-2',
+    iconClass: 'w-5 h-5',
+    colWidth: 52,
+  },
+  huge: {
+    buttonClass: 'p-2.5',
+    iconClass: 'w-6 h-6',
+    colWidth: 60,
+  },
+  massive: {
+    buttonClass: 'p-3',
+    iconClass: 'w-7 h-7',
+    colWidth: 70,
+  },
+};
+
+const ORDER_DENSITY_CONFIG: Record<
+  TrackGridDensity,
+  { buttonClass: string; iconClass: string; textClass: string }
+> = {
+  compact: { buttonClass: 'w-5 h-5', iconClass: 'w-3 h-3', textClass: 'text-xs' },
+  normal: { buttonClass: 'w-6 h-6', iconClass: 'w-3.5 h-3.5', textClass: 'text-xs' },
+  large: { buttonClass: 'w-7 h-7', iconClass: 'w-4 h-4', textClass: 'text-sm' },
+  'extra-large': { buttonClass: 'w-8 h-8', iconClass: 'w-4.5 h-4.5', textClass: 'text-sm' },
+  huge: { buttonClass: 'w-9 h-9', iconClass: 'w-5 h-5', textClass: 'text-base' },
+  massive: { buttonClass: 'w-11 h-11', iconClass: 'w-6 h-6', textClass: 'text-lg' },
+};
+
 // Custom Header Component matching legacy styling
 const CustomHeader: React.FC<any> = (props) => {
   const [sort, setSort] = useState<'asc' | 'desc' | null>(props.column.getSort());
@@ -128,13 +176,15 @@ const OrderCell: React.FC<any> = ({ data, node }) => {
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const playTrack = usePlayerStore((s) => s.playTrack);
   const togglePlay = usePlayerStore((s) => s.togglePlay);
+  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
   const tracks = usePlayerStore((s) => s.tracks);
 
   if (!track) return null;
   const isCurrentPlaying = currentTrack?.id === track.id;
+  const config = ORDER_DENSITY_CONFIG[trackGridDensity] || ORDER_DENSITY_CONFIG.normal;
 
   return (
-    <div className="w-full h-full flex items-center justify-center font-mono text-zinc-400">
+    <div className="w-full h-full flex items-center justify-center font-mono text-zinc-400 pointer-events-none">
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -144,26 +194,27 @@ const OrderCell: React.FC<any> = ({ data, node }) => {
             playTrack(track, tracks);
           }
         }}
-        className="w-6 h-6 rounded-full flex items-center justify-center transition-transform hover:scale-105 cursor-pointer"
+        onDoubleClick={(e) => e.stopPropagation()}
+        className={`${config.buttonClass} rounded-full flex items-center justify-center transition-transform hover:scale-105 cursor-pointer pointer-events-auto`}
       >
         {isCurrentPlaying ? (
           isPlaying ? (
             <Pause
-              className="w-4 h-4 fill-current"
+              className={`${config.iconClass} fill-current`}
               style={{ color: 'var(--color-stop-1, #6366f1)' }}
             />
           ) : (
             <Play
-              className="w-4 h-4 fill-current ml-0.5"
+              className={`${config.iconClass} fill-current ml-0.5`}
               style={{ color: 'var(--color-stop-1, #6366f1)' }}
             />
           )
         ) : (
           <>
-            <span className="group-hover/row:hidden text-zinc-400 font-medium">
+            <span className={`group-hover/row:hidden text-zinc-400 font-medium ${config.textClass}`}>
               {node.rowIndex + 1}
             </span>
-            <Play className="w-3.5 h-3.5 hidden group-hover/row:block fill-white text-white ml-0.5" />
+            <Play className={`${config.iconClass} hidden group-hover/row:block fill-white text-white ml-0.5`} />
           </>
         )}
       </button>
@@ -439,24 +490,27 @@ const FavoriteCell: React.FC<any> = ({ data }) => {
   const track = data as Track;
   const isLiked = usePlayerStore((s) => s.likedTrackIds.includes(track?.id));
   const toggleLikeTrack = usePlayerStore((s) => s.toggleLikeTrack);
+  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
   if (!track) return null;
 
+  const config = ACTION_DENSITY_CONFIG[trackGridDensity] || ACTION_DENSITY_CONFIG.normal;
+
   return (
-    <div className="w-full flex items-center justify-center">
+    <div className="w-full h-full flex items-center justify-center pointer-events-none">
       <button
         onClick={(e) => {
           e.stopPropagation();
           toggleLikeTrack(track.id);
         }}
         onDoubleClick={(e) => e.stopPropagation()}
-        className={`p-1 rounded transition-all cursor-pointer ${
+        className={`${config.buttonClass} rounded-lg transition-all cursor-pointer pointer-events-auto flex items-center justify-center ${
           isLiked
             ? 'text-pink-500 hover:scale-110'
-            : 'text-zinc-500 opacity-0 group-hover/row:opacity-100 hover:text-white'
+            : 'text-zinc-500 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10'
         }`}
         title={isLiked ? 'Unlike' : 'Like'}
       >
-        <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-pink-500' : ''}`} />
+        <Heart className={`${config.iconClass} ${isLiked ? 'fill-pink-500' : ''}`} />
       </button>
     </div>
   );
@@ -465,20 +519,23 @@ const FavoriteCell: React.FC<any> = ({ data }) => {
 const PlayNextCell: React.FC<any> = ({ data }) => {
   const track = data as Track;
   const playNext = usePlayerStore((s) => s.playNext);
+  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
   if (!track) return null;
 
+  const config = ACTION_DENSITY_CONFIG[trackGridDensity] || ACTION_DENSITY_CONFIG.normal;
+
   return (
-    <div className="w-full flex items-center justify-center">
+    <div className="w-full h-full flex items-center justify-center pointer-events-none">
       <button
         onClick={(e) => {
           e.stopPropagation();
           playNext(track);
         }}
         onDoubleClick={(e) => e.stopPropagation()}
-        className="p-1 rounded text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white transition-all cursor-pointer"
+        className={`${config.buttonClass} rounded-lg text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10 transition-all cursor-pointer pointer-events-auto flex items-center justify-center`}
         title="Play Next"
       >
-        <ListPlus className="w-3.5 h-3.5" />
+        <ListPlus className={config.iconClass} />
       </button>
     </div>
   );
@@ -487,20 +544,47 @@ const PlayNextCell: React.FC<any> = ({ data }) => {
 const AddToQueueCell: React.FC<any> = ({ data }) => {
   const track = data as Track;
   const addToQueue = usePlayerStore((s) => s.addToQueue);
+  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
   if (!track) return null;
 
+  const config = ACTION_DENSITY_CONFIG[trackGridDensity] || ACTION_DENSITY_CONFIG.normal;
+
   return (
-    <div className="w-full flex items-center justify-center">
+    <div className="w-full h-full flex items-center justify-center pointer-events-none">
       <button
         onClick={(e) => {
           e.stopPropagation();
           addToQueue(track);
         }}
         onDoubleClick={(e) => e.stopPropagation()}
-        className="p-1 rounded text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white transition-all cursor-pointer"
+        className={`${config.buttonClass} rounded-lg text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10 transition-all cursor-pointer pointer-events-auto flex items-center justify-center`}
         title="Add to Queue"
       >
-        <PlusCircle className="w-3.5 h-3.5" />
+        <PlusCircle className={config.iconClass} />
+      </button>
+    </div>
+  );
+};
+
+const ActionsCell: React.FC<any> = ({ data, onContextMenu }) => {
+  const track = data as Track;
+  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
+  if (!track) return null;
+
+  const config = ACTION_DENSITY_CONFIG[trackGridDensity] || ACTION_DENSITY_CONFIG.normal;
+
+  return (
+    <div className="w-full h-full flex items-center justify-center pointer-events-none">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onContextMenu(e, track);
+        }}
+        onDoubleClick={(e) => e.stopPropagation()}
+        className={`${config.buttonClass} rounded-lg text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10 transition-all cursor-pointer pointer-events-auto flex items-center justify-center`}
+        title="More Options"
+      >
+        <MoreVertical className={config.iconClass} />
       </button>
     </div>
   );
@@ -578,34 +662,41 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     }
   }, []);
 
-  // Save column resize and enforce "Right Wall" to prevent off-screen resizing
+  // Save column resize and enforce "Brick Wall" (hard stop) during drag
   const onColumnResized = useCallback(
     (params: ColumnResizedEvent) => {
-      const clientWidth = containerRef.current?.clientWidth || window.innerWidth;
+      const containerWidth = containerRef.current?.clientWidth || window.innerWidth;
 
-      // Calculate total width of all visible columns except buffer
-      const displayedColumns = params.api.getAllDisplayedColumns();
-      let totalWidth = 0;
-      displayedColumns.forEach((col) => {
-        if (col.getColId() !== 'buffer') {
-          totalWidth += col.getActualWidth();
-        }
-      });
-
-      // If total width exceeds the container clientWidth, clamp the resized column
-      if (totalWidth > clientWidth) {
+      if (!params.finished) {
         if (params.column) {
-          const overflow = totalWidth - clientWidth;
-          const currentWidth = params.column.getActualWidth();
-          const cappedWidth = Math.max(36, currentWidth - overflow);
-          params.api.setColumnWidths([{ key: params.column.getColId(), newWidth: cappedWidth }]);
-        } else {
-          params.api.sizeColumnsToFit();
+          const displayedCols = params.api.getAllDisplayedColumns();
+          let sumOtherCols = 0;
+          displayedCols.forEach((col) => {
+            if (col !== params.column && col.getColId() !== 'buffer') {
+              sumOtherCols += col.getActualWidth();
+            }
+          });
+
+          const minW = params.column.getMinWidth() || 40;
+          const availableSpace = Math.max(minW, containerWidth - sumOtherCols);
+
+          // Dynamically enforce maxWidth on the active column to hit a hard stop at the right wall
+          (params.column as any).maxWidth = availableSpace;
+          if (params.column.getColDef()) {
+            (params.column.getColDef() as any).maxWidth = availableSpace;
+          }
+
+          // If current width exceeds availableSpace, clamp it immediately
+          if (params.column.getActualWidth() > availableSpace) {
+            params.api.setColumnWidths([
+              { key: params.column.getColId(), newWidth: availableSpace },
+            ]);
+          }
         }
+        return;
       }
 
-      if (!params.finished) return;
-
+      // Drag finished: save column widths to localStorage
       const state = params.api.getColumnState();
       const sizingMap: Record<string, number> = {};
       state.forEach((c) => {
@@ -636,12 +727,19 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     return DENSITY_ROW_HEIGHTS[trackGridDensity] || 56;
   }, [trackGridDensity]);
 
-  // Recalculate row heights & art column width when density changes
+  // Recalculate row heights, art column width, and action column widths when density changes
   useEffect(() => {
     if (gridRef.current?.api) {
       gridRef.current.api.resetRowHeights();
       const newArtWidth = ART_COLUMN_WIDTHS[trackGridDensity] || 56;
-      gridRef.current.api.setColumnWidths([{ key: 'art', newWidth: newArtWidth }]);
+      const newActionWidth = ACTION_DENSITY_CONFIG[trackGridDensity]?.colWidth || 42;
+      gridRef.current.api.setColumnWidths([
+        { key: 'art', newWidth: newArtWidth },
+        { key: 'favorite', newWidth: newActionWidth },
+        { key: 'playNext', newWidth: newActionWidth },
+        { key: 'addToQueue', newWidth: newActionWidth },
+        { key: 'actions', newWidth: newActionWidth },
+      ]);
       gridRef.current.api.redrawRows();
     }
   }, [trackGridDensity]);
@@ -714,6 +812,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         resizable: false,
         sortable: false,
         hide: !isVisible('order'),
+        cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: OrderCell,
       },
       {
@@ -799,56 +898,57 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       {
         colId: 'favorite',
         headerName: '',
-        width: savedSizing['favorite'] ?? DEFAULT_COLUMN_WIDTHS.favorite,
-        minWidth: MIN_COLUMN_WIDTHS.favorite,
+        width: ACTION_DENSITY_CONFIG[trackGridDensity]?.colWidth || 42,
+        minWidth: 32,
         resizable: false,
         sortable: false,
+        suppressMovable: true,
         hide: !isVisible('favorite'),
+        cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: FavoriteCell,
       },
       {
         colId: 'playNext',
         headerName: '',
-        width: savedSizing['playNext'] ?? DEFAULT_COLUMN_WIDTHS.playNext,
-        minWidth: MIN_COLUMN_WIDTHS.playNext,
+        width: ACTION_DENSITY_CONFIG[trackGridDensity]?.colWidth || 42,
+        minWidth: 32,
         resizable: false,
         sortable: false,
+        suppressMovable: true,
         hide: !isVisible('playNext'),
+        cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: PlayNextCell,
       },
       {
         colId: 'addToQueue',
         headerName: '',
-        width: savedSizing['addToQueue'] ?? DEFAULT_COLUMN_WIDTHS.addToQueue,
-        minWidth: MIN_COLUMN_WIDTHS.addToQueue,
+        width: ACTION_DENSITY_CONFIG[trackGridDensity]?.colWidth || 42,
+        minWidth: 32,
         resizable: false,
         sortable: false,
+        suppressMovable: true,
         hide: !isVisible('addToQueue'),
+        cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: AddToQueueCell,
       },
       {
         colId: 'actions',
         headerName: '',
-        width: savedSizing['actions'] ?? DEFAULT_COLUMN_WIDTHS.actions,
-        minWidth: MIN_COLUMN_WIDTHS.actions,
+        width: ACTION_DENSITY_CONFIG[trackGridDensity]?.colWidth || 42,
+        minWidth: 32,
         resizable: false,
         sortable: false,
+        suppressMovable: true,
         hide: !isVisible('actions'),
+        cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params: any) =>
           params.data ? (
-            <div className="w-full flex items-center justify-center">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setContextMenu({ x: e.clientX, y: e.clientY, track: params.data });
-                }}
-                onDoubleClick={(e) => e.stopPropagation()}
-                className="p-1 rounded text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white transition-all cursor-pointer"
-                title="More Options"
-              >
-                <MoreVertical className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            <ActionsCell
+              data={params.data}
+              onContextMenu={(e: any, track: Track) => {
+                setContextMenu({ x: e.clientX, y: e.clientY, track });
+              }}
+            />
           ) : null,
       },
       // Invisible Buffer Column to act as a shock absorber and prevent right-overflow

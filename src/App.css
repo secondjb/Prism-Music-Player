@@ -27,22 +27,48 @@
     -webkit-backdrop-filter: blur(32px);
   }
 
-  /* Custom thin scrollbar */
-  .custom-scrollbar::-webkit-scrollbar {
+  /* Theme-adaptive auto-hiding pill scrollbar */
+  ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-  .custom-scrollbar::-webkit-scrollbar-track {
+  ::-webkit-scrollbar-track {
+    background: transparent !important;
+    border: none !important;
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent !important;
+  }
+  ::-webkit-scrollbar-button {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+  ::-webkit-scrollbar-thumb {
     background: transparent;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
     border-radius: 9999px;
-    transition: background-color 0.5s ease;
+    transition: background-color 0.3s ease;
   }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
+
+  /* Reveal pill on hover of container or scrollbar track */
+  *:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-stop-1, #6366f1) 50%, rgba(255, 255, 255, 0.3));
   }
+
+  /* When hovered directly on the pill */
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-stop-1, #6366f1) !important;
+    box-shadow: 0 0 8px var(--color-stop-1, #6366f1);
+  }
+
+  /* When actively scrolling */
+  .is-scrolling::-webkit-scrollbar-thumb,
+  .is-scrolling *::-webkit-scrollbar-thumb,
+  .ag-grid-is-scrolling ::-webkit-scrollbar-thumb,
+  .ag-body-vertical-scroll-viewport:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-stop-1, #6366f1) 70%, rgba(255, 255, 255, 0.35)) !important;
+  }
+
   .custom-scrollbar.scrollbar-hidden {
     scrollbar-width: none !important;
     scrollbar-color: transparent transparent !important;
@@ -56,6 +82,16 @@
     background: transparent !important;
   }
 
+  /* Standard CSS scrollbar for Firefox/standards */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  *:hover,
+  .is-scrolling,
+  .ag-grid-is-scrolling {
+    scrollbar-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 60%, rgba(255, 255, 255, 0.3)) transparent;
+  }
 }
 
 body {

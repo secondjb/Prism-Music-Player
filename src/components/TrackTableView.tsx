@@ -628,6 +628,18 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
 
   const gridRef = useRef<AgGridReact<Track>>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollTimerRef = useRef<any>(null);
+  const [isScrolling, setIsScrolling] = useState(false);
+
+  const onBodyScroll = useCallback(() => {
+    setIsScrolling(true);
+    if (scrollTimerRef.current) {
+      clearTimeout(scrollTimerRef.current);
+    }
+    scrollTimerRef.current = setTimeout(() => {
+      setIsScrolling(false);
+    }, 1000);
+  }, []);
 
   // AG Grid v32 Native Theme API
   const playerTheme = useMemo(() => {
@@ -1100,7 +1112,10 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       )}
 
       {/* Main AG Grid Container using native theme API */}
-      <div ref={containerRef} className="flex-1 w-full relative">
+      <div
+        ref={containerRef}
+        className={`flex-1 w-full relative ${isScrolling ? 'ag-grid-is-scrolling' : ''}`}
+      >
         <AgGridReact
           ref={gridRef}
           theme={playerTheme}
@@ -1113,6 +1128,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
           rowClass="group/row"
           suppressHorizontalScroll={true}
           onGridReady={onGridReady}
+          onBodyScroll={onBodyScroll}
           onCellKeyDown={onCellKeyDown}
           onCellContextMenu={onCellContextMenu}
           onRowDoubleClicked={onRowDoubleClicked}

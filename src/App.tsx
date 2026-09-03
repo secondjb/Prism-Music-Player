@@ -161,11 +161,27 @@ export const App: React.FC = () => {
       });
     }
 
+    // Global active scroll detection for auto-hiding scrollbar pills
+    let scrollTimeout: any;
+    const handleScroll = (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (target && target.classList) {
+        target.classList.add('is-scrolling');
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+          target.classList.remove('is-scrolling');
+        }, 1000);
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { capture: true, passive: true });
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('contextmenu', handleContextMenu);
       window.removeEventListener('dragover', handleGlobalDrag, false);
       window.removeEventListener('drop', handleGlobalDrag, false);
+      window.removeEventListener('scroll', handleScroll, { capture: true });
+      clearTimeout(scrollTimeout);
       if (unlisten) {
         unlisten();
       }

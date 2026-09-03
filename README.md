@@ -6,7 +6,6 @@
 [![Tauri Version](https://img.shields.io/badge/tauri-v2.0-blue.svg?style=flat-square&logo=tauri)](https://tauri.app/)
 [![React Version](https://img.shields.io/badge/react-19-61dafb.svg?style=flat-square&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/typescript-5.8-3178c6.svg?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)](#license)
 [![Platform Support](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg?style=flat-square)](#system-requirements)
 
 **An ultra-high-fidelity local music player and audio workstation engine engineered with Tauri v2, Rust, and React 19.**
@@ -20,6 +19,7 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [Interface Showcase & Screenshots](#interface-showcase--screenshots)
 - [System Architecture & Backend Pipeline](#system-architecture--backend-pipeline)
   - [Native Audio Engine (WASAPI & CPAL)](#1-native-audio-engine-wasapi--cpal)
   - [DSP Audio Analysis Engine (BPM & Key Detection)](#2-dsp-audio-analysis-engine-bpm--key-detection)
@@ -37,7 +37,6 @@
   - [Windows Standalone Production Executable](#windows-standalone-production-executable)
   - [Cross-Platform Tauri Bundles](#cross-platform-tauri-bundles)
 - [Configuration & Keybindings](#configuration--keybindings)
-- [License](#license)
 
 ---
 
@@ -48,9 +47,48 @@
 Prism solves these challenges by combining a **bare-metal Rust audio pipeline** with a **hardware-accelerated React 19 / Vite interface** powered by Tauri v2:
 
 1. **Bit-Perfect Direct Hardware Streaming:** Bypasses lossy system sample-rate converters by negotiating matching native sample rates and bit depths directly with output DACs and audio endpoints.
-2. **On-the-Fly Audio Waveform DSP:** Analyzes raw decoded PCM waveforms across all CPU cores to compute true musical key signatures and tempo (BPM) using Sinc-resampled Fast Fourier Transforms.
+2. **On-the-Fly Audio Waveform DSP:** Analyzes raw decoded PCM waveforms across all CPU cores to compute musical key signatures and tempo (BPM). This feature is built for future automated dynamic playlist generation (leveraging AI and advanced harmonic/tempo filtering). While waveform DSP estimation is not 100% perfectly accurate for complex polyrhythmic or acoustically irregular music, it is very close for the vast majority of tracks.
 3. **Tens-of-Thousands Track Scalability:** Employs an ultra-fast virtualized DOM data grid coupled with parallel multi-threaded directory indexing that loads and searches 50,000+ tracks in milliseconds.
 4. **Adaptive Dynamic Theming:** Samples multi-stop color gamuts from embedded album artwork in real-time, driving an ambient UI glow and custom hardware visualizers.
+
+---
+
+## Interface Showcase & Screenshots
+
+> Place your application screenshots in `docs/screenshots/` using the designated filenames below, or replace the image URLs with your preferred hosted assets.
+
+### 1. Front Page (Main Library & Player Interface)
+*High-density virtualized track table, ambient dynamic color extraction, and real-time audio playback bar.*
+
+![Front Page](docs/screenshots/front-page.png)
+
+---
+
+### 2. Advanced Faceted Audio Filter
+*Parametric audio filtering by Artist, Genre, Decade, Bitrate range, Sample Rate, Musical Key, and BPM.*
+
+![Advanced Filter](docs/screenshots/advanced-filter.png)
+
+---
+
+### 3. Playlists & Queue Management
+*Curated playlists, contextual playback, and two-tier priority drag-and-drop queue management.*
+
+![Playlists](docs/screenshots/playlists.png)
+
+---
+
+### 4. Listening Statistics Dashboard
+*Offline SQLite analytics graphing total listening time, hourly habits, top artists, and genre distributions.*
+
+![Listening Stats](docs/screenshots/listening-stats.png)
+
+---
+
+### 5. Library Configuration & Settings
+*Folder index management, DSP waveform analysis triggers, lyric settings, and demo data generator.*
+
+![Settings](docs/screenshots/settings.png)
 
 ---
 
@@ -118,6 +156,8 @@ Audio playback does **not** use browser `<audio>` elements or Web Audio API. Ins
 
 Located in `src-tauri/src/audio_analysis.rs`, Prism features a dedicated musical analysis engine:
 
+- **Purpose & Future Dynamic Playlists:** The primary purpose of Key and BPM detection is to facilitate future automated dynamic playlist generation—allowing intelligent harmonic mixing (Camelot wheel transitions) and tempo-matched queue sequencing, potentially integrated with AI or multi-criteria filtering techniques.
+- **Accuracy Profile:** Musical key and BPM estimation directly from raw audio is heuristic-based. While not 100% perfectly accurate on complex acoustic passages, ambient soundscapes, or meter shifts, it is very close and reliable for the vast majority of tracks.
 - **Turbo Drop Sampling:** Skips the initial 45 seconds of a track to bypass atmospheric intros, extracting a high-energy 15-second mono PCM slice.
 - **Anti-Aliased Sinc Resampling (Rubato):** High-sample-rate audio (>48 kHz) is downsampled to 44.1 kHz via `rubato::SincFixedIn` using a 128-sample Blackman-Harris window and 256 oversampling factor to eliminate Nyquist aliasing.
 - **Fast Fourier Transform & Harmonic Analysis:** Analyzes the waveform using `stratum-dsp` and `rustfft` to compute rhythmic onset periodicity (BPM) and tonal chromagram centroids (Musical Key).
@@ -149,6 +189,7 @@ Located in `src-tauri/src/stats.rs`:
 - **Embedded SQLite Engine:** Stores historical play events inside an encrypted/isolated SQLite database (`listening_stats.db`) using `rusqlite`.
 - **Zero Cloud Tracking:** All statistics remain strictly on the user's local machine.
 - **Aggregation & Charting:** Aggregates top artists, top songs, listening hours, and genre distributions across Day, Week, and Month timeframes using `Chart.js` and `react-chartjs-2`.
+- **Demo & Screenshot Mode:** Built-in setting to populate realistic simulated analytics data and demo playlists for testing and showcase screenshots.
 
 ---
 
@@ -160,14 +201,14 @@ Located in `src-tauri/src/stats.rs`:
 | **Output Device Inspector** | Real-time audio endpoint modal showing device format, channel topology, sample rate clock sync, and device hot-switching. |
 | **High-Scale Virtualized Table** | Custom data grid powered by `@revolist/react-datagrid` supporting density switches (compact to massive), custom column order, sorting, and inline playback. |
 | **Intelligent Multi-Tier Queue** | Distinguishes between album/playlist context queue and user-prioritized queue ("Play Next" and "Add to Queue") with drag-and-drop reordering. |
-| **BPM & Key Detection** | Integrated waveform DSP engine detecting tempo and harmonic key for DJing, mixing, and organization. |
+| **BPM & Key Detection** | Integrated waveform DSP engine detecting tempo and harmonic key for future dynamic playlists (using AI/filtering). Highly close for most tracks. |
 | **Multifaceted Filtering** | Multithreaded search by Artist, Album, Genre, Decades (70s-2020s), Year Range, Bitrate, Sample Rate, BPM, and Musical Key. |
 | **Synchronized Lyrics** | Live auto-scrolling LRC view, click-line-to-seek, font size presets, direct tag embedding, and LRCLIB cloud fetching. |
 | **Asian Script Romanization** | Real-time phonetic romanization for Japanese (Romaji), Korean (Hangul), and Chinese (Pinyin). |
 | **Ambient Color Extraction** | Canvas-based multi-point image sampling generating 6 smooth, dark-mode-optimized palette stops dynamically derived from album art. |
 | **System Integration** | Windows System Media Transport Controls (SMTC), hardware media keys (Play/Pause, Next, Previous), and Web MediaSession integration. |
 | **Sleep Timer** | Timed auto-stop (minutes countdown) or track-count auto-stop with smooth playback cessation. |
-| **Listening Insights** | Built-in analytics dashboard graphing listening duration, peak hours, and top artists over time. |
+| **Listening Insights** | Built-in analytics dashboard graphing listening duration, peak hours, and top artists over time with optional demo mode. |
 
 ---
 
@@ -190,7 +231,8 @@ Output Streaming (CPAL):
 Digital Signal Processing:
 ├── Resampler:            Rubato SincFixedIn (64-bit float math, Blackman-Harris 2 window)
 ├── Spectral Analysis:    RustFFT & Stratum-DSP
-└── Metrics Extracted:    Musical Key Signature, BPM Tempo (80-190 BPM normalized range)
+├── Purpose:              Future Dynamic Playlists & Harmonic / Tempo Transitions (AI / Filtering)
+└── Accuracy:             Heuristic approximation; very close for most tracks
 ```
 
 ---
@@ -352,9 +394,3 @@ npm run tauri build -- --target universal-apple-darwin
 | <kbd>Media Previous</kbd> | Hardware Key / SMTC | Return to Previous Track / Restart |
 | <kbd>Click</kbd> on Lyric Line | Lyrics View | Seek playback to timestamp of clicked line |
 | <kbd>Drag & Drop</kbd> | Queue Drawer | Reorder upcoming tracks dynamically |
-
----
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).

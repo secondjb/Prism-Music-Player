@@ -245,16 +245,18 @@ const TrackArtCell: React.FC<{ data: Track; density: string }> = ({ data, densit
   const iconClass = iconSizes[density] || iconSizes.normal;
 
   return (
-    <div
-      className={`${sizeClass} overflow-hidden shrink-0 bg-zinc-800 border border-white/10 shadow-sm flex items-center justify-center pointer-events-none`}
-    >
-      {art ? (
-        <img src={art} alt={track.title} className="w-full h-full object-cover" loading="lazy" />
-      ) : (
-        <div className="w-full h-full bg-gradient-to-br from-indigo-950/60 to-purple-950/60 flex items-center justify-center text-indigo-400">
-          <Music className={iconClass} />
-        </div>
-      )}
+    <div className="w-full h-full flex items-center justify-center pointer-events-none">
+      <div
+        className={`${sizeClass} overflow-hidden shrink-0 bg-zinc-800 border border-white/10 shadow-sm flex items-center justify-center`}
+      >
+        {art ? (
+          <img src={art} alt={track.title} className="w-full h-full object-cover" loading="lazy" />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-indigo-950/60 to-purple-950/60 flex items-center justify-center text-indigo-400">
+            <Music className={iconClass} />
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -823,6 +825,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         resizable: false,
         sortable: false,
         hide: !isVisible('art'),
+        cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' },
         cellRenderer: (params: any) =>
           params.data ? <TrackArtCell data={params.data} density={trackGridDensity} /> : null,
       },

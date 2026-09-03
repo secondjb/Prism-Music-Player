@@ -50,6 +50,8 @@ export const SettingsView: React.FC = () => {
   const toggleStatsCollection = usePlayerStore((s) => s.toggleStatsCollection);
   const showDemoStats = usePlayerStore((s) => s.showDemoStats);
   const toggleShowDemoStats = usePlayerStore((s) => s.toggleShowDemoStats);
+  const anonymizeStats = usePlayerStore((s) => s.anonymizeStats);
+  const toggleAnonymizeStats = usePlayerStore((s) => s.toggleAnonymizeStats);
   const generateDemoPlaylists = usePlayerStore((s) => s.generateDemoPlaylists);
   const lyricsFontSizePreset = usePlayerStore((s) => s.lyricsFontSizePreset);
   const setLyricsFontSizePreset = usePlayerStore((s) => s.setLyricsFontSizePreset);
@@ -689,6 +691,29 @@ export const SettingsView: React.FC = () => {
             <Checkbox
               checked={showDemoStats}
               onChange={() => toggleShowDemoStats()}
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
+            />
+          </div>
+
+          {/* Anonymize Stats Names */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 col-span-1 md:col-span-2">
+            <div className="flex items-center gap-3">
+              <Sparkles className="w-4 h-4 text-indigo-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Anonymize Stats Names</span>
+                <span className="text-[11px] text-zinc-400">Show placeholder names (Song 1, Artist 1, Genre 1) while keeping your real listening data & counts</span>
+              </div>
+            </div>
+            <Checkbox
+              checked={anonymizeStats}
+              onChange={() => toggleAnonymizeStats()}
               size="small"
               sx={{
                 color: 'var(--color-stop-1, #6366f1)',

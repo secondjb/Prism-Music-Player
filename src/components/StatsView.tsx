@@ -76,6 +76,7 @@ export const StatsView: React.FC = () => {
   const isStatsCollectionEnabled = usePlayerStore((s) => s.isStatsCollectionEnabled);
   const showDemoStats = usePlayerStore((s) => s.showDemoStats);
   const toggleShowDemoStats = usePlayerStore((s) => s.toggleShowDemoStats);
+  const anonymizeStats = usePlayerStore((s) => s.anonymizeStats);
   const libraryTracks = usePlayerStore((s) => s.tracks);
   const setTab = usePlayerStore((s) => s.setActiveTab);
   const themeColors = useThemeColors();
@@ -109,6 +110,17 @@ export const StatsView: React.FC = () => {
       timeByPeriod: getListeningTimeByPeriod(events, timePeriod)
     };
   }, [events, timePeriod]);
+
+  // Anonymized display names (real counts/times preserved)
+  const displayStats = useMemo(() => {
+    if (!anonymizeStats) return stats;
+    return {
+      ...stats,
+      topSongs: stats.topSongs.map((s, i) => ({ ...s, name: `Song ${i + 1}` })),
+      topArtists: stats.topArtists.map((a, i) => ({ ...a, name: `Artist ${i + 1}` })),
+      topGenres: stats.topGenres.map((g, i) => ({ ...g, name: `Genre ${i + 1}` })),
+    };
+  }, [stats, anonymizeStats]);
 
   if (!isStatsCollectionEnabled && !showDemoStats) {
     return (
@@ -187,10 +199,10 @@ export const StatsView: React.FC = () => {
   };
 
   const genresData = {
-    labels: stats.topGenres.map((g) => g.name || 'Unknown'),
+    labels: displayStats.topGenres.map((g) => g.name || 'Unknown'),
     datasets: [
       {
-        data: stats.topGenres.map((g) => g.count),
+        data: displayStats.topGenres.map((g) => g.count),
         backgroundColor: [
           themeColors.stop1,
           themeColors.stop2,
@@ -357,11 +369,11 @@ export const StatsView: React.FC = () => {
         {/* Top Songs */}
         <div className="glass-card rounded-2xl p-5 border border-white/10 flex flex-col gap-4">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">Top Songs</h3>
-          {stats.topSongs.length === 0 ? (
+          {displayStats.topSongs.length === 0 ? (
             <p className="text-sm text-zinc-500">Not enough data.</p>
           ) : (
             <div className="flex flex-col gap-2">
-              {stats.topSongs.map((song, i) => (
+              {displayStats.topSongs.map((song, i) => (
                 <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
                   <div className="flex items-center gap-3 truncate pr-2">
                     <span 
@@ -385,11 +397,11 @@ export const StatsView: React.FC = () => {
         {/* Top Artists */}
         <div className="glass-card rounded-2xl p-5 border border-white/10 flex flex-col gap-4">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">Top Artists</h3>
-          {stats.topArtists.length === 0 ? (
+          {displayStats.topArtists.length === 0 ? (
             <p className="text-sm text-zinc-500">Not enough data.</p>
           ) : (
             <div className="flex flex-col gap-2">
-              {stats.topArtists.map((artist, i) => (
+              {displayStats.topArtists.map((artist, i) => (
                 <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
                   <div className="flex items-center gap-3 truncate pr-2">
                     <span 
@@ -399,10 +411,10 @@ export const StatsView: React.FC = () => {
                       {i + 1}
                     </span>
                     <span 
-                      className="text-sm font-medium text-zinc-200 truncate cursor-pointer hover:underline hover:text-indigo-400"
+                      className={`text-sm font-medium text-zinc-200 truncate ${!anonymizeStats ? 'cursor-pointer hover:underline hover:text-indigo-400' : ''}`}
                       onClick={() => {
-                        if (artist.name && artist.name !== 'Unknown Artist') {
-                          usePlayerStore.getState().navigateToArtist(artist.name);
+                        if (!anonymizeStats && artist.name && artist.name !== 'Unknown Artist') {
+                          usePlayerStore.getState().navigateToArtist(stats.topArtists[i].name);
                         }
                       }}
                     >
@@ -434,7 +446,7 @@ export const StatsView: React.FC = () => {
         {/* Top Genres */}
         <div className="glass-card rounded-2xl p-5 border border-white/10 flex flex-col gap-4 lg:col-span-2">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">Top Genres</h3>
-          {stats.topGenres.length === 0 ? (
+          {displayStats.topGenres.length === 0 ? (
             <p className="text-sm text-zinc-500">Not enough data.</p>
           ) : (
             <div className="h-64 w-full relative flex items-center justify-center">

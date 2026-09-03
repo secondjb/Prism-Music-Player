@@ -54,6 +54,7 @@ interface PlayerState {
   lyricsArtScale: number;
   isStatsCollectionEnabled: boolean;
   showDemoStats: boolean;
+  anonymizeStats: boolean;
 
   // Track Grid View Customization
   visibleTrackColumns: TrackColumnId[];
@@ -138,6 +139,7 @@ interface PlayerState {
   addPlaylistToQueue: (playlistId: string) => void;
   generateDemoPlaylists: () => void;
   toggleShowDemoStats: () => void;
+  toggleAnonymizeStats: () => void;
 
   // Reset & Wipe Action
   wipeDataAndReset: () => Promise<void>;
@@ -213,6 +215,7 @@ export const usePlayerStore = create<PlayerState>()(
       lyricsArtScale: 100,
       isStatsCollectionEnabled: false,
       showDemoStats: false,
+      anonymizeStats: false,
 
       selectedArtist: null,
       selectedAlbum: null,
@@ -865,6 +868,8 @@ export const usePlayerStore = create<PlayerState>()(
 
       toggleShowDemoStats: () => set((state) => ({ showDemoStats: !state.showDemoStats })),
 
+      toggleAnonymizeStats: () => set((state) => ({ anonymizeStats: !state.anonymizeStats })),
+
       generateDemoPlaylists: () => {
         const { tracks, playlists } = get();
         const demoThemes = [
@@ -1018,6 +1023,7 @@ export const usePlayerStore = create<PlayerState>()(
         autoHideLyricsControls: state.autoHideLyricsControls,
         isStatsCollectionEnabled: state.isStatsCollectionEnabled,
         showDemoStats: state.showDemoStats,
+        anonymizeStats: state.anonymizeStats,
         lrclibAutoFetch: state.lrclibAutoFetch,
         preferOnlineLyrics: state.preferOnlineLyrics,
         lyricsFontSizePreset: state.lyricsFontSizePreset,

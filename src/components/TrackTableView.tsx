@@ -1,14 +1,40 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { ColDef, ModuleRegistry, AllCommunityModule, CellKeyDownEvent } from 'ag-grid-community';
+import {
+  ColDef,
+  ModuleRegistry,
+  AllCommunityModule,
+  CellKeyDownEvent,
+  ColumnResizedEvent,
+  ColumnMovedEvent,
+  GridReadyEvent,
+} from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-quartz.css';
-import { Play, Pause, Heart, ListPlus, PlusCircle, MoreVertical, Info, SlidersHorizontal, Music } from 'lucide-react';
+import {
+  Play,
+  Pause,
+  Heart,
+  ListPlus,
+  PlusCircle,
+  MoreVertical,
+  Info,
+  SlidersHorizontal,
+  Music,
+  Clock,
+  ChevronUp,
+  ChevronDown,
+} from 'lucide-react';
 
 import { Track } from '../types/player';
-import { usePlayerStore, TrackColumnId } from '../store/usePlayerStore';
+import { usePlayerStore, TrackColumnId, TrackGridDensity } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
-import { useTrackTableState, DENSITY_ROW_HEIGHTS } from '../hooks/useTrackTableState';
+import {
+  useTrackTableState,
+  DENSITY_ROW_HEIGHTS,
+  DEFAULT_COLUMN_WIDTHS,
+  MIN_COLUMN_WIDTHS,
+} from '../hooks/useTrackTableState';
 import { ColumnConfigModal } from './ColumnConfigModal';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -27,9 +53,126 @@ const formatDuration = (secs: number) => {
   return `${m}:${s < 10 ? '0' : ''}${s}`;
 };
 
-const TrackArtCell = (props: any) => {
-  const track = props.data as Track;
-  const density = props.density;
+const ART_COLUMN_WIDTHS: Record<TrackGridDensity, number> = {
+  compact: 40,
+  normal: 56,
+  large: 64,
+  'extra-large': 76,
+  huge: 96,
+  massive: 116,
+};
+
+// Custom Header Component matching legacy styling
+const CustomHeader: React.FC<any> = (props) => {
+  const [sort, setSort] = useState<'asc' | 'desc' | null>(props.column.getSort());
+
+  useEffect(() => {
+    const onSortChanged = () => {
+      setSort(props.column.getSort());
+    };
+    props.column.addEventListener('sortChanged', onSortChanged);
+    return () => {
+      props.column.removeEventListener('sortChanged', onSortChanged);
+    };
+  }, [props.column]);
+
+  const onHeaderClick = (e: React.MouseEvent) => {
+    if (props.enableSorting) {
+      props.progressSort(e.shiftKey);
+    }
+  };
+
+  const colId = props.column.getColId();
+  if (['art', 'favorite', 'playNext', 'addToQueue', 'actions'].includes(colId)) {
+    return null;
+  }
+
+  const isDuration = colId === 'duration';
+  const isOrder = colId === 'order';
+
+  return (
+    <div
+      onClick={onHeaderClick}
+      className={`flex items-center gap-1.5 w-full h-full select-none text-[11px] font-semibold uppercase tracking-wider text-[#b3b3b3] hover:text-white transition-colors ${
+        props.enableSorting ? 'cursor-pointer' : ''
+      } ${isDuration ? 'justify-end pr-1' : isOrder ? 'justify-center' : ''}`}
+    >
+      {isDuration ? (
+        <span title="Duration" className="flex items-center">
+          <Clock className="w-3.5 h-3.5 text-zinc-400 hover:text-white transition-colors" />
+        </span>
+      ) : (
+        <span className="truncate">{props.displayName}</span>
+      )}
+
+      {sort === 'asc' && (
+        <ChevronUp
+          className="w-3.5 h-3.5 shrink-0"
+          style={{ color: 'var(--color-stop-1, #6366f1)' }}
+        />
+      )}
+      {sort === 'desc' && (
+        <ChevronDown
+          className="w-3.5 h-3.5 shrink-0"
+          style={{ color: 'var(--color-stop-1, #6366f1)' }}
+        />
+      )}
+    </div>
+  );
+};
+
+// Custom Cell Renderers
+const OrderCell: React.FC<any> = ({ data, node }) => {
+  const track = data as Track;
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const playTrack = usePlayerStore((s) => s.playTrack);
+  const togglePlay = usePlayerStore((s) => s.togglePlay);
+  const tracks = usePlayerStore((s) => s.tracks);
+
+  if (!track) return null;
+  const isCurrentPlaying = currentTrack?.id === track.id;
+
+  return (
+    <div className="w-full h-full flex items-center justify-center font-mono text-zinc-400">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          if (isCurrentPlaying) {
+            togglePlay();
+          } else {
+            playTrack(track, tracks);
+          }
+        }}
+        className="w-6 h-6 rounded-full flex items-center justify-center transition-transform hover:scale-105 cursor-pointer"
+      >
+        {isCurrentPlaying ? (
+          isPlaying ? (
+            <Pause
+              className="w-4 h-4 fill-current"
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+            />
+          ) : (
+            <Play
+              className="w-4 h-4 fill-current ml-0.5"
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+            />
+          )
+        ) : (
+          <>
+            <span className="group-hover/row:hidden text-zinc-400 font-medium">
+              {node.rowIndex + 1}
+            </span>
+            <Play className="w-3.5 h-3.5 hidden group-hover/row:block fill-white text-white ml-0.5" />
+          </>
+        )}
+      </button>
+    </div>
+  );
+};
+
+const TrackArtCell: React.FC<{ data: Track; density: string }> = ({ data, density }) => {
+  const track = data;
   const art = useTrackArt(track);
   const artSizes: Record<string, string> = {
     compact: 'w-6 h-6 rounded',
@@ -51,7 +194,9 @@ const TrackArtCell = (props: any) => {
   const iconClass = iconSizes[density] || iconSizes.normal;
 
   return (
-    <div className={`${sizeClass} overflow-hidden shrink-0 bg-zinc-800 border border-white/10 shadow-sm flex items-center justify-center`}>
+    <div
+      className={`${sizeClass} overflow-hidden shrink-0 bg-zinc-800 border border-white/10 shadow-sm flex items-center justify-center pointer-events-none`}
+    >
       {art ? (
         <img src={art} alt={track.title} className="w-full h-full object-cover" loading="lazy" />
       ) : (
@@ -59,6 +204,298 @@ const TrackArtCell = (props: any) => {
           <Music className={iconClass} />
         </div>
       )}
+    </div>
+  );
+};
+
+const TitleCell: React.FC<any> = ({ data }) => {
+  const track = data as Track;
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const showSubArtistUnderTitle = usePlayerStore((s) => s.showSubArtistUnderTitle);
+  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
+
+  if (!track) return null;
+  const isCurrentPlaying = currentTrack?.id === track.id;
+
+  const hasSubArtistLink = Boolean(
+    showSubArtistUnderTitle && track.artist && track.artist !== 'Unknown Artist'
+  );
+
+  return (
+    <div className="flex flex-col justify-center truncate min-w-0 pr-2 w-full h-full select-none">
+      <span
+        title={track.title}
+        className={`truncate font-medium min-w-0 ${
+          trackGridDensity === 'massive'
+            ? 'text-xl'
+            : trackGridDensity === 'huge'
+            ? 'text-lg'
+            : trackGridDensity === 'extra-large'
+            ? 'text-base'
+            : 'text-sm'
+        }`}
+        style={
+          isCurrentPlaying
+            ? {
+                color: 'var(--color-stop-1, #6366f1)',
+                fontWeight: 700,
+              }
+            : { color: '#ffffff' }
+        }
+      >
+        {track.title}
+      </span>
+      {showSubArtistUnderTitle && (
+        <div className="flex items-center min-w-0 pointer-events-none">
+          {hasSubArtistLink ? (
+            <span
+              title={track.artist}
+              onClick={(e) => {
+                e.stopPropagation();
+                usePlayerStore.getState().navigateToArtist(track.artist);
+              }}
+              className={`text-zinc-400 truncate hover:underline hover:text-indigo-400 cursor-pointer pointer-events-auto shrink-0 max-w-full ${
+                trackGridDensity === 'massive'
+                  ? 'text-sm mt-0.5'
+                  : trackGridDensity === 'huge'
+                  ? 'text-xs mt-0.5'
+                  : 'text-[11px]'
+              }`}
+            >
+              {track.artist}
+            </span>
+          ) : (
+            <span
+              className={`text-zinc-500 truncate ${
+                trackGridDensity === 'massive'
+                  ? 'text-sm mt-0.5'
+                  : trackGridDensity === 'huge'
+                  ? 'text-xs mt-0.5'
+                  : 'text-[11px]'
+              }`}
+            >
+              {track.artist}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ArtistCell: React.FC<any> = ({ data }) => {
+  const track = data as Track;
+  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
+  if (!track) return null;
+
+  const hasArtistLink = Boolean(track.artist && track.artist !== 'Unknown Artist');
+
+  return (
+    <div className="flex items-center h-full w-full min-w-0 overflow-hidden pointer-events-none">
+      {hasArtistLink ? (
+        <span
+          title={track.artist}
+          onClick={(e) => {
+            e.stopPropagation();
+            usePlayerStore.getState().navigateToArtist(track.artist);
+          }}
+          className={`truncate text-zinc-300 hover:underline hover:text-indigo-400 cursor-pointer pointer-events-auto shrink-0 max-w-full ${
+            trackGridDensity === 'massive'
+              ? 'text-base'
+              : trackGridDensity === 'huge'
+              ? 'text-sm'
+              : 'text-xs'
+          }`}
+        >
+          {track.artist}
+        </span>
+      ) : (
+        <span
+          className={`truncate text-zinc-400 ${
+            trackGridDensity === 'massive'
+              ? 'text-base'
+              : trackGridDensity === 'huge'
+              ? 'text-sm'
+              : 'text-xs'
+          }`}
+        >
+          {track.artist || '—'}
+        </span>
+      )}
+    </div>
+  );
+};
+
+const AlbumCell: React.FC<any> = ({ data }) => {
+  const track = data as Track;
+  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
+  if (!track) return null;
+
+  const hasAlbumLink = Boolean(track.album && track.album !== 'Unknown Album');
+
+  return (
+    <div className="flex items-center h-full w-full min-w-0 overflow-hidden pointer-events-none">
+      {hasAlbumLink ? (
+        <span
+          title={track.album}
+          onClick={(e) => {
+            e.stopPropagation();
+            usePlayerStore.getState().navigateToAlbum(track.album);
+          }}
+          className={`truncate text-zinc-400 hover:underline hover:text-indigo-400 cursor-pointer pointer-events-auto shrink-0 max-w-full ${
+            trackGridDensity === 'massive'
+              ? 'text-base'
+              : trackGridDensity === 'huge'
+              ? 'text-sm'
+              : 'text-xs'
+          }`}
+        >
+          {track.album}
+        </span>
+      ) : (
+        <span
+          className={`truncate text-zinc-500 ${
+            trackGridDensity === 'massive'
+              ? 'text-base'
+              : trackGridDensity === 'huge'
+              ? 'text-sm'
+              : 'text-xs'
+          }`}
+        >
+          {track.album || '—'}
+        </span>
+      )}
+    </div>
+  );
+};
+
+const DateCell: React.FC<any> = ({ data }) => {
+  const track = data as Track;
+  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
+  if (!track) return null;
+
+  return (
+    <span
+      className={`font-mono text-zinc-400 truncate pointer-events-none ${
+        trackGridDensity === 'massive'
+          ? 'text-base'
+          : trackGridDensity === 'huge'
+          ? 'text-sm'
+          : 'text-xs'
+      }`}
+    >
+      {track.year || '—'}
+    </span>
+  );
+};
+
+const GenreCell: React.FC<any> = ({ data }) => {
+  const track = data as Track;
+  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
+  if (!track) return null;
+
+  return (
+    <span
+      className={`truncate text-zinc-400 pointer-events-none ${
+        trackGridDensity === 'massive'
+          ? 'text-base'
+          : trackGridDensity === 'huge'
+          ? 'text-sm'
+          : 'text-xs'
+      }`}
+    >
+      {track.genre || '—'}
+    </span>
+  );
+};
+
+const DurationCell: React.FC<any> = ({ data }) => {
+  const track = data as Track;
+  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
+  if (!track) return null;
+
+  return (
+    <span
+      className={`font-mono text-zinc-400 text-right w-full pr-1 pointer-events-none ${
+        trackGridDensity === 'massive'
+          ? 'text-base'
+          : trackGridDensity === 'huge'
+          ? 'text-sm'
+          : 'text-xs'
+      }`}
+    >
+      {formatDuration(track.duration_secs)}
+    </span>
+  );
+};
+
+const FavoriteCell: React.FC<any> = ({ data }) => {
+  const track = data as Track;
+  const isLiked = usePlayerStore((s) => s.likedTrackIds.includes(track?.id));
+  const toggleLikeTrack = usePlayerStore((s) => s.toggleLikeTrack);
+  if (!track) return null;
+
+  return (
+    <div className="w-full flex items-center justify-center">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleLikeTrack(track.id);
+        }}
+        onDoubleClick={(e) => e.stopPropagation()}
+        className={`p-1 rounded transition-all cursor-pointer ${
+          isLiked
+            ? 'text-pink-500 hover:scale-110'
+            : 'text-zinc-500 opacity-0 group-hover/row:opacity-100 hover:text-white'
+        }`}
+        title={isLiked ? 'Unlike' : 'Like'}
+      >
+        <Heart className={`w-3.5 h-3.5 ${isLiked ? 'fill-pink-500' : ''}`} />
+      </button>
+    </div>
+  );
+};
+
+const PlayNextCell: React.FC<any> = ({ data }) => {
+  const track = data as Track;
+  const playNext = usePlayerStore((s) => s.playNext);
+  if (!track) return null;
+
+  return (
+    <div className="w-full flex items-center justify-center">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          playNext(track);
+        }}
+        onDoubleClick={(e) => e.stopPropagation()}
+        className="p-1 rounded text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white transition-all cursor-pointer"
+        title="Play Next"
+      >
+        <ListPlus className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+};
+
+const AddToQueueCell: React.FC<any> = ({ data }) => {
+  const track = data as Track;
+  const addToQueue = usePlayerStore((s) => s.addToQueue);
+  if (!track) return null;
+
+  return (
+    <div className="w-full flex items-center justify-center">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          addToQueue(track);
+        }}
+        onDoubleClick={(e) => e.stopPropagation()}
+        className="p-1 rounded text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white transition-all cursor-pointer"
+        title="Add to Queue"
+      >
+        <PlusCircle className="w-3.5 h-3.5" />
+      </button>
     </div>
   );
 };
@@ -93,24 +530,29 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   } = useTrackTableState();
 
   const [showConfigModal, setShowConfigModal] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: Track } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; track: Track } | null>(
+    null
+  );
 
   const gridRef = useRef<AgGridReact<Track>>(null);
 
   // Keyboard navigation
-  const onCellKeyDown = useCallback((e: CellKeyDownEvent<Track>) => {
-    const keyEvent = e.event as KeyboardEvent;
-    if (keyEvent.key === 'Enter' && e.data) {
-      keyEvent.preventDefault();
-      if (currentTrack?.id === e.data.id) {
-        togglePlay();
-      } else {
-        playTrack(e.data, tracks);
+  const onCellKeyDown = useCallback(
+    (e: CellKeyDownEvent<Track>) => {
+      const keyEvent = e.event as KeyboardEvent;
+      if (keyEvent.key === 'Enter' && e.data) {
+        keyEvent.preventDefault();
+        if (currentTrack?.id === e.data.id) {
+          togglePlay();
+        } else {
+          playTrack(e.data, tracks);
+        }
       }
-    }
-  }, [currentTrack, togglePlay, playTrack, tracks]);
+    },
+    [currentTrack, togglePlay, playTrack, tracks]
+  );
 
-  // Context menu
+  // Context menu triggered from right-click anywhere on row/cell
   const onCellContextMenu = useCallback((e: any) => {
     e.event.preventDefault();
     if (e.data) {
@@ -118,44 +560,98 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     }
   }, []);
 
-  const onGridSizeChanged = useCallback((params: any) => {
-    params.api.sizeColumnsToFit();
-  }, []);
+  // Save column resize when user releases mouse
+  const onColumnResized = useCallback(
+    (params: ColumnResizedEvent) => {
+      if (!params.finished) return;
+      const state = params.api.getColumnState();
+      const sizingMap: Record<string, number> = {};
+      state.forEach((c) => {
+        if (c.width && c.colId) {
+          sizingMap[c.colId] = c.width;
+        }
+      });
+      localStorage.setItem(COLUMN_SIZING_STORAGE_KEY, JSON.stringify(sizingMap));
+    },
+    [COLUMN_SIZING_STORAGE_KEY]
+  );
 
-  // Save layout logic
-  const saveColumnState = useCallback(() => {
-    if (!gridRef.current || !gridRef.current.api) return;
-    const state = gridRef.current.api.getColumnState();
-    
-    // Save order
-    const orderedIds = state.map((c: any) => c.colId as TrackColumnId);
-    setColumnOrder(orderedIds);
-    
-    // Save sizing
-    const sizingMap: Record<string, number> = {};
-    state.forEach((c: any) => {
-      sizingMap[c.colId] = c.width;
-    });
-    localStorage.setItem(COLUMN_SIZING_STORAGE_KEY, JSON.stringify(sizingMap));
-  }, [setColumnOrder, COLUMN_SIZING_STORAGE_KEY]);
+  // Save column order when drag is finished
+  const onColumnMoved = useCallback(
+    (params: ColumnMovedEvent) => {
+      if (!params.finished) return;
+      const state = params.api.getColumnState();
+      const orderedIds = state.map((c) => c.colId as TrackColumnId);
+      setColumnOrder(orderedIds);
+    },
+    [setColumnOrder]
+  );
 
-  const onColumnMoved = saveColumnState;
-  const onColumnResized = saveColumnState;
-
-  // Toggle visibility helper function
-  const handleToggleColumn = useCallback((colId: TrackColumnId) => {
-    const isVisible = visibleTrackColumns.includes(colId);
-    const updated = isVisible
-      ? visibleTrackColumns.filter((c) => c !== colId)
-      : [...visibleTrackColumns, colId];
-    setVisibleTrackColumns(updated);
-  }, [visibleTrackColumns, setVisibleTrackColumns]);
-
-  // Dynamic row height
+  // Dynamic row height mapping from density
   const getRowHeight = useCallback(() => {
     return DENSITY_ROW_HEIGHTS[trackGridDensity] || 56;
   }, [trackGridDensity]);
 
+  // Recalculate row heights & art column width when density changes
+  useEffect(() => {
+    if (gridRef.current?.api) {
+      gridRef.current.api.resetRowHeights();
+      const newArtWidth = ART_COLUMN_WIDTHS[trackGridDensity] || 56;
+      gridRef.current.api.setColumnWidths([{ key: 'art', newWidth: newArtWidth }]);
+      gridRef.current.api.redrawRows();
+    }
+  }, [trackGridDensity]);
+
+  // Redraw rows on track change to re-apply theme tint & play icons
+  useEffect(() => {
+    if (gridRef.current?.api) {
+      gridRef.current.api.redrawRows();
+    }
+  }, [currentTrack?.id, isPlaying]);
+
+  // Row styling for currently playing track
+  const getRowStyle = useCallback(
+    (params: any) => {
+      if (params.data && currentTrack?.id === params.data.id) {
+        return {
+          backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent)',
+        };
+      }
+      return undefined;
+    },
+    [currentTrack?.id]
+  );
+
+  // Toggle visibility helper
+  const handleToggleColumn = useCallback(
+    (colId: TrackColumnId) => {
+      const isVisible = visibleTrackColumns.includes(colId);
+      const updated = isVisible
+        ? visibleTrackColumns.filter((c) => c !== colId)
+        : [...visibleTrackColumns, colId];
+      setVisibleTrackColumns(updated);
+    },
+    [visibleTrackColumns, setVisibleTrackColumns]
+  );
+
+  // Reset Grid handler
+  const handleResetGrid = useCallback(() => {
+    resetGrid();
+    if (gridRef.current?.api) {
+      gridRef.current.api.resetColumnState();
+      gridRef.current.api.resetRowHeights();
+    }
+  }, [resetGrid]);
+
+  const defaultColDef = useMemo(
+    () => ({
+      headerComponent: CustomHeader,
+      suppressMovable: false,
+    }),
+    []
+  );
+
+  // Column definitions with initial/saved widths and flex distribution
   const colDefs = useMemo<ColDef<Track>[]>(() => {
     let savedSizing: Record<string, number> = {};
     try {
@@ -169,319 +665,152 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       {
         colId: 'order',
         headerName: '#',
-        field: 'id', // placeholder
-        width: savedSizing['order'] ?? 50,
-        minWidth: 40,
-        suppressSizeToFit: true,
+        width: savedSizing['order'] ?? DEFAULT_COLUMN_WIDTHS.order,
+        minWidth: MIN_COLUMN_WIDTHS.order,
         resizable: false,
+        sortable: false,
         hide: !isVisible('order'),
-        cellRenderer: (params: any) => {
-          const track = params.data as Track;
-          if (!track) return null;
-          const isCurrentPlaying = currentTrack?.id === track.id;
-          
-          return (
-            <div className="w-full h-full text-center font-mono text-zinc-400 flex items-center justify-center group/row">
-              {isCurrentPlaying ? (
-                isPlaying ? (
-                  <Pause className="w-4 h-4 fill-current text-indigo-500 cursor-pointer" onClick={(e) => { e.stopPropagation(); togglePlay(); }} />
-                ) : (
-                  <Play className="w-4 h-4 fill-current ml-0.5 text-indigo-500 cursor-pointer" onClick={(e) => { e.stopPropagation(); togglePlay(); }} />
-                )
-              ) : (
-                <>
-                  <span className="group-hover/row:hidden">{params.node.rowIndex + 1}</span>
-                  <Play className="w-4 h-4 fill-current ml-0.5 text-zinc-300 hidden group-hover/row:block cursor-pointer" onClick={(e) => { e.stopPropagation(); playTrack(track, tracks); }} />
-                </>
-              )}
-            </div>
-          );
-        }
+        cellRenderer: OrderCell,
       },
       {
         colId: 'art',
         headerName: '',
-        width: savedSizing['art'] ?? 60,
-        minWidth: 40,
-        suppressSizeToFit: true,
+        width: ART_COLUMN_WIDTHS[trackGridDensity] || 56,
+        minWidth: MIN_COLUMN_WIDTHS.art,
         resizable: false,
+        sortable: false,
         hide: !isVisible('art'),
-        cellRenderer: (params: any) => {
-          if (!params.data) return null;
-          return <div className="w-full h-full flex items-center justify-center"><TrackArtCell data={params.data} density={trackGridDensity} /></div>;
-        }
+        cellRenderer: (params: any) =>
+          params.data ? <TrackArtCell data={params.data} density={trackGridDensity} /> : null,
       },
       {
         colId: 'title',
         headerName: 'Title',
         field: 'title',
-        flex: 1,
-        minWidth: 140,
+        width: savedSizing['title'] ?? DEFAULT_COLUMN_WIDTHS.title,
+        flex: savedSizing['title'] ? undefined : 2,
+        minWidth: MIN_COLUMN_WIDTHS.title,
+        sortable: true,
+        resizable: true,
         hide: !isVisible('title'),
-        cellRenderer: (params: any) => {
-          const track = params.data as Track;
-          if (!track) return null;
-          const isCurrentPlaying = currentTrack?.id === track.id;
-          return (
-            <div className="flex flex-col justify-center truncate min-w-0 pr-2 h-full">
-              <span className={`truncate font-medium min-w-0 w-full ${
-                  trackGridDensity === 'massive' ? 'text-xl' : trackGridDensity === 'huge' ? 'text-lg' : trackGridDensity === 'extra-large' ? 'text-base' : 'text-sm'
-                }`} style={isCurrentPlaying ? { color: 'var(--color-stop-1, #6366f1)', fontWeight: 700 } : { color: '#ffffff' }}>
-                {track.title}
-              </span>
-              {showSubArtistUnderTitle && (
-                <span onClick={(e) => {
-                  if (track.artist && track.artist !== 'Unknown Artist') {
-                    e.stopPropagation();
-                    usePlayerStore.getState().navigateToArtist(track.artist);
-                  }
-                }} className={`text-zinc-400 truncate min-w-0 w-full hover:underline hover:text-indigo-400 cursor-pointer ${
-                  trackGridDensity === 'massive' ? 'text-sm mt-0.5' : trackGridDensity === 'huge' ? 'text-xs mt-0.5' : 'text-[11px]'
-                }`}>
-                  {track.artist}
-                </span>
-              )}
-            </div>
-          );
-        }
+        cellRenderer: TitleCell,
       },
       {
         colId: 'artist',
         headerName: 'Artist',
         field: 'artist',
-        flex: 1,
-        minWidth: 100,
+        width: savedSizing['artist'] ?? DEFAULT_COLUMN_WIDTHS.artist,
+        flex: savedSizing['artist'] ? undefined : 1,
+        minWidth: MIN_COLUMN_WIDTHS.artist,
+        sortable: true,
+        resizable: true,
         hide: !isVisible('artist'),
-        cellRenderer: (params: any) => {
-          const track = params.data as Track;
-          if (!track) return null;
-          return (
-            <div className="flex items-center h-full">
-              <span onClick={(e) => {
-                if (track.artist && track.artist !== 'Unknown Artist') {
-                  e.stopPropagation();
-                  usePlayerStore.getState().navigateToArtist(track.artist);
-                }
-              }} className={`truncate text-zinc-300 min-w-0 w-full hover:underline hover:text-indigo-400 cursor-pointer ${
-                  trackGridDensity === 'massive' ? 'text-base' : trackGridDensity === 'huge' ? 'text-sm' : 'text-xs'
-                }`}>
-                {track.artist}
-              </span>
-            </div>
-          );
-        }
+        cellRenderer: ArtistCell,
       },
       {
         colId: 'album',
         headerName: 'Album',
         field: 'album',
-        flex: 1,
-        minWidth: 100,
+        width: savedSizing['album'] ?? DEFAULT_COLUMN_WIDTHS.album,
+        flex: savedSizing['album'] ? undefined : 1,
+        minWidth: MIN_COLUMN_WIDTHS.album,
+        sortable: true,
+        resizable: true,
         hide: !isVisible('album'),
-        cellRenderer: (params: any) => {
-          const track = params.data as Track;
-          if (!track) return null;
-          return (
-            <div className="flex items-center h-full">
-              <span onClick={(e) => {
-                if (track.album && track.album !== 'Unknown Album') {
-                  e.stopPropagation();
-                  usePlayerStore.getState().navigateToAlbum(track.album);
-                }
-              }} className={`truncate text-zinc-400 min-w-0 w-full hover:underline hover:text-indigo-400 cursor-pointer ${
-                  trackGridDensity === 'massive' ? 'text-base' : trackGridDensity === 'huge' ? 'text-sm' : 'text-xs'
-                }`}>
-                {track.album || '—'}
-              </span>
-            </div>
-          );
-        }
+        cellRenderer: AlbumCell,
       },
       {
         colId: 'date',
         headerName: 'Date',
         field: 'year',
-        width: savedSizing['date'] ?? 80,
-        minWidth: 60,
+        width: savedSizing['date'] ?? DEFAULT_COLUMN_WIDTHS.date,
+        minWidth: MIN_COLUMN_WIDTHS.date,
+        sortable: true,
+        resizable: true,
         hide: !isVisible('date'),
-        cellRenderer: (params: any) => {
-          const track = params.data as Track;
-          if (!track) return null;
-          return (
-            <div className="flex items-center h-full">
-              <span className={`font-mono text-zinc-400 truncate ${trackGridDensity === 'massive' ? 'text-base' : trackGridDensity === 'huge' ? 'text-sm' : 'text-xs'}`}>
-                {track.year || '—'}
-              </span>
-            </div>
-          );
-        }
+        cellRenderer: DateCell,
       },
       {
         colId: 'genre',
         headerName: 'Genre',
         field: 'genre',
-        width: savedSizing['genre'] ?? 110,
-        minWidth: 80,
+        width: savedSizing['genre'] ?? DEFAULT_COLUMN_WIDTHS.genre,
+        minWidth: MIN_COLUMN_WIDTHS.genre,
+        sortable: true,
+        resizable: true,
         hide: !isVisible('genre'),
-        cellRenderer: (params: any) => {
-          const track = params.data as Track;
-          if (!track) return null;
-          return (
-            <div className="flex items-center h-full">
-              <span className={`truncate text-zinc-400 ${trackGridDensity === 'massive' ? 'text-base' : trackGridDensity === 'huge' ? 'text-sm' : 'text-xs'}`}>
-                {track.genre || '—'}
-              </span>
-            </div>
-          );
-        }
+        cellRenderer: GenreCell,
       },
       {
         colId: 'duration',
         headerName: 'Duration',
         field: 'duration_secs',
-        width: savedSizing['duration'] ?? 80,
-        minWidth: 60,
-        suppressSizeToFit: true,
+        width: savedSizing['duration'] ?? DEFAULT_COLUMN_WIDTHS.duration,
+        minWidth: MIN_COLUMN_WIDTHS.duration,
+        sortable: true,
+        resizable: true,
         hide: !isVisible('duration'),
-        cellRenderer: (params: any) => {
-          const track = params.data as Track;
-          if (!track) return null;
-          return (
-            <div className="flex items-center h-full justify-end pr-2">
-              <span className={`font-mono text-zinc-400 text-right ${trackGridDensity === 'massive' ? 'text-base' : trackGridDensity === 'huge' ? 'text-sm' : 'text-xs'}`}>
-                {formatDuration(track.duration_secs)}
-              </span>
-            </div>
-          );
-        }
+        cellRenderer: DurationCell,
       },
       {
         colId: 'favorite',
         headerName: '',
-        width: savedSizing['favorite'] ?? 44,
-        minWidth: 36,
-        suppressSizeToFit: true,
+        width: savedSizing['favorite'] ?? DEFAULT_COLUMN_WIDTHS.favorite,
+        minWidth: MIN_COLUMN_WIDTHS.favorite,
         resizable: false,
+        sortable: false,
         hide: !isVisible('favorite'),
-        cellRenderer: (params: any) => {
-          const track = params.data as Track;
-          if (!track) return null;
-          const isLiked = likedTrackIds.includes(track.id);
-          return (
-            <div className="w-full h-full flex items-center justify-center">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleLikeTrack(track.id);
-                }}
-                className={`p-1 rounded transition-all ${isLiked ? 'text-pink-500 hover:scale-110' : 'text-zinc-500 opacity-50 hover:opacity-100 hover:text-white'}`}
-                title={isLiked ? 'Unlike' : 'Like'}
-              >
-                <Heart className={`w-4 h-4 ${isLiked ? 'fill-pink-500' : ''}`} />
-              </button>
-            </div>
-          );
-        }
+        cellRenderer: FavoriteCell,
       },
       {
         colId: 'playNext',
         headerName: '',
-        width: savedSizing['playNext'] ?? 44,
-        minWidth: 36,
-        suppressSizeToFit: true,
+        width: savedSizing['playNext'] ?? DEFAULT_COLUMN_WIDTHS.playNext,
+        minWidth: MIN_COLUMN_WIDTHS.playNext,
         resizable: false,
+        sortable: false,
         hide: !isVisible('playNext'),
-        cellRenderer: (params: any) => {
-          const track = params.data as Track;
-          if (!track) return null;
-          return (
-            <div className="w-full h-full flex items-center justify-center">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  playNext(track);
-                }}
-                className="p-1 rounded text-zinc-400 opacity-50 hover:opacity-100 hover:text-white transition-all"
-                title="Play Next"
-              >
-                <ListPlus className="w-4 h-4" />
-              </button>
-            </div>
-          );
-        }
+        cellRenderer: PlayNextCell,
       },
       {
         colId: 'addToQueue',
         headerName: '',
-        width: savedSizing['addToQueue'] ?? 44,
-        minWidth: 36,
-        suppressSizeToFit: true,
+        width: savedSizing['addToQueue'] ?? DEFAULT_COLUMN_WIDTHS.addToQueue,
+        minWidth: MIN_COLUMN_WIDTHS.addToQueue,
         resizable: false,
+        sortable: false,
         hide: !isVisible('addToQueue'),
-        cellRenderer: (params: any) => {
-          const track = params.data as Track;
-          if (!track) return null;
-          return (
-            <div className="w-full h-full flex items-center justify-center">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  addToQueue(track);
-                }}
-                className="p-1 rounded text-zinc-400 opacity-50 hover:opacity-100 hover:text-white transition-all"
-                title="Add to Queue"
-              >
-                <PlusCircle className="w-4 h-4" />
-              </button>
-            </div>
-          );
-        }
+        cellRenderer: AddToQueueCell,
       },
       {
         colId: 'actions',
         headerName: '',
-        width: savedSizing['actions'] ?? 44,
-        minWidth: 36,
-        suppressSizeToFit: true,
+        width: savedSizing['actions'] ?? DEFAULT_COLUMN_WIDTHS.actions,
+        minWidth: MIN_COLUMN_WIDTHS.actions,
         resizable: false,
+        sortable: false,
         hide: !isVisible('actions'),
-        cellRenderer: (params: any) => {
-          const track = params.data as Track;
-          if (!track) return null;
-          return (
-            <div className="w-full h-full flex items-center justify-center">
+        cellRenderer: (params: any) =>
+          params.data ? (
+            <div className="w-full flex items-center justify-center">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setContextMenu({ x: e.clientX, y: e.clientY, track });
+                  setContextMenu({ x: e.clientX, y: e.clientY, track: params.data });
                 }}
-                className="p-1 rounded text-zinc-400 opacity-50 hover:opacity-100 hover:text-white transition-all"
+                onDoubleClick={(e) => e.stopPropagation()}
+                className="p-1 rounded text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white transition-all cursor-pointer"
                 title="More Options"
               >
-                <MoreVertical className="w-4 h-4" />
+                <MoreVertical className="w-3.5 h-3.5" />
               </button>
             </div>
-          );
-        }
+          ) : null,
       },
     ];
-  }, [
-    visibleTrackColumns, 
-    trackGridDensity, 
-    showSubArtistUnderTitle, 
-    currentTrack, 
-    isPlaying, 
-    likedTrackIds,
-    COLUMN_SIZING_STORAGE_KEY,
-    toggleLikeTrack,
-    playNext,
-    addToQueue,
-    tracks,
-    playTrack,
-    togglePlay
-  ]);
+  }, [visibleTrackColumns, trackGridDensity, COLUMN_SIZING_STORAGE_KEY]);
 
-  // Order columns based on store
+  // Order columns based on persisted store order
   const orderedColDefs = useMemo(() => {
     const ordered: ColDef<Track>[] = [];
     const colDefMap = new Map<string, ColDef<Track>>();
@@ -496,11 +825,57 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     return ordered;
   }, [colDefs, columnOrder]);
 
-  const onRowDoubleClicked = useCallback((e: any) => {
-    if (e.data) {
-      playTrack(e.data, tracks);
-    }
-  }, [playTrack, tracks]);
+  const handlePlayRow = useCallback(
+    (track: Track) => {
+      if (track) {
+        playTrack(track, tracks);
+      }
+    },
+    [playTrack, tracks]
+  );
+
+  const onRowDoubleClicked = useCallback(
+    (e: any) => {
+      if (e.event?.target?.closest('button') || e.event?.target?.closest('a')) {
+        return;
+      }
+      if (e.data) {
+        handlePlayRow(e.data);
+      }
+    },
+    [handlePlayRow]
+  );
+
+  const onCellDoubleClicked = useCallback(
+    (e: any) => {
+      if (e.event?.target?.closest('button') || e.event?.target?.closest('a')) {
+        return;
+      }
+      if (e.data) {
+        handlePlayRow(e.data);
+      }
+    },
+    [handlePlayRow]
+  );
+
+  const onGridReady = useCallback(
+    (params: GridReadyEvent) => {
+      try {
+        const saved = localStorage.getItem(COLUMN_SIZING_STORAGE_KEY);
+        if (saved) {
+          const sizing = JSON.parse(saved);
+          const state = params.api.getColumnState().map((col) => {
+            if (sizing[col.colId]) {
+              return { ...col, width: sizing[col.colId], flex: undefined };
+            }
+            return col;
+          });
+          params.api.applyColumnState({ state, applyOrder: false });
+        }
+      } catch {}
+    },
+    [COLUMN_SIZING_STORAGE_KEY]
+  );
 
   if (tracks.length === 0) {
     return (
@@ -516,8 +891,71 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     );
   }
 
+  const currentDensityHeight = DENSITY_ROW_HEIGHTS[trackGridDensity] || 56;
+
   return (
     <div className="w-full h-full flex flex-col overflow-hidden relative select-none">
+      {/* Scoped CSS to enforce 100% transparency & theme styling regardless of CSS bundling order */}
+      <style>{`
+        .custom-ag-grid,
+        .custom-ag-grid .ag-root-wrapper,
+        .custom-ag-grid .ag-root-wrapper-body,
+        .custom-ag-grid .ag-root,
+        .custom-ag-grid .ag-body,
+        .custom-ag-grid .ag-body-viewport,
+        .custom-ag-grid .ag-center-cols-viewport,
+        .custom-ag-grid .ag-center-cols-container,
+        .custom-ag-grid .ag-center-cols-clipper,
+        .custom-ag-grid .ag-pinned-left-cols-container,
+        .custom-ag-grid .ag-pinned-right-cols-container,
+        .custom-ag-grid .ag-row {
+          background: transparent !important;
+          background-color: transparent !important;
+        }
+        .custom-ag-grid .ag-row::after,
+        .custom-ag-grid .ag-row-odd::after,
+        .custom-ag-grid .ag-row-even::after,
+        .custom-ag-grid .ag-header-row::after {
+          background: transparent !important;
+          background-color: transparent !important;
+        }
+        .custom-ag-grid .ag-row:hover::after,
+        .custom-ag-grid .ag-row-hover::after {
+          background-color: rgba(255, 255, 255, 0.06) !important;
+        }
+        .custom-ag-grid .ag-header {
+          background: rgba(9, 9, 11, 0.45) !important;
+          backdrop-filter: blur(20px) !important;
+          -webkit-backdrop-filter: blur(20px) !important;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+        .custom-ag-grid .ag-header-row {
+          background: transparent !important;
+        }
+        .custom-ag-grid .ag-header-cell {
+          padding-left: 8px !important;
+          padding-right: 8px !important;
+        }
+        .custom-ag-grid .ag-cell {
+          border: none !important;
+          outline: none !important;
+          display: flex !important;
+          align-items: center !important;
+          padding-left: 6px !important;
+          padding-right: 6px !important;
+          user-select: none !important;
+        }
+        .custom-ag-grid .ag-cell:focus,
+        .custom-ag-grid .ag-cell-focus {
+          border: none !important;
+          outline: none !important;
+        }
+        .custom-ag-grid .ag-row {
+          border-bottom: 1px solid rgba(255, 255, 255, 0.02) !important;
+          cursor: pointer !important;
+        }
+      `}</style>
+
       {/* Table Header Bar / Controls */}
       {!hideControls && (
         <div className="flex items-center justify-between px-4 py-2 bg-transparent shrink-0 border-b border-white/5 z-40">
@@ -551,7 +989,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               onDensityChange={setTrackGridDensity}
               showSubArtistUnderTitle={showSubArtistUnderTitle}
               onToggleSubArtist={setShowSubArtistUnderTitle}
-              onResetGrid={resetGrid}
+              onResetGrid={handleResetGrid}
               visibleTrackColumns={visibleTrackColumns}
               onToggleColumn={handleToggleColumn}
             />
@@ -560,36 +998,51 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       )}
 
       {/* Main AG Grid Container */}
-      <div className="flex-1 w-full relative ag-theme-quartz-dark custom-ag-grid" style={{
-        '--ag-background-color': 'transparent',
-        '--ag-header-background-color': 'rgba(9, 9, 11, 0.4)',
-        '--ag-border-color': 'rgba(255, 255, 255, 0.05)',
-        '--ag-row-border-color': 'rgba(255, 255, 255, 0.02)',
-        '--ag-row-hover-color': 'rgba(255, 255, 255, 0.06)',
-        '--ag-font-size': '12px',
-        '--ag-font-family': 'inherit',
-        '--ag-header-column-separator-color': 'transparent',
-        '--ag-header-column-resize-handle-color': 'var(--color-stop-1, #6366f1)',
-      } as any}>
+      <div
+        className="flex-1 w-full relative ag-theme-quartz-dark custom-ag-grid"
+        style={
+          {
+            '--ag-background-color': 'transparent',
+            '--ag-data-background-color': 'transparent',
+            '--ag-wrapper-background-color': 'transparent',
+            '--ag-header-background-color': 'transparent',
+            '--ag-odd-row-background-color': 'transparent',
+            '--ag-control-panel-background-color': 'transparent',
+            '--ag-subheader-background-color': 'transparent',
+            '--ag-border-color': 'transparent',
+            '--ag-row-border-color': 'rgba(255, 255, 255, 0.02)',
+            '--ag-row-hover-color': 'rgba(255, 255, 255, 0.06)',
+            '--ag-selected-row-background-color':
+              'color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent)',
+            '--ag-foreground-color': '#f4f4f5',
+            '--ag-secondary-foreground-color': '#a1a1aa',
+            '--ag-header-foreground-color': '#b3b3b3',
+            '--ag-font-size': '13px',
+            '--ag-font-family': 'inherit',
+            '--ag-header-column-separator-color': 'transparent',
+            '--ag-header-column-resize-handle-color': 'var(--color-stop-1, #6366f1)',
+          } as any
+        }
+      >
         <AgGridReact
           ref={gridRef}
           rowData={tracks}
           columnDefs={orderedColDefs}
+          defaultColDef={defaultColDef}
+          rowHeight={currentDensityHeight}
           getRowHeight={getRowHeight}
-          suppressHorizontalScroll={true}
-          onGridSizeChanged={onGridSizeChanged}
+          getRowStyle={getRowStyle}
+          rowClass="group/row"
+          onGridReady={onGridReady}
           onCellKeyDown={onCellKeyDown}
           onCellContextMenu={onCellContextMenu}
           onRowDoubleClicked={onRowDoubleClicked}
+          onCellDoubleClicked={onCellDoubleClicked}
           onColumnMoved={onColumnMoved}
           onColumnResized={onColumnResized}
           rowSelection="single"
-          animateRows={true}
-          headerHeight={40}
-          defaultColDef={{
-            sortable: true,
-            resizable: true,
-          }}
+          animateRows={false}
+          headerHeight={36}
           suppressCellFocus={true}
         />
       </div>

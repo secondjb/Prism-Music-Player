@@ -50,6 +50,21 @@ export const COLUMN_LABELS: Record<TrackColumnId, string> = {
   actions: 'Actions',
 };
 
+export const DEFAULT_COLUMN_WIDTHS: Record<TrackColumnId, number> = {
+  order: 44,
+  art: 56,
+  title: 280,
+  artist: 160,
+  album: 160,
+  date: 80,
+  genre: 110,
+  duration: 64,
+  favorite: 36,
+  playNext: 36,
+  addToQueue: 36,
+  actions: 36,
+};
+
 export const MIN_COLUMN_WIDTHS: Partial<Record<TrackColumnId, number>> = {
   order: 40,
   art: 40,

@@ -97,14 +97,111 @@ body {
   background: #e0e7ff;
 }
 
+/* AG Grid Custom Glassmorphism & Transparent Theme Styles */
 .custom-ag-grid {
   --ag-border-color: transparent !important;
-  --ag-row-border-color: rgba(255, 255, 255, 0.02) !important;
+  --ag-row-border-color: rgba(255, 255, 255, 0.03) !important;
+  --ag-background-color: transparent !important;
+  --ag-data-background-color: transparent !important;
+  --ag-wrapper-background-color: transparent !important;
+  --ag-header-background-color: transparent !important;
+  --ag-odd-row-background-color: transparent !important;
+  --ag-control-panel-background-color: transparent !important;
+  --ag-subheader-background-color: transparent !important;
+  --ag-row-hover-color: rgba(255, 255, 255, 0.06) !important;
+  --ag-selected-row-background-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent) !important;
+  --ag-foreground-color: #f4f4f5 !important;
+  --ag-secondary-foreground-color: #a1a1aa !important;
+  --ag-header-foreground-color: #b3b3b3 !important;
+  --ag-font-size: 13px !important;
+  --ag-font-family: inherit !important;
+  --ag-header-column-separator-color: transparent !important;
+  --ag-header-column-resize-handle-color: var(--color-stop-1, #6366f1) !important;
 }
-.custom-ag-grid .ag-root-wrapper {
+
+.custom-ag-grid .ag-root-wrapper,
+.custom-ag-grid .ag-root-wrapper-body,
+.custom-ag-grid .ag-root,
+.custom-ag-grid .ag-body,
+.custom-ag-grid .ag-body-viewport,
+.custom-ag-grid .ag-center-cols-viewport,
+.custom-ag-grid .ag-center-cols-container,
+.custom-ag-grid .ag-center-cols-clipper,
+.custom-ag-grid .ag-pinned-left-cols-container,
+.custom-ag-grid .ag-pinned-right-cols-container,
+.custom-ag-grid .ag-row {
+  background: transparent !important;
+  background-color: transparent !important;
   border: none !important;
 }
-.custom-ag-grid .ag-cell:focus {
+
+.custom-ag-grid .ag-row::after,
+.custom-ag-grid .ag-row.ag-row-odd::after,
+.custom-ag-grid .ag-row.ag-row-even::after,
+.custom-ag-grid .ag-header-row::after {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+.custom-ag-grid .ag-row.ag-row-hover::after,
+.custom-ag-grid .ag-row:hover::after {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.custom-ag-grid .ag-header {
+  background: rgba(9, 9, 11, 0.45) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.custom-ag-grid .ag-header-row {
+  background: transparent !important;
+}
+
+.custom-ag-grid .ag-header-cell {
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+}
+
+.custom-ag-grid .ag-header-cell:hover {
+  background: transparent !important;
+}
+
+.custom-ag-grid .ag-header-cell-resize::after {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  width: 2px !important;
+  height: 50% !important;
+  top: 25% !important;
+  transition: all 0.15s ease !important;
+}
+
+.custom-ag-grid .ag-header-cell-resize:hover::after {
+  background-color: var(--color-stop-1, #6366f1) !important;
+  height: 80% !important;
+  top: 10% !important;
+}
+
+.custom-ag-grid .ag-cell {
   border: none !important;
   outline: none !important;
+  display: flex !important;
+  align-items: center !important;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
+
+.custom-ag-grid .ag-cell:focus,
+.custom-ag-grid .ag-cell-focus {
+  border: none !important;
+  outline: none !important;
+}
+
+.custom-ag-grid .ag-row {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02) !important;
+  transition: background-color 0.1s ease !important;
+}
+
+.custom-ag-grid .ag-row-hover {
+  background-color: rgba(255, 255, 255, 0.06) !important;
 }

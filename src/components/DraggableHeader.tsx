@@ -4,13 +4,28 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { Track } from '../types/player';
-import { LOCKED_COLUMN_IDS, TrackColumnId } from '../hooks/useTrackTableState';
+import {
+  LOCKED_COLUMN_IDS,
+  TrackColumnId,
+  Breakpoint,
+  getColumnFlexStyle,
+} from '../hooks/useTrackTableState';
 
 interface DraggableHeaderProps {
   header: Header<Track, unknown>;
+  isResized?: boolean;
+  breakpoint: Breakpoint;
+  isArtistVisible: boolean;
+  isAlbumVisible: boolean;
 }
 
-export const DraggableHeader: React.FC<DraggableHeaderProps> = ({ header }) => {
+export const DraggableHeader: React.FC<DraggableHeaderProps> = ({
+  header,
+  isResized = false,
+  breakpoint,
+  isArtistVisible,
+  isAlbumVisible,
+}) => {
   const colId = header.id as TrackColumnId;
   const isLocked = LOCKED_COLUMN_IDS.includes(colId);
 
@@ -26,12 +41,22 @@ export const DraggableHeader: React.FC<DraggableHeaderProps> = ({ header }) => {
     disabled: isLocked,
   });
 
+  const flexStyle = getColumnFlexStyle({
+    colId: header.id,
+    size: header.getSize(),
+    isResized,
+    breakpoint,
+    isArtistVisible,
+    isAlbumVisible,
+  });
+
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
     transition,
     opacity: isDragging ? 0.4 : 1,
     zIndex: isDragging ? 20 : 1,
     position: 'relative',
+    ...flexStyle,
   };
 
   const sorted = header.column.getIsSorted();
@@ -41,7 +66,7 @@ export const DraggableHeader: React.FC<DraggableHeaderProps> = ({ header }) => {
     <div
       ref={setNodeRef}
       style={style}
-      className={`group/header flex items-center justify-between px-2 py-2 select-none text-[11px] font-semibold uppercase tracking-wider text-[#b3b3b3] hover:text-white transition-colors relative ${
+      className={`group/header flex items-center justify-between px-2 py-2 select-none text-[11px] font-semibold uppercase tracking-wider text-[#b3b3b3] hover:text-white transition-colors relative overflow-hidden min-w-0 ${
         isDragging ? 'bg-white/10 rounded-md shadow-lg' : ''
       }`}
     >

@@ -28,7 +28,7 @@ import {
 import { Track } from '../types/player';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
-import { useTrackTableState, TrackColumnId } from '../hooks/useTrackTableState';
+import { useTrackTableState, TrackColumnId, getColumnFlexStyle } from '../hooks/useTrackTableState';
 import { DraggableHeader } from './DraggableHeader';
 import { ColumnConfigModal } from './ColumnConfigModal';
 
@@ -102,9 +102,10 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     table,
     rows,
     rowVirtualizer,
-    gridTemplateColumns,
+    columnSizing,
     trackGridDensity,
     showSubArtistUnderTitle,
+    breakpoint,
     handleDragEnd,
     resetGrid,
     setTrackGridDensity,
@@ -167,6 +168,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     () => visibleLeafColumns.map((c) => c.id as TrackColumnId),
     [visibleLeafColumns]
   );
+
+  const isArtistVisible = table.getColumn('artist')?.getIsVisible() ?? false;
+  const isAlbumVisible = table.getColumn('album')?.getIsVisible() ?? false;
 
   // Empty state rendering
   if (tracks.length === 0) {
@@ -239,10 +243,10 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       {/* Main Table Scroll Container */}
       <div
         ref={parentRef}
-        className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar w-full relative"
+        className="flex-1 overflow-x-hidden overflow-y-auto custom-scrollbar w-full max-w-full relative"
       >
-        <div className="min-w-full inline-block align-middle">
-          {/* Sticky Header with CSS Grid */}
+        <div className="w-full max-w-full">
+          {/* Sticky Header with Flexbox */}
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -250,8 +254,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
             modifiers={[restrictToHorizontalAxis]}
           >
             <div
-              style={{ display: 'grid', gridTemplateColumns }}
-              className="sticky top-0 z-30 bg-zinc-950/40 backdrop-blur-xl border-b border-white/10 px-2 shadow-sm"
+              style={{ display: 'flex', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
+              className="sticky top-0 z-30 bg-zinc-950/40 backdrop-blur-xl border-b border-white/10 px-2 shadow-sm overflow-hidden"
             >
               <SortableContext
                 items={visibleColumnIds}
@@ -259,7 +263,14 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               >
                 {table.getHeaderGroups().map((hg) =>
                   hg.headers.map((header) => (
-                    <DraggableHeader key={header.id} header={header} />
+                    <DraggableHeader 
+                      key={header.id} 
+                      header={header} 
+                      isResized={columnSizing[header.id as TrackColumnId] !== undefined}
+                      breakpoint={breakpoint}
+                      isArtistVisible={isArtistVisible}
+                      isAlbumVisible={isAlbumVisible}
+                    />
                   ))
                 )}
               </SortableContext>
@@ -272,6 +283,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               height: `${rowVirtualizer.getTotalSize()}px`,
               position: 'relative',
               width: '100%',
+              maxWidth: '100%',
+              boxSizing: 'border-box',
             }}
           >
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
@@ -289,12 +302,13 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                   onDoubleClick={() => playTrack(track, tracks)}
                   onContextMenu={(e) => handleContextMenu(e, track)}
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns,
+                    display: 'flex',
                     position: 'absolute',
                     top: 0,
                     left: 0,
                     width: '100%',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box',
                     height: `${virtualRow.size}px`,
                     transform: `translateY(${virtualRow.start}px)`,
                     ...(isCurrentPlaying
@@ -314,10 +328,20 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                 >
                   {row.getVisibleCells().map((cell) => {
                     const colId = cell.column.id as TrackColumnId;
+                    const isResized = columnSizing[colId] !== undefined;
+                    const flexStyle = getColumnFlexStyle({
+                      colId: cell.column.id,
+                      size: cell.column.getSize(),
+                      isResized,
+                      breakpoint,
+                      isArtistVisible,
+                      isAlbumVisible,
+                    });
 
                     return (
                       <div
                         key={cell.id}
+                        style={flexStyle}
                         className="flex items-center min-w-0 px-1 py-1 truncate"
                       >
                         {colId === 'order' && (
@@ -365,10 +389,10 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                         )}
 
                         {colId === 'title' && (
-                          <div className="flex flex-col justify-center truncate min-w-0 pr-2">
+                          <div className="flex flex-col justify-center truncate min-w-0 pr-2 w-full">
                             <span
                               title={track.title}
-                              className={`truncate font-medium ${
+                              className={`truncate font-medium min-w-0 w-full ${
                                 trackGridDensity === 'massive'
                                   ? 'text-xl'
                                   : trackGridDensity === 'huge'
@@ -397,7 +421,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                                     usePlayerStore.getState().navigateToArtist(track.artist);
                                   }
                                 }}
-                                className={`text-zinc-400 truncate hover:underline hover:text-indigo-400 cursor-pointer ${
+                                className={`text-zinc-400 truncate min-w-0 w-full hover:underline hover:text-indigo-400 cursor-pointer ${
                                   trackGridDensity === 'massive'
                                     ? 'text-sm mt-0.5'
                                     : trackGridDensity === 'huge'
@@ -420,7 +444,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                                 usePlayerStore.getState().navigateToArtist(track.artist);
                               }
                             }}
-                            className={`truncate text-zinc-300 hover:underline hover:text-indigo-400 cursor-pointer ${
+                            className={`truncate text-zinc-300 min-w-0 w-full hover:underline hover:text-indigo-400 cursor-pointer ${
                               trackGridDensity === 'massive'
                                 ? 'text-base'
                                 : trackGridDensity === 'huge'
@@ -441,7 +465,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                                 usePlayerStore.getState().navigateToAlbum(track.album);
                               }
                             }}
-                            className={`truncate text-zinc-400 hover:underline hover:text-indigo-400 cursor-pointer ${
+                            className={`truncate text-zinc-400 min-w-0 w-full hover:underline hover:text-indigo-400 cursor-pointer ${
                               trackGridDensity === 'massive'
                                 ? 'text-base'
                                 : trackGridDensity === 'huge'
@@ -560,6 +584,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                             </button>
                           </div>
                         )}
+
+                        {cell.column.id === 'spacer' && <div className="w-full h-full" />}
                       </div>
                     );
                   })}

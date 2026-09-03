@@ -52,17 +52,38 @@ const ColumnHeader: React.FC<any> = (props) => {
   const isOrder = props.prop === 'order';
   const order = props.order; // 'asc' | 'desc' | undefined
 
+  if (isDuration) {
+    return (
+      <div
+        className="relative flex items-center justify-end w-full h-full select-none text-zinc-400 hover:text-white transition-colors cursor-pointer pr-3 overflow-visible"
+        title="Sort by Duration"
+      >
+        <span className="flex items-center">
+          <Clock className="w-3.5 h-3.5 text-zinc-400 hover:text-white transition-colors" />
+        </span>
+        {order && (
+          <span
+            className="absolute -right-1 flex items-center pointer-events-none"
+            style={{ color: 'var(--color-stop-1, #6366f1)' }}
+          >
+            {order === 'asc' ? (
+              <ChevronUp className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5" />
+            )}
+          </span>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       className={`flex items-center gap-1.5 w-full h-full select-none text-[11px] font-semibold uppercase tracking-wider text-[#b3b3b3] hover:text-white transition-colors ${
         props.sortable ? 'cursor-pointer' : ''
-      } ${isDuration ? 'justify-end pr-2.5' : isOrder ? 'justify-center' : 'justify-start'}`}
+      } ${isOrder ? 'justify-center' : 'justify-start'}`}
     >
-      {isDuration ? (
-        <span title="Duration" className="flex items-center">
-          <Clock className="w-3.5 h-3.5 text-zinc-400 hover:text-white transition-colors" />
-        </span>
-      ) : isOrder ? (
+      {isOrder ? (
         <span>#</span>
       ) : (
         <span className="truncate">{props.name}</span>
@@ -876,7 +897,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         minSize: MIN_COLUMN_WIDTHS.duration,
         sortable: true,
         filter: false,
-        pin: 'colPinEnd',
         columnTemplate: columnHeaderTemplate,
         cellTemplate: durationCellTemplate,
       },

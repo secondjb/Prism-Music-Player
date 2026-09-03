@@ -58,7 +58,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<TrackColumnId, number> = {
   album: 160,
   date: 80,
   genre: 110,
-  duration: 64,
+  duration: 76,
   favorite: 36,
   playNext: 36,
   addToQueue: 36,
@@ -73,7 +73,7 @@ export const MIN_COLUMN_WIDTHS: Record<TrackColumnId, number> = {
   album: 100,
   date: 60,
   genre: 80,
-  duration: 60,
+  duration: 56,
   favorite: 36,
   playNext: 36,
   addToQueue: 36,
@@ -155,7 +155,6 @@ export const FLEX_COLUMN_WEIGHTS: Partial<Record<TrackColumnId, number>> = {
 export const FIXED_WIDTH_COLUMNS: TrackColumnId[] = [
   'order',
   'art',
-  'duration',
   'favorite',
   'playNext',
   'addToQueue',
@@ -314,6 +313,27 @@ export function enforceBrickWallResize(
       resultWidths[rCol] = currentW - shrinkBy;
       remainingOverflow -= shrinkBy;
       if (remainingOverflow <= 0) break;
+    }
+  }
+
+  // If overflow cannot be absorbed by columns to the right, absorb from columns to the left!
+  if (remainingOverflow > 0) {
+    const leftResizableCols = displayedCols
+      .slice(0, activeIndex)
+      .filter((colId) => !FIXED_WIDTH_COLUMNS.includes(colId))
+      .reverse();
+
+    for (const lCol of leftResizableCols) {
+      const currentW = resultWidths[lCol] || DEFAULT_COLUMN_WIDTHS[lCol] || 100;
+      const lMinW = MIN_COLUMN_WIDTHS[lCol] || 60;
+      const shrinkable = currentW - lMinW;
+
+      if (shrinkable > 0) {
+        const shrinkBy = Math.min(shrinkable, remainingOverflow);
+        resultWidths[lCol] = currentW - shrinkBy;
+        remainingOverflow -= shrinkBy;
+        if (remainingOverflow <= 0) break;
+      }
     }
   }
 

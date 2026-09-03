@@ -204,8 +204,16 @@ revogr-header .rgHeaderCell .sort-indicator {
   height: 0 !important;
 }
 
-/* Column Resize Separator Handle */
-revogr-header .rgHeaderCell > .resizable-r {
+/* Allow header cell content to overflow naturally (e.g. sort chevrons) */
+revogr-header,
+revogr-header .rgHeaderCell,
+revogr-header .rgHeaderCell .header-content {
+  overflow: visible !important;
+}
+
+/* Column Resize Separator Handles */
+revogr-header .rgHeaderCell > .resizable-r,
+revogr-header .rgHeaderCell > .resizable-l {
   width: 4px !important;
   cursor: col-resize !important;
   z-index: 50 !important;
@@ -219,17 +227,20 @@ revogr-header .rgHeaderCell > .resizable-r {
 }
 
 /* On hover: sleek, thin visual indicator */
-revogr-header .rgHeaderCell:hover > .resizable-r {
+revogr-header .rgHeaderCell:hover > .resizable-r,
+revogr-header .rgHeaderCell:hover > .resizable-l {
   background-color: rgba(255, 255, 255, 0.25) !important;
 }
 
-revogr-header .rgHeaderCell > .resizable-r:hover {
+revogr-header .rgHeaderCell > .resizable-r:hover,
+revogr-header .rgHeaderCell > .resizable-l:hover {
   background-color: var(--color-stop-1, #6366f1) !important;
   box-shadow: 0 0 4px var(--color-stop-1, #6366f1);
 }
 
 /* Active Dragging Guide Line & Indicator Tracking Cursor in Real Time */
-revogr-header .rgHeaderCell.active > .resizable-r {
+revogr-header .rgHeaderCell.active > .resizable-r,
+revogr-header .rgHeaderCell.active > .resizable-l {
   background-color: var(--color-stop-1, #6366f1) !important;
   width: 2px !important;
   height: 2000px !important;
@@ -242,7 +253,8 @@ revogr-header .rgHeaderCell.active > .resizable-r {
   opacity: 1 !important;
 }
 
-revogr-header .rgHeaderCell.active > .resizable-r::after {
+revogr-header .rgHeaderCell.active > .resizable-r::after,
+revogr-header .rgHeaderCell.active > .resizable-l::after {
   content: '';
   position: absolute;
   top: 4px;

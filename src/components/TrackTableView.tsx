@@ -45,6 +45,21 @@ const formatDuration = (secs: number) => {
   return `${m}:${s < 10 ? '0' : ''}${s}`;
 };
 
+const PROP_TO_COL_ID: Record<string, TrackColumnId> = {
+  order: 'order',
+  art: 'art',
+  title: 'title',
+  artist: 'artist',
+  album: 'album',
+  year: 'date',
+  genre: 'genre',
+  duration_secs: 'duration',
+  favorite: 'favorite',
+  playNext: 'playNext',
+  addToQueue: 'addToQueue',
+  actions: 'actions',
+};
+
 // Custom Cell & Header Components for RevoGrid Templates
 
 const ColumnHeader: React.FC<any> = (props) => {
@@ -701,6 +716,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     setTrackGridDensity,
     setShowSubArtistUnderTitle,
     columnOrder,
+    setColumnOrder,
     setVisibleTrackColumns,
     columnWidths,
     saveColumnWidths,
@@ -788,26 +804,35 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const addToQueueCellTemplate = useMemo(() => Template(AddToQueueCell), []);
   const actionsCellTemplate = useMemo(() => Template(ActionsCell), []);
 
-  // Ordered visible column IDs: duration and actions are locked on the right
+  // Ordered visible column IDs: order and art are pinned start, all other columns follow columnOrder
   const orderedVisibleColumnIds = useMemo(() => {
     const isVisible = (id: TrackColumnId) => visibleTrackColumns.includes(id);
-    const leftIds: TrackColumnId[] = ['order', 'art'];
-    const rightIds: TrackColumnId[] = ['duration', 'favorite', 'playNext', 'addToQueue', 'actions'];
+    const pinnedStartIds: TrackColumnId[] = ['order', 'art'];
 
-    const left: TrackColumnId[] = leftIds.filter(isVisible);
+    const left: TrackColumnId[] = pinnedStartIds.filter(isVisible);
     const middle: TrackColumnId[] = columnOrder.filter(
-      (id) => !leftIds.includes(id) && !rightIds.includes(id) && isVisible(id)
+      (id) => !pinnedStartIds.includes(id) && isVisible(id)
     );
 
-    const contentIds: TrackColumnId[] = ['title', 'artist', 'album', 'date', 'genre'];
-    contentIds.forEach((id) => {
+    const allOtherIds: TrackColumnId[] = [
+      'title',
+      'artist',
+      'album',
+      'date',
+      'genre',
+      'duration',
+      'favorite',
+      'playNext',
+      'addToQueue',
+      'actions',
+    ];
+    allOtherIds.forEach((id) => {
       if (!middle.includes(id) && isVisible(id)) {
         middle.push(id);
       }
     });
 
-    const right: TrackColumnId[] = rightIds.filter(isVisible);
-    return [...left, ...middle, ...right];
+    return [...left, ...middle];
   }, [visibleTrackColumns, columnOrder]);
 
   // Column definitions with fractional auto-sizing and strict layout boundaries
@@ -907,7 +932,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         minSize: MIN_COLUMN_WIDTHS.favorite,
         sortable: false,
         filter: false,
-        pin: 'colPinEnd',
         cellTemplate: favoriteCellTemplate,
       },
       playNext: {
@@ -917,7 +941,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         minSize: MIN_COLUMN_WIDTHS.playNext,
         sortable: false,
         filter: false,
-        pin: 'colPinEnd',
         cellTemplate: playNextCellTemplate,
       },
       addToQueue: {
@@ -927,7 +950,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         minSize: MIN_COLUMN_WIDTHS.addToQueue,
         sortable: false,
         filter: false,
-        pin: 'colPinEnd',
         cellTemplate: addToQueueCellTemplate,
       },
       actions: {
@@ -937,7 +959,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         minSize: MIN_COLUMN_WIDTHS.actions,
         sortable: false,
         filter: false,
-        pin: 'colPinEnd',
         cellTemplate: actionsCellTemplate,
       },
     };
@@ -1016,6 +1037,35 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     },
     [visibleTrackColumns, trackGridDensity, columnWidths, orderedVisibleColumnIds, saveColumnWidths]
   );
+
+  // Handle drag-and-drop column reordering and persist order
+  useEffect(() => {
+    const gridEl = gridRef.current;
+    if (!gridEl) return;
+
+    const handleColumnDragEnd = (e: any) => {
+      const detail = e.detail;
+      if (detail && Array.isArray(detail.columns) && detail.columns.length > 0) {
+        const reorderedIds: TrackColumnId[] = detail.columns
+          .map((c: any) => PROP_TO_COL_ID[c.prop])
+          .filter(Boolean);
+
+        if (reorderedIds.length > 0) {
+          const pinnedStart: TrackColumnId[] = ['order', 'art'];
+          const remaining = columnOrder.filter(
+            (id) => !pinnedStart.includes(id) && !reorderedIds.includes(id)
+          );
+          const newOrder = [...pinnedStart, ...reorderedIds, ...remaining];
+          setColumnOrder(newOrder);
+        }
+      }
+    };
+
+    gridEl.addEventListener('columndragend', handleColumnDragEnd);
+    return () => {
+      gridEl.removeEventListener('columndragend', handleColumnDragEnd);
+    };
+  }, [columnOrder, setColumnOrder]);
 
   // Keyboard navigation: Enter to toggle or play
   const onKeyDown = useCallback(
@@ -1112,7 +1162,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
           filter={false}
           autoSizeColumn={false}
           range={false}
-          canMoveColumns={false}
+          canMoveColumns={true}
           rowClass="rowClass"
           onAftercolumnresize={onAfterColumnResize}
         />

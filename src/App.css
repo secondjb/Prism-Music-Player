@@ -275,6 +275,43 @@ revogr-viewport-scroll:has(.active),
   overflow: visible !important;
 }
 
+/* Column Drag & Drop Reordering Drop Indicator & Floating Badge */
+revo-grid .drag-position-y {
+  position: absolute !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 2px !important;
+  background-color: var(--color-stop-1, #6366f1) !important;
+  box-shadow: 0 0 10px var(--color-stop-1, #6366f1), 0 0 2px #fff !important;
+  z-index: 99999 !important;
+  pointer-events: none !important;
+}
+
+revo-grid .draggable {
+  background: rgba(24, 24, 27, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  color: #fff !important;
+  border-radius: 6px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 12px var(--color-stop-1, #6366f1) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  z-index: 99999 !important;
+  pointer-events: none !important;
+}
+
+revo-grid.column-draggable revogr-header .rgHeaderCell {
+  cursor: grab;
+}
+
+revo-grid.column-draggable.column-drag-start,
+revo-grid.column-draggable.column-drag-start * {
+  cursor: grabbing !important;
+}
+
 /* Disable any horizontal scroll capabilities */
 revo-grid,
 revo-grid .main-viewport,

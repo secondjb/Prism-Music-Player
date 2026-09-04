@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { Track } from '../types/player';
@@ -8,31 +8,61 @@ interface AlbumGridProps {
   tracks: Track[];
 }
 
-const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () => void; onNavigate: () => void; artist: string }> = ({
+// Global shared intersection observer for all album cards
+const observerCallbacks = new Map<Element, (isIntersecting: boolean) => void>();
+let globalObserver: IntersectionObserver | null = null;
+
+function getGlobalObserver() {
+  if (!globalObserver && typeof window !== 'undefined' && 'IntersectionObserver' in window) {
+    globalObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const cb = observerCallbacks.get(entry.target);
+          if (cb) cb(entry.isIntersecting);
+        });
+      },
+      { rootMargin: '300px' }
+    );
+  }
+  return globalObserver;
+}
+
+function observeElement(el: Element, callback: (isIntersecting: boolean) => void) {
+  const observer = getGlobalObserver();
+  if (!observer) {
+    callback(true);
+    return () => {};
+  }
+  observerCallbacks.set(el, callback);
+  observer.observe(el);
+  return () => {
+    observerCallbacks.delete(el);
+    observer.unobserve(el);
+  };
+}
+
+const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () => void; onNavigate: () => void; artist: string }> = React.memo(({
   albumName,
   albumTracks,
   onPlay,
   onNavigate,
   artist
 }) => {
-  const [isVisible, setIsVisible] = React.useState(false);
-  const ref = React.useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) setIsVisible(true);
-      },
-      { rootMargin: '200px' }
-    );
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
+  useEffect(() => {
+    if (!ref.current) return;
+    return observeElement(ref.current, (isIntersecting) => {
+      if (isIntersecting) {
+        setIsVisible(true);
+      }
+    });
   }, []);
 
   const firstTrack = albumTracks[0];
-  // Only fetch art if it has come into view once
   const art = useTrackArt(isVisible ? firstTrack : null);
-  const navigateToArtist = usePlayerStore(s => s.navigateToArtist);
+  const navigateToArtist = usePlayerStore((s) => s.navigateToArtist);
 
   return (
     <div
@@ -43,7 +73,7 @@ const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () 
       {/* Album Cover Art */}
       <div className="w-full aspect-square rounded-xl overflow-hidden bg-zinc-800 border border-white/10 relative shadow-md">
         {art ? (
-          <img src={art} alt={albumName} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+          <img src={art} alt={albumName} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-indigo-900/80 to-purple-950/80 flex items-center justify-center">
             <Disc className="w-12 h-12 text-indigo-300/60" />
@@ -63,17 +93,17 @@ const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () 
 
       {/* Album Details */}
       <div className="flex flex-col min-w-0">
-        <h4 className="font-bold text-sm text-white truncate hover:underline">{isVisible ? albumName : '...'}</h4>
+        <h4 className="font-bold text-sm text-white truncate hover:underline">{albumName}</h4>
         <p 
           className="text-xs text-zinc-400 truncate mt-0.5 hover:underline hover:text-indigo-400 z-10"
           onClick={(e) => {
-            if (isVisible && artist !== 'Unknown Artist') {
+            if (artist !== 'Unknown Artist') {
               e.stopPropagation();
               navigateToArtist(artist);
             }
           }}
         >
-          {isVisible ? artist : '...'}
+          {artist}
         </p>
         <span className="text-[11px] text-zinc-500 font-mono mt-1">
           {albumTracks.length} track{albumTracks.length > 1 ? 's' : ''}
@@ -81,24 +111,45 @@ const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () 
       </div>
     </div>
   );
-};
+});
 
 export const AlbumGrid: React.FC<AlbumGridProps> = ({ tracks }) => {
   const setQueue = usePlayerStore((s) => s.setQueue);
   const playIndex = usePlayerStore((s) => s.playIndex);
   const navigateToAlbum = usePlayerStore((s) => s.navigateToAlbum);
 
-  // Group tracks by album name
-  const albumsMap: Record<string, Track[]> = {};
-  tracks.forEach((track) => {
-    const albumName = track.album || 'Unknown Album';
-    if (!albumsMap[albumName]) {
-      albumsMap[albumName] = [];
+  // Group and sort tracks by album name efficiently with useMemo
+  const albumList = useMemo(() => {
+    const albumsMap = new Map<string, Track[]>();
+    for (let i = 0; i < tracks.length; i++) {
+      const track = tracks[i];
+      const albumName = track.album || 'Unknown Album';
+      const existing = albumsMap.get(albumName);
+      if (existing) {
+        existing.push(track);
+      } else {
+        albumsMap.set(albumName, [track]);
+      }
     }
-    albumsMap[albumName].push(track);
-  });
+    return Array.from(albumsMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [tracks]);
 
-  const albumList = Object.entries(albumsMap);
+  // Progressive batch rendering: render first 48, load more on scroll
+  const [renderCount, setRenderCount] = useState(48);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setRenderCount(48);
+  }, [tracks]);
+
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    return observeElement(sentinelRef.current, (isIntersecting) => {
+      if (isIntersecting) {
+        setRenderCount((prev) => Math.min(prev + 48, albumList.length));
+      }
+    });
+  }, [albumList.length]);
 
   const handlePlayAlbum = (albumTracks: Track[]) => {
     setQueue(albumTracks);
@@ -114,18 +165,27 @@ export const AlbumGrid: React.FC<AlbumGridProps> = ({ tracks }) => {
     );
   }
 
+  const visibleAlbums = albumList.slice(0, renderCount);
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 pb-8 overflow-y-auto h-full pr-2" style={{ alignContent: 'start' }}>
-      {albumList.map(([albumName, albumTracks]) => (
-        <AlbumCard
-          key={albumName}
-          albumName={albumName}
-          albumTracks={albumTracks}
-          artist={albumTracks[0]?.artist || 'Unknown Artist'}
-          onPlay={() => handlePlayAlbum(albumTracks)}
-          onNavigate={() => navigateToAlbum(albumName)}
-        />
-      ))}
+    <div className="overflow-y-auto custom-scrollbar h-full pb-12 pr-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 pb-8" style={{ alignContent: 'start' }}>
+        {visibleAlbums.map(([albumName, albumTracks]) => (
+          <AlbumCard
+            key={albumName}
+            albumName={albumName}
+            albumTracks={albumTracks}
+            artist={albumTracks[0]?.artist || 'Unknown Artist'}
+            onPlay={() => handlePlayAlbum(albumTracks)}
+            onNavigate={() => navigateToAlbum(albumName)}
+          />
+        ))}
+      </div>
+      {renderCount < albumList.length && (
+        <div ref={sentinelRef} className="w-full h-12 flex items-center justify-center text-zinc-500 text-xs py-2">
+          Loading more albums...
+        </div>
+      )}
     </div>
   );
 };

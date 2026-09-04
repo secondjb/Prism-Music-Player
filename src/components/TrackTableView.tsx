@@ -892,7 +892,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         minSize: MIN_COLUMN_WIDTHS.order,
         sortable: false,
         filter: false,
-        pin: 'colPinStart',
         cellTemplate: orderCellTemplate,
       },
       art: {
@@ -902,7 +901,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         minSize: MIN_COLUMN_WIDTHS.art,
         sortable: false,
         filter: false,
-        pin: 'colPinStart',
         cellTemplate: artCellTemplate,
       },
       title: {

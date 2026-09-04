@@ -491,10 +491,10 @@ pub fn parse_audio_file(path: &Path) -> Option<TrackMetadata> {
     let mut album = "Unknown Album".to_string();
     let mut genre = None;
     let mut year = None;
-    let mut date = None;
+    let date = None;
     let mut key = None;
     let mut bpm = None;
-    let mut unsynced_lyrics = None;
+    let unsynced_lyrics = None;
 
     for tag in tagged_file.tags() {
         if let Some(t) = tag.title() {

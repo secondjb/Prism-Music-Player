@@ -1,5 +1,45 @@
+# Node & Frontend Build
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# Rust & Tauri Builds
+target/
+src-tauri/target/
+src-tauri/gen/
+**/*.rs.bk
+
+# Compiled Binaries & Release Packages
+*.exe
+*.msi
+*.apk
+*.aab
+*.dmg
+*.pkg
+*.deb
+*.rpm
+*.AppImage
+*.zip
+*.tar.gz
+release/
+scratch/
+
+# Environment & Local Secrets
+.env
+.env.*
+!.env.example
+
+# Local SQLite Databases & Test Folders
+*.db
+*.sqlite
+*.sqlite3
+listening_stats.db
+Sample Music Folder/
+
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,21 +47,29 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
+# Editor & IDE Files
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+!.vscode/settings.json
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-*.exe
+*.swo
+*.swn
+.fleet/
 
-Sample Music Folder/
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Maintenance / Temporary Scripts
+filter.sh

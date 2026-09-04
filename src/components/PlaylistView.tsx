@@ -62,10 +62,10 @@ export const PlaylistView: React.FC = () => {
     };
 
     return (
-      <div className="w-full h-full flex flex-col gap-6 overflow-y-auto custom-scrollbar pr-2">
+      <div className="w-full h-full flex flex-col gap-6 overflow-hidden pr-2">
 
         {/* Back button + playlist info */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 shrink-0">
           <button
             onClick={() => setActivePlaylistId(null)}
             className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
@@ -168,10 +168,10 @@ export const PlaylistView: React.FC = () => {
 
   // Playlist selector view
   return (
-    <div className="w-full h-full flex flex-col gap-6 overflow-y-auto custom-scrollbar pr-2">
+    <div className="w-full h-full flex flex-col gap-6 overflow-y-auto custom-scrollbar pb-12 pr-2">
 
       {/* Header with create button */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h2 className="text-xl font-bold text-white">Your Playlists</h2>
           <p className="text-xs text-zinc-400 mt-0.5">Create and manage your music collections</p>

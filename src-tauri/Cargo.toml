@@ -2,7 +2,8 @@
 name = "prism_music_player"
 version = "0.1.0"
 description = "Prism Music Player - Ultra-high-quality local music player"
-authors = ["you"]
+authors = ["secondjb"]
+license = "MIT"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { Track, ActiveTab, SleepTimer, RepeatMode, Playlist } from '../types/player';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { fetchLatestRelease, UpdateCheckResult } from '../utils/updateChecker';
 
 export type TrackColumnId =
   | 'order'
@@ -55,6 +56,13 @@ interface PlayerState {
   isStatsCollectionEnabled: boolean;
   showDemoStats: boolean;
   anonymizeStats: boolean;
+
+  // App Updates
+  autoCheckUpdates: boolean;
+  latestUpdateResult: UpdateCheckResult | null;
+  isCheckingUpdate: boolean;
+  toggleAutoCheckUpdates: () => void;
+  checkAppUpdate: (manual?: boolean) => Promise<UpdateCheckResult | null>;
 
   // Track Grid View Customization
   visibleTrackColumns: TrackColumnId[];
@@ -266,6 +274,24 @@ export const usePlayerStore = create<PlayerState>()(
 
       showSubArtistUnderTitle: true,
       setShowSubArtistUnderTitle: (show) => set({ showSubArtistUnderTitle: show }),
+
+      // App Updates
+      autoCheckUpdates: true,
+      latestUpdateResult: null,
+      isCheckingUpdate: false,
+      toggleAutoCheckUpdates: () =>
+        set((state) => ({ autoCheckUpdates: !state.autoCheckUpdates })),
+      checkAppUpdate: async (_manual = false) => {
+        set({ isCheckingUpdate: true });
+        try {
+          const result = await fetchLatestRelease();
+          set({ latestUpdateResult: result, isCheckingUpdate: false });
+          return result;
+        } catch (e) {
+          set({ isCheckingUpdate: false });
+          return null;
+        }
+      },
 
       // Shuffle & Repeat
       shuffleEnabled: false,
@@ -1024,6 +1050,7 @@ export const usePlayerStore = create<PlayerState>()(
         isStatsCollectionEnabled: state.isStatsCollectionEnabled,
         showDemoStats: state.showDemoStats,
         anonymizeStats: state.anonymizeStats,
+        autoCheckUpdates: state.autoCheckUpdates,
         lrclibAutoFetch: state.lrclibAutoFetch,
         preferOnlineLyrics: state.preferOnlineLyrics,
         lyricsFontSizePreset: state.lyricsFontSizePreset,

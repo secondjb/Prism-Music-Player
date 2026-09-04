@@ -16,6 +16,7 @@ export const Sidebar: React.FC = () => {
   const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
   const playPlaylistNext = usePlayerStore((s) => s.playPlaylistNext);
   const addPlaylistToQueue = usePlayerStore((s) => s.addPlaylistToQueue);
+  const latestUpdateResult = usePlayerStore((s) => s.latestUpdateResult);
 
   const includedDirectories = usePlayerStore((s) => s.includedDirectories);
   const [showPlaylists, setShowPlaylists] = useState(false);
@@ -92,6 +93,15 @@ export const Sidebar: React.FC = () => {
                 <button
                   onClick={() => {
                     setActiveTab(item.id);
+                    if (item.id === 'playlists') {
+                      setActivePlaylistId(null);
+                    }
+                    if (item.id === 'artists') {
+                      usePlayerStore.setState({ selectedArtist: null });
+                    }
+                    if (item.id === 'albums') {
+                      usePlayerStore.setState({ selectedAlbum: null });
+                    }
                   }}
                   className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
                     isActive
@@ -105,6 +115,11 @@ export const Sidebar: React.FC = () => {
                     </span>
                     <span>{item.label}</span>
                   </div>
+                  {item.id === 'settings' && latestUpdateResult?.hasUpdate && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500 text-white animate-pulse">
+                      Update
+                    </span>
+                  )}
                   {isPlaylists && (
                     <div
                       className="text-zinc-500 p-1 hover:text-zinc-300 rounded-md hover:bg-white/10"

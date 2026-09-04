@@ -401,6 +401,7 @@ impl GlobalAudioEngine {
     }
 }
 
+#[allow(unused_assignments)]
 fn run_audio_thread(
     path_str: &str,
     stop_signal: Arc<AtomicBool>,
@@ -581,6 +582,7 @@ fn run_audio_thread(
     };
 
     let (init_stream, mut tx, mut device_changed, mut active_device_name, mut target_sample_rate, mut target_channels) = create_stream_fn()?;
+    #[allow(unused_variables, unused_assignments)]
     let mut stream_opt = Some(init_stream);
 
     let mut sample_buf = None;
@@ -696,7 +698,7 @@ fn run_audio_thread(
                     let raw_samples = buf.samples();
 
                     // Non-blocking sample pusher closure with instant WASAPI stall detection
-                    let mut push_sample = |sample: f32| -> bool {
+                    let push_sample = |sample: f32| -> bool {
                         let stall_start = std::time::Instant::now();
                         loop {
                             if stop_signal.load(Ordering::SeqCst) {

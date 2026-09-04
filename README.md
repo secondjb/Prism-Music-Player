@@ -55,40 +55,45 @@ Prism solves these challenges by combining a **bare-metal Rust audio pipeline** 
 
 ## Interface Showcase & Screenshots
 
-> Place your application screenshots in `docs/screenshots/` using the designated filenames below, or replace the image URLs with your preferred hosted assets.
+### 1. Main Music Library View
+*High-density virtualized data table rendering thousands of lossless tracks with sub-millisecond responsiveness, real-time bit-perfect audio spec badges (`FLAC 44.1kHz / 16bit`), and dynamic atmospheric color extraction sampled directly from album artwork.*
 
-### 1. Front Page (Main Library & Player Interface)
-*High-density virtualized track table, ambient dynamic color extraction, and real-time audio playback bar.*
-
-![Front Page](docs/screenshots/front-page.png)
+![Main Music Library](docs/screenshots/music-library.jpg)
 
 ---
 
-### 2. Advanced Faceted Audio Filter
-*Parametric audio filtering by Artist, Genre, Decade, Bitrate range, Sample Rate, Musical Key, and BPM.*
+### 2. Table & Grid Customization
+*Deep UI customization modal empowering users to tailor the virtualized table to their workflow: **drag-and-drop column reordering**, **draggable header divider borders** to freely resize column widths, **row density slider** spanning 6 granular presets (Compact 36px up to Massive 120px with scaling album art thumbnails), **smart artist-under-title cell merging**, and individual column visibility toggles.*
+
+![Table Customization](docs/screenshots/grid-customization.png)
+
+---
+
+### 3. Advanced Parametric Search & Filter
+*Multi-parameter library exploration engine filtering across keywords, artist names, genre dropdowns, and musical keys. Features decade quick-selectors (1970s–2020s), DAC sample rate filters (44.1 kHz to 192 kHz), and range sliders for Release Year, Bitrate (kbps), and BPM. Includes one-click **"Play All"** and **"Save as New Playlist"** to instantly convert any active filter query into a persistent playlist.*
 
 ![Advanced Filter](docs/screenshots/advanced-filter.png)
 
 ---
 
-### 3. Playlists & Queue Management
-*Curated playlists, contextual playback, and two-tier priority drag-and-drop queue management.*
+### 4. Fullscreen Synchronized Karaoke Lyrics
+*Immersive LRC synchronized lyrics viewer featuring smooth scroll-interpolation and radiant glowing active vocal lines. Supports **click-any-line seeking** to instantly jump playback to that timestamp, real-time stream bitrate/sample rate indicators (`3056 kb/s • 96.0 kHz`), phonetic romanization for Japanese, Korean, and Chinese lyrics, customizable font scaling presets, and LRCLIB cloud fetching.*
 
-![Playlists](docs/screenshots/playlists.png)
-
----
-
-### 4. Listening Statistics Dashboard
-*Offline SQLite analytics graphing total listening time, hourly habits, top artists, and genre distributions.*
-
-![Listening Stats](docs/screenshots/listening-stats.png)
+![Synchronized Lyrics](docs/screenshots/synced-lyrics.png)
 
 ---
 
-### 5. Library Configuration & Settings
-*Folder index management, DSP waveform analysis triggers, lyric settings, and demo data generator.*
+### 5. Local Listening Statistics & Analytics Dashboard
+*Private, offline analytics powered by an embedded SQLite database. Graphs total listening time, 24-hour circadian listening activity distributions, and day/week/month trends. Automatically ranks Top Songs, Top Artists, and Top Genres. Includes privacy anonymization and showcase demo data modes for sharing clean screenshots.*
 
-![Settings](docs/screenshots/settings.png)
+![Listening Stats Dashboard](docs/screenshots/listening-stats.png)
+
+---
+
+### 6. Playback & Lyrics Preferences
+*Comprehensive configuration center for tuning the audio experience: automatic lyric cloud fetching, phonetic romanization display modes (replace script vs. add below original), audio format badge visibility in the player bar and library columns, automated demo playlist generator, and local database maintenance tools.*
+
+![Playback Preferences](docs/screenshots/playback-preferences.png)
 
 ---
 

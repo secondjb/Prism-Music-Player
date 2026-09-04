@@ -220,7 +220,7 @@ impl GlobalAudioEngine {
         let mut cached_guard = cached_devices_arc.lock();
         let device_infos: Vec<AudioDeviceInfo> = if !force_refresh
             && cached_guard.is_some()
-            && cached_guard.as_ref().unwrap().0.elapsed() < Duration::from_secs(20)
+            && cached_guard.as_ref().unwrap().0.elapsed() < Duration::from_secs(600)
         {
             let mut list = cached_guard.as_ref().unwrap().1.clone();
             for dev in list.iter_mut() {

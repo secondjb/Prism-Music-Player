@@ -542,9 +542,10 @@ async fn analyze_library_batch_turbo(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let engine = GlobalAudioEngine::new();
+    let engine_warm = engine.clone();
 
     tauri::Builder::default()
-        .setup(|app| {
+        .setup(move |app| {
             let app_handle = app.handle().clone();
 
             #[cfg(desktop)]
@@ -588,6 +589,12 @@ pub fn run() {
             }
 
             stats::init_db(&app.handle());
+
+            // Pre-warm audio devices cache asynchronously on startup so device modal opens instantly (<1ms)
+            std::thread::spawn(move || {
+                let _ = engine_warm.get_output_details(false);
+            });
+
             Ok(())
         })
         .manage(engine)

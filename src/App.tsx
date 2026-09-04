@@ -226,6 +226,9 @@ export const App: React.FC = () => {
           if (store.autoCheckUpdates) {
             store.checkAppUpdate(false);
           }
+
+          // Pre-warm audio devices cache in background
+          invoke('get_audio_output_details', { forceRefresh: false }).catch(() => {});
         }
       } catch (e) {
         console.warn('Auto init load notice:', e);

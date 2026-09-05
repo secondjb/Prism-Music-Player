@@ -327,12 +327,20 @@ export const PlaylistView: React.FC = () => {
 
       {/* Playlist Right-Click Context Menu */}
       {contextMenu && (() => {
-        const menuHeight = 170;
-        const openUpward = contextMenu.y + menuHeight > window.innerHeight - 100;
-        const top = openUpward
-          ? Math.max(16, contextMenu.y - menuHeight)
-          : Math.min(contextMenu.y, window.innerHeight - 100 - menuHeight);
+        const menuEstimatedHeight = 170;
+        const openUpward = contextMenu.y > window.innerHeight - (menuEstimatedHeight + 80);
         const left = Math.min(contextMenu.x, window.innerWidth - 240);
+        const posStyle: React.CSSProperties = openUpward
+          ? {
+              bottom: Math.max(16, window.innerHeight - contextMenu.y),
+              left,
+              transformOrigin: 'bottom left',
+            }
+          : {
+              top: Math.min(contextMenu.y, window.innerHeight - 100),
+              left,
+              transformOrigin: 'top left',
+            };
 
         return (
           <div
@@ -344,7 +352,7 @@ export const PlaylistView: React.FC = () => {
             }}
           >
             <div
-              style={{ top, left }}
+              style={posStyle}
               className="fixed z-50 w-56 glass-panel border border-white/10 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 text-xs text-zinc-300 animate-in fade-in zoom-in-95 duration-100 bg-[#181818]/95"
               onClick={(e) => e.stopPropagation()}
             >

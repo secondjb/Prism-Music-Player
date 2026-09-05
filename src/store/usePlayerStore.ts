@@ -53,6 +53,9 @@ interface PlayerState {
   lyricsFontSizePreset: 'normal' | 'balanced' | 'large' | 'maximum' | 'manual';
   lyricsFontSize: number;
   lyricsArtScale: number;
+  lyricsFontFamily: string;
+  lyricsAnimationStyle: 'standard' | 'jumping' | 'fade' | 'slide';
+  isWavySeekbarEnabled: boolean;
   isStatsCollectionEnabled: boolean;
   showDemoStats: boolean;
   anonymizeStats: boolean;
@@ -121,6 +124,9 @@ interface PlayerState {
   setLyricsFontSizePreset: (preset: 'normal' | 'balanced' | 'large' | 'maximum' | 'manual') => void;
   setLyricsFontSize: (size: number) => void;
   setLyricsArtScale: (scale: number) => void;
+  setLyricsFontFamily: (font: string) => void;
+  setLyricsAnimationStyle: (style: 'standard' | 'jumping' | 'fade' | 'slide') => void;
+  toggleWavySeekbar: () => void;
   toggleAutoHideLyricsControls: () => void;
   toggleStatsCollection: () => void;
   setVisibleTrackColumns: (cols: TrackColumnId[]) => void;
@@ -221,6 +227,9 @@ export const usePlayerStore = create<PlayerState>()(
       lyricsFontSizePreset: 'normal',
       lyricsFontSize: 24,
       lyricsArtScale: 100,
+      lyricsFontFamily: 'sans-serif',
+      lyricsAnimationStyle: 'standard',
+      isWavySeekbarEnabled: false,
       isStatsCollectionEnabled: false,
       showDemoStats: false,
       anonymizeStats: false,
@@ -730,6 +739,9 @@ export const usePlayerStore = create<PlayerState>()(
       setLyricsFontSizePreset: (preset) => set({ lyricsFontSizePreset: preset }),
       setLyricsFontSize: (size) => set({ lyricsFontSize: size }),
       setLyricsArtScale: (scale) => set({ lyricsArtScale: scale }),
+      setLyricsFontFamily: (font) => set({ lyricsFontFamily: font }),
+      setLyricsAnimationStyle: (style) => set({ lyricsAnimationStyle: style }),
+      toggleWavySeekbar: () => set((state) => ({ isWavySeekbarEnabled: !state.isWavySeekbarEnabled })),
 
       toggleAutoHideLyricsControls: () => set((state) => ({ autoHideLyricsControls: !state.autoHideLyricsControls })),
 

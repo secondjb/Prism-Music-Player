@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { AudioSlider } from './AudioSlider';
+import { WavyAudioSlider } from './WavyAudioSlider';
 import { invoke } from '@tauri-apps/api/core';
 import {
   Play,

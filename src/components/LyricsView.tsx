@@ -61,6 +61,11 @@ const ANIMATION_OPTIONS = [
   { id: 'minimal_wave', name: 'Minimal Clean', desc: 'Low-latency clean opacity transitions' },
 ] as const;
 
+const ROMANIZATION_OPTIONS = [
+  { id: 'below', name: 'Add Below Original', desc: 'Display romanization underneath original script' },
+  { id: 'replace', name: 'Replace Original', desc: 'Replace original script with romanized text' },
+] as const;
+
 export const LyricsView: React.FC = () => {
   const {
     currentTrack,
@@ -737,220 +742,244 @@ export const LyricsView: React.FC = () => {
               </button>
             </div>
 
-            {/* Animation Style Selector (All 8 LastWave-native profiles) */}
-            <M3Selector
-              label="Lyric Animation Style"
-              icon={<Activity className="w-3.5 h-3.5" />}
-              value={lyricsAnimationStyle}
-              onChange={(val) => setLyricsAnimationStyle(val as any)}
-              options={ANIMATION_OPTIONS}
-            />
+            {/* --- SECTION 1: LYRICS & TYPOGRAPHY --- */}
+            <div className="flex flex-col gap-3">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Lyrics & Typography</span>
 
-            {/* Font Family Selector */}
-            <M3Selector
-              label="Lyrics Typography & Font"
-              icon={<TypeIcon className="w-3.5 h-3.5" />}
-              value={lyricsFontFamily}
-              onChange={(val) => setLyricsFontFamily(val)}
-              options={FONT_OPTIONS}
-            />
+              {/* Animation Style Selector */}
+              <M3Selector
+                label="Lyric Animation Style"
+                icon={<Activity className="w-3.5 h-3.5" />}
+                value={lyricsAnimationStyle}
+                onChange={(val) => setLyricsAnimationStyle(val as any)}
+                options={ANIMATION_OPTIONS}
+              />
 
-            {/* Wavy Seekbar Toggle */}
-            <div className="flex items-center justify-between py-1 border-t border-white/10">
-              <div className="flex flex-col">
-                <span className="text-white font-medium flex items-center gap-1.5">
-                  <Waves className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                  Wavy Seekbar
-                </span>
-                <span className="text-[10px] text-zinc-400">Dynamic 3-layer frosted glass waveform</span>
-              </div>
-              <Checkbox
-                checked={isWavySeekbarEnabled}
-                onChange={toggleWavySeekbar}
-                size="small"
-                sx={{
-                  color: 'var(--color-stop-1, #6366f1)',
-                  '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                  p: 0.5,
-                }}
+              {/* Font Family Selector */}
+              <M3Selector
+                label="Lyrics Typography & Font"
+                icon={<TypeIcon className="w-3.5 h-3.5" />}
+                value={lyricsFontFamily}
+                onChange={(val) => setLyricsFontFamily(val)}
+                options={FONT_OPTIONS}
               />
-            </div>
 
-            {/* Prefer Word-Synced Online Lyrics */}
-            <div className="flex items-center justify-between py-1">
-              <div className="flex flex-col">
-                <span className="text-white font-medium">Prefer Word/Syllable Sync</span>
-                <span className="text-[10px] text-zinc-400">Query rich word-level lyrics providers</span>
-              </div>
-              <Checkbox
-                checked={preferWordSyncedLyrics}
-                onChange={togglePreferWordSyncedLyrics}
-                size="small"
-                sx={{
-                  color: 'var(--color-stop-1, #6366f1)',
-                  '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                  p: 0.5,
-                }}
-              />
-            </div>
-
-            {/* Auto-Embed Synced Lyrics */}
-            <div className="flex items-center justify-between py-1">
-              <div className="flex flex-col">
-                <span className="text-white font-medium">Auto-embed Lyrics to Audio</span>
-                <span className="text-[10px] text-zinc-400">Save fetched lyrics directly into audio file</span>
-              </div>
-              <Checkbox
-                checked={autoEmbedLyrics}
-                onChange={toggleAutoEmbedLyrics}
-                size="small"
-                sx={{
-                  color: 'var(--color-stop-1, #6366f1)',
-                  '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                  p: 0.5,
-                }}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5 pt-1 border-t border-white/10">
-              <span className="text-zinc-300 font-medium text-xs">Lyrics Size Preset</span>
-              <div className="grid grid-cols-2 gap-1 mb-1">
-                {(['normal', 'balanced', 'large', 'maximum'] as const).map((preset) => (
-                  <button
-                    key={preset}
-                    onClick={() => setLyricsFontSizePreset(preset)}
-                    className={`py-1 px-2 rounded-lg text-[11px] font-semibold capitalize transition-colors ${
-                      lyricsFontSizePreset === preset
-                        ? 'text-white'
-                        : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
-                    }`}
-                    style={
-                      lyricsFontSizePreset === preset
-                        ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
-                        : undefined
-                    }
-                  >
-                    {preset === 'maximum' ? 'Max Space' : preset}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1 pt-1 border-t border-white/10">
-              <div className="flex justify-between text-xs text-zinc-300">
-                <span>Manual Font Size</span>
-                <span className="font-mono font-bold" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
-                  {Math.round(activeFontSize)}px
-                </span>
-              </div>
-              <input
-                type="range"
-                min={18}
-                max={150}
-                step={1}
-                value={activeFontSize}
-                onChange={(e) => {
-                  setLyricsFontSizePreset('manual');
-                  setLyricsFontSize(parseInt(e.target.value, 10));
-                }}
-                style={{
-                  background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${
-                    ((activeFontSize - 18) / (150 - 18)) * 100
-                  }%, #27272a ${((activeFontSize - 18) / (150 - 18)) * 100}%)`,
-                }}
-                className="w-full h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
-              />
-            </div>
-
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-zinc-300">Auto-hide controls on idle</span>
-              <Checkbox
-                checked={autoHideLyricsControls}
-                onChange={() => toggleAutoHideLyricsControls()}
-                size="small"
-                sx={{
-                  color: 'var(--color-stop-1, #6366f1)',
-                  '&.Mui-checked': {
-                    color: 'var(--color-stop-1, #6366f1)',
-                  },
-                  p: 0.5,
-                }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-zinc-300">Auto-fetch online lyrics</span>
-              <Checkbox
-                checked={lrclibAutoFetch}
-                onChange={(e) => setLrclibAutoFetch(e.target.checked)}
-                size="small"
-                sx={{
-                  color: 'var(--color-stop-1, #6366f1)',
-                  '&.Mui-checked': {
-                    color: 'var(--color-stop-1, #6366f1)',
-                  },
-                  p: 0.5,
-                }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-zinc-300">Prefer online lyrics</span>
-              <Checkbox
-                checked={preferOnlineLyrics}
-                onChange={(e) => setPreferOnlineLyrics(e.target.checked)}
-                size="small"
-                sx={{
-                  color: 'var(--color-stop-1, #6366f1)',
-                  '&.Mui-checked': {
-                    color: 'var(--color-stop-1, #6366f1)',
-                  },
-                  p: 0.5,
-                }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-zinc-300">Show Audio Bitrate & Frequency</span>
-              <Checkbox
-                checked={showAudioSpecs}
-                onChange={toggleShowAudioSpecs}
-                size="small"
-                sx={{
-                  color: 'var(--color-stop-1, #6366f1)',
-                  '&.Mui-checked': {
-                    color: 'var(--color-stop-1, #6366f1)',
-                  },
-                  p: 0.5,
-                }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-xs pt-1 border-t border-white/10">
-              <span className="text-zinc-300 font-medium">Romanization Mode</span>
-              <select
+              {/* Romanization Mode Selector */}
+              <M3Selector
+                label="Romanization Mode"
+                icon={<Languages className="w-3.5 h-3.5" />}
                 value={romanizationMode}
-                onChange={(e) => setRomanizationMode(e.target.value as 'below' | 'replace')}
-                className="bg-zinc-900 border border-white/10 text-xs text-white rounded-lg px-2 py-1 focus:outline-none"
-              >
-                <option value="below">Add Below</option>
-                <option value="replace">Replace Original</option>
-              </select>
+                onChange={(val) => setRomanizationMode(val as any)}
+                options={ROMANIZATION_OPTIONS}
+              />
+
+              {/* Lyrics Size Presets */}
+              <div className="flex flex-col gap-1.5 pt-1">
+                <span className="text-zinc-300 font-semibold text-xs">Lyrics Size Preset</span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(['normal', 'balanced', 'large', 'maximum'] as const).map((preset) => (
+                    <button
+                      key={preset}
+                      onClick={() => setLyricsFontSizePreset(preset)}
+                      className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold capitalize transition-all ${
+                        lyricsFontSizePreset === preset
+                          ? 'text-white shadow-md'
+                          : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
+                      }`}
+                      style={
+                        lyricsFontSizePreset === preset
+                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                          : undefined
+                      }
+                    >
+                      {preset === 'maximum' ? 'Max Space' : preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Manual Font Size Slider */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex justify-between text-xs text-zinc-300">
+                  <span>Manual Font Size</span>
+                  <span className="font-mono font-bold" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
+                    {Math.round(activeFontSize)}px
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={18}
+                  max={150}
+                  step={1}
+                  value={activeFontSize}
+                  onChange={(e) => {
+                    setLyricsFontSizePreset('manual');
+                    setLyricsFontSize(parseInt(e.target.value, 10));
+                  }}
+                  style={{
+                    background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${
+                      ((activeFontSize - 18) / (150 - 18)) * 100
+                    }%, #27272a ${((activeFontSize - 18) / (150 - 18)) * 100}%)`,
+                  }}
+                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
+                />
+              </div>
+
+              {/* Prefer Word-Synced Online Lyrics */}
+              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                <div className="flex flex-col pr-2">
+                  <span className="text-white font-medium text-xs">Prefer Word/Syllable Sync</span>
+                  <span className="text-[10px] text-zinc-400">Query rich syllable & word-level timing</span>
+                </div>
+                <Checkbox
+                  checked={preferWordSyncedLyrics}
+                  onChange={togglePreferWordSyncedLyrics}
+                  size="small"
+                  sx={{
+                    color: 'var(--color-stop-1, #6366f1)',
+                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                    p: 0.5,
+                  }}
+                />
+              </div>
+
+              {/* Auto-fetch Online Lyrics */}
+              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                <div className="flex flex-col pr-2">
+                  <span className="text-white font-medium text-xs">Auto-fetch Online Lyrics</span>
+                  <span className="text-[10px] text-zinc-400">Search online database on track load</span>
+                </div>
+                <Checkbox
+                  checked={lrclibAutoFetch}
+                  onChange={(e) => setLrclibAutoFetch(e.target.checked)}
+                  size="small"
+                  sx={{
+                    color: 'var(--color-stop-1, #6366f1)',
+                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                    p: 0.5,
+                  }}
+                />
+              </div>
+
+              {/* Prefer Online Lyrics */}
+              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                <div className="flex flex-col pr-2">
+                  <span className="text-white font-medium text-xs">Prefer Online Over Embedded</span>
+                  <span className="text-[10px] text-zinc-400">Prioritize online synced lyrics</span>
+                </div>
+                <Checkbox
+                  checked={preferOnlineLyrics}
+                  onChange={(e) => setPreferOnlineLyrics(e.target.checked)}
+                  size="small"
+                  sx={{
+                    color: 'var(--color-stop-1, #6366f1)',
+                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                    p: 0.5,
+                  }}
+                />
+              </div>
+
+              {/* Auto-Embed Synced Lyrics */}
+              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                <div className="flex flex-col pr-2">
+                  <span className="text-white font-medium text-xs">Auto-embed Lyrics to Audio</span>
+                  <span className="text-[10px] text-zinc-400">Save fetched lyrics directly to file tags</span>
+                </div>
+                <Checkbox
+                  checked={autoEmbedLyrics}
+                  onChange={toggleAutoEmbedLyrics}
+                  size="small"
+                  sx={{
+                    color: 'var(--color-stop-1, #6366f1)',
+                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                    p: 0.5,
+                  }}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2 pt-1">
+                <button
+                  onClick={handleManualRefresh}
+                  style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+                  className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                  Refresh Online Lyrics
+                </button>
+                
+                <button
+                  onClick={handleEmbedLyrics}
+                  disabled={isEmbedding || !rawLrc.trim()}
+                  style={{ backgroundColor: 'var(--color-stop-2, #818cf8)' }}
+                  className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Save className={`w-3.5 h-3.5 ${isEmbedding ? 'animate-pulse' : ''}`} />
+                  {isEmbedding ? 'Embedding...' : 'Embed Lyrics to File'}
+                </button>
+              </div>
             </div>
-            <button
-              onClick={handleManualRefresh}
-              style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-              className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110 mt-1"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh Online Lyrics
-            </button>
-            
-            <button
-              onClick={handleEmbedLyrics}
-              disabled={isEmbedding || !rawLrc.trim()}
-              style={{ backgroundColor: 'var(--color-stop-2, #818cf8)' }}
-              className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Save className={`w-3.5 h-3.5 ${isEmbedding ? 'animate-pulse' : ''}`} />
-              {isEmbedding ? 'Embedding...' : 'Embed Lyrics to File'}
-            </button>
+
+            {/* --- SECTION 2: PLAYER & VISUAL ELEMENTS --- */}
+            <div className="border-t border-white/10 my-1 pt-3 flex flex-col gap-2.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Player & Visuals</span>
+
+              {/* Wavy Seekbar Toggle */}
+              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                <div className="flex items-center gap-2.5 pr-2">
+                  <Waves className="w-4 h-4 shrink-0" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                  <div className="flex flex-col">
+                    <span className="text-white font-medium text-xs">Wavy Seekbar</span>
+                    <span className="text-[10px] text-zinc-400">Dynamic 3-layer frosted waveform</span>
+                  </div>
+                </div>
+                <Checkbox
+                  checked={isWavySeekbarEnabled}
+                  onChange={toggleWavySeekbar}
+                  size="small"
+                  sx={{
+                    color: 'var(--color-stop-1, #6366f1)',
+                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                    p: 0.5,
+                  }}
+                />
+              </div>
+
+              {/* Show Audio Bitrate & Frequency Specs */}
+              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                <div className="flex flex-col pr-2">
+                  <span className="text-white font-medium text-xs">Show Audio Specs Badge</span>
+                  <span className="text-[10px] text-zinc-400">Display FLAC kHz/bit depth badges</span>
+                </div>
+                <Checkbox
+                  checked={showAudioSpecs}
+                  onChange={toggleShowAudioSpecs}
+                  size="small"
+                  sx={{
+                    color: 'var(--color-stop-1, #6366f1)',
+                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                    p: 0.5,
+                  }}
+                />
+              </div>
+
+              {/* Auto-hide controls on idle */}
+              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                <div className="flex flex-col pr-2">
+                  <span className="text-white font-medium text-xs">Auto-hide Controls on Idle</span>
+                  <span className="text-[10px] text-zinc-400">Fade out buttons during playback</span>
+                </div>
+                <Checkbox
+                  checked={autoHideLyricsControls}
+                  onChange={() => toggleAutoHideLyricsControls()}
+                  size="small"
+                  sx={{
+                    color: 'var(--color-stop-1, #6366f1)',
+                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                    p: 0.5,
+                  }}
+                />
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

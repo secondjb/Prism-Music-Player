@@ -109,14 +109,32 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
   const [tooltipX, setTooltipX] = useState<number>(0);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
 
-  // Smooth sub-millisecond continuous position interpolation
+  // Persistent references so the animation and interpolation loops NEVER restart when props update
+  const isPlayingRef = useRef(isPlaying);
+  isPlayingRef.current = isPlaying;
+
+  const isDraggingRef = useRef(isDragging);
+  isDraggingRef.current = isDragging;
+
+  const hoverValRef = useRef(hoverVal);
+  hoverValRef.current = hoverVal;
+
+  const minRef = useRef(min);
+  minRef.current = min;
+
+  const maxRef = useRef(max);
+  maxRef.current = max;
+
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+
   const syncRef = useRef({ val: value, timestamp: performance.now() });
   useEffect(() => {
     syncRef.current = { val: value, timestamp: performance.now() };
   }, [value]);
 
   const thumbRadius = size === 'sm' ? 5.0 : size === 'lg' ? 7.0 : 6.0;
-  const paddingX = thumbRadius + 4; // Ensures 100% of thumb circle & glow stays inside canvas bounds
+  const paddingX = thumbRadius + 4;
 
   const updateFromPointer = useCallback(
     (clientX: number, isCommit = false) => {
@@ -218,7 +236,7 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
     const render = (now: number) => {
       const dt = Math.min(100, Math.max(0, now - lastTime));
       lastTime = now;
-      if (isPlaying && !isDragging) {
+      if (isPlayingRef.current && !isDraggingRef.current) {
         accumulatedWaveTime += dt;
       }
 
@@ -234,44 +252,55 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
       const width = rect.width;
       const height = rect.height;
       const centerY = height / 2;
+      const currentSize = sizeRef.current;
 
-      // Sizing configurations aligned with LastWave-native specs
       let baseAmp1: number;
       let baseAmp2: number;
       let baseAmp3: number;
       let trackThickness: number;
+      let currentThumbRadius: number;
 
-      if (size === 'lg') {
+      if (currentSize === 'lg') {
         baseAmp1 = 12.0;
         baseAmp2 = 9.0;
         baseAmp3 = 6.5;
         trackThickness = 4.5;
-      } else if (size === 'sm') {
+        currentThumbRadius = 7.0;
+      } else if (currentSize === 'sm') {
         baseAmp1 = 6.5;
         baseAmp2 = 4.8;
         baseAmp3 = 3.5;
         trackThickness = 3.5;
+        currentThumbRadius = 5.0;
       } else {
         baseAmp1 = 9.5;
         baseAmp2 = 7.0;
         baseAmp3 = 5.0;
         trackThickness = 4.0;
+        currentThumbRadius = 6.0;
       }
 
-      // Smooth continuous position calculation (no 250ms jagged jumps)
-      let currentVal = value;
-      if (isDragging && hoverVal !== null) {
-        currentVal = hoverVal;
-      } else if (isPlaying) {
+      const currentPaddingX = currentThumbRadius + 4;
+
+      // Smooth continuous position interpolation across all screen refresh rates
+      let currentVal = syncRef.current.val;
+      if (isDraggingRef.current && hoverValRef.current !== null) {
+        currentVal = hoverValRef.current;
+      } else if (isPlayingRef.current) {
         const elapsedSec = (now - syncRef.current.timestamp) / 1000;
-        currentVal = Math.min(max, Math.max(min, syncRef.current.val + elapsedSec));
+        const currentMax = maxRef.current || 1;
+        const currentMin = minRef.current || 0;
+        currentVal = Math.min(currentMax, Math.max(currentMin, syncRef.current.val + elapsedSec));
       }
-      const percent = Math.max(0, Math.min(1, (currentVal - min) / (max - min || 1)));
 
-      const activeWidth = Math.max(1, width - 2 * paddingX);
-      const thumbX = paddingX + percent * activeWidth;
+      const currentMax = maxRef.current || 1;
+      const currentMin = minRef.current || 0;
+      const percent = Math.max(0, Math.min(1, (currentVal - currentMin) / (currentMax - currentMin || 1)));
 
-      // Resolve computed dynamic theme colors
+      const activeTrackWidth = Math.max(1, width - 2 * currentPaddingX);
+      const thumbX = currentPaddingX + percent * activeTrackWidth;
+
+      // Dynamic theme colors
       let rawColor1 = '#6366f1';
       let rawColor2 = '#818cf8';
       try {
@@ -288,7 +317,6 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
       const secondaryRgb = parseRgb(rawColor2, [129, 140, 248]);
       const tertiaryRgb = secondaryRgb;
 
-      // LastWave-native tonal shift palette
       const layer1Light = shiftTonalRgba(tertiaryRgb, +0.18, 0.85, 0.42);
       const layer1Dark = shiftTonalRgba(tertiaryRgb, -0.15, 1.30, 0.30);
       const layer2Dark = shiftTonalRgba(secondaryRgb, -0.16, 1.30, 0.68);
@@ -298,31 +326,30 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
       const thumbGlowColor = shiftTonalRgba(primaryRgb, -0.10, 1.25, 0.32);
       const thumbSolidColor = shiftTonalRgba(primaryRgb, +0.15, 0.95, 1.0);
 
-      // Methodical, slow wave cycles (delta-time based, refresh-rate independent)
+      // Methodical slow continuous wave phases
       const phase1 = ((accumulatedWaveTime % 4800) / 4800) * 2 * Math.PI + 2.2;
       const phase2 = ((accumulatedWaveTime % 3600) / 3600) * 2 * Math.PI + 1.2;
       const phase3 = ((accumulatedWaveTime % 2600) / 2600) * 2 * Math.PI;
 
       ctx.clearRect(0, 0, width, height);
 
-      // 1. Inactive background track: Full smooth capsule bar with rounded ends
+      // 1. Inactive background track
       ctx.beginPath();
-      ctx.moveTo(paddingX, centerY);
-      ctx.lineTo(width - paddingX, centerY);
+      ctx.moveTo(currentPaddingX, centerY);
+      ctx.lineTo(width - currentPaddingX, centerY);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
       ctx.lineWidth = trackThickness;
       ctx.lineCap = 'round';
       ctx.stroke();
 
-      // 2. Active 3-Layer Material Frosted Glass Waves with Dynamic Counter-Gradients
-      if (thumbX > paddingX) {
+      // 2. Active Waves
+      if (thumbX > currentPaddingX) {
         ctx.save();
         ctx.beginPath();
-        // Clip to active region from paddingX to thumbX
-        ctx.rect(paddingX - trackThickness, 0, thumbX - paddingX + 2 * trackThickness, height);
+        ctx.rect(currentPaddingX - trackThickness, 0, thumbX - currentPaddingX + 2 * trackThickness, height);
         ctx.clip();
 
-        const activeSpan = thumbX - paddingX;
+        const activeSpan = thumbX - currentPaddingX;
         const transitionLength = Math.min(44, activeSpan * 0.48);
         const invTransition = transitionLength > 0 ? 1 / transitionLength : 0;
 
@@ -335,11 +362,11 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
           strokeWidth: number
         ) => {
           ctx.beginPath();
-          ctx.moveTo(paddingX, centerY);
+          ctx.moveTo(currentPaddingX, centerY);
 
           const invWavelength2Pi = (2 * Math.PI) / wavelength;
-          for (let x = paddingX; x <= thumbX; x += 1.5) {
-            const relX = x - paddingX;
+          for (let x = currentPaddingX; x <= thumbX; x += 1.5) {
+            const relX = x - currentPaddingX;
             const startEnv = invTransition > 0 ? smootherstep(relX * invTransition) : 1;
             const endEnv = invTransition > 0 ? smootherstep((activeSpan - relX) * invTransition) : 1;
             const envelope = startEnv * endEnv;
@@ -351,7 +378,7 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
           }
           ctx.lineTo(thumbX, centerY);
 
-          const grad = ctx.createLinearGradient(paddingX, centerY, thumbX, centerY);
+          const grad = ctx.createLinearGradient(currentPaddingX, centerY, thumbX, centerY);
           grad.addColorStop(0, strokeColor1);
           grad.addColorStop(1, strokeColor2);
 
@@ -362,25 +389,20 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
           ctx.stroke();
         };
 
-        const amp1 = isDragging ? 1.5 : baseAmp1;
-        const amp2 = isDragging ? 1.5 : baseAmp2;
-        const amp3 = isDragging ? 1.5 : baseAmp3;
+        const amp1 = isDraggingRef.current ? 1.5 : baseAmp1;
+        const amp2 = isDraggingRef.current ? 1.5 : baseAmp2;
+        const amp3 = isDraggingRef.current ? 1.5 : baseAmp3;
 
-        // Layer 1: Soft organic wave (wavelength 160px)
-        populateWave(160, amp1, phase1, layer1Light, layer1Dark, size === 'sm' ? 1.0 : 1.2);
+        populateWave(160, amp1, phase1, layer1Light, layer1Dark, currentSize === 'sm' ? 1.0 : 1.2);
+        populateWave(125, amp2, phase2, layer2Dark, layer2Light, currentSize === 'sm' ? 1.2 : 1.5);
+        populateWave(95, amp3, phase3, layer3Light, layer3Dark, currentSize === 'sm' ? 1.6 : 2.0);
 
-        // Layer 2: Medium harmonic wave (wavelength 125px)
-        populateWave(125, amp2, phase2, layer2Dark, layer2Light, size === 'sm' ? 1.2 : 1.5);
-
-        // Layer 3: Vibrant foreground wave (wavelength 95px)
-        populateWave(95, amp3, phase3, layer3Light, layer3Dark, size === 'sm' ? 1.6 : 2.0);
-
-        // 3. Crisp Baseline Bar with Light -> Dark dynamic gradient
-        const baseGrad = ctx.createLinearGradient(paddingX, centerY, thumbX, centerY);
+        // 3. Crisp Baseline Bar
+        const baseGrad = ctx.createLinearGradient(currentPaddingX, centerY, thumbX, centerY);
         baseGrad.addColorStop(0, layer3Light);
         baseGrad.addColorStop(1, layer3Dark);
         ctx.beginPath();
-        ctx.moveTo(paddingX, centerY);
+        ctx.moveTo(currentPaddingX, centerY);
         ctx.lineTo(thumbX, centerY);
         ctx.strokeStyle = baseGrad;
         ctx.lineWidth = trackThickness;
@@ -389,16 +411,14 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
 
         ctx.restore();
 
-        // 4. Leading Thumb Indicator (Soft glow halo + solid center circle)
-        // Outer soft glow halo
+        // 4. Leading Thumb Indicator
         ctx.beginPath();
-        ctx.arc(thumbX, centerY, thumbRadius + 3.5, 0, Math.PI * 2);
+        ctx.arc(thumbX, centerY, currentThumbRadius + 3.5, 0, Math.PI * 2);
         ctx.fillStyle = thumbGlowColor;
         ctx.fill();
 
-        // Inner solid thumb circle
         ctx.beginPath();
-        ctx.arc(thumbX, centerY, thumbRadius, 0, Math.PI * 2);
+        ctx.arc(thumbX, centerY, currentThumbRadius, 0, Math.PI * 2);
         ctx.fillStyle = thumbSolidColor;
         ctx.fill();
       }
@@ -408,7 +428,7 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
 
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [value, isPlaying, isDragging, hoverVal, min, max, size, paddingX, thumbRadius]);
+  }, []); // Runs permanently once mounted; never resets or cancels on value updates!
 
   const displayTooltipVal =
     isDragging && hoverVal !== null ? hoverVal : isHovered && hoverVal !== null ? hoverVal : value;

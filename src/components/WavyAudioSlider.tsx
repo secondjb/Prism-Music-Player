@@ -1,4 +1,4 @@
-﻿import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 
 interface WavyAudioSliderProps {
@@ -116,8 +116,21 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
 
       const width = rect.width;
       const height = rect.height;
-      const centerY = height / 2 + (size === 'sm' ? 1 : 2);
+      const centerY = height / 2;
       const thumbX = Math.max(0, Math.min(width, percent * width));
+
+      // Resolve computed CSS colors safely for canvas gradients
+      let colorStop1 = '#6366f1';
+      let colorStop2 = '#818cf8';
+      try {
+        const rootStyle = getComputedStyle(document.documentElement);
+        const c1 = rootStyle.getPropertyValue('--color-stop-1').trim();
+        const c2 = rootStyle.getPropertyValue('--color-stop-2').trim();
+        if (c1 && !c1.startsWith('var(')) colorStop1 = c1;
+        if (c2 && !c2.startsWith('var(')) colorStop2 = c2;
+      } catch {
+        // Fallback to defaults
+      }
 
       ctx.clearRect(0, 0, width, height);
 
@@ -126,7 +139,7 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
       ctx.moveTo(0, centerY);
       ctx.lineTo(width, centerY);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-      ctx.lineWidth = size === 'sm' ? 3.5 : 4.5;
+      ctx.lineWidth = size === 'sm' ? 3 : 4;
       ctx.lineCap = 'round';
       ctx.stroke();
 
@@ -176,9 +189,9 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
           ctx.stroke();
         };
 
-        const amp1 = isDragging ? 1.5 : size === 'sm' ? 8 : 12;
-        const amp2 = isDragging ? 1.5 : size === 'sm' ? 6 : 9;
-        const amp3 = isDragging ? 1.5 : size === 'sm' ? 4.5 : 7;
+        const amp1 = isDragging ? 1.5 : size === 'sm' ? 6 : 9;
+        const amp2 = isDragging ? 1.5 : size === 'sm' ? 4.5 : 7;
+        const amp3 = isDragging ? 1.5 : size === 'sm' ? 3 : 5;
 
         // Layer 1: Soft organic wave (Light -> Dark)
         populateWave(160, amp1, phase1, 'rgba(129, 140, 248, 0.42)', 'rgba(99, 102, 241, 0.28)', 1.2);
@@ -191,13 +204,13 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
 
         // 3. Crisp Baseline Active Bar
         const baseGrad = ctx.createLinearGradient(0, centerY, thumbX, centerY);
-        baseGrad.addColorStop(0, 'var(--color-stop-2, #818cf8)');
-        baseGrad.addColorStop(1, 'var(--color-stop-1, #6366f1)');
+        baseGrad.addColorStop(0, colorStop2);
+        baseGrad.addColorStop(1, colorStop1);
         ctx.beginPath();
         ctx.moveTo(0, centerY);
         ctx.lineTo(thumbX, centerY);
         ctx.strokeStyle = baseGrad;
-        ctx.lineWidth = size === 'sm' ? 3.5 : 4.5;
+        ctx.lineWidth = size === 'sm' ? 3 : 4;
         ctx.lineCap = 'round';
         ctx.stroke();
 
@@ -237,7 +250,7 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
     ? formatTooltip(displayTooltipVal)
     : `${Math.round(((displayTooltipVal - min) / (max - min || 1)) * 100)}%`;
 
-  const containerHeight = size === 'sm' ? 'h-5' : 'h-8';
+  const containerHeight = size === 'sm' ? 'h-3.5' : 'h-4';
 
   return (
     <div

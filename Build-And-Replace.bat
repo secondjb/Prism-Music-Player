@@ -1,5 +1,5 @@
 @echo off
-title Build & Update Prism Music Player
+title Build and Update Prism Music Player
 cd /d "%~dp0"
 set PATH=%USERPROFILE%\.cargo\bin;%PATH%
 

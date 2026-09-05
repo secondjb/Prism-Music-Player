@@ -217,7 +217,7 @@ let pendingVolumeVal: number | null = null;
 const sendThrottledVolume = (vol: number) => {
   const now = performance.now();
   pendingVolumeVal = vol;
-  if (now - lastVolumeInvokeTime >= 35) {
+  if (now - lastVolumeInvokeTime >= 16) {
     lastVolumeInvokeTime = now;
     if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
       invoke('set_volume', { volume: vol }).catch(() => {});
@@ -229,7 +229,7 @@ const sendThrottledVolume = (vol: number) => {
       if (pendingVolumeVal !== null && typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
         invoke('set_volume', { volume: pendingVolumeVal }).catch(() => {});
       }
-    }, 35);
+    }, 16);
   }
 };
 

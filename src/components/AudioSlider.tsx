@@ -36,6 +36,10 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
   const activeBarRef = useRef<HTMLDivElement>(null);
   const thumbRef = useRef<HTMLDivElement>(null);
 
+  const isDraggingRef = useRef<boolean>(false);
+  const pendingValRef = useRef<number | null>(null);
+  const rafIdRef = useRef<number | null>(null);
+
   const paddingX = size === 'sm' ? 8 : size === 'lg' ? 12 : 10;
   const effectiveVal = isDragging && hoverVal !== null ? hoverVal : value;
   const percent = Math.max(0, Math.min(100, ((effectiveVal - min) / (max - min || 1)) * 100));
@@ -56,7 +60,7 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
       const availableWidth = Math.max(1, rect.width - 2 * paddingX);
       const ratio = Math.max(0, Math.min(1, clickX / availableWidth));
       
-      // Continuous precision during dragging for fluid analog movement
+      // Continuous float precision during dragging for fluid analog movement
       const rawVal = min + ratio * (max - min);
       const clampedVal = Math.max(min, Math.min(max, rawVal));
       const currentPercent = Math.max(0, Math.min(100, ((clampedVal - min) / (max - min || 1)) * 100));
@@ -64,7 +68,7 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
       const rawCursorX = clientX - rect.left;
       const clampedCursorX = Math.max(0, Math.min(rect.width, rawCursorX));
 
-      // Synchronous, zero-latency DOM updates for instantaneous cursor tracking
+      // 1. Instantaneous 0ms hardware/DOM style updates on raw pointer event
       if (tooltipRef.current) {
         tooltipRef.current.style.left = `${clampedCursorX}px`;
       }
@@ -78,12 +82,32 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
         thumbRef.current.style.left = `calc(${paddingX}px + (${currentPercent} * (100% - ${2 * paddingX}px) / 100))`;
       }
 
-      setHoverVal(clampedVal);
-      setTooltipX(clampedCursorX);
-      onChange(clampedVal);
-
-      if (isCommit && onChangeCommitted) {
-        onChangeCommitted(clampedVal);
+      // 2. React state & onChange throttling to requestAnimationFrame (prevents React frame flooding)
+      if (isCommit) {
+        if (rafIdRef.current !== null) {
+          cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = null;
+        }
+        pendingValRef.current = null;
+        setHoverVal(null);
+        setIsDragging(false);
+        isDraggingRef.current = false;
+        onChange(clampedVal);
+        if (onChangeCommitted) {
+          onChangeCommitted(clampedVal);
+        }
+      } else {
+        pendingValRef.current = clampedVal;
+        if (rafIdRef.current === null) {
+          rafIdRef.current = requestAnimationFrame(() => {
+            rafIdRef.current = null;
+            if (pendingValRef.current !== null) {
+              setHoverVal(pendingValRef.current);
+              setTooltipX(clampedCursorX);
+              onChange(pendingValRef.current);
+            }
+          });
+        }
       }
     },
     [min, max, paddingX, formatDisplay, onChange, onChangeCommitted]
@@ -91,6 +115,8 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
+      // Global mouse move handles active dragging
+      if (isDraggingRef.current) return;
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const clickX = e.clientX - rect.left - paddingX;
@@ -111,29 +137,19 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
 
       setHoverVal(clampedVal);
       setTooltipX(clampedCursorX);
-
-      if (isDragging) {
-        const currentPercent = Math.max(0, Math.min(100, ((clampedVal - min) / (max - min || 1)) * 100));
-        if (activeBarRef.current) {
-          activeBarRef.current.style.width = `${currentPercent}%`;
-        }
-        if (thumbRef.current) {
-          thumbRef.current.style.left = `calc(${paddingX}px + (${currentPercent} * (100% - ${2 * paddingX}px) / 100))`;
-        }
-        onChange(clampedVal);
-      }
     },
-    [min, max, paddingX, isDragging, formatDisplay, onChange]
+    [min, max, paddingX, formatDisplay]
   );
 
   const handleMouseLeave = useCallback(() => {
     setIsHovered(false);
-    if (!isDragging) setHoverVal(null);
-  }, [isDragging]);
+    if (!isDraggingRef.current) setHoverVal(null);
+  }, []);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       setIsDragging(true);
+      isDraggingRef.current = true;
       updateFromPointer(e.clientX, false);
     },
     [updateFromPointer]
@@ -141,21 +157,20 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
 
   const handleMouseUp = useCallback(
     (e: MouseEvent) => {
-      if (isDragging) {
-        setIsDragging(false);
+      if (isDraggingRef.current) {
         updateFromPointer(e.clientX, true);
       }
     },
-    [isDragging, updateFromPointer]
+    [updateFromPointer]
   );
 
   const handleGlobalMouseMove = useCallback(
     (e: MouseEvent) => {
-      if (isDragging) {
+      if (isDraggingRef.current) {
         updateFromPointer(e.clientX, false);
       }
     },
-    [isDragging, updateFromPointer]
+    [updateFromPointer]
   );
 
   useEffect(() => {
@@ -165,6 +180,10 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
       return () => {
         window.removeEventListener('mousemove', handleGlobalMouseMove);
         window.removeEventListener('mouseup', handleMouseUp);
+        if (rafIdRef.current !== null) {
+          cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = null;
+        }
       };
     }
   }, [isDragging, handleGlobalMouseMove, handleMouseUp]);

@@ -328,35 +328,98 @@ revo-grid .scroll-horizontal {
   pointer-events: none !important;
 }
 
-/* Vertical Scrollbar styling for RevoGrid */
-revo-grid revogr-viewport-scroll .vertical,
-revo-grid .scroll-vertical {
-  background: transparent !important;
+/* Complete Themed & Clean Scrollbar styling for RevoGrid & all internal viewport containers */
+revo-grid,
+revo-grid *,
+revogr-viewport-scroll,
+revogr-viewport-scroll *,
+.scroll-vertical,
+.vertical,
+.inner-scroll,
+.main-viewport,
+.inner-cropper {
+  scrollbar-width: thin !important;
+  scrollbar-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 65%, rgba(255, 255, 255, 0.35)) transparent !important;
+}
+
+revo-grid::-webkit-scrollbar,
+revo-grid *::-webkit-scrollbar,
+revogr-viewport-scroll::-webkit-scrollbar,
+revogr-viewport-scroll *::-webkit-scrollbar,
+.scroll-vertical::-webkit-scrollbar,
+.vertical::-webkit-scrollbar,
+.inner-scroll::-webkit-scrollbar,
+.main-viewport::-webkit-scrollbar,
+.inner-cropper::-webkit-scrollbar {
   width: 6px !important;
-}
-
-revo-grid revogr-viewport-scroll .vertical::-webkit-scrollbar,
-revo-grid .scroll-vertical::-webkit-scrollbar {
-  width: 6px !important;
+  height: 6px !important;
   background: transparent !important;
 }
 
-revo-grid revogr-viewport-scroll .vertical::-webkit-scrollbar-track,
-revo-grid .scroll-vertical::-webkit-scrollbar-track {
+revo-grid::-webkit-scrollbar-track,
+revo-grid *::-webkit-scrollbar-track,
+revogr-viewport-scroll::-webkit-scrollbar-track,
+revogr-viewport-scroll *::-webkit-scrollbar-track,
+.scroll-vertical::-webkit-scrollbar-track,
+.vertical::-webkit-scrollbar-track,
+.inner-scroll::-webkit-scrollbar-track,
+.main-viewport::-webkit-scrollbar-track,
+.inner-cropper::-webkit-scrollbar-track {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+revo-grid::-webkit-scrollbar-corner,
+revo-grid *::-webkit-scrollbar-corner,
+revogr-viewport-scroll::-webkit-scrollbar-corner,
+revogr-viewport-scroll *::-webkit-scrollbar-corner {
   background: transparent !important;
 }
 
-revo-grid revogr-viewport-scroll .vertical::-webkit-scrollbar-thumb,
-revo-grid .scroll-vertical::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--color-stop-1, #6366f1) 60%, rgba(255, 255, 255, 0.4)) !important;
+/* Remove up and down arrows completely */
+revo-grid::-webkit-scrollbar-button,
+revo-grid *::-webkit-scrollbar-button,
+revogr-viewport-scroll::-webkit-scrollbar-button,
+revogr-viewport-scroll *::-webkit-scrollbar-button,
+.scroll-vertical::-webkit-scrollbar-button,
+.vertical::-webkit-scrollbar-button,
+.inner-scroll::-webkit-scrollbar-button,
+.main-viewport::-webkit-scrollbar-button,
+.inner-cropper::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+/* Themed Pill Handle */
+revo-grid::-webkit-scrollbar-thumb,
+revo-grid *::-webkit-scrollbar-thumb,
+revogr-viewport-scroll::-webkit-scrollbar-thumb,
+revogr-viewport-scroll *::-webkit-scrollbar-thumb,
+.scroll-vertical::-webkit-scrollbar-thumb,
+.vertical::-webkit-scrollbar-thumb,
+.inner-scroll::-webkit-scrollbar-thumb,
+.main-viewport::-webkit-scrollbar-thumb,
+.inner-cropper::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-stop-1, #6366f1) 65%, rgba(255, 255, 255, 0.35)) !important;
   border-radius: 9999px !important;
-  transition: background-color 0.2s ease !important;
+  border: none !important;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease !important;
 }
 
-revo-grid revogr-viewport-scroll .vertical::-webkit-scrollbar-thumb:hover,
-revo-grid .scroll-vertical::-webkit-scrollbar-thumb:hover {
+revo-grid::-webkit-scrollbar-thumb:hover,
+revo-grid *::-webkit-scrollbar-thumb:hover,
+revogr-viewport-scroll::-webkit-scrollbar-thumb:hover,
+revogr-viewport-scroll *::-webkit-scrollbar-thumb:hover,
+.scroll-vertical::-webkit-scrollbar-thumb:hover,
+.vertical::-webkit-scrollbar-thumb:hover,
+.inner-scroll::-webkit-scrollbar-thumb:hover,
+.main-viewport::-webkit-scrollbar-thumb:hover,
+.inner-cropper::-webkit-scrollbar-thumb:hover {
   background: var(--color-stop-1, #6366f1) !important;
-  box-shadow: 0 0 8px var(--color-stop-1, #6366f1) !important;
+  box-shadow: 0 0 10px var(--color-stop-1, #6366f1) !important;
 }
 
 body {

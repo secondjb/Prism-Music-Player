@@ -30,6 +30,29 @@ import {
   GITHUB_RELEASES_URL,
   openExternalLink,
 } from '../utils/updateChecker';
+import { M3Selector } from './M3Selector';
+
+const FONT_OPTIONS = [
+  { id: 'system-ui, -apple-system, sans-serif', name: 'System Default', desc: 'Native OS typeface' },
+  { id: "'Plus Jakarta Sans', system-ui, sans-serif", name: 'Google Sans / Jakarta', desc: 'Modern geometric sans', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" },
+  { id: "'Outfit', system-ui, sans-serif", name: 'Outfit', desc: 'Warm display sans', fontFamily: "'Outfit', system-ui, sans-serif" },
+  { id: "'Inter', system-ui, sans-serif", name: 'Inter Clean', desc: 'Neutral high-legibility sans', fontFamily: "'Inter', system-ui, sans-serif" },
+  { id: "'Lexend', system-ui, sans-serif", name: 'Lexend', desc: 'Designed for fluid reading', fontFamily: "'Lexend', system-ui, sans-serif" },
+  { id: "'Poppins', system-ui, sans-serif", name: 'Poppins', desc: 'Geometric round shapes', fontFamily: "'Poppins', system-ui, sans-serif" },
+  { id: "'DM Sans', system-ui, sans-serif", name: 'DM Sans', desc: 'Clean geometric low-contrast', fontFamily: "'DM Sans', system-ui, sans-serif" },
+  { id: "'Nunito', system-ui, sans-serif", name: 'Nunito (Rounded)', desc: 'Soft rounded terminals', fontFamily: "'Nunito', system-ui, sans-serif" },
+];
+
+const ANIMATION_OPTIONS = [
+  { id: 'apple_fluid', name: 'Apple Fluid', desc: 'Dynamic spring & focal tracking' },
+  { id: 'karaoke_pulse', name: 'Karaoke Pulse', desc: 'Rhythmic scale pop & jumping text' },
+  { id: 'kinetic_slide', name: 'Kinetic Slide', desc: 'Glides smoothly from leading edge' },
+  { id: 'cinematic_blur', name: 'Cinematic Focus', desc: 'Soft background depth blur' },
+  { id: 'lossless_glow', name: 'Lossless Glow', desc: 'Vibrant neon gradient & glass glow' },
+  { id: 'card_pop', name: 'Glass Elevation', desc: '3D floating frosted card lift' },
+  { id: 'apple_zoom', name: 'Dynamic Focus Zoom', desc: 'Expanded magnification with push' },
+  { id: 'minimal_wave', name: 'Minimal Clean', desc: 'Low-latency opacity transitions' },
+] as const;
 
 export const SettingsView: React.FC = () => {
   const tracks = usePlayerStore((s) => s.tracks);
@@ -600,57 +623,45 @@ export const SettingsView: React.FC = () => {
           {/* Lyric Animation Style Setting (All 8 LastWave profiles) */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
             <div className="flex items-center gap-3">
-              <Activity className="w-4 h-4 text-indigo-400" />
+              <Activity className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Lyric Animation Style</span>
                 <span className="text-[11px] text-zinc-400">Word-by-word motion, jumping text, and line transition profiles</span>
               </div>
             </div>
-            <select
-              value={lyricsAnimationStyle}
-              onChange={(e) => setLyricsAnimationStyle(e.target.value as any)}
-              className="bg-zinc-900 border border-white/10 text-xs text-white rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer max-w-xs"
-            >
-              <option value="apple_fluid">Apple Fluid (Dynamic spring & focal tracking)</option>
-              <option value="karaoke_pulse">Karaoke Pulse (Rhythmic scale pop & jumping text)</option>
-              <option value="kinetic_slide">Kinetic Slide (Glides smoothly from leading edge)</option>
-              <option value="cinematic_blur">Cinematic Focus (Soft background depth blur)</option>
-              <option value="lossless_glow">Lossless Glow (Vibrant neon gradient & glass glow)</option>
-              <option value="card_pop">Glass Elevation (3D floating frosted card lift)</option>
-              <option value="apple_zoom">Dynamic Focus Zoom (Expanded magnification with push)</option>
-              <option value="minimal_wave">Minimal Clean (Low-latency opacity transitions)</option>
-            </select>
+            <div className="w-full sm:w-72">
+              <M3Selector
+                value={lyricsAnimationStyle}
+                onChange={(val) => setLyricsAnimationStyle(val as any)}
+                options={ANIMATION_OPTIONS}
+                size="sm"
+              />
+            </div>
           </div>
 
           {/* Lyrics Typography Setting */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
             <div className="flex items-center gap-3">
-              <TypeIcon className="w-4 h-4 text-indigo-400" />
+              <TypeIcon className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Lyrics Typography & Font</span>
                 <span className="text-[11px] text-zinc-400">Choose custom font family for lyrics and karaoke text</span>
               </div>
             </div>
-            <select
-              value={lyricsFontFamily}
-              onChange={(e) => setLyricsFontFamily(e.target.value)}
-              className="bg-zinc-900 border border-white/10 text-xs text-white rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer max-w-xs"
-            >
-              <option value="'Plus Jakarta Sans', system-ui, sans-serif">Google Sans / Jakarta</option>
-              <option value="'Outfit', system-ui, sans-serif">Outfit</option>
-              <option value="'Inter', system-ui, sans-serif">Inter Clean</option>
-              <option value="'Lexend', system-ui, sans-serif">Lexend</option>
-              <option value="'Poppins', system-ui, sans-serif">Poppins Geometric</option>
-              <option value="'DM Sans', system-ui, sans-serif">DM Sans</option>
-              <option value="'Nunito', system-ui, sans-serif">Nunito Rounded</option>
-              <option value="system-ui, -apple-system, sans-serif">System Default</option>
-            </select>
+            <div className="w-full sm:w-72">
+              <M3Selector
+                value={lyricsFontFamily}
+                onChange={(val) => setLyricsFontFamily(val)}
+                options={FONT_OPTIONS}
+                size="sm"
+              />
+            </div>
           </div>
 
           {/* Wavy Seekbar Toggle */}
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3">
-              <Waves className="w-4 h-4 text-indigo-400" />
+              <Waves className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Wavy Seekbar</span>
                 <span className="text-[11px] text-zinc-400">Dynamic 3-layer frosted glass wave seekbar</span>

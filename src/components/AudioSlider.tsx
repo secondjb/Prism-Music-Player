@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+﻿import React, { useState, useRef, useCallback, useEffect } from 'react';
 
 interface AudioSliderProps {
   value: number;
@@ -9,7 +9,7 @@ interface AudioSliderProps {
   onChangeCommitted?: (val: number) => void;
   formatTooltip?: (val: number) => string;
   className?: string;
-  size?: 'sm' | 'md';
+  size?: 'sm' | 'md' | 'lg';
   title?: string;
 }
 
@@ -17,7 +17,7 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
   value,
   min = 0,
   max = 100,
-  step = 1,
+  step = 0.01,
   onChange,
   onChangeCommitted,
   formatTooltip,
@@ -40,10 +40,14 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
       const clickX = e.clientX - rect.left;
       const ratio = Math.max(0, Math.min(1, clickX / (rect.width || 1)));
       const rawVal = min + ratio * (max - min);
-      setHoverVal(rawVal);
+      const steppedVal = Math.round(rawVal / step) * step;
+      setHoverVal(steppedVal);
       setTooltipX(clickX);
+      if (isDragging) {
+        onChange(steppedVal);
+      }
     },
-    [min, max]
+    [min, max, step, isDragging, onChange]
   );
 
   const handleMouseLeave = useCallback(() => {
@@ -51,12 +55,46 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
     setHoverVal(null);
   }, []);
 
-  const displayTooltipVal = isDragging && hoverVal !== null ? hoverVal : isHovered && hoverVal !== null ? hoverVal : value;
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      setIsDragging(true);
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const ratio = Math.max(0, Math.min(1, clickX / (rect.width || 1)));
+      const rawVal = min + ratio * (max - min);
+      const steppedVal = Math.round(rawVal / step) * step;
+      onChange(steppedVal);
+    },
+    [min, max, step, onChange]
+  );
+
+  const handleMouseUp = useCallback(() => {
+    if (isDragging) {
+      setIsDragging(false);
+      if (onChangeCommitted && hoverVal !== null) {
+        onChangeCommitted(hoverVal);
+      }
+    }
+  }, [isDragging, onChangeCommitted, hoverVal]);
+
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => window.removeEventListener('mouseup', handleMouseUp);
+    }
+  }, [isDragging, handleMouseUp]);
+
+  const displayTooltipVal =
+    isDragging && hoverVal !== null ? hoverVal : isHovered && hoverVal !== null ? hoverVal : value;
   const tooltipText = formatTooltip
     ? formatTooltip(displayTooltipVal)
     : `${Math.round(((displayTooltipVal - min) / (max - min || 1)) * 100)}%`;
 
-  const trackHeightClass = size === 'sm' ? 'h-1.5 group-hover:h-2.5' : 'h-2 group-hover:h-3';
+  const trackHeightClass = size === 'sm' ? 'h-[3.5px]' : size === 'lg' ? 'h-[5px]' : 'h-[4px]';
+  const containerHeightClass = size === 'sm' ? 'h-6' : size === 'lg' ? 'h-10' : 'h-8';
+  const haloSizeClass = size === 'sm' ? 'w-4 h-4 -ml-2' : size === 'lg' ? 'w-6 h-6 -ml-3' : 'w-5 h-5 -ml-2.5';
+  const thumbSizeClass = size === 'sm' ? 'w-2.5 h-2.5 -ml-[5px]' : size === 'lg' ? 'w-3.5 h-3.5 -ml-[7px]' : 'w-3 h-3 -ml-1.5';
 
   return (
     <div
@@ -64,7 +102,8 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
       onMouseEnter={() => setIsHovered(true)}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className={`relative flex items-center group cursor-pointer select-none ${className}`}
+      onMouseDown={handleMouseDown}
+      className={`relative flex items-center group cursor-pointer select-none ${containerHeightClass} ${className}`}
       title={title}
     >
       {/* Floating Hover/Drag Tooltip */}
@@ -81,29 +120,39 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
         </div>
       )}
 
-      {/* HTML Range Input */}
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onMouseDown={() => setIsDragging(true)}
-        onMouseUp={(e) => {
-          setIsDragging(false);
-          if (onChangeCommitted) {
-            onChangeCommitted(parseFloat((e.target as HTMLInputElement).value));
-          }
-        }}
-        onChange={(e) => {
-          const val = parseFloat(e.target.value);
-          onChange(val);
-        }}
-        style={{
-          background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${percent}%, #27272a ${percent}%)`,
-        }}
-        className={`w-full ${trackHeightClass} rounded-full appearance-none cursor-pointer transition-all duration-150 slider-m3 shadow-sm hover:brightness-125`}
-      />
+      {/* Material 3 Capsule Inactive Background Track */}
+      <div className={`w-full ${trackHeightClass} rounded-full bg-white/15 relative overflow-hidden`}>
+        {/* Material 3 Active Capsule Fill with Dynamic Theme Gradient */}
+        <div
+          className={`h-full rounded-full transition-[width] duration-75 ease-out`}
+          style={{
+            width: `${percent}%`,
+            background: 'linear-gradient(to right, var(--color-stop-1, #6366f1), var(--color-stop-2, #818cf8))',
+          }}
+        />
+      </div>
+
+      {/* Material 3 Leading Thumb Indicator with Frosted Glow Halo */}
+      <div
+        className="absolute top-1/2 -translate-y-1/2 pointer-events-none transition-[left] duration-75 ease-out"
+        style={{ left: `${percent}%` }}
+      >
+        {/* Soft Theme Glow Halo */}
+        <div
+          className={`absolute top-1/2 -translate-y-1/2 rounded-full transition-transform duration-150 ${haloSizeClass} ${
+            isHovered || isDragging ? 'scale-125 opacity-100' : 'opacity-85'
+          }`}
+          style={{
+            backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+          }}
+        />
+        {/* Solid Center Thumb */}
+        <div
+          className={`absolute top-1/2 -translate-y-1/2 rounded-full bg-white shadow-md transition-transform duration-150 ${thumbSizeClass} ${
+            isHovered || isDragging ? 'scale-110' : ''
+          }`}
+        />
+      </div>
     </div>
   );
 };

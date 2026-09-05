@@ -4,6 +4,7 @@ import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { AudioSlider } from './AudioSlider';
 import { WavyAudioSlider } from './WavyAudioSlider';
+import { M3Selector } from './M3Selector';
 import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
 import { parseRichLyrics, ParsedLyricLine } from '../utils/lyricsParser';
 import { createRomanizer } from 'lyric-romanizer';
@@ -39,14 +40,14 @@ import {
 const romanizer = createRomanizer();
 
 const FONT_OPTIONS = [
-  { id: "'Plus Jakarta Sans', system-ui, sans-serif", name: 'Google Sans / Jakarta' },
-  { id: "'Outfit', system-ui, sans-serif", name: 'Outfit' },
-  { id: "'Inter', system-ui, sans-serif", name: 'Inter Clean' },
-  { id: "'Lexend', system-ui, sans-serif", name: 'Lexend' },
-  { id: "'Poppins', system-ui, sans-serif", name: 'Poppins' },
-  { id: "'DM Sans', system-ui, sans-serif", name: 'DM Sans' },
-  { id: "'Nunito', system-ui, sans-serif", name: 'Nunito (Rounded)' },
-  { id: 'system-ui, -apple-system, sans-serif', name: 'System Default' },
+  { id: 'system-ui, -apple-system, sans-serif', name: 'System Default', desc: 'Native OS typeface' },
+  { id: "'Plus Jakarta Sans', system-ui, sans-serif", name: 'Google Sans / Jakarta', desc: 'Modern geometric sans', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" },
+  { id: "'Outfit', system-ui, sans-serif", name: 'Outfit', desc: 'Warm display sans', fontFamily: "'Outfit', system-ui, sans-serif" },
+  { id: "'Inter', system-ui, sans-serif", name: 'Inter Clean', desc: 'Neutral high-legibility sans', fontFamily: "'Inter', system-ui, sans-serif" },
+  { id: "'Lexend', system-ui, sans-serif", name: 'Lexend', desc: 'Designed for fluid reading', fontFamily: "'Lexend', system-ui, sans-serif" },
+  { id: "'Poppins', system-ui, sans-serif", name: 'Poppins', desc: 'Geometric round shapes', fontFamily: "'Poppins', system-ui, sans-serif" },
+  { id: "'DM Sans', system-ui, sans-serif", name: 'DM Sans', desc: 'Clean geometric low-contrast', fontFamily: "'DM Sans', system-ui, sans-serif" },
+  { id: "'Nunito', system-ui, sans-serif", name: 'Nunito (Rounded)', desc: 'Soft rounded terminals', fontFamily: "'Nunito', system-ui, sans-serif" },
 ];
 
 const ANIMATION_OPTIONS = [
@@ -573,7 +574,6 @@ export const LyricsView: React.FC = () => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const seekPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
   const RepeatIcon = repeatMode === 'one' ? Repeat1 : Repeat;
   const currentTimeMs = currentTime * 1000;
 
@@ -709,7 +709,7 @@ export const LyricsView: React.FC = () => {
           >
             <div className="flex items-center justify-between border-b border-white/10 pb-2">
               <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                <Settings2 className="w-4 h-4 text-indigo-400" />
+                <Settings2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                 Lyrics & Visual Settings
               </h4>
               <button
@@ -721,48 +721,28 @@ export const LyricsView: React.FC = () => {
             </div>
 
             {/* Animation Style Selector (All 8 LastWave-native profiles) */}
-            <div className="flex flex-col gap-1.5">
-              <span className="text-zinc-300 font-semibold flex items-center gap-1.5">
-                <Activity className="w-3.5 h-3.5 text-indigo-400" />
-                Lyric Animation Style
-              </span>
-              <select
-                value={lyricsAnimationStyle}
-                onChange={(e) => setLyricsAnimationStyle(e.target.value as any)}
-                className="bg-zinc-900/90 border border-white/10 text-xs text-white rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
-              >
-                {ANIMATION_OPTIONS.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    {opt.name} — {opt.desc}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <M3Selector
+              label="Lyric Animation Style"
+              icon={<Activity className="w-3.5 h-3.5" />}
+              value={lyricsAnimationStyle}
+              onChange={(val) => setLyricsAnimationStyle(val as any)}
+              options={ANIMATION_OPTIONS}
+            />
 
             {/* Font Family Selector */}
-            <div className="flex flex-col gap-1.5">
-              <span className="text-zinc-300 font-semibold flex items-center gap-1.5">
-                <TypeIcon className="w-3.5 h-3.5 text-indigo-400" />
-                Lyrics Typography & Font
-              </span>
-              <select
-                value={lyricsFontFamily}
-                onChange={(e) => setLyricsFontFamily(e.target.value)}
-                className="bg-zinc-900/90 border border-white/10 text-xs text-white rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
-              >
-                {FONT_OPTIONS.map((font) => (
-                  <option key={font.id} value={font.id}>
-                    {font.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <M3Selector
+              label="Lyrics Typography & Font"
+              icon={<TypeIcon className="w-3.5 h-3.5" />}
+              value={lyricsFontFamily}
+              onChange={(val) => setLyricsFontFamily(val)}
+              options={FONT_OPTIONS}
+            />
 
             {/* Wavy Seekbar Toggle */}
             <div className="flex items-center justify-between py-1 border-t border-white/10">
               <div className="flex flex-col">
                 <span className="text-white font-medium flex items-center gap-1.5">
-                  <Waves className="w-3.5 h-3.5 text-indigo-400" />
+                  <Waves className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                   Wavy Seekbar
                 </span>
                 <span className="text-[10px] text-zinc-400">Dynamic 3-layer frosted glass waveform</span>
@@ -1134,7 +1114,7 @@ export const LyricsView: React.FC = () => {
               >
                 {/* Granular Syllable / Word rendering with Jumping text */}
                 {line.hasSyllables && isActive && !isUnsynced ? (
-                  <div className="inline-flex flex-wrap justify-center items-baseline gap-x-1.5">
+                  <div className="inline-flex flex-wrap justify-center items-baseline">
                     {line.syllables.map((syl, sIdx) => {
                       const sylStart = syl.timeMs;
                       const sylEnd = syl.timeMs + syl.durationMs;
@@ -1190,6 +1170,8 @@ export const LyricsView: React.FC = () => {
                             stiffness: 220,
                           }}
                           className={`inline-block transition-colors ${
+                            syl.hasTrailingSpace ? 'mr-[0.28em]' : ''
+                          } ${
                             isSylActive
                               ? 'text-white drop-shadow-md'
                               : isSylPast
@@ -1361,9 +1343,9 @@ export const LyricsView: React.FC = () => {
         </button>
 
         {/* Seek Bar inside floating pill */}
-        <div className="flex items-center gap-2 text-xs font-mono text-zinc-400 w-36 md:w-56">
+        <div className="flex items-center gap-2.5 text-xs font-mono text-zinc-400 w-48 sm:w-72 md:w-96">
           <span>{formatTime(currentTime)}</span>
-          <div className="relative flex-1 flex items-center group cursor-pointer min-w-[70px]">
+          <div className="relative flex-1 flex items-center group cursor-pointer min-w-[90px]">
             {isWavySeekbarEnabled ? (
               <WavyAudioSlider
                 value={currentTime}
@@ -1371,22 +1353,20 @@ export const LyricsView: React.FC = () => {
                 max={duration || 100}
                 step={0.1}
                 onChange={(val) => seek(val)}
-                size="sm"
+                size="lg"
                 className="flex-1"
                 formatTooltip={(val) => formatTime(val)}
               />
             ) : (
-              <input
-                type="range"
+              <AudioSlider
+                value={currentTime}
                 min={0}
                 max={duration || 100}
                 step={0.1}
-                value={currentTime}
-                onChange={(e) => seek(parseFloat(e.target.value))}
-                style={{
-                  background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${seekPercent}%, #27272a ${seekPercent}%)`,
-                }}
-                className="w-full h-1.5 group-hover:h-2 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3"
+                onChange={(val) => seek(val)}
+                size="lg"
+                className="flex-1"
+                formatTooltip={(val) => formatTime(val)}
               />
             )}
           </div>
@@ -1452,17 +1432,15 @@ export const LyricsView: React.FC = () => {
             >
               {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
             </button>
-            <input
-              type="range"
+            <AudioSlider
+              value={volume}
               min={0}
               max={1}
               step={0.01}
-              value={volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
-              style={{
-                background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${volume * 100}%, #27272a ${volume * 100}%)`,
-              }}
-              className="w-24 sm:w-28 md:w-32 h-2 hover:h-3 rounded-full appearance-none cursor-pointer slider-m3 transition-all hover:brightness-125"
+              onChange={(val) => setVolume(val)}
+              formatTooltip={(val) => `${Math.round(val * 100)}%`}
+              size="md"
+              className="w-24 sm:w-28 md:w-32"
             />
             <span
               style={{ color: 'var(--color-stop-1, #6366f1)' }}

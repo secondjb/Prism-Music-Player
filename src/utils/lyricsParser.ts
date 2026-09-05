@@ -2,6 +2,7 @@ export interface LyricSyllable {
   timeMs: number;
   durationMs: number;
   text: string;
+  hasTrailingSpace?: boolean;
 }
 
 export interface ParsedLyricLine {
@@ -91,7 +92,8 @@ export function parseRichLyrics(rawLrc: string): ParsedLyricLine[] {
           explicitSyllables.push({
             timeMs: sylTime,
             durationMs: Math.max(150, nextTime - sylTime),
-            text: sylText,
+            text: sylText.trim(),
+            hasTrailingSpace: sylText.endsWith(' ') || sylText.startsWith(' ') || sylText.includes(' '),
           });
         }
       }
@@ -157,11 +159,8 @@ export function parseRichLyrics(rawLrc: string): ParsedLyricLine[] {
       const totalChars = nonWhitespaceWords.reduce((sum, w) => sum + w.length, 0) || 1;
 
       let elapsedInLine = 0;
-      for (const token of words) {
-        if (!token.trim()) {
-          // Keep whitespace attached or separate
-          continue;
-        }
+      for (let wIdx = 0; wIdx < nonWhitespaceWords.length; wIdx++) {
+        const token = nonWhitespaceWords[wIdx];
         const weight = token.length / totalChars;
         const sylDur = Math.max(160, Math.round(durationMs * 0.85 * weight));
         const sylTime = cur.timeMs + elapsedInLine;
@@ -170,7 +169,8 @@ export function parseRichLyrics(rawLrc: string): ParsedLyricLine[] {
         syllables.push({
           timeMs: sylTime,
           durationMs: sylDur,
-          text: token,
+          text: token.trim(),
+          hasTrailingSpace: wIdx < nonWhitespaceWords.length - 1,
         });
       }
     }

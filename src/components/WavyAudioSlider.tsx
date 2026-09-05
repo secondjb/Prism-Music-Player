@@ -1,4 +1,4 @@
-﻿import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 
 interface WavyAudioSliderProps {
@@ -93,7 +93,7 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
   value,
   min = 0,
   max = 100,
-  step = 0.1,
+  step: _step = 0.1,
   onChange,
   onChangeCommitted,
   formatTooltip,
@@ -128,6 +128,9 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
   const sizeRef = useRef(size);
   sizeRef.current = size;
 
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const tooltipTextRef = useRef<HTMLSpanElement>(null);
+
   const syncRef = useRef({ val: value, timestamp: performance.now() });
   useEffect(() => {
     syncRef.current = { val: value, timestamp: performance.now() };
@@ -136,6 +139,14 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
   const thumbRadius = size === 'sm' ? 5.0 : size === 'lg' ? 7.0 : 6.0;
   const paddingX = thumbRadius + 4;
 
+  const formatDisplay = useCallback(
+    (val: number) => {
+      if (formatTooltip) return formatTooltip(val);
+      return `${Math.round(((val - min) / (max - min || 1)) * 100)}%`;
+    },
+    [formatTooltip, min, max]
+  );
+
   const updateFromPointer = useCallback(
     (clientX: number, isCommit = false) => {
       if (!containerRef.current) return;
@@ -143,17 +154,31 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
       const clickX = clientX - rect.left - paddingX;
       const availableWidth = Math.max(1, rect.width - 2 * paddingX);
       const ratio = Math.max(0, Math.min(1, clickX / availableWidth));
+      
+      // Continuous precision during dragging for fluid analog movement
       const rawVal = min + ratio * (max - min);
-      const steppedVal = Math.round(rawVal / step) * step;
-      const clampedVal = Math.max(min, Math.min(max, steppedVal));
+      const clampedVal = Math.max(min, Math.min(max, rawVal));
+
+      const rawCursorX = clientX - rect.left;
+      const clampedCursorX = Math.max(0, Math.min(rect.width, rawCursorX));
+
+      // Synchronous, zero-latency DOM updates for instantaneous cursor tracking
+      if (tooltipRef.current) {
+        tooltipRef.current.style.left = `${clampedCursorX}px`;
+      }
+      if (tooltipTextRef.current) {
+        tooltipTextRef.current.textContent = formatDisplay(clampedVal);
+      }
+
       setHoverVal(clampedVal);
-      setTooltipX(clientX - rect.left);
+      setTooltipX(clampedCursorX);
       onChange(clampedVal);
+
       if (isCommit && onChangeCommitted) {
         onChangeCommitted(clampedVal);
       }
     },
-    [min, max, step, paddingX, onChange, onChangeCommitted]
+    [min, max, paddingX, formatDisplay, onChange, onChangeCommitted]
   );
 
   const handleMouseMove = useCallback(
@@ -164,15 +189,26 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
       const availableWidth = Math.max(1, rect.width - 2 * paddingX);
       const ratio = Math.max(0, Math.min(1, clickX / availableWidth));
       const rawVal = min + ratio * (max - min);
-      const steppedVal = Math.round(rawVal / step) * step;
-      const clampedVal = Math.max(min, Math.min(max, steppedVal));
+      const clampedVal = Math.max(min, Math.min(max, rawVal));
+
+      const rawCursorX = e.clientX - rect.left;
+      const clampedCursorX = Math.max(0, Math.min(rect.width, rawCursorX));
+
+      if (tooltipRef.current) {
+        tooltipRef.current.style.left = `${clampedCursorX}px`;
+      }
+      if (tooltipTextRef.current) {
+        tooltipTextRef.current.textContent = formatDisplay(clampedVal);
+      }
+
       setHoverVal(clampedVal);
-      setTooltipX(e.clientX - rect.left);
+      setTooltipX(clampedCursorX);
+
       if (isDragging) {
         onChange(clampedVal);
       }
     },
-    [min, max, step, paddingX, isDragging, onChange]
+    [min, max, paddingX, isDragging, formatDisplay, onChange]
   );
 
   const handleMouseLeave = useCallback(() => {
@@ -326,10 +362,10 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
       const thumbGlowColor = shiftTonalRgba(primaryRgb, -0.10, 1.25, 0.32);
       const thumbSolidColor = shiftTonalRgba(primaryRgb, +0.15, 0.95, 1.0);
 
-      // Methodical slow continuous wave phases
-      const phase1 = ((accumulatedWaveTime % 4800) / 4800) * 2 * Math.PI + 2.2;
-      const phase2 = ((accumulatedWaveTime % 3600) / 3600) * 2 * Math.PI + 1.2;
-      const phase3 = ((accumulatedWaveTime % 2600) / 2600) * 2 * Math.PI;
+      // LastWave-native continuous wave phases (2400ms, 1800ms, 1300ms)
+      const phase1 = ((accumulatedWaveTime % 2400) / 2400) * 2 * Math.PI + 2.2;
+      const phase2 = ((accumulatedWaveTime % 1800) / 1800) * 2 * Math.PI + 1.2;
+      const phase3 = ((accumulatedWaveTime % 1300) / 1300) * 2 * Math.PI;
 
       ctx.clearRect(0, 0, width, height);
 
@@ -432,11 +468,9 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
 
   const displayTooltipVal =
     isDragging && hoverVal !== null ? hoverVal : isHovered && hoverVal !== null ? hoverVal : value;
-  const tooltipText = formatTooltip
-    ? formatTooltip(displayTooltipVal)
-    : `${Math.round(((displayTooltipVal - min) / (max - min || 1)) * 100)}%`;
+  const initialTooltipText = formatDisplay(displayTooltipVal);
 
-  const containerHeightClass = size === 'sm' ? 'h-7' : size === 'lg' ? 'h-10' : 'h-8';
+  const containerHeightClass = size === 'sm' ? 'h-5' : size === 'lg' ? 'h-8' : 'h-6';
 
   return (
     <div
@@ -448,17 +482,18 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
       className={`relative flex items-center group cursor-pointer select-none ${containerHeightClass} ${className}`}
       title={title}
     >
-      {/* Floating Hover/Drag Tooltip */}
+      {/* Floating Hover/Drag Tooltip - Zero Latency Hardware/DOM Sync */}
       {(isHovered || isDragging) && (
         <div
+          ref={tooltipRef}
           style={{
             left: `${tooltipX}px`,
             backgroundColor: 'var(--color-stop-1, #6366f1)',
             borderColor: 'var(--color-stop-2, #818cf8)',
           }}
-          className="absolute -top-7 transform -translate-x-1/2 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold text-white shadow-lg pointer-events-none z-30 whitespace-nowrap border animate-in fade-in duration-75"
+          className="absolute -top-7 transform -translate-x-1/2 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold text-white shadow-lg pointer-events-none z-30 whitespace-nowrap border"
         >
-          {tooltipText}
+          <span ref={tooltipTextRef}>{initialTooltipText}</span>
         </div>
       )}
 

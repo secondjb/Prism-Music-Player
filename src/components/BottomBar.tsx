@@ -350,7 +350,7 @@ export const BottomBar: React.FC = () => {
       </div>
 
       {/* 2. Audio Controls & Material 3 Expressive Seek Bar (Center) */}
-      <div className="flex flex-col items-center gap-1.5 w-2/4 max-w-2xl px-4 min-w-0 shrink">
+      <div className="flex flex-col items-center gap-0.5 w-2/4 max-w-2xl px-4 min-w-0 shrink">
         {/* Playback Buttons */}
         <div className="flex items-center gap-4">
           {/* Shuffle */}

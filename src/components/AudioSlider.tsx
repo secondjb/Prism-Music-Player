@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 
 interface AudioSliderProps {
   value: number;
@@ -17,7 +17,7 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
   value,
   min = 0,
   max = 100,
-  step = 0.01,
+  step: _step = 0.01,
   onChange,
   onChangeCommitted,
   formatTooltip,
@@ -29,11 +29,24 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [hoverVal, setHoverVal] = useState<number | null>(null);
   const [tooltipX, setTooltipX] = useState<number>(0);
+
   const containerRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const tooltipTextRef = useRef<HTMLSpanElement>(null);
+  const activeBarRef = useRef<HTMLDivElement>(null);
+  const thumbRef = useRef<HTMLDivElement>(null);
 
   const paddingX = size === 'sm' ? 8 : size === 'lg' ? 12 : 10;
   const effectiveVal = isDragging && hoverVal !== null ? hoverVal : value;
   const percent = Math.max(0, Math.min(100, ((effectiveVal - min) / (max - min || 1)) * 100));
+
+  const formatDisplay = useCallback(
+    (val: number) => {
+      if (formatTooltip) return formatTooltip(val);
+      return `${Math.round(((val - min) / (max - min || 1)) * 100)}%`;
+    },
+    [formatTooltip, min, max]
+  );
 
   const updateFromPointer = useCallback(
     (clientX: number, isCommit = false) => {
@@ -42,17 +55,38 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
       const clickX = clientX - rect.left - paddingX;
       const availableWidth = Math.max(1, rect.width - 2 * paddingX);
       const ratio = Math.max(0, Math.min(1, clickX / availableWidth));
+      
+      // Continuous precision during dragging for fluid analog movement
       const rawVal = min + ratio * (max - min);
-      const steppedVal = Math.round(rawVal / step) * step;
-      const clampedVal = Math.max(min, Math.min(max, steppedVal));
+      const clampedVal = Math.max(min, Math.min(max, rawVal));
+      const currentPercent = Math.max(0, Math.min(100, ((clampedVal - min) / (max - min || 1)) * 100));
+
+      const rawCursorX = clientX - rect.left;
+      const clampedCursorX = Math.max(0, Math.min(rect.width, rawCursorX));
+
+      // Synchronous, zero-latency DOM updates for instantaneous cursor tracking
+      if (tooltipRef.current) {
+        tooltipRef.current.style.left = `${clampedCursorX}px`;
+      }
+      if (tooltipTextRef.current) {
+        tooltipTextRef.current.textContent = formatDisplay(clampedVal);
+      }
+      if (activeBarRef.current) {
+        activeBarRef.current.style.width = `${currentPercent}%`;
+      }
+      if (thumbRef.current) {
+        thumbRef.current.style.left = `calc(${paddingX}px + (${currentPercent} * (100% - ${2 * paddingX}px) / 100))`;
+      }
+
       setHoverVal(clampedVal);
-      setTooltipX(clientX - rect.left);
+      setTooltipX(clampedCursorX);
       onChange(clampedVal);
+
       if (isCommit && onChangeCommitted) {
         onChangeCommitted(clampedVal);
       }
     },
-    [min, max, step, paddingX, onChange, onChangeCommitted]
+    [min, max, paddingX, formatDisplay, onChange, onChangeCommitted]
   );
 
   const handleMouseMove = useCallback(
@@ -63,15 +97,33 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
       const availableWidth = Math.max(1, rect.width - 2 * paddingX);
       const ratio = Math.max(0, Math.min(1, clickX / availableWidth));
       const rawVal = min + ratio * (max - min);
-      const steppedVal = Math.round(rawVal / step) * step;
-      const clampedVal = Math.max(min, Math.min(max, steppedVal));
+      const clampedVal = Math.max(min, Math.min(max, rawVal));
+
+      const rawCursorX = e.clientX - rect.left;
+      const clampedCursorX = Math.max(0, Math.min(rect.width, rawCursorX));
+
+      if (tooltipRef.current) {
+        tooltipRef.current.style.left = `${clampedCursorX}px`;
+      }
+      if (tooltipTextRef.current) {
+        tooltipTextRef.current.textContent = formatDisplay(clampedVal);
+      }
+
       setHoverVal(clampedVal);
-      setTooltipX(e.clientX - rect.left);
+      setTooltipX(clampedCursorX);
+
       if (isDragging) {
+        const currentPercent = Math.max(0, Math.min(100, ((clampedVal - min) / (max - min || 1)) * 100));
+        if (activeBarRef.current) {
+          activeBarRef.current.style.width = `${currentPercent}%`;
+        }
+        if (thumbRef.current) {
+          thumbRef.current.style.left = `calc(${paddingX}px + (${currentPercent} * (100% - ${2 * paddingX}px) / 100))`;
+        }
         onChange(clampedVal);
       }
     },
-    [min, max, step, paddingX, isDragging, onChange]
+    [min, max, paddingX, isDragging, formatDisplay, onChange]
   );
 
   const handleMouseLeave = useCallback(() => {
@@ -118,12 +170,10 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
   }, [isDragging, handleGlobalMouseMove, handleMouseUp]);
 
   const displayTooltipVal = isDragging && hoverVal !== null ? hoverVal : isHovered && hoverVal !== null ? hoverVal : value;
-  const tooltipText = formatTooltip
-    ? formatTooltip(displayTooltipVal)
-    : `${Math.round(((displayTooltipVal - min) / (max - min || 1)) * 100)}%`;
+  const initialTooltipText = formatDisplay(displayTooltipVal);
 
   const trackHeightClass = size === 'sm' ? 'h-[3.5px]' : size === 'lg' ? 'h-[5px]' : 'h-[4px]';
-  const containerHeightClass = size === 'sm' ? 'h-7' : size === 'lg' ? 'h-10' : 'h-8';
+  const containerHeightClass = size === 'sm' ? 'h-5' : size === 'lg' ? 'h-8' : 'h-6';
   const haloSizeClass = size === 'sm' ? 'w-4 h-4 -ml-2 -mt-2' : size === 'lg' ? 'w-6 h-6 -ml-3 -mt-3' : 'w-5 h-5 -ml-2.5 -mt-2.5';
   const thumbSizeClass = size === 'sm' ? 'w-2.5 h-2.5 -ml-[5px] -mt-[5px]' : size === 'lg' ? 'w-3.5 h-3.5 -ml-[7px] -mt-[7px]' : 'w-3 h-3 -ml-1.5 -mt-1.5';
 
@@ -137,17 +187,18 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
       className={`relative flex items-center group cursor-pointer select-none ${containerHeightClass} ${className}`}
       title={title}
     >
-      {/* Floating Hover/Drag Tooltip */}
+      {/* Floating Hover/Drag Tooltip - Zero Latency Hardware/DOM Sync */}
       {(isHovered || isDragging) && (
         <div
+          ref={tooltipRef}
           style={{
             left: `${tooltipX}px`,
             backgroundColor: 'var(--color-stop-1, #6366f1)',
             borderColor: 'var(--color-stop-2, #818cf8)',
           }}
-          className="absolute -top-7 transform -translate-x-1/2 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold text-white shadow-lg pointer-events-none z-30 whitespace-nowrap border animate-in fade-in duration-75"
+          className="absolute -top-7 transform -translate-x-1/2 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold text-white shadow-lg pointer-events-none z-30 whitespace-nowrap border"
         >
-          {tooltipText}
+          <span ref={tooltipTextRef}>{initialTooltipText}</span>
         </div>
       )}
 
@@ -159,7 +210,8 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
         <div className={`w-full ${trackHeightClass} rounded-full bg-white/15 relative overflow-hidden`}>
           {/* Material 3 Active Capsule Fill with Dynamic Theme Gradient */}
           <div
-            className={`h-full rounded-full`}
+            ref={activeBarRef}
+            className="h-full rounded-full"
             style={{
               width: `${percent}%`,
               background: 'linear-gradient(to right, var(--color-stop-1, #6366f1), var(--color-stop-2, #818cf8))',
@@ -170,6 +222,7 @@ export const AudioSlider: React.FC<AudioSliderProps> = ({
 
       {/* Material 3 Leading Thumb Indicator with Frosted Glow Halo */}
       <div
+        ref={thumbRef}
         className="absolute top-1/2 pointer-events-none z-10"
         style={{
           left: `calc(${paddingX}px + (${percent} * (100% - ${2 * paddingX}px) / 100))`,

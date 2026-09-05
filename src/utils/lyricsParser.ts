@@ -147,43 +147,8 @@ export function parseRichLyrics(rawLrc: string): ParsedLyricLine[] {
     const rawDur = next ? next.timeMs - cur.timeMs : 3500;
     const durationMs = Math.min(8000, Math.max(1200, rawDur));
 
-    let syllables: LyricSyllable[] = [];
     const hasExplicit = cur.explicitSyllables.length > 0;
-
-    if (hasExplicit) {
-      syllables = cur.explicitSyllables;
-    } else {
-      // Decompose line into rhythmic word syllables so word-by-word animation and jumping text
-      // work seamlessly on ANY synced song!
-      const words = cur.text.split(/(\s+)/).filter(Boolean);
-      const nonWhitespaceWords = words.filter((w) => w.trim().length > 0);
-      const totalChars = nonWhitespaceWords.reduce((sum, w) => sum + w.length, 0) || 1;
-
-      const rawGap = next ? next.timeMs - cur.timeMs : 3500;
-      const estimatedSinging = rawGap <= 4500
-        ? Math.max(800, rawGap - 200)
-        : Math.min(rawGap - 350, Math.max(2500, nonWhitespaceWords.length * 320));
-      const totalSingingMs = Math.min(7500, estimatedSinging);
-
-      let elapsedInLine = 0;
-      for (let wIdx = 0; wIdx < nonWhitespaceWords.length; wIdx++) {
-        const token = nonWhitespaceWords[wIdx];
-        const isLast = wIdx === nonWhitespaceWords.length - 1;
-        const weight = token.length / totalChars;
-        const sylDur = isLast
-          ? Math.max(150, totalSingingMs - elapsedInLine)
-          : Math.max(160, Math.round(totalSingingMs * weight));
-        const sylTime = cur.timeMs + elapsedInLine;
-        elapsedInLine += sylDur;
-
-        syllables.push({
-          timeMs: sylTime,
-          durationMs: sylDur,
-          text: token.trim(),
-          hasTrailingSpace: wIdx < nonWhitespaceWords.length - 1,
-        });
-      }
-    }
+    const syllables: LyricSyllable[] = hasExplicit ? cur.explicitSyllables : [];
 
     result.push({
       id: `${i}-${cur.timeMs}`,
@@ -193,7 +158,7 @@ export function parseRichLyrics(rawLrc: string): ParsedLyricLine[] {
       durationSecs: durationMs / 1000,
       content: cur.text,
       syllables,
-      hasSyllables: syllables.length > 0,
+      hasSyllables: hasExplicit,
     });
   }
 

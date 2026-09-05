@@ -16,6 +16,8 @@ interface ColumnConfigModalProps {
   onDensityChange: (density: TrackGridDensity) => void;
   showSubArtistUnderTitle: boolean;
   onToggleSubArtist: (show: boolean) => void;
+  showTrackGridScrollbar: boolean;
+  onToggleTrackGridScrollbar: (show: boolean) => void;
   onResetGrid: () => void;
   visibleTrackColumns: TrackColumnId[];
   onToggleColumn: (col: TrackColumnId) => void;
@@ -28,6 +30,8 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
   onDensityChange,
   showSubArtistUnderTitle,
   onToggleSubArtist,
+  showTrackGridScrollbar,
+  onToggleTrackGridScrollbar,
   onResetGrid,
   visibleTrackColumns,
   onToggleColumn,
@@ -162,6 +166,21 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
             type="checkbox"
             checked={showSubArtistUnderTitle}
             onChange={(e) => onToggleSubArtist(e.target.checked)}
+            className="w-4 h-4 rounded cursor-pointer"
+            style={{ accentColor: 'var(--color-stop-1, #6366f1)' }}
+          />
+        </div>
+
+        {/* Scrollbar Visibility Toggle */}
+        <div className="flex items-center justify-between py-2 border-b border-white/10">
+          <div className="flex flex-col">
+            <span className="text-zinc-200 font-medium text-xs">Show Table Scrollbar</span>
+            <span className="text-[10px] text-zinc-400">Display vertical scrollbar on song grid</span>
+          </div>
+          <input
+            type="checkbox"
+            checked={showTrackGridScrollbar}
+            onChange={(e) => onToggleTrackGridScrollbar(e.target.checked)}
             className="w-4 h-4 rounded cursor-pointer"
             style={{ accentColor: 'var(--color-stop-1, #6366f1)' }}
           />

@@ -100,6 +100,10 @@ export const SettingsView: React.FC = () => {
   const toggleAutoEmbedLyrics = usePlayerStore((s) => s.toggleAutoEmbedLyrics);
   const preferWordSyncedLyrics = usePlayerStore((s) => s.preferWordSyncedLyrics);
   const togglePreferWordSyncedLyrics = usePlayerStore((s) => s.togglePreferWordSyncedLyrics);
+  const inferWordSyncedLyrics = usePlayerStore((s) => s.inferWordSyncedLyrics);
+  const toggleInferWordSyncedLyrics = usePlayerStore((s) => s.toggleInferWordSyncedLyrics);
+  const showTrackGridScrollbar = usePlayerStore((s) => s.showTrackGridScrollbar);
+  const toggleShowTrackGridScrollbar = usePlayerStore((s) => s.toggleShowTrackGridScrollbar);
 
   const autoCheckUpdates = usePlayerStore((s) => s.autoCheckUpdates);
   const toggleAutoCheckUpdates = usePlayerStore((s) => s.toggleAutoCheckUpdates);
@@ -704,6 +708,29 @@ export const SettingsView: React.FC = () => {
             />
           </div>
 
+          {/* Infer Word-by-Word Sync Toggle */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-3">
+              <Sparkles className="w-4 h-4 text-pink-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Infer Word-by-Word Sync</span>
+                <span className="text-[11px] text-zinc-400">Automatically estimate word-level timing for standard line-synced lyrics</span>
+              </div>
+            </div>
+            <Checkbox
+              checked={inferWordSyncedLyrics}
+              onChange={toggleInferWordSyncedLyrics}
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
+            />
+          </div>
+
           {/* Auto-embed Lyrics Toggle */}
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3">
@@ -760,6 +787,28 @@ export const SettingsView: React.FC = () => {
             <Checkbox
               checked={showAudioSpecsInLibrary}
               onChange={() => toggleShowAudioSpecsInLibrary()}
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-3">
+              <Sliders className="w-4 h-4 text-indigo-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Show Song Table Scrollbar</span>
+                <span className="text-[11px] text-zinc-400">Display vertical scrollbar on song grid (uncheck for clean borderless look)</span>
+              </div>
+            </div>
+            <Checkbox
+              checked={showTrackGridScrollbar}
+              onChange={() => toggleShowTrackGridScrollbar()}
               size="small"
               sx={{
                 color: 'var(--color-stop-1, #6366f1)',

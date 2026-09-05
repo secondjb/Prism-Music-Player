@@ -60,7 +60,7 @@ const ArtistCard: React.FC<{ artistName: string; artistTracks: Track[]; onPlay: 
   }, []);
 
   const firstTrack = artistTracks[0];
-  const art = useTrackArt(isVisible ? firstTrack : null);
+  const art = useTrackArt(isVisible ? firstTrack : null, { thumbnail: true, maxSize: 256 });
 
   return (
     <div

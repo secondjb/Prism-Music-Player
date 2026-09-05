@@ -66,6 +66,8 @@ interface PlayerState {
   isWavySeekbarEnabled: boolean;
   autoEmbedLyrics: boolean;
   preferWordSyncedLyrics: boolean;
+  inferWordSyncedLyrics: boolean;
+  toggleInferWordSyncedLyrics: () => void;
   isStatsCollectionEnabled: boolean;
   showDemoStats: boolean;
   anonymizeStats: boolean;
@@ -158,6 +160,9 @@ interface PlayerState {
   setColumnOrder: (order: TrackColumnId[]) => void;
   showSubArtistUnderTitle: boolean;
   setShowSubArtistUnderTitle: (show: boolean) => void;
+  showTrackGridScrollbar: boolean;
+  setShowTrackGridScrollbar: (show: boolean) => void;
+  toggleShowTrackGridScrollbar: () => void;
 
   // Shuffle & Repeat actions
   toggleShuffle: () => void;
@@ -277,6 +282,7 @@ export const usePlayerStore = create<PlayerState>()(
       isWavySeekbarEnabled: true,
       autoEmbedLyrics: false,
       preferWordSyncedLyrics: true,
+      inferWordSyncedLyrics: true,
       isStatsCollectionEnabled: false,
       showDemoStats: false,
       anonymizeStats: false,
@@ -330,6 +336,10 @@ export const usePlayerStore = create<PlayerState>()(
 
       showSubArtistUnderTitle: true,
       setShowSubArtistUnderTitle: (show) => set({ showSubArtistUnderTitle: show }),
+      showTrackGridScrollbar: false,
+      setShowTrackGridScrollbar: (show) => set({ showTrackGridScrollbar: show }),
+      toggleShowTrackGridScrollbar: () =>
+        set((state) => ({ showTrackGridScrollbar: !state.showTrackGridScrollbar })),
 
       // App Updates
       autoCheckUpdates: true,
@@ -787,6 +797,7 @@ export const usePlayerStore = create<PlayerState>()(
       toggleWavySeekbar: () => set((state) => ({ isWavySeekbarEnabled: !state.isWavySeekbarEnabled })),
       toggleAutoEmbedLyrics: () => set((state) => ({ autoEmbedLyrics: !state.autoEmbedLyrics })),
       togglePreferWordSyncedLyrics: () => set((state) => ({ preferWordSyncedLyrics: !state.preferWordSyncedLyrics })),
+      toggleInferWordSyncedLyrics: () => set((state) => ({ inferWordSyncedLyrics: !state.inferWordSyncedLyrics })),
 
       toggleAutoHideLyricsControls: () => set((state) => ({ autoHideLyricsControls: !state.autoHideLyricsControls })),
 
@@ -1118,6 +1129,7 @@ export const usePlayerStore = create<PlayerState>()(
         isWavySeekbarEnabled: state.isWavySeekbarEnabled,
         autoEmbedLyrics: state.autoEmbedLyrics,
         preferWordSyncedLyrics: state.preferWordSyncedLyrics,
+        inferWordSyncedLyrics: state.inferWordSyncedLyrics,
         includedDirectories: state.includedDirectories,
         excludedDirectories: state.excludedDirectories,
         queue: state.queue,
@@ -1130,6 +1142,8 @@ export const usePlayerStore = create<PlayerState>()(
         visibleTrackColumns: state.visibleTrackColumns,
         trackGridDensity: state.trackGridDensity,
         columnOrder: state.columnOrder,
+        showSubArtistUnderTitle: state.showSubArtistUnderTitle,
+        showTrackGridScrollbar: state.showTrackGridScrollbar,
       }),
     }
   )

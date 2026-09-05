@@ -36,9 +36,51 @@ function parseTimestampMs(minStr: string, secStr: string, fracStr?: string): num
 }
 
 /**
+ * Intelligently infers word-by-word timing for standard line-synced lyrics based on
+ * word length weighting and musical vocal pacing.
+ */
+function inferLineSyllables(lineText: string, lineStartMs: number, lineDurMs: number): LyricSyllable[] {
+  const words = lineText.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+
+  // Singing usually spans about 88% of line duration, leaving a natural breath before next line
+  const singSpanMs = Math.min(Math.max(600, lineDurMs - 200), Math.max(800, lineDurMs * 0.88));
+
+  // Weight words by character count (longer words take longer to sing, minimum weight of 2)
+  const weights = words.map((w) => Math.max(2, w.length));
+  const totalWeight = weights.reduce((acc, val) => acc + val, 0);
+
+  const syllables: LyricSyllable[] = [];
+  let elapsed = 0;
+
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    const weight = weights[i];
+    const isLast = i === words.length - 1;
+    const wordDurMs = isLast
+      ? Math.max(150, singSpanMs - elapsed)
+      : Math.max(150, Math.round((weight / totalWeight) * singSpanMs));
+
+    syllables.push({
+      timeMs: lineStartMs + elapsed,
+      durationMs: wordDurMs,
+      text: word,
+      hasTrailingSpace: !isLast,
+    });
+
+    elapsed += wordDurMs;
+  }
+
+  return syllables;
+}
+
+/**
  * Parses raw LRC string (standard or syllable-enhanced) into rich ParsedLyricLine array.
  */
-export function parseRichLyrics(rawLrc: string): ParsedLyricLine[] {
+export function parseRichLyrics(
+  rawLrc: string,
+  options?: { inferWordSync?: boolean }
+): ParsedLyricLine[] {
   if (!rawLrc || !rawLrc.trim()) return [];
 
   const rawLines = rawLrc.split(/\r?\n/);
@@ -148,7 +190,16 @@ export function parseRichLyrics(rawLrc: string): ParsedLyricLine[] {
     const durationMs = Math.min(8000, Math.max(1200, rawDur));
 
     const hasExplicit = cur.explicitSyllables.length > 0;
-    const syllables: LyricSyllable[] = hasExplicit ? cur.explicitSyllables : [];
+    let syllables: LyricSyllable[] = [];
+    let hasSyllables = false;
+
+    if (hasExplicit) {
+      syllables = cur.explicitSyllables;
+      hasSyllables = true;
+    } else if (options?.inferWordSync && cur.text.trim()) {
+      syllables = inferLineSyllables(cur.text, cur.timeMs, durationMs);
+      hasSyllables = syllables.length > 0;
+    }
 
     result.push({
       id: `${i}-${cur.timeMs}`,
@@ -158,7 +209,7 @@ export function parseRichLyrics(rawLrc: string): ParsedLyricLine[] {
       durationSecs: durationMs / 1000,
       content: cur.text,
       syllables,
-      hasSyllables: hasExplicit,
+      hasSyllables,
     });
   }
 

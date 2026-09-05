@@ -130,7 +130,7 @@ const OrderCell: React.FC<any> = ({ model, rowIndex }) => {
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
   const tracks = usePlayerStore((s) => s.tracks);
 
-  if (!track.id) return null;
+  if (!track.id || (model as any)?.__isSpacer) return null;
   const isCurrentPlaying = currentTrack?.id === track.id;
   const config = ORDER_DENSITY_CONFIG[trackGridDensity] || ORDER_DENSITY_CONFIG.normal;
 
@@ -194,8 +194,9 @@ const OrderCell: React.FC<any> = ({ model, rowIndex }) => {
 
 const TrackArtCell: React.FC<any> = ({ model }) => {
   const track = (model || {}) as Track;
+  if (!track.id || (model as any)?.__isSpacer) return null;
   const density = usePlayerStore((s) => s.trackGridDensity);
-  const art = useTrackArt(track);
+  const art = useTrackArt(track, { thumbnail: true, maxSize: 96 });
 
   const artSizes: Record<string, string> = {
     compact: 'w-6 h-6 rounded',
@@ -256,7 +257,7 @@ const TitleCell: React.FC<any> = ({ model }) => {
   const showSubArtistUnderTitle = usePlayerStore((s) => s.showSubArtistUnderTitle);
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
 
-  if (!track.title) return null;
+  if (!track.title || (model as any)?.__isSpacer) return null;
   const isCurrentPlaying = currentTrack?.id === track.id;
 
   const hasSubArtistLink = Boolean(
@@ -713,6 +714,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     visibleTrackColumns,
     trackGridDensity,
     showSubArtistUnderTitle,
+    showTrackGridScrollbar,
+    setShowTrackGridScrollbar,
     resetGrid,
     setTrackGridDensity,
     setShowSubArtistUnderTitle,
@@ -875,10 +878,26 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     return [...left, ...middle];
   }, [visibleTrackColumns, columnOrder]);
 
+  // Helper to ensure spacer padding rows always stay at the very bottom during column sorts
+  const createSpacerAwareCompare = useCallback((prop: string) => {
+    return function (this: { order?: 'asc' | 'desc'; column?: any }, a: any, b: any) {
+      if (a?.__isSpacer && b?.__isSpacer) return 0;
+      if (a?.__isSpacer) return this?.order === 'desc' ? -1 : 1;
+      if (b?.__isSpacer) return this?.order === 'desc' ? 1 : -1;
+      const aVal = a?.[prop];
+      const bVal = b?.[prop];
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return aVal - bVal;
+      }
+      return String(aVal ?? '').toLowerCase().localeCompare(String(bVal ?? '').toLowerCase(), undefined, { numeric: true });
+    };
+  }, []);
+
   // Column definitions with fractional auto-sizing and strict layout boundaries
   const columns = useMemo<ColumnRegular[]>(() => {
+    const availableWidth = showTrackGridScrollbar ? containerWidth - 10 : containerWidth;
     const widths = calculateColumnWidths(
-      containerWidth,
+      availableWidth,
       visibleTrackColumns,
       trackGridDensity,
       columnWidths
@@ -913,6 +932,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: titleCellTemplate,
+        cellCompare: createSpacerAwareCompare('title'),
       },
       artist: {
         prop: 'artist',
@@ -924,6 +944,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: artistCellTemplate,
+        cellCompare: createSpacerAwareCompare('artist'),
       },
       album: {
         prop: 'album',
@@ -935,6 +956,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: albumCellTemplate,
+        cellCompare: createSpacerAwareCompare('album'),
       },
       date: {
         prop: 'year',
@@ -946,6 +968,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: dateCellTemplate,
+        cellCompare: createSpacerAwareCompare('year'),
       },
       genre: {
         prop: 'genre',
@@ -957,6 +980,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: genreCellTemplate,
+        cellCompare: createSpacerAwareCompare('genre'),
       },
       duration: {
         prop: 'duration_secs',
@@ -968,6 +992,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: durationCellTemplate,
+        cellCompare: createSpacerAwareCompare('duration_secs'),
       },
       favorite: {
         prop: 'favorite',
@@ -1015,6 +1040,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     trackGridDensity,
     columnWidths,
     sortState,
+    showTrackGridScrollbar,
+    createSpacerAwareCompare,
     columnHeaderTemplate,
     orderCellTemplate,
     artCellTemplate,
@@ -1030,13 +1057,45 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     actionsCellTemplate,
   ]);
 
-  // Data source for RevoGrid with current-playing row classes
+  // Data source for RevoGrid with current-playing row classes and bottom padding spacer rows
   const source = useMemo(() => {
-    return tracks.map((track, idx) => ({
+    if (tracks.length === 0) return [];
+    const baseSource = tracks.map((track, idx) => ({
       ...track,
       rowIndex: idx,
       rowClass: `group/row select-none ${currentTrack?.id === track.id ? 'is-current-playing' : ''}`,
     }));
+
+    // Add 2 padding spacer rows at the bottom so the last track is never cut off
+    // and user can scroll 1-2 row heights deeper than there are songs
+    const spacerRows = [
+      {
+        id: '',
+        title: '',
+        artist: '',
+        album: '',
+        duration_secs: 0,
+        year: null,
+        genre: '',
+        rowIndex: -1,
+        __isSpacer: true,
+        rowClass: 'spacer-row pointer-events-none opacity-0 select-none !bg-transparent border-none',
+      },
+      {
+        id: '',
+        title: '',
+        artist: '',
+        album: '',
+        duration_secs: 0,
+        year: null,
+        genre: '',
+        rowIndex: -1,
+        __isSpacer: true,
+        rowClass: 'spacer-row pointer-events-none opacity-0 select-none !bg-transparent border-none',
+      },
+    ];
+
+    return [...baseSource, ...spacerRows];
   }, [tracks, currentTrack?.id]);
 
   // Handle column resizing with strict "brick wall" right boundary constraint
@@ -1180,6 +1239,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               onDensityChange={setTrackGridDensity}
               showSubArtistUnderTitle={showSubArtistUnderTitle}
               onToggleSubArtist={setShowSubArtistUnderTitle}
+              showTrackGridScrollbar={showTrackGridScrollbar}
+              onToggleTrackGridScrollbar={setShowTrackGridScrollbar}
               onResetGrid={resetGrid}
               visibleTrackColumns={visibleTrackColumns}
               onToggleColumn={handleToggleColumn}
@@ -1193,12 +1254,15 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         ref={containerRef}
         tabIndex={0}
         onKeyDown={onKeyDown}
-        className="flex-1 w-full relative outline-none overflow-hidden"
+        className={`flex-1 w-full relative outline-none overflow-hidden ${
+          showTrackGridScrollbar ? 'grid-show-scrollbar' : 'grid-hide-scrollbar'
+        }`}
         style={{ minHeight: 0 }}
       >
         <RevoGrid
           ref={gridRef}
           theme="darkMaterial"
+          className={showTrackGridScrollbar ? 'show-scrollbar' : 'hide-scrollbar'}
           source={source}
           columns={columns}
           rowSize={currentDensityHeight}
@@ -1215,23 +1279,28 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       </div>
 
       {/* Context Menu Overlay */}
-      {contextMenu && (
-        <div
-          className="fixed inset-0 z-50"
-          onClick={() => setContextMenu(null)}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            setContextMenu(null);
-          }}
-        >
+      {contextMenu && (() => {
+        const menuHeight = playlistId && onRemoveFromPlaylist ? 310 : 270;
+        const openUpward = contextMenu.y + menuHeight > window.innerHeight - 100;
+        const top = openUpward
+          ? Math.max(16, contextMenu.y - menuHeight)
+          : Math.min(contextMenu.y, window.innerHeight - 100 - menuHeight);
+        const left = Math.min(contextMenu.x, window.innerWidth - 240);
+
+        return (
           <div
-            style={{
-              top: Math.min(contextMenu.y, window.innerHeight - 260),
-              left: Math.min(contextMenu.x, window.innerWidth - 220),
+            className="fixed inset-0 z-50"
+            onClick={() => setContextMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setContextMenu(null);
             }}
-            className="fixed z-50 w-56 glass-panel border border-white/10 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 text-xs text-zinc-300 animate-in fade-in zoom-in-95 duration-100 bg-[#181818]/95"
-            onClick={(e) => e.stopPropagation()}
           >
+            <div
+              style={{ top, left }}
+              className="fixed z-50 w-56 glass-panel border border-white/10 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 text-xs text-zinc-300 animate-in fade-in zoom-in-95 duration-100 bg-[#181818]/95"
+              onClick={(e) => e.stopPropagation()}
+            >
             <div className="px-2.5 py-1 text-[11px] font-semibold text-zinc-400 border-b border-white/10 truncate">
               {contextMenu.track.title}
             </div>
@@ -1311,7 +1380,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
             )}
           </div>
         </div>
-      )}
+      );
+    })()}
     </div>
   );
 };

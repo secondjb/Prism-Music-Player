@@ -368,6 +368,8 @@ export function useTrackTableState() {
   const setColumnOrder = usePlayerStore((s) => s.setColumnOrder);
   const showSubArtistUnderTitle = usePlayerStore((s) => s.showSubArtistUnderTitle);
   const setShowSubArtistUnderTitle = usePlayerStore((s) => s.setShowSubArtistUnderTitle);
+  const showTrackGridScrollbar = usePlayerStore((s) => s.showTrackGridScrollbar);
+  const setShowTrackGridScrollbar = usePlayerStore((s) => s.setShowTrackGridScrollbar);
 
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
     try {
@@ -383,9 +385,10 @@ export function useTrackTableState() {
     setColumnWidths({});
     setTrackGridDensity('normal');
     setShowSubArtistUnderTitle(true);
+    setShowTrackGridScrollbar(false);
     setVisibleTrackColumns(DEFAULT_VISIBLE_COLUMNS);
     setColumnOrder(DEFAULT_COLUMN_ORDER);
-  }, [setTrackGridDensity, setShowSubArtistUnderTitle, setVisibleTrackColumns, setColumnOrder]);
+  }, [setTrackGridDensity, setShowSubArtistUnderTitle, setShowTrackGridScrollbar, setVisibleTrackColumns, setColumnOrder]);
 
   const saveColumnWidths = useCallback((widths: Record<string, number>) => {
     setColumnWidths((prev) => {
@@ -406,6 +409,8 @@ export function useTrackTableState() {
     setColumnOrder,
     showSubArtistUnderTitle,
     setShowSubArtistUnderTitle,
+    showTrackGridScrollbar,
+    setShowTrackGridScrollbar,
     resetGrid,
     COLUMN_SIZING_STORAGE_KEY,
     columnWidths,

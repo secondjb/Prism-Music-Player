@@ -12,6 +12,7 @@ interface WavyAudioSliderProps {
   className?: string;
   size?: 'sm' | 'md' | 'lg';
   title?: string;
+  active?: boolean;
 }
 
 // Convert CSS hex or rgb string to [r, g, b] in 0-255
@@ -100,6 +101,7 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
   className = '',
   size = 'md',
   title,
+  active = true,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -108,6 +110,10 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
   const [hoverVal, setHoverVal] = useState<number | null>(null);
   const [tooltipX, setTooltipX] = useState<number>(0);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
+
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const requestTickRef = useRef<(() => void) | null>(null);
 
   // Persistent references so the animation and interpolation loops NEVER restart when props update
   const isPlayingRef = useRef(isPlaying);
@@ -134,7 +140,12 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
   const syncRef = useRef({ val: value, timestamp: performance.now() });
   useEffect(() => {
     syncRef.current = { val: value, timestamp: performance.now() };
+    requestTickRef.current?.();
   }, [value]);
+
+  useEffect(() => {
+    requestTickRef.current?.();
+  }, [isPlaying, isDragging, active]);
 
   const thumbRadius = size === 'sm' ? 5.0 : size === 'lg' ? 7.0 : 6.0;
   const paddingX = thumbRadius + 4;
@@ -263,6 +274,8 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
     let animationFrameId: number;
     let lastTime = performance.now();
     let accumulatedWaveTime = 0;
+    let cachedWidth = Math.max(1, canvas.clientWidth || 300);
+    let cachedHeight = Math.max(1, canvas.clientHeight || 24);
 
     const smootherstep = (t: number) => {
       const c = Math.max(0, Math.min(1, t));
@@ -276,17 +289,18 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
         accumulatedWaveTime += dt;
       }
 
-      const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
+      const targetW = Math.round(cachedWidth * dpr);
+      const targetH = Math.round(cachedHeight * dpr);
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        canvas.width = targetW;
+        canvas.height = targetH;
       }
       ctx.resetTransform?.();
       ctx.scale(dpr, dpr);
 
-      const width = rect.width;
-      const height = rect.height;
+      const width = cachedWidth;
+      const height = cachedHeight;
       const centerY = height / 2;
       const currentSize = sizeRef.current;
 
@@ -458,13 +472,51 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
         ctx.fillStyle = thumbSolidColor;
         ctx.fill();
       }
-
-      animationFrameId = requestAnimationFrame(render);
     };
 
-    animationFrameId = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(animationFrameId);
-  }, []); // Runs permanently once mounted; never resets or cancels on value updates!
+    let isLoopRunning = false;
+
+    const loop = (now: number) => {
+      if (!activeRef.current) {
+        isLoopRunning = false;
+        return;
+      }
+      render(now);
+      if (isPlayingRef.current || isDraggingRef.current) {
+        animationFrameId = requestAnimationFrame(loop);
+      } else {
+        isLoopRunning = false;
+      }
+    };
+
+    const requestTick = () => {
+      if (!activeRef.current) return;
+      if (!isLoopRunning) {
+        isLoopRunning = true;
+        lastTime = performance.now();
+        animationFrameId = requestAnimationFrame(loop);
+      }
+    };
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect) {
+          cachedWidth = Math.max(1, Math.round(entry.contentRect.width));
+          cachedHeight = Math.max(1, Math.round(entry.contentRect.height));
+          requestTick();
+        }
+      }
+    });
+    resizeObserver.observe(canvas);
+
+    requestTickRef.current = requestTick;
+    requestTick();
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   const displayTooltipVal =
     isDragging && hoverVal !== null ? hoverVal : isHovered && hoverVal !== null ? hoverVal : value;

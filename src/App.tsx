@@ -33,6 +33,7 @@ export const App: React.FC = () => {
   const infoModalTrack = usePlayerStore((s) => s.infoModalTrack);
 
   const trackArt = useTrackArt(currentTrack);
+  const ambientArt = useTrackArt(currentTrack, { thumbnail: true, maxSize: 128 });
 
   // Sync MediaSession metadata & action handlers for Windows System Media Transport Controls (SMTC)
   useEffect(() => {
@@ -326,10 +327,10 @@ export const App: React.FC = () => {
     <div className="w-screen h-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden relative selection:bg-indigo-500/30 selection:text-indigo-200">
       {/* Background Ambient Glassmorphism Glow */}
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-        {trackArt ? (
+        {(ambientArt || trackArt) ? (
           <div
             className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] opacity-20 blur-[140px] transition-all duration-1000 bg-cover bg-center scale-110"
-            style={{ backgroundImage: `url(${trackArt})` }}
+            style={{ backgroundImage: `url(${ambientArt || trackArt})` }}
           />
         ) : (
           <>

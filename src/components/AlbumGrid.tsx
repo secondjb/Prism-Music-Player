@@ -61,7 +61,7 @@ const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () 
   }, []);
 
   const firstTrack = albumTracks[0];
-  const art = useTrackArt(isVisible ? firstTrack : null);
+  const art = useTrackArt(isVisible ? firstTrack : null, { thumbnail: true, maxSize: 256 });
   const navigateToArtist = usePlayerStore((s) => s.navigateToArtist);
 
   return (

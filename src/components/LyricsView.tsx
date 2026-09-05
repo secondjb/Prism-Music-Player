@@ -66,6 +66,323 @@ const ROMANIZATION_OPTIONS = [
   { id: 'replace', name: 'Replace Original', desc: 'Replace original script with romanized text' },
 ] as const;
 
+interface LyricLineRowProps {
+  line: ParsedLyricLine;
+  idx: number;
+  isActive: boolean;
+  isPast: boolean;
+  distance: number;
+  isUnsynced: boolean;
+  lyricsAnimationStyle: string;
+  lyricsFontSizePreset: string;
+  isRomanizationEnabled: boolean;
+  romanizationMode: string;
+  activeFontSize: number;
+  inactiveFontSize: number;
+  currentTimeMs: number;
+  activeLineRef: React.Ref<HTMLDivElement> | null;
+  onSeek: (secs: number) => void;
+}
+
+const LyricLineRow = React.memo<LyricLineRowProps>(
+  ({
+    line,
+    idx,
+    isActive,
+    isPast,
+    distance,
+    isUnsynced,
+    lyricsAnimationStyle,
+    lyricsFontSizePreset,
+    isRomanizationEnabled,
+    romanizationMode,
+    activeFontSize,
+    inactiveFontSize,
+    currentTimeMs,
+    activeLineRef,
+    onSeek,
+  }) => {
+    if (lyricsFontSizePreset === 'maximum' && !isUnsynced && distance > 1) {
+      return null;
+    }
+
+    const showRom = isRomanizationEnabled && line.romanized;
+    const mainText = showRom && romanizationMode === 'replace' ? line.romanized : line.content;
+    const subText = showRom && romanizationMode === 'below' ? line.romanized : null;
+
+    let scaleTarget = 1;
+    let transXTarget = 0;
+    let transYTarget = 0;
+    let opacityTarget = isActive ? 1 : 0.35;
+    let blurAmount = 'none';
+
+    if (!isUnsynced) {
+      switch (lyricsAnimationStyle) {
+        case 'apple_fluid':
+          scaleTarget = isActive ? 1.085 : distance === 1 ? 0.99 : 0.975;
+          transXTarget = isActive ? 4 : isPast ? 0 : -6;
+          transYTarget = isActive ? -2 : isPast ? -1 : 3;
+          opacityTarget = isActive ? 1 : distance === 1 ? 0.64 : isPast ? 0.5 : 0.43;
+          break;
+        case 'karaoke_pulse':
+          scaleTarget = isActive ? 1.1 : distance === 1 ? 0.99 : 0.97;
+          transXTarget = isActive ? 4 : 0;
+          transYTarget = isActive ? -3 : 1;
+          opacityTarget = isActive ? 1 : isPast ? 0.62 : 0.49;
+          break;
+        case 'kinetic_slide':
+          scaleTarget = isActive ? 1.045 : isPast ? 0.99 : 0.975;
+          transXTarget = isActive ? 0 : isPast ? 14 : -24;
+          transYTarget = isActive ? -1 : 1;
+          opacityTarget = isActive ? 1 : isPast ? 0.54 : 0.42;
+          break;
+        case 'cinematic_blur':
+          scaleTarget = isActive ? 1.065 : distance === 1 ? 0.96 : 0.93;
+          transYTarget = isActive ? 0 : isPast ? -10 : 10;
+          opacityTarget = isActive ? 1 : distance <= 1 ? 0.58 : 0.28;
+          blurAmount = isActive ? 'blur(0px)' : distance === 1 ? 'blur(2px)' : 'blur(4px)';
+          break;
+        case 'lossless_glow':
+          scaleTarget = isActive ? 1.075 : distance === 1 ? 0.99 : 0.97;
+          transXTarget = isActive ? 3 : 0;
+          transYTarget = isActive ? -2 : 1;
+          opacityTarget = isActive ? 1 : distance === 1 ? 0.66 : 0.46;
+          break;
+        case 'card_pop':
+          scaleTarget = isActive ? 1.065 : 0.985;
+          transYTarget = isActive ? -5 : 2;
+          opacityTarget = isActive ? 1 : isPast ? 0.62 : 0.48;
+          break;
+        case 'apple_zoom':
+          scaleTarget = isActive ? 1.18 : distance === 1 ? 0.94 : 0.88;
+          transYTarget = isActive ? -4 : isPast ? -1 : 2;
+          opacityTarget = isActive ? 1 : distance === 1 ? 0.55 : 0.32;
+          break;
+        case 'minimal_wave':
+        default:
+          scaleTarget = 1;
+          transXTarget = isActive ? 2 : isPast ? 0 : -2;
+          transYTarget = isPast ? -1 : isActive ? 0 : 1;
+          opacityTarget = isActive ? 1 : distance === 1 ? 0.58 : 0.38;
+          break;
+      }
+    }
+
+    const isCardPopActive = lyricsAnimationStyle === 'card_pop' && isActive && !isUnsynced;
+    const isLosslessGlowActive = lyricsAnimationStyle === 'lossless_glow' && isActive && !isUnsynced;
+
+    let lineGlowStyle: React.CSSProperties | undefined;
+    if (isActive && !isUnsynced && !line.hasSyllables) {
+      switch (lyricsAnimationStyle) {
+        case 'lossless_glow':
+          lineGlowStyle = {
+            textShadow:
+              '0 0 14px var(--color-stop-1, #6366f1), 0 0 28px var(--color-stop-2, #818cf8), 0 0 42px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+          };
+          break;
+        case 'apple_fluid':
+          lineGlowStyle = {
+            textShadow: '0 0 18px color-mix(in srgb, var(--color-stop-1, #6366f1) 32%, transparent)',
+          };
+          break;
+        case 'karaoke_pulse':
+          lineGlowStyle = {
+            textShadow:
+              '0 0 16px color-mix(in srgb, var(--color-stop-1, #ec4899) 65%, white 35%), 0 0 28px color-mix(in srgb, var(--color-stop-2, #818cf8) 40%, transparent)',
+          };
+          break;
+        case 'cinematic_blur':
+        case 'apple_zoom':
+          lineGlowStyle = {
+            textShadow: '0 0 14px rgba(255, 255, 255, 0.4)',
+          };
+          break;
+        default:
+          break;
+      }
+    }
+
+    return (
+      <motion.div
+        id={`lyric-line-${idx}`}
+        ref={isActive && !isUnsynced ? activeLineRef : null}
+        animate={{
+          opacity: opacityTarget,
+          scale: scaleTarget,
+          x: transXTarget,
+          y: transYTarget,
+          filter: blurAmount,
+        }}
+        transition={{
+          type: 'spring',
+          damping: lyricsAnimationStyle === 'karaoke_pulse' ? 16 : 22,
+          stiffness: lyricsAnimationStyle === 'karaoke_pulse' ? 140 : 170,
+        }}
+        className={`text-center cursor-pointer max-w-[90vw] w-full px-8 py-3 rounded-2xl transition-all duration-200 ${
+          isActive && !isUnsynced
+            ? 'font-extrabold'
+            : isUnsynced
+            ? 'text-zinc-200 font-medium'
+            : 'text-zinc-400 hover:text-zinc-200 font-medium'
+        }`}
+        style={{
+          fontSize: isActive && !isUnsynced ? `${activeFontSize}px` : `${inactiveFontSize}px`,
+          lineHeight: 1.35,
+          ...(isCardPopActive
+            ? {
+                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                backdropFilter: 'blur(20px)',
+                boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.5)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+              }
+            : {}),
+          ...(isLosslessGlowActive
+            ? {
+                filter:
+                  'drop-shadow(0 0 20px color-mix(in srgb, var(--color-stop-1, #6366f1) 85%, transparent)) drop-shadow(0 0 35px color-mix(in srgb, var(--color-stop-2, #818cf8) 50%, transparent))',
+              }
+            : {}),
+        }}
+        onClick={() => {
+          if (typeof line.startSecs === 'number' && !isNaN(line.startSecs) && !isUnsynced) {
+            onSeek(line.startSecs);
+          }
+        }}
+      >
+        {/* Granular Syllable / Word rendering with Jumping text */}
+        {line.hasSyllables && isActive && !isUnsynced ? (
+          <div className="inline-flex flex-wrap justify-center items-baseline">
+            {line.syllables.map((syl, sIdx) => {
+              const sylStart = syl.timeMs;
+              const sylEnd = syl.timeMs + syl.durationMs;
+              const isSylActive = currentTimeMs >= sylStart && currentTimeMs < sylEnd;
+              const isSylPast = currentTimeMs >= sylEnd;
+
+              let sylLift = 0;
+              let sylScale = 1;
+
+              if (isSylActive) {
+                switch (lyricsAnimationStyle) {
+                  case 'karaoke_pulse':
+                    sylLift = -4;
+                    sylScale = 1.15;
+                    break;
+                  case 'card_pop':
+                  case 'apple_zoom':
+                    sylLift = -3.5;
+                    sylScale = 1.12;
+                    break;
+                  case 'apple_fluid':
+                  case 'lossless_glow':
+                    sylLift = -2.5;
+                    sylScale = 1.09;
+                    break;
+                  case 'kinetic_slide':
+                    sylLift = -2;
+                    sylScale = 1.07;
+                    break;
+                  case 'cinematic_blur':
+                    sylLift = -1.5;
+                    sylScale = 1.05;
+                    break;
+                  case 'minimal_wave':
+                  default:
+                    sylLift = 0;
+                    sylScale = 1.02;
+                    break;
+                }
+              }
+
+              return (
+                <motion.span
+                  key={`${line.id}-syl-${sIdx}`}
+                  animate={{
+                    y: sylLift,
+                    scale: sylScale,
+                    opacity: isSylActive ? 1 : isSylPast ? 0.95 : 0.45,
+                  }}
+                  transition={{
+                    type: 'spring',
+                    damping: 14,
+                    stiffness: 220,
+                  }}
+                  className={`inline-block transition-colors ${
+                    syl.hasTrailingSpace ? 'mr-[0.28em]' : ''
+                  } ${
+                    isSylActive
+                      ? 'text-white drop-shadow-md'
+                      : isSylPast
+                      ? 'text-white/95'
+                      : 'text-white/45'
+                  }`}
+                  style={
+                    isSylActive && lyricsAnimationStyle === 'lossless_glow'
+                      ? {
+                          textShadow:
+                            '0 0 12px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #818cf8)',
+                        }
+                      : undefined
+                  }
+                >
+                  {isRomanizationEnabled && romanizationMode === 'replace' && syl.romanizedText
+                    ? syl.romanizedText
+                    : syl.text}
+                </motion.span>
+              );
+            })}
+          </div>
+        ) : (
+          <div className={isActive ? 'text-white' : undefined} style={lineGlowStyle}>
+            {mainText}
+          </div>
+        )}
+
+        {subText && (
+          <div
+            className="font-mono font-normal mt-1"
+            style={{
+              fontSize: `${Math.max(12, inactiveFontSize * 0.6)}px`,
+              color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 75%, white)',
+            }}
+          >
+            {subText}
+          </div>
+        )}
+      </motion.div>
+    );
+  },
+  (prev, next) => {
+    if (
+      !prev.isActive &&
+      !next.isActive &&
+      prev.distance === next.distance &&
+      prev.activeFontSize === next.activeFontSize &&
+      prev.inactiveFontSize === next.inactiveFontSize &&
+      prev.lyricsAnimationStyle === next.lyricsAnimationStyle &&
+      prev.line === next.line &&
+      prev.isRomanizationEnabled === next.isRomanizationEnabled &&
+      prev.romanizationMode === next.romanizationMode
+    ) {
+      return true;
+    }
+    if (
+      prev.isActive &&
+      next.isActive &&
+      !next.line.hasSyllables &&
+      prev.distance === next.distance &&
+      prev.activeFontSize === next.activeFontSize &&
+      prev.inactiveFontSize === next.inactiveFontSize &&
+      prev.lyricsAnimationStyle === next.lyricsAnimationStyle &&
+      prev.line === next.line &&
+      prev.isRomanizationEnabled === next.isRomanizationEnabled &&
+      prev.romanizationMode === next.romanizationMode
+    ) {
+      return true;
+    }
+    return false;
+  }
+);
+
 export const LyricsView: React.FC = () => {
   const {
     currentTrack,
@@ -111,9 +428,12 @@ export const LyricsView: React.FC = () => {
     toggleAutoEmbedLyrics,
     preferWordSyncedLyrics,
     togglePreferWordSyncedLyrics,
+    inferWordSyncedLyrics,
+    toggleInferWordSyncedLyrics,
   } = usePlayerStore();
 
   const trackArt = useTrackArt(currentTrack);
+  const bgTrackArt = useTrackArt(currentTrack, { thumbnail: true, maxSize: 128 });
 
   const [rawLrc, setRawLrc] = useState<string>('');
   const [lines, setLines] = useState<ParsedLyricLine[]>([]);
@@ -372,7 +692,7 @@ export const LyricsView: React.FC = () => {
       return;
     }
 
-    const formatted = parseRichLyrics(rawLrc);
+    const formatted = parseRichLyrics(rawLrc, { inferWordSync: inferWordSyncedLyrics });
     setLines(formatted);
 
     if (isRomanizationEnabled) {
@@ -415,7 +735,7 @@ export const LyricsView: React.FC = () => {
         isMounted = false;
       };
     }
-  }, [rawLrc, isRomanizationEnabled]);
+  }, [rawLrc, isRomanizationEnabled, inferWordSyncedLyrics]);
 
 
 
@@ -601,14 +921,14 @@ export const LyricsView: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-zinc-950/95 backdrop-blur-3xl flex flex-col justify-between p-8 overflow-hidden select-none"
+      className="fixed inset-0 z-50 bg-[#09090b]/98 flex flex-col justify-between p-8 overflow-hidden select-none"
       style={{ fontFamily: lyricsFontFamily }}
     >
       {/* Background Cover Art Glow */}
-      {trackArt && (
+      {(bgTrackArt || trackArt) && (
         <div
-          className="absolute inset-0 pointer-events-none opacity-20 blur-[140px] scale-125 bg-cover bg-center transition-all duration-1000"
-          style={{ backgroundImage: `url(${trackArt})` }}
+          className="absolute inset-0 pointer-events-none opacity-20 blur-[90px] scale-110 bg-cover bg-center transition-all duration-1000"
+          style={{ backgroundImage: `url(${bgTrackArt || trackArt})` }}
         />
       )}
 
@@ -843,6 +1163,24 @@ export const LyricsView: React.FC = () => {
                 />
               </div>
 
+              {/* Infer Word-by-Word Sync */}
+              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                <div className="flex flex-col pr-2">
+                  <span className="text-white font-medium text-xs">Infer Word-by-Word Sync</span>
+                  <span className="text-[10px] text-zinc-400">Estimate word timing for standard LRC</span>
+                </div>
+                <Checkbox
+                  checked={inferWordSyncedLyrics}
+                  onChange={toggleInferWordSyncedLyrics}
+                  size="small"
+                  sx={{
+                    color: 'var(--color-stop-1, #6366f1)',
+                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                    p: 0.5,
+                  }}
+                />
+              </div>
+
               {/* Auto-fetch Online Lyrics */}
               <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
                 <div className="flex flex-col pr-2">
@@ -1039,223 +1377,29 @@ export const LyricsView: React.FC = () => {
             const isActive = isUnsynced || idx === activeIndex;
             const isPast = activeIndex >= 0 && idx < activeIndex;
             const distance = Math.abs(idx - activeIndex);
-            const showRom = isRomanizationEnabled && line.romanized;
-            const mainText = showRom && romanizationMode === 'replace' ? line.romanized : line.content;
-            const subText = showRom && romanizationMode === 'below' ? line.romanized : null;
-
-            if (lyricsFontSizePreset === 'maximum' && !isUnsynced && distance > 1) {
-              return null;
-            }
-
-            // Motion profile based on selected lyricsAnimationStyle (Ported from LastWave-native)
-            let scaleTarget = 1;
-            let transXTarget = 0;
-            let transYTarget = 0;
-            let opacityTarget = isActive ? 1 : 0.35;
-            let blurAmount = 'none';
-
-            if (!isUnsynced) {
-              switch (lyricsAnimationStyle) {
-                case 'apple_fluid':
-                  scaleTarget = isActive ? 1.085 : distance === 1 ? 0.99 : 0.975;
-                  transXTarget = isActive ? 4 : isPast ? 0 : -6;
-                  transYTarget = isActive ? -2 : isPast ? -1 : 3;
-                  opacityTarget = isActive ? 1 : distance === 1 ? 0.64 : isPast ? 0.5 : 0.43;
-                  break;
-                case 'karaoke_pulse':
-                  scaleTarget = isActive ? 1.1 : distance === 1 ? 0.99 : 0.97;
-                  transXTarget = isActive ? 4 : 0;
-                  transYTarget = isActive ? -3 : 1;
-                  opacityTarget = isActive ? 1 : isPast ? 0.62 : 0.49;
-                  break;
-                case 'kinetic_slide':
-                  scaleTarget = isActive ? 1.045 : isPast ? 0.99 : 0.975;
-                  transXTarget = isActive ? 0 : isPast ? 14 : -24;
-                  transYTarget = isActive ? -1 : 1;
-                  opacityTarget = isActive ? 1 : isPast ? 0.54 : 0.42;
-                  break;
-                case 'cinematic_blur':
-                  scaleTarget = isActive ? 1.065 : distance === 1 ? 0.96 : 0.93;
-                  transYTarget = isActive ? 0 : isPast ? -10 : 10;
-                  opacityTarget = isActive ? 1 : distance <= 1 ? 0.58 : 0.28;
-                  blurAmount = isActive ? 'blur(0px)' : distance === 1 ? 'blur(2px)' : 'blur(4px)';
-                  break;
-                case 'lossless_glow':
-                  scaleTarget = isActive ? 1.075 : distance === 1 ? 0.99 : 0.97;
-                  transXTarget = isActive ? 3 : 0;
-                  transYTarget = isActive ? -2 : 1;
-                  opacityTarget = isActive ? 1 : distance === 1 ? 0.66 : 0.46;
-                  break;
-                case 'card_pop':
-                  scaleTarget = isActive ? 1.065 : 0.985;
-                  transYTarget = isActive ? -5 : 2;
-                  opacityTarget = isActive ? 1 : isPast ? 0.62 : 0.48;
-                  break;
-                case 'apple_zoom':
-                  scaleTarget = isActive ? 1.18 : distance === 1 ? 0.94 : 0.88;
-                  transYTarget = isActive ? -4 : isPast ? -1 : 2;
-                  opacityTarget = isActive ? 1 : distance === 1 ? 0.55 : 0.32;
-                  break;
-                case 'minimal_wave':
-                default:
-                  scaleTarget = 1;
-                  transXTarget = isActive ? 2 : isPast ? 0 : -2;
-                  transYTarget = isPast ? -1 : isActive ? 0 : 1;
-                  opacityTarget = isActive ? 1 : distance === 1 ? 0.58 : 0.38;
-                  break;
-              }
-            }
-
-            const isCardPopActive = lyricsAnimationStyle === 'card_pop' && isActive && !isUnsynced;
-            const isLosslessGlowActive = lyricsAnimationStyle === 'lossless_glow' && isActive && !isUnsynced;
 
             return (
-              <motion.div
+              <LyricLineRow
                 key={line.id}
-                id={`lyric-line-${idx}`}
-                ref={isActive && !isUnsynced ? activeLineRef : null}
-                animate={{
-                  opacity: opacityTarget,
-                  scale: scaleTarget,
-                  x: transXTarget,
-                  y: transYTarget,
-                  filter: blurAmount,
+                line={line}
+                idx={idx}
+                isActive={isActive}
+                isPast={isPast}
+                distance={distance}
+                isUnsynced={isUnsynced}
+                lyricsAnimationStyle={lyricsAnimationStyle}
+                lyricsFontSizePreset={lyricsFontSizePreset}
+                isRomanizationEnabled={isRomanizationEnabled}
+                romanizationMode={romanizationMode}
+                activeFontSize={activeFontSize}
+                inactiveFontSize={inactiveFontSize}
+                currentTimeMs={currentTimeMs}
+                activeLineRef={activeLineRef}
+                onSeek={(secs) => {
+                  seek(secs);
+                  setIsUserScrolled(false);
                 }}
-                transition={{
-                  type: 'spring',
-                  damping: lyricsAnimationStyle === 'karaoke_pulse' ? 16 : 22,
-                  stiffness: lyricsAnimationStyle === 'karaoke_pulse' ? 140 : 170,
-                }}
-                className={`text-center cursor-pointer max-w-[90vw] w-full px-8 py-3 rounded-2xl transition-all duration-200 ${
-                  isActive && !isUnsynced
-                    ? 'font-extrabold'
-                    : isUnsynced
-                    ? 'text-zinc-200 font-medium'
-                    : 'text-zinc-400 hover:text-zinc-200 font-medium'
-                }`}
-                style={{
-                  fontSize: isActive && !isUnsynced ? `${activeFontSize}px` : `${inactiveFontSize}px`,
-                  lineHeight: 1.35,
-                  ...(isCardPopActive
-                    ? {
-                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                        backdropFilter: 'blur(20px)',
-                        boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.5)',
-                        border: '1px solid rgba(255, 255, 255, 0.15)',
-                      }
-                    : {}),
-                  ...(isLosslessGlowActive
-                    ? {
-                        filter:
-                          'drop-shadow(0 0 20px color-mix(in srgb, var(--color-stop-1, #6366f1) 85%, transparent)) drop-shadow(0 0 35px color-mix(in srgb, var(--color-stop-2, #818cf8) 50%, transparent))',
-                      }
-                    : {}),
-                }}
-                onClick={() => {
-                  if (typeof line.startSecs === 'number' && !isNaN(line.startSecs) && !isUnsynced) {
-                    seek(line.startSecs);
-                    setIsUserScrolled(false);
-                  }
-                }}
-              >
-                {/* Granular Syllable / Word rendering with Jumping text */}
-                {line.hasSyllables && isActive && !isUnsynced ? (
-                  <div className="inline-flex flex-wrap justify-center items-baseline">
-                    {line.syllables.map((syl, sIdx) => {
-                      const sylStart = syl.timeMs;
-                      const sylEnd = syl.timeMs + syl.durationMs;
-                      const isSylActive = currentTimeMs >= sylStart && currentTimeMs < sylEnd;
-                      const isSylPast = currentTimeMs >= sylEnd;
-
-                      let sylLift = 0;
-                      let sylScale = 1;
-
-                      if (isSylActive) {
-                        switch (lyricsAnimationStyle) {
-                          case 'karaoke_pulse':
-                            sylLift = -4; // Energetic jumping bounce!
-                            sylScale = 1.15;
-                            break;
-                          case 'card_pop':
-                          case 'apple_zoom':
-                            sylLift = -3.5;
-                            sylScale = 1.12;
-                            break;
-                          case 'apple_fluid':
-                          case 'lossless_glow':
-                            sylLift = -2.5;
-                            sylScale = 1.09;
-                            break;
-                          case 'kinetic_slide':
-                            sylLift = -2;
-                            sylScale = 1.07;
-                            break;
-                          case 'cinematic_blur':
-                            sylLift = -1.5;
-                            sylScale = 1.05;
-                            break;
-                          case 'minimal_wave':
-                          default:
-                            sylLift = 0;
-                            sylScale = 1.02;
-                            break;
-                        }
-                      }
-
-                      return (
-                        <motion.span
-                          key={`${line.id}-syl-${sIdx}`}
-                          animate={{
-                            y: sylLift,
-                            scale: sylScale,
-                            opacity: isSylActive ? 1 : isSylPast ? 0.95 : 0.45,
-                          }}
-                          transition={{
-                            type: 'spring',
-                            damping: 14,
-                            stiffness: 220,
-                          }}
-                          className={`inline-block transition-colors ${
-                            syl.hasTrailingSpace ? 'mr-[0.28em]' : ''
-                          } ${
-                            isSylActive
-                              ? 'text-white drop-shadow-md'
-                              : isSylPast
-                              ? 'text-white/95'
-                              : 'text-white/45'
-                          }`}
-                          style={
-                            isSylActive && lyricsAnimationStyle === 'lossless_glow'
-                              ? {
-                                  textShadow:
-                                    '0 0 12px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #818cf8)',
-                                }
-                              : undefined
-                          }
-                        >
-                          {isRomanizationEnabled && romanizationMode === 'replace' && syl.romanizedText
-                            ? syl.romanizedText
-                            : syl.text}
-                        </motion.span>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className={isActive ? 'text-white' : undefined}>{mainText}</div>
-                )}
-
-                {subText && (
-                  <div
-                    className="font-mono font-normal mt-1"
-                    style={{
-                      fontSize: `${Math.max(12, inactiveFontSize * 0.6)}px`,
-                      color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 75%, white)',
-                    }}
-                  >
-                    {subText}
-                  </div>
-                )}
-              </motion.div>
+              />
             );
           })
         )}
@@ -1404,6 +1548,7 @@ export const LyricsView: React.FC = () => {
                 size="md"
                 className="flex-1"
                 formatTooltip={(val) => formatTime(val)}
+                active={controlsVisible}
               />
             ) : (
               <AudioSlider

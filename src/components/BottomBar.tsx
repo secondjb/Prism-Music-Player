@@ -46,6 +46,8 @@ export const BottomBar: React.FC = () => {
   const tickSleepTimerSecond = usePlayerStore((s) => s.tickSleepTimerSecond);
   const showLyricsFullscreen = usePlayerStore((s) => s.showLyricsFullscreen);
   const setShowLyricsFullscreen = usePlayerStore((s) => s.setShowLyricsFullscreen);
+  const activeTab = usePlayerStore((s) => s.activeTab);
+  const isLyricsActive = showLyricsFullscreen || activeTab === 'lyrics';
   const shuffleEnabled = usePlayerStore((s) => s.shuffleEnabled);
   const toggleShuffle = usePlayerStore((s) => s.toggleShuffle);
   const repeatMode = usePlayerStore((s) => s.repeatMode);
@@ -429,6 +431,7 @@ export const BottomBar: React.FC = () => {
               }}
               formatTooltip={(val) => formatTime(val)}
               className="flex-1"
+              active={!isLyricsActive}
             />
           ) : (
             <AudioSlider

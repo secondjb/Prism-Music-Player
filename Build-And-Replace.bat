@@ -24,6 +24,7 @@ echo ===================================================
 
 :: Terminate running instance if open so file can be overwritten
 taskkill /f /im "Prism Music Player.exe" 2>nul
+timeout /t 1 /nobreak >nul
 
 set "SOURCE_EXE=src-tauri\target\release\Prism Music Player.exe"
 if not exist "%SOURCE_EXE%" (

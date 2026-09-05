@@ -504,11 +504,20 @@ export const LyricsView: React.FC = () => {
     }
   };
 
-  // Keyboard shortcuts (F11 and 'f' key for fullscreen)
+  // Keyboard shortcuts (F11, 'f' for fullscreen, Escape to exit)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (showSettings) {
+          setShowSettings(false);
+        } else {
+          handleClose();
+        }
         return;
       }
       if (e.key === 'F11' || (e.key === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey)) {
@@ -519,7 +528,7 @@ export const LyricsView: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen]);
+  }, [isFullscreen, showSettings]);
 
   const [windowHeight, setWindowHeight] = useState(window.innerHeight);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
@@ -921,16 +930,38 @@ export const LyricsView: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-[#09090b]/98 flex flex-col justify-between p-8 overflow-hidden select-none"
+      className="fixed inset-0 z-50 bg-[#09090b] flex flex-col justify-between p-8 overflow-hidden select-none"
       style={{ fontFamily: lyricsFontFamily }}
     >
-      {/* Background Cover Art Glow */}
-      {(bgTrackArt || trackArt) && (
-        <div
-          className="absolute inset-0 pointer-events-none opacity-20 blur-[90px] scale-110 bg-cover bg-center transition-all duration-1000"
-          style={{ backgroundImage: `url(${bgTrackArt || trackArt})` }}
-        />
-      )}
+      {/* 100% Solid Base Layer (guarantees zero bleed-through from background) */}
+      <div className="absolute inset-0 bg-[#09090b] -z-10 pointer-events-none" />
+
+      {/* Vibrant Ambient Colored Glow (cover art or theme radial gradient) */}
+      <div className="absolute inset-0 pointer-events-none -z-10 overflow-hidden">
+        {(bgTrackArt || trackArt) ? (
+          <div
+            className="absolute inset-0 pointer-events-none opacity-25 blur-[90px] scale-110 bg-cover bg-center transition-all duration-1000"
+            style={{ backgroundImage: `url(${bgTrackArt || trackArt})` }}
+          />
+        ) : (
+          <>
+            <div 
+              className="absolute -top-40 -left-40 w-[650px] h-[650px] rounded-full blur-[140px] opacity-20 pointer-events-none transition-all duration-700"
+              style={{
+                background: 'radial-gradient(circle, var(--color-stop-1, #6366F1), var(--color-stop-3, #EC4899), transparent 70%)'
+              }}
+            />
+            <div 
+              className="absolute top-1/3 -right-40 w-[650px] h-[650px] rounded-full blur-[150px] opacity-20 pointer-events-none transition-all duration-700"
+              style={{
+                background: 'radial-gradient(circle, var(--color-stop-4, #D946EF), var(--color-stop-6, #818CF8), transparent 70%)'
+              }}
+            />
+          </>
+        )}
+        {/* Subtle dark vignette overlay for lyric contrast and readability */}
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/40 via-transparent to-black/60" />
+      </div>
 
       {/* Top Bar Controls (Fades on idle) */}
       <motion.div

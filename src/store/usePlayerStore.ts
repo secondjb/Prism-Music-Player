@@ -54,8 +54,18 @@ interface PlayerState {
   lyricsFontSize: number;
   lyricsArtScale: number;
   lyricsFontFamily: string;
-  lyricsAnimationStyle: 'standard' | 'jumping' | 'fade' | 'slide';
+  lyricsAnimationStyle:
+    | 'apple_fluid'
+    | 'karaoke_pulse'
+    | 'kinetic_slide'
+    | 'cinematic_blur'
+    | 'lossless_glow'
+    | 'card_pop'
+    | 'apple_zoom'
+    | 'minimal_wave';
   isWavySeekbarEnabled: boolean;
+  autoEmbedLyrics: boolean;
+  preferWordSyncedLyrics: boolean;
   isStatsCollectionEnabled: boolean;
   showDemoStats: boolean;
   anonymizeStats: boolean;
@@ -125,8 +135,20 @@ interface PlayerState {
   setLyricsFontSize: (size: number) => void;
   setLyricsArtScale: (scale: number) => void;
   setLyricsFontFamily: (font: string) => void;
-  setLyricsAnimationStyle: (style: 'standard' | 'jumping' | 'fade' | 'slide') => void;
+  setLyricsAnimationStyle: (
+    style:
+      | 'apple_fluid'
+      | 'karaoke_pulse'
+      | 'kinetic_slide'
+      | 'cinematic_blur'
+      | 'lossless_glow'
+      | 'card_pop'
+      | 'apple_zoom'
+      | 'minimal_wave'
+  ) => void;
   toggleWavySeekbar: () => void;
+  toggleAutoEmbedLyrics: () => void;
+  togglePreferWordSyncedLyrics: () => void;
   toggleAutoHideLyricsControls: () => void;
   toggleStatsCollection: () => void;
   setVisibleTrackColumns: (cols: TrackColumnId[]) => void;
@@ -227,9 +249,11 @@ export const usePlayerStore = create<PlayerState>()(
       lyricsFontSizePreset: 'normal',
       lyricsFontSize: 24,
       lyricsArtScale: 100,
-      lyricsFontFamily: 'sans-serif',
-      lyricsAnimationStyle: 'standard',
-      isWavySeekbarEnabled: false,
+      lyricsFontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+      lyricsAnimationStyle: 'apple_fluid',
+      isWavySeekbarEnabled: true,
+      autoEmbedLyrics: false,
+      preferWordSyncedLyrics: true,
       isStatsCollectionEnabled: false,
       showDemoStats: false,
       anonymizeStats: false,
@@ -742,6 +766,8 @@ export const usePlayerStore = create<PlayerState>()(
       setLyricsFontFamily: (font) => set({ lyricsFontFamily: font }),
       setLyricsAnimationStyle: (style) => set({ lyricsAnimationStyle: style }),
       toggleWavySeekbar: () => set((state) => ({ isWavySeekbarEnabled: !state.isWavySeekbarEnabled })),
+      toggleAutoEmbedLyrics: () => set((state) => ({ autoEmbedLyrics: !state.autoEmbedLyrics })),
+      togglePreferWordSyncedLyrics: () => set((state) => ({ preferWordSyncedLyrics: !state.preferWordSyncedLyrics })),
 
       toggleAutoHideLyricsControls: () => set((state) => ({ autoHideLyricsControls: !state.autoHideLyricsControls })),
 

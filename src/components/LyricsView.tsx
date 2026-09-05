@@ -3,10 +3,11 @@ import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { AudioSlider } from './AudioSlider';
+import { WavyAudioSlider } from './WavyAudioSlider';
 import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
-import { parse } from 'clrc';
+import { parseRichLyrics, ParsedLyricLine } from '../utils/lyricsParser';
 import { createRomanizer } from 'lyric-romanizer';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
@@ -30,16 +31,34 @@ import {
   Maximize2,
   Minimize2,
   Save,
+  Type as TypeIcon,
+  Activity,
+  Waves,
 } from 'lucide-react';
 
 const romanizer = createRomanizer();
 
-interface SyncedLine {
-  id: string;
-  startSecs: number;
-  content: string;
-  romanized?: string;
-}
+const FONT_OPTIONS = [
+  { id: "'Plus Jakarta Sans', system-ui, sans-serif", name: 'Google Sans / Jakarta' },
+  { id: "'Outfit', system-ui, sans-serif", name: 'Outfit' },
+  { id: "'Inter', system-ui, sans-serif", name: 'Inter Clean' },
+  { id: "'Lexend', system-ui, sans-serif", name: 'Lexend' },
+  { id: "'Poppins', system-ui, sans-serif", name: 'Poppins' },
+  { id: "'DM Sans', system-ui, sans-serif", name: 'DM Sans' },
+  { id: "'Nunito', system-ui, sans-serif", name: 'Nunito (Rounded)' },
+  { id: 'system-ui, -apple-system, sans-serif', name: 'System Default' },
+];
+
+const ANIMATION_OPTIONS = [
+  { id: 'apple_fluid', name: 'Apple Fluid', desc: 'Smooth spring scaling & dynamic focal tracking' },
+  { id: 'karaoke_pulse', name: 'Karaoke Pulse', desc: 'Rhythmic scale pop & jumping text bounce' },
+  { id: 'kinetic_slide', name: 'Kinetic Slide', desc: 'Active line glides smoothly from edge' },
+  { id: 'cinematic_blur', name: 'Cinematic Focus', desc: 'Soft depth blur on surrounding lines' },
+  { id: 'lossless_glow', name: 'Lossless Glow', desc: 'Vibrant neon gradient & glass glow' },
+  { id: 'card_pop', name: 'Glass Elevation', desc: '3D floating frosted card lift' },
+  { id: 'apple_zoom', name: 'Dynamic Focus Zoom', desc: 'Magnified active line with spring push' },
+  { id: 'minimal_wave', name: 'Minimal Clean', desc: 'Low-latency clean opacity transitions' },
+] as const;
 
 export const LyricsView: React.FC = () => {
   const {
@@ -76,12 +95,22 @@ export const LyricsView: React.FC = () => {
     setLyricsFontSizePreset,
     lyricsFontSize,
     setLyricsFontSize,
+    lyricsFontFamily,
+    setLyricsFontFamily,
+    lyricsAnimationStyle,
+    setLyricsAnimationStyle,
+    isWavySeekbarEnabled,
+    toggleWavySeekbar,
+    autoEmbedLyrics,
+    toggleAutoEmbedLyrics,
+    preferWordSyncedLyrics,
+    togglePreferWordSyncedLyrics,
   } = usePlayerStore();
 
   const trackArt = useTrackArt(currentTrack);
 
   const [rawLrc, setRawLrc] = useState<string>('');
-  const [lines, setLines] = useState<SyncedLine[]>([]);
+  const [lines, setLines] = useState<ParsedLyricLine[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isEmbedding, setIsEmbedding] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -260,13 +289,14 @@ export const LyricsView: React.FC = () => {
     const loadLyrics = async () => {
       let foundSynced: string | null = null;
 
-      // 1. If preferOnlineLyrics, try online FIRST
-      if (preferOnlineLyrics && lrclibAutoFetch) {
+      // 1. If preferOnlineLyrics or preferWordSyncedLyrics, try online FIRST
+      if ((preferOnlineLyrics || preferWordSyncedLyrics) && lrclibAutoFetch) {
         const fetched = await fetchLrclibLyrics(
           currentTrack.title,
           currentTrack.artist,
           currentTrack.album,
-          currentTrack.duration_secs
+          currentTrack.duration_secs,
+          preferWordSyncedLyrics
         );
         if (fetched && fetched.trim()) {
           foundSynced = fetched;
@@ -293,7 +323,8 @@ export const LyricsView: React.FC = () => {
           currentTrack.title,
           currentTrack.artist,
           currentTrack.album,
-          currentTrack.duration_secs
+          currentTrack.duration_secs,
+          preferWordSyncedLyrics
         );
         if (fetched && fetched.trim()) {
           foundSynced = fetched;
@@ -304,6 +335,13 @@ export const LyricsView: React.FC = () => {
 
       if (foundSynced) {
         setRawLrc(foundSynced);
+
+        // Auto-embed online lyrics if setting is enabled and file doesn't already have it
+        if (autoEmbedLyrics && currentTrack.path && window.__TAURI_INTERNALS__) {
+          if (foundSynced !== currentTrack.unsynced_lyrics) {
+            invoke('embed_lyrics', { path: currentTrack.path, lyrics: foundSynced }).catch(() => {});
+          }
+        }
       } else if (currentTrack.unsynced_lyrics) {
         // Fallback to unsynced lyrics only after synced lookup finishes
         setRawLrc(currentTrack.unsynced_lyrics);
@@ -319,7 +357,7 @@ export const LyricsView: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [currentTrack?.id]);
+  }, [currentTrack?.id, preferOnlineLyrics, preferWordSyncedLyrics, lrclibAutoFetch, autoEmbedLyrics]);
 
   // 2. Parse & Romanize lines locally whenever rawLrc or isRomanizationEnabled changes
   useEffect(() => {
@@ -328,30 +366,7 @@ export const LyricsView: React.FC = () => {
       return;
     }
 
-    const parsed = parse(rawLrc);
-    const lyricLines = parsed.filter(
-      (item): item is Extract<typeof item, { type: 'lyric' }> =>
-        item.type === 'lyric' && Boolean(item.content?.trim())
-    );
-
-    let formatted: SyncedLine[] = lyricLines.map((item, idx) => ({
-      id: `${idx}-${item.startMillisecond}`,
-      startSecs: item.startMillisecond / 1000,
-      content: item.content.trim(),
-    }));
-
-    // Fallback: If no synced lines were found but we have raw text, treat it as unsynced lines
-    if (formatted.length === 0 && rawLrc.trim()) {
-      formatted = rawLrc
-        .split(/\r?\n/)
-        .map((line, idx) => ({
-          id: `unsynced-${idx}`,
-          startSecs: -1,
-          content: line.trim(),
-        }))
-        .filter((line) => line.content);
-    }
-
+    const formatted = parseRichLyrics(rawLrc);
     setLines(formatted);
 
     if (isRomanizationEnabled) {
@@ -528,7 +543,8 @@ export const LyricsView: React.FC = () => {
       currentTrack.title,
       currentTrack.artist,
       currentTrack.album,
-      currentTrack.duration_secs
+      currentTrack.duration_secs,
+      preferWordSyncedLyrics
     );
     setIsLoading(false);
     if (fetched) {
@@ -559,9 +575,13 @@ export const LyricsView: React.FC = () => {
 
   const seekPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
   const RepeatIcon = repeatMode === 'one' ? Repeat1 : Repeat;
+  const currentTimeMs = currentTime * 1000;
 
   return (
-    <div className="fixed inset-0 z-50 bg-zinc-950/95 backdrop-blur-3xl flex flex-col justify-between p-8 overflow-hidden select-none">
+    <div
+      className="fixed inset-0 z-50 bg-zinc-950/95 backdrop-blur-3xl flex flex-col justify-between p-8 overflow-hidden select-none"
+      style={{ fontFamily: lyricsFontFamily }}
+    >
       {/* Background Cover Art Glow */}
       {trackArt && (
         <div
@@ -679,152 +699,264 @@ export const LyricsView: React.FC = () => {
       </motion.div>
 
       {/* Settings Popup */}
-      {showSettings && (
-        <div className="absolute right-12 top-20 w-72 glass-panel border border-white/10 rounded-2xl shadow-2xl p-4 z-50 flex flex-col gap-3">
-          <h4 className="text-sm font-semibold text-white border-b border-white/10 pb-2">
-            Lyrics & Display Settings
-          </h4>
-          <div className="flex flex-col gap-1.5 pt-1">
-            <span className="text-zinc-300 font-medium text-xs">Lyrics Size Preset</span>
-            <div className="grid grid-cols-2 gap-1 mb-1">
-              {(['normal', 'balanced', 'large', 'maximum'] as const).map((preset) => (
-                <button
-                  key={preset}
-                  onClick={() => setLyricsFontSizePreset(preset)}
-                  className={`py-1 px-2 rounded-lg text-[11px] font-semibold capitalize transition-colors ${
-                    lyricsFontSizePreset === preset
-                      ? 'text-white'
-                      : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
-                  }`}
-                  style={
-                    lyricsFontSizePreset === preset
-                      ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
-                      : undefined
-                  }
-                >
-                  {preset === 'maximum' ? 'Max Space' : preset}
-                </button>
-              ))}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+            className="absolute right-8 top-20 w-80 max-h-[80vh] overflow-y-auto custom-scrollbar glass-panel border border-white/15 rounded-2xl shadow-2xl p-4.5 z-50 flex flex-col gap-3 text-xs text-zinc-200"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-2">
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Settings2 className="w-4 h-4 text-indigo-400" />
+                Lyrics & Visual Settings
+              </h4>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-white/10"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-          </div>
 
-          <div className="flex flex-col gap-1 pt-1 border-t border-white/10">
-            <div className="flex justify-between text-xs text-zinc-300">
-              <span>Manual Font Size</span>
-              <span className="font-mono font-bold" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
-                {Math.round(activeFontSize)}px
+            {/* Animation Style Selector (All 8 LastWave-native profiles) */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-zinc-300 font-semibold flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-indigo-400" />
+                Lyric Animation Style
               </span>
+              <select
+                value={lyricsAnimationStyle}
+                onChange={(e) => setLyricsAnimationStyle(e.target.value as any)}
+                className="bg-zinc-900/90 border border-white/10 text-xs text-white rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
+              >
+                {ANIMATION_OPTIONS.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.name} — {opt.desc}
+                  </option>
+                ))}
+              </select>
             </div>
-            <input
-              type="range"
-              min={18}
-              max={150}
-              step={1}
-              value={activeFontSize}
-              onChange={(e) => {
-                setLyricsFontSizePreset('manual');
-                setLyricsFontSize(parseInt(e.target.value, 10));
-              }}
-              style={{
-                background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${
-                  ((activeFontSize - 18) / (150 - 18)) * 100
-                }%, #27272a ${((activeFontSize - 18) / (150 - 18)) * 100}%)`,
-              }}
-              className="w-full h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
-            />
-          </div>
 
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-zinc-300">Auto-hide controls on idle</span>
-            <Checkbox
-              checked={autoHideLyricsControls}
-              onChange={() => toggleAutoHideLyricsControls()}
-              size="small"
-              sx={{
-                color: 'var(--color-stop-1, #6366f1)',
-                '&.Mui-checked': {
+            {/* Font Family Selector */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-zinc-300 font-semibold flex items-center gap-1.5">
+                <TypeIcon className="w-3.5 h-3.5 text-indigo-400" />
+                Lyrics Typography & Font
+              </span>
+              <select
+                value={lyricsFontFamily}
+                onChange={(e) => setLyricsFontFamily(e.target.value)}
+                className="bg-zinc-900/90 border border-white/10 text-xs text-white rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
+              >
+                {FONT_OPTIONS.map((font) => (
+                  <option key={font.id} value={font.id}>
+                    {font.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Wavy Seekbar Toggle */}
+            <div className="flex items-center justify-between py-1 border-t border-white/10">
+              <div className="flex flex-col">
+                <span className="text-white font-medium flex items-center gap-1.5">
+                  <Waves className="w-3.5 h-3.5 text-indigo-400" />
+                  Wavy Seekbar
+                </span>
+                <span className="text-[10px] text-zinc-400">Dynamic 3-layer frosted glass waveform</span>
+              </div>
+              <Checkbox
+                checked={isWavySeekbarEnabled}
+                onChange={toggleWavySeekbar}
+                size="small"
+                sx={{
                   color: 'var(--color-stop-1, #6366f1)',
-                },
-                p: 0.5,
-              }}
-            />
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-zinc-300">Auto-fetch online lyrics</span>
-            <Checkbox
-              checked={lrclibAutoFetch}
-              onChange={(e) => setLrclibAutoFetch(e.target.checked)}
-              size="small"
-              sx={{
-                color: 'var(--color-stop-1, #6366f1)',
-                '&.Mui-checked': {
+                  '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                  p: 0.5,
+                }}
+              />
+            </div>
+
+            {/* Prefer Word-Synced Online Lyrics */}
+            <div className="flex items-center justify-between py-1">
+              <div className="flex flex-col">
+                <span className="text-white font-medium">Prefer Word/Syllable Sync</span>
+                <span className="text-[10px] text-zinc-400">Query rich word-level lyrics providers</span>
+              </div>
+              <Checkbox
+                checked={preferWordSyncedLyrics}
+                onChange={togglePreferWordSyncedLyrics}
+                size="small"
+                sx={{
                   color: 'var(--color-stop-1, #6366f1)',
-                },
-                p: 0.5,
-              }}
-            />
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-zinc-300">Prefer online lyrics</span>
-            <Checkbox
-              checked={preferOnlineLyrics}
-              onChange={(e) => setPreferOnlineLyrics(e.target.checked)}
-              size="small"
-              sx={{
-                color: 'var(--color-stop-1, #6366f1)',
-                '&.Mui-checked': {
+                  '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                  p: 0.5,
+                }}
+              />
+            </div>
+
+            {/* Auto-Embed Synced Lyrics */}
+            <div className="flex items-center justify-between py-1">
+              <div className="flex flex-col">
+                <span className="text-white font-medium">Auto-embed Lyrics to Audio</span>
+                <span className="text-[10px] text-zinc-400">Save fetched lyrics directly into audio file</span>
+              </div>
+              <Checkbox
+                checked={autoEmbedLyrics}
+                onChange={toggleAutoEmbedLyrics}
+                size="small"
+                sx={{
                   color: 'var(--color-stop-1, #6366f1)',
-                },
-                p: 0.5,
-              }}
-            />
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-zinc-300">Show Audio Bitrate & Frequency</span>
-            <Checkbox
-              checked={showAudioSpecs}
-              onChange={toggleShowAudioSpecs}
-              size="small"
-              sx={{
-                color: 'var(--color-stop-1, #6366f1)',
-                '&.Mui-checked': {
+                  '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                  p: 0.5,
+                }}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5 pt-1 border-t border-white/10">
+              <span className="text-zinc-300 font-medium text-xs">Lyrics Size Preset</span>
+              <div className="grid grid-cols-2 gap-1 mb-1">
+                {(['normal', 'balanced', 'large', 'maximum'] as const).map((preset) => (
+                  <button
+                    key={preset}
+                    onClick={() => setLyricsFontSizePreset(preset)}
+                    className={`py-1 px-2 rounded-lg text-[11px] font-semibold capitalize transition-colors ${
+                      lyricsFontSizePreset === preset
+                        ? 'text-white'
+                        : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
+                    }`}
+                    style={
+                      lyricsFontSizePreset === preset
+                        ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                        : undefined
+                    }
+                  >
+                    {preset === 'maximum' ? 'Max Space' : preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1 pt-1 border-t border-white/10">
+              <div className="flex justify-between text-xs text-zinc-300">
+                <span>Manual Font Size</span>
+                <span className="font-mono font-bold" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
+                  {Math.round(activeFontSize)}px
+                </span>
+              </div>
+              <input
+                type="range"
+                min={18}
+                max={150}
+                step={1}
+                value={activeFontSize}
+                onChange={(e) => {
+                  setLyricsFontSizePreset('manual');
+                  setLyricsFontSize(parseInt(e.target.value, 10));
+                }}
+                style={{
+                  background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${
+                    ((activeFontSize - 18) / (150 - 18)) * 100
+                  }%, #27272a ${((activeFontSize - 18) / (150 - 18)) * 100}%)`,
+                }}
+                className="w-full h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-zinc-300">Auto-hide controls on idle</span>
+              <Checkbox
+                checked={autoHideLyricsControls}
+                onChange={() => toggleAutoHideLyricsControls()}
+                size="small"
+                sx={{
                   color: 'var(--color-stop-1, #6366f1)',
-                },
-                p: 0.5,
-              }}
-            />
-          </div>
-          <div className="flex items-center justify-between text-xs pt-1 border-t border-white/10">
-            <span className="text-zinc-300 font-medium">Romanization Mode</span>
-            <select
-              value={romanizationMode}
-              onChange={(e) => setRomanizationMode(e.target.value as 'below' | 'replace')}
-              className="bg-zinc-900 border border-white/10 text-xs text-white rounded-lg px-2 py-1 focus:outline-none"
+                  '&.Mui-checked': {
+                    color: 'var(--color-stop-1, #6366f1)',
+                  },
+                  p: 0.5,
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-zinc-300">Auto-fetch online lyrics</span>
+              <Checkbox
+                checked={lrclibAutoFetch}
+                onChange={(e) => setLrclibAutoFetch(e.target.checked)}
+                size="small"
+                sx={{
+                  color: 'var(--color-stop-1, #6366f1)',
+                  '&.Mui-checked': {
+                    color: 'var(--color-stop-1, #6366f1)',
+                  },
+                  p: 0.5,
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-zinc-300">Prefer online lyrics</span>
+              <Checkbox
+                checked={preferOnlineLyrics}
+                onChange={(e) => setPreferOnlineLyrics(e.target.checked)}
+                size="small"
+                sx={{
+                  color: 'var(--color-stop-1, #6366f1)',
+                  '&.Mui-checked': {
+                    color: 'var(--color-stop-1, #6366f1)',
+                  },
+                  p: 0.5,
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-zinc-300">Show Audio Bitrate & Frequency</span>
+              <Checkbox
+                checked={showAudioSpecs}
+                onChange={toggleShowAudioSpecs}
+                size="small"
+                sx={{
+                  color: 'var(--color-stop-1, #6366f1)',
+                  '&.Mui-checked': {
+                    color: 'var(--color-stop-1, #6366f1)',
+                  },
+                  p: 0.5,
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs pt-1 border-t border-white/10">
+              <span className="text-zinc-300 font-medium">Romanization Mode</span>
+              <select
+                value={romanizationMode}
+                onChange={(e) => setRomanizationMode(e.target.value as 'below' | 'replace')}
+                className="bg-zinc-900 border border-white/10 text-xs text-white rounded-lg px-2 py-1 focus:outline-none"
+              >
+                <option value="below">Add Below</option>
+                <option value="replace">Replace Original</option>
+              </select>
+            </div>
+            <button
+              onClick={handleManualRefresh}
+              style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+              className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110 mt-1"
             >
-              <option value="below">Add Below</option>
-              <option value="replace">Replace Original</option>
-            </select>
-          </div>
-          <button
-            onClick={handleManualRefresh}
-            style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-            className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-medium transition-colors hover:brightness-110 mt-1"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh Lyrics
-          </button>
-          
-          <button
-            onClick={handleEmbedLyrics}
-            disabled={isEmbedding || !rawLrc.trim()}
-            style={{ backgroundColor: 'var(--color-stop-2, #818cf8)' }}
-            className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-medium transition-colors hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Save className={`w-3.5 h-3.5 ${isEmbedding ? 'animate-pulse' : ''}`} />
-            {isEmbedding ? 'Embedding...' : 'Embed Lyrics to File'}
-          </button>
-        </div>
-      )}
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh Online Lyrics
+            </button>
+            
+            <button
+              onClick={handleEmbedLyrics}
+              disabled={isEmbedding || !rawLrc.trim()}
+              style={{ backgroundColor: 'var(--color-stop-2, #818cf8)' }}
+              className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Save className={`w-3.5 h-3.5 ${isEmbedding ? 'animate-pulse' : ''}`} />
+              {isEmbedding ? 'Embedding...' : 'Embed Lyrics to File'}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Lyrics Display Area */}
       <div
@@ -879,13 +1011,77 @@ export const LyricsView: React.FC = () => {
           lines.map((line, idx) => {
             const isUnsynced = line.startSecs === -1;
             const isActive = isUnsynced || idx === activeIndex;
+            const isPast = activeIndex >= 0 && idx < activeIndex;
+            const distance = Math.abs(idx - activeIndex);
             const showRom = isRomanizationEnabled && line.romanized;
             const mainText = showRom && romanizationMode === 'replace' ? line.romanized : line.content;
             const subText = showRom && romanizationMode === 'below' ? line.romanized : null;
 
-            if (lyricsFontSizePreset === 'maximum' && !isUnsynced && Math.abs(idx - activeIndex) > 1) {
+            if (lyricsFontSizePreset === 'maximum' && !isUnsynced && distance > 1) {
               return null;
             }
+
+            // Motion profile based on selected lyricsAnimationStyle (Ported from LastWave-native)
+            let scaleTarget = 1;
+            let transXTarget = 0;
+            let transYTarget = 0;
+            let opacityTarget = isActive ? 1 : 0.35;
+            let blurAmount = 'none';
+
+            if (!isUnsynced) {
+              switch (lyricsAnimationStyle) {
+                case 'apple_fluid':
+                  scaleTarget = isActive ? 1.085 : distance === 1 ? 0.99 : 0.975;
+                  transXTarget = isActive ? 4 : isPast ? 0 : -6;
+                  transYTarget = isActive ? -2 : isPast ? -1 : 3;
+                  opacityTarget = isActive ? 1 : distance === 1 ? 0.64 : isPast ? 0.5 : 0.43;
+                  break;
+                case 'karaoke_pulse':
+                  scaleTarget = isActive ? 1.1 : distance === 1 ? 0.99 : 0.97;
+                  transXTarget = isActive ? 4 : 0;
+                  transYTarget = isActive ? -3 : 1;
+                  opacityTarget = isActive ? 1 : isPast ? 0.62 : 0.49;
+                  break;
+                case 'kinetic_slide':
+                  scaleTarget = isActive ? 1.045 : isPast ? 0.99 : 0.975;
+                  transXTarget = isActive ? 0 : isPast ? 14 : -24;
+                  transYTarget = isActive ? -1 : 1;
+                  opacityTarget = isActive ? 1 : isPast ? 0.54 : 0.42;
+                  break;
+                case 'cinematic_blur':
+                  scaleTarget = isActive ? 1.065 : distance === 1 ? 0.96 : 0.93;
+                  transYTarget = isActive ? 0 : isPast ? -10 : 10;
+                  opacityTarget = isActive ? 1 : distance <= 1 ? 0.58 : 0.28;
+                  blurAmount = isActive ? 'blur(0px)' : distance === 1 ? 'blur(2px)' : 'blur(4px)';
+                  break;
+                case 'lossless_glow':
+                  scaleTarget = isActive ? 1.075 : distance === 1 ? 0.99 : 0.97;
+                  transXTarget = isActive ? 3 : 0;
+                  transYTarget = isActive ? -2 : 1;
+                  opacityTarget = isActive ? 1 : distance === 1 ? 0.66 : 0.46;
+                  break;
+                case 'card_pop':
+                  scaleTarget = isActive ? 1.065 : 0.985;
+                  transYTarget = isActive ? -5 : 2;
+                  opacityTarget = isActive ? 1 : isPast ? 0.62 : 0.48;
+                  break;
+                case 'apple_zoom':
+                  scaleTarget = isActive ? 1.18 : distance === 1 ? 0.94 : 0.88;
+                  transYTarget = isActive ? -4 : isPast ? -1 : 2;
+                  opacityTarget = isActive ? 1 : distance === 1 ? 0.55 : 0.32;
+                  break;
+                case 'minimal_wave':
+                default:
+                  scaleTarget = 1;
+                  transXTarget = isActive ? 2 : isPast ? 0 : -2;
+                  transYTarget = isPast ? -1 : isActive ? 0 : 1;
+                  opacityTarget = isActive ? 1 : distance === 1 ? 0.58 : 0.38;
+                  break;
+              }
+            }
+
+            const isCardPopActive = lyricsAnimationStyle === 'card_pop' && isActive && !isUnsynced;
+            const isLosslessGlowActive = lyricsAnimationStyle === 'lossless_glow' && isActive && !isUnsynced;
 
             return (
               <motion.div
@@ -893,11 +1089,18 @@ export const LyricsView: React.FC = () => {
                 id={`lyric-line-${idx}`}
                 ref={isActive && !isUnsynced ? activeLineRef : null}
                 animate={{
-                  opacity: isActive ? 1 : 0.35,
-                  scale: isActive ? (isUnsynced ? 1 : 1.05) : 0.98,
+                  opacity: opacityTarget,
+                  scale: scaleTarget,
+                  x: transXTarget,
+                  y: transYTarget,
+                  filter: blurAmount,
                 }}
-                transition={{ duration: 0.25, ease: 'easeOut' }}
-                className={`text-center cursor-pointer max-w-[90vw] w-full px-8 py-3 rounded-2xl transition-all ${
+                transition={{
+                  type: 'spring',
+                  damping: lyricsAnimationStyle === 'karaoke_pulse' ? 16 : 22,
+                  stiffness: lyricsAnimationStyle === 'karaoke_pulse' ? 140 : 170,
+                }}
+                className={`text-center cursor-pointer max-w-[90vw] w-full px-8 py-3 rounded-2xl transition-all duration-200 ${
                   isActive && !isUnsynced
                     ? 'font-extrabold'
                     : isUnsynced
@@ -906,10 +1109,17 @@ export const LyricsView: React.FC = () => {
                 }`}
                 style={{
                   fontSize: isActive && !isUnsynced ? `${activeFontSize}px` : `${inactiveFontSize}px`,
-                  lineHeight: 1.3,
-                  ...(isActive && !isUnsynced
+                  lineHeight: 1.35,
+                  ...(isCardPopActive
                     ? {
-                        color: '#ffffff',
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                        backdropFilter: 'blur(20px)',
+                        boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.5)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                      }
+                    : {}),
+                  ...(isLosslessGlowActive
+                    ? {
                         filter:
                           'drop-shadow(0 0 20px color-mix(in srgb, var(--color-stop-1, #6366f1) 85%, transparent)) drop-shadow(0 0 35px color-mix(in srgb, var(--color-stop-2, #818cf8) 50%, transparent))',
                       }
@@ -922,7 +1132,88 @@ export const LyricsView: React.FC = () => {
                   }
                 }}
               >
-                <div>{mainText}</div>
+                {/* Granular Syllable / Word rendering with Jumping text */}
+                {line.hasSyllables && isActive && !isUnsynced ? (
+                  <div className="inline-flex flex-wrap justify-center items-baseline gap-x-1.5">
+                    {line.syllables.map((syl, sIdx) => {
+                      const sylStart = syl.timeMs;
+                      const sylEnd = syl.timeMs + syl.durationMs;
+                      const isSylActive = currentTimeMs >= sylStart && currentTimeMs < sylEnd;
+                      const isSylPast = currentTimeMs >= sylEnd;
+
+                      let sylLift = 0;
+                      let sylScale = 1;
+
+                      if (isSylActive) {
+                        switch (lyricsAnimationStyle) {
+                          case 'karaoke_pulse':
+                            sylLift = -4; // Energetic jumping bounce!
+                            sylScale = 1.15;
+                            break;
+                          case 'card_pop':
+                          case 'apple_zoom':
+                            sylLift = -3.5;
+                            sylScale = 1.12;
+                            break;
+                          case 'apple_fluid':
+                          case 'lossless_glow':
+                            sylLift = -2.5;
+                            sylScale = 1.09;
+                            break;
+                          case 'kinetic_slide':
+                            sylLift = -2;
+                            sylScale = 1.07;
+                            break;
+                          case 'cinematic_blur':
+                            sylLift = -1.5;
+                            sylScale = 1.05;
+                            break;
+                          case 'minimal_wave':
+                          default:
+                            sylLift = 0;
+                            sylScale = 1.02;
+                            break;
+                        }
+                      }
+
+                      return (
+                        <motion.span
+                          key={`${line.id}-syl-${sIdx}`}
+                          animate={{
+                            y: sylLift,
+                            scale: sylScale,
+                            opacity: isSylActive ? 1 : isSylPast ? 0.95 : 0.45,
+                          }}
+                          transition={{
+                            type: 'spring',
+                            damping: 14,
+                            stiffness: 220,
+                          }}
+                          className={`inline-block transition-colors ${
+                            isSylActive
+                              ? 'text-white drop-shadow-md'
+                              : isSylPast
+                              ? 'text-white/95'
+                              : 'text-white/45'
+                          }`}
+                          style={
+                            isSylActive && lyricsAnimationStyle === 'lossless_glow'
+                              ? {
+                                  textShadow:
+                                    '0 0 12px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #818cf8)',
+                                }
+                              : undefined
+                          }
+                        >
+                          {syl.text}
+                        </motion.span>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className={isActive ? 'text-white' : undefined}>{mainText}</div>
+                )}
+
                 {subText && (
                   <div
                     className="font-mono font-normal mt-1"
@@ -1070,21 +1361,34 @@ export const LyricsView: React.FC = () => {
         </button>
 
         {/* Seek Bar inside floating pill */}
-        <div className="flex items-center gap-2 text-xs font-mono text-zinc-400 w-36 md:w-48">
+        <div className="flex items-center gap-2 text-xs font-mono text-zinc-400 w-36 md:w-56">
           <span>{formatTime(currentTime)}</span>
-          <div className="relative flex-1 h-3 flex items-center group cursor-pointer">
-            <input
-              type="range"
-              min={0}
-              max={duration || 100}
-              step={0.1}
-              value={currentTime}
-              onChange={(e) => seek(parseFloat(e.target.value))}
-              style={{
-                background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${seekPercent}%, #27272a ${seekPercent}%)`,
-              }}
-              className="w-full h-1.5 group-hover:h-2 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3"
-            />
+          <div className="relative flex-1 flex items-center group cursor-pointer min-w-[70px]">
+            {isWavySeekbarEnabled ? (
+              <WavyAudioSlider
+                value={currentTime}
+                min={0}
+                max={duration || 100}
+                step={0.1}
+                onChange={(val) => seek(val)}
+                size="sm"
+                className="flex-1"
+                formatTooltip={(val) => formatTime(val)}
+              />
+            ) : (
+              <input
+                type="range"
+                min={0}
+                max={duration || 100}
+                step={0.1}
+                value={currentTime}
+                onChange={(e) => seek(parseFloat(e.target.value))}
+                style={{
+                  background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${seekPercent}%, #27272a ${seekPercent}%)`,
+                }}
+                className="w-full h-1.5 group-hover:h-2 rounded-full appearance-none cursor-pointer transition-all duration-200 slider-m3"
+              />
+            )}
           </div>
           <span>{formatTime(duration)}</span>
         </div>

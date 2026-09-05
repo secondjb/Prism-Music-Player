@@ -21,6 +21,9 @@ import {
   Download,
   ExternalLink,
   CheckCircle2,
+  Waves,
+  Activity,
+  Type as TypeIcon,
 } from 'lucide-react';
 import {
   CURRENT_APP_VERSION,
@@ -64,6 +67,16 @@ export const SettingsView: React.FC = () => {
   const generateDemoPlaylists = usePlayerStore((s) => s.generateDemoPlaylists);
   const lyricsFontSizePreset = usePlayerStore((s) => s.lyricsFontSizePreset);
   const setLyricsFontSizePreset = usePlayerStore((s) => s.setLyricsFontSizePreset);
+  const lyricsFontFamily = usePlayerStore((s) => s.lyricsFontFamily);
+  const setLyricsFontFamily = usePlayerStore((s) => s.setLyricsFontFamily);
+  const lyricsAnimationStyle = usePlayerStore((s) => s.lyricsAnimationStyle);
+  const setLyricsAnimationStyle = usePlayerStore((s) => s.setLyricsAnimationStyle);
+  const isWavySeekbarEnabled = usePlayerStore((s) => s.isWavySeekbarEnabled);
+  const toggleWavySeekbar = usePlayerStore((s) => s.toggleWavySeekbar);
+  const autoEmbedLyrics = usePlayerStore((s) => s.autoEmbedLyrics);
+  const toggleAutoEmbedLyrics = usePlayerStore((s) => s.toggleAutoEmbedLyrics);
+  const preferWordSyncedLyrics = usePlayerStore((s) => s.preferWordSyncedLyrics);
+  const togglePreferWordSyncedLyrics = usePlayerStore((s) => s.togglePreferWordSyncedLyrics);
 
   const autoCheckUpdates = usePlayerStore((s) => s.autoCheckUpdates);
   const toggleAutoCheckUpdates = usePlayerStore((s) => s.toggleAutoCheckUpdates);
@@ -582,6 +595,125 @@ export const SettingsView: React.FC = () => {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Lyric Animation Style Setting (All 8 LastWave profiles) */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
+            <div className="flex items-center gap-3">
+              <Activity className="w-4 h-4 text-indigo-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Lyric Animation Style</span>
+                <span className="text-[11px] text-zinc-400">Word-by-word motion, jumping text, and line transition profiles</span>
+              </div>
+            </div>
+            <select
+              value={lyricsAnimationStyle}
+              onChange={(e) => setLyricsAnimationStyle(e.target.value as any)}
+              className="bg-zinc-900 border border-white/10 text-xs text-white rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer max-w-xs"
+            >
+              <option value="apple_fluid">Apple Fluid (Dynamic spring & focal tracking)</option>
+              <option value="karaoke_pulse">Karaoke Pulse (Rhythmic scale pop & jumping text)</option>
+              <option value="kinetic_slide">Kinetic Slide (Glides smoothly from leading edge)</option>
+              <option value="cinematic_blur">Cinematic Focus (Soft background depth blur)</option>
+              <option value="lossless_glow">Lossless Glow (Vibrant neon gradient & glass glow)</option>
+              <option value="card_pop">Glass Elevation (3D floating frosted card lift)</option>
+              <option value="apple_zoom">Dynamic Focus Zoom (Expanded magnification with push)</option>
+              <option value="minimal_wave">Minimal Clean (Low-latency opacity transitions)</option>
+            </select>
+          </div>
+
+          {/* Lyrics Typography Setting */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
+            <div className="flex items-center gap-3">
+              <TypeIcon className="w-4 h-4 text-indigo-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Lyrics Typography & Font</span>
+                <span className="text-[11px] text-zinc-400">Choose custom font family for lyrics and karaoke text</span>
+              </div>
+            </div>
+            <select
+              value={lyricsFontFamily}
+              onChange={(e) => setLyricsFontFamily(e.target.value)}
+              className="bg-zinc-900 border border-white/10 text-xs text-white rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer max-w-xs"
+            >
+              <option value="'Plus Jakarta Sans', system-ui, sans-serif">Google Sans / Jakarta</option>
+              <option value="'Outfit', system-ui, sans-serif">Outfit</option>
+              <option value="'Inter', system-ui, sans-serif">Inter Clean</option>
+              <option value="'Lexend', system-ui, sans-serif">Lexend</option>
+              <option value="'Poppins', system-ui, sans-serif">Poppins Geometric</option>
+              <option value="'DM Sans', system-ui, sans-serif">DM Sans</option>
+              <option value="'Nunito', system-ui, sans-serif">Nunito Rounded</option>
+              <option value="system-ui, -apple-system, sans-serif">System Default</option>
+            </select>
+          </div>
+
+          {/* Wavy Seekbar Toggle */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-3">
+              <Waves className="w-4 h-4 text-indigo-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Wavy Seekbar</span>
+                <span className="text-[11px] text-zinc-400">Dynamic 3-layer frosted glass wave seekbar</span>
+              </div>
+            </div>
+            <Checkbox
+              checked={isWavySeekbarEnabled}
+              onChange={toggleWavySeekbar}
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
+            />
+          </div>
+
+          {/* Prefer Word-Synced Lyrics Toggle */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-3">
+              <Mic2 className="w-4 h-4 text-indigo-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Prefer Syllable/Word Sync</span>
+                <span className="text-[11px] text-zinc-400">Fetch word-level synced lyrics when available</span>
+              </div>
+            </div>
+            <Checkbox
+              checked={preferWordSyncedLyrics}
+              onChange={togglePreferWordSyncedLyrics}
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
+            />
+          </div>
+
+          {/* Auto-embed Lyrics Toggle */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-3">
+              <Download className="w-4 h-4 text-indigo-400" />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Auto-embed Lyrics to Audio Files</span>
+                <span className="text-[11px] text-zinc-400">Save fetched online lyrics directly into local tracks</span>
+              </div>
+            </div>
+            <Checkbox
+              checked={autoEmbedLyrics}
+              onChange={toggleAutoEmbedLyrics}
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
+            />
           </div>
 
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">

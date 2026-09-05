@@ -50,6 +50,7 @@ export const BottomBar: React.FC = () => {
   const toggleShuffle = usePlayerStore((s) => s.toggleShuffle);
   const repeatMode = usePlayerStore((s) => s.repeatMode);
   const cycleRepeatMode = usePlayerStore((s) => s.cycleRepeatMode);
+  const isWavySeekbarEnabled = usePlayerStore((s) => s.isWavySeekbarEnabled);
 
   const trackArt = useTrackArt(currentTrack);
 
@@ -412,22 +413,38 @@ export const BottomBar: React.FC = () => {
           </button>
         </div>
 
-        {/* Material 3 Expressive Filled Seek Bar with Hover Tooltip */}
+        {/* Seek Bar with Wavy or Material 3 Slider */}
         <div className="w-full flex items-center gap-3 text-xs font-mono text-zinc-400">
           <span>{formatTime(currentSeekDisplay)}</span>
-          <AudioSlider
-            value={currentSeekDisplay}
-            min={0}
-            max={duration || 100}
-            step={0.1}
-            onChange={(val) => setDragSeekVal(val)}
-            onChangeCommitted={(val) => {
-              seek(val);
-              setDragSeekVal(null);
-            }}
-            formatTooltip={(val) => formatTime(val)}
-            className="flex-1"
-          />
+          {isWavySeekbarEnabled ? (
+            <WavyAudioSlider
+              value={currentSeekDisplay}
+              min={0}
+              max={duration || 100}
+              step={0.1}
+              onChange={(val) => setDragSeekVal(val)}
+              onChangeCommitted={(val) => {
+                seek(val);
+                setDragSeekVal(null);
+              }}
+              formatTooltip={(val) => formatTime(val)}
+              className="flex-1"
+            />
+          ) : (
+            <AudioSlider
+              value={currentSeekDisplay}
+              min={0}
+              max={duration || 100}
+              step={0.1}
+              onChange={(val) => setDragSeekVal(val)}
+              onChangeCommitted={(val) => {
+                seek(val);
+                setDragSeekVal(null);
+              }}
+              formatTooltip={(val) => formatTime(val)}
+              className="flex-1"
+            />
+          )}
           <span>{formatTime(duration)}</span>
         </div>
       </div>

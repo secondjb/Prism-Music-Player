@@ -167,9 +167,12 @@ export const App: React.FC = () => {
       const target = e.target as HTMLElement;
       if (target && target.classList) {
         target.classList.add('is-scrolling');
+        const grid = target.closest('revo-grid');
+        if (grid) grid.classList.add('is-scrolling');
         clearTimeout(scrollTimeout);
         scrollTimeout = setTimeout(() => {
           target.classList.remove('is-scrolling');
+          if (grid) grid.classList.remove('is-scrolling');
         }, 1000);
       }
     };

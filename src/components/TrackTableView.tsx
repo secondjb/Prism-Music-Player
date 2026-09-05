@@ -714,8 +714,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     visibleTrackColumns,
     trackGridDensity,
     showSubArtistUnderTitle,
-    showTrackGridScrollbar,
-    setShowTrackGridScrollbar,
     resetGrid,
     setTrackGridDensity,
     setShowSubArtistUnderTitle,
@@ -895,7 +893,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
 
   // Column definitions with fractional auto-sizing and strict layout boundaries
   const columns = useMemo<ColumnRegular[]>(() => {
-    const availableWidth = showTrackGridScrollbar ? containerWidth - 10 : containerWidth;
+    const availableWidth = containerWidth - 14;
     const widths = calculateColumnWidths(
       availableWidth,
       visibleTrackColumns,
@@ -907,6 +905,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       order: {
         prop: 'order',
         name: '#',
+        readonly: true,
         size: widths.order,
         minSize: MIN_COLUMN_WIDTHS.order,
         sortable: false,
@@ -916,6 +915,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       art: {
         prop: 'art',
         name: '',
+        readonly: true,
         size: widths.art,
         minSize: MIN_COLUMN_WIDTHS.art,
         sortable: false,
@@ -925,6 +925,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       title: {
         prop: 'title',
         name: 'Title',
+        readonly: true,
         size: widths.title,
         minSize: MIN_COLUMN_WIDTHS.title,
         sortable: true,
@@ -937,6 +938,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       artist: {
         prop: 'artist',
         name: 'Artist',
+        readonly: true,
         size: widths.artist,
         minSize: MIN_COLUMN_WIDTHS.artist,
         sortable: true,
@@ -949,6 +951,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       album: {
         prop: 'album',
         name: 'Album',
+        readonly: true,
         size: widths.album,
         minSize: MIN_COLUMN_WIDTHS.album,
         sortable: true,
@@ -961,6 +964,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       date: {
         prop: 'year',
         name: 'Date',
+        readonly: true,
         size: widths.date,
         minSize: MIN_COLUMN_WIDTHS.date,
         sortable: true,
@@ -973,6 +977,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       genre: {
         prop: 'genre',
         name: 'Genre',
+        readonly: true,
         size: widths.genre,
         minSize: MIN_COLUMN_WIDTHS.genre,
         sortable: true,
@@ -985,6 +990,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       duration: {
         prop: 'duration_secs',
         name: 'Duration',
+        readonly: true,
         size: widths.duration,
         minSize: MIN_COLUMN_WIDTHS.duration,
         sortable: true,
@@ -997,6 +1003,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       favorite: {
         prop: 'favorite',
         name: '',
+        readonly: true,
         size: widths.favorite,
         minSize: MIN_COLUMN_WIDTHS.favorite,
         sortable: false,
@@ -1006,6 +1013,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       playNext: {
         prop: 'playNext',
         name: '',
+        readonly: true,
         size: widths.playNext,
         minSize: MIN_COLUMN_WIDTHS.playNext,
         sortable: false,
@@ -1015,6 +1023,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       addToQueue: {
         prop: 'addToQueue',
         name: '',
+        readonly: true,
         size: widths.addToQueue,
         minSize: MIN_COLUMN_WIDTHS.addToQueue,
         sortable: false,
@@ -1024,6 +1033,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       actions: {
         prop: 'actions',
         name: '',
+        readonly: true,
         size: widths.actions,
         minSize: MIN_COLUMN_WIDTHS.actions,
         sortable: false,
@@ -1040,7 +1050,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     trackGridDensity,
     columnWidths,
     sortState,
-    showTrackGridScrollbar,
     createSpacerAwareCompare,
     columnHeaderTemplate,
     orderCellTemplate,
@@ -1239,8 +1248,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               onDensityChange={setTrackGridDensity}
               showSubArtistUnderTitle={showSubArtistUnderTitle}
               onToggleSubArtist={setShowSubArtistUnderTitle}
-              showTrackGridScrollbar={showTrackGridScrollbar}
-              onToggleTrackGridScrollbar={setShowTrackGridScrollbar}
               onResetGrid={resetGrid}
               visibleTrackColumns={visibleTrackColumns}
               onToggleColumn={handleToggleColumn}
@@ -1254,18 +1261,17 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         ref={containerRef}
         tabIndex={0}
         onKeyDown={onKeyDown}
-        className={`flex-1 w-full relative outline-none overflow-hidden ${
-          showTrackGridScrollbar ? 'grid-show-scrollbar' : 'grid-hide-scrollbar'
-        }`}
+        className="flex-1 w-full relative outline-none overflow-hidden"
         style={{ minHeight: 0 }}
       >
         <RevoGrid
           ref={gridRef}
           theme="darkMaterial"
-          className={showTrackGridScrollbar ? 'show-scrollbar' : 'hide-scrollbar'}
           source={source}
           columns={columns}
           rowSize={currentDensityHeight}
+          readonly={true}
+          editors={{}}
           resize={true}
           canFocus={true}
           accessible={true}

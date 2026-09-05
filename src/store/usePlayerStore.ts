@@ -160,9 +160,6 @@ interface PlayerState {
   setColumnOrder: (order: TrackColumnId[]) => void;
   showSubArtistUnderTitle: boolean;
   setShowSubArtistUnderTitle: (show: boolean) => void;
-  showTrackGridScrollbar: boolean;
-  setShowTrackGridScrollbar: (show: boolean) => void;
-  toggleShowTrackGridScrollbar: () => void;
 
   // Shuffle & Repeat actions
   toggleShuffle: () => void;
@@ -336,10 +333,6 @@ export const usePlayerStore = create<PlayerState>()(
 
       showSubArtistUnderTitle: true,
       setShowSubArtistUnderTitle: (show) => set({ showSubArtistUnderTitle: show }),
-      showTrackGridScrollbar: false,
-      setShowTrackGridScrollbar: (show) => set({ showTrackGridScrollbar: show }),
-      toggleShowTrackGridScrollbar: () =>
-        set((state) => ({ showTrackGridScrollbar: !state.showTrackGridScrollbar })),
 
       // App Updates
       autoCheckUpdates: true,
@@ -1143,7 +1136,6 @@ export const usePlayerStore = create<PlayerState>()(
         trackGridDensity: state.trackGridDensity,
         columnOrder: state.columnOrder,
         showSubArtistUnderTitle: state.showSubArtistUnderTitle,
-        showTrackGridScrollbar: state.showTrackGridScrollbar,
       }),
     }
   )

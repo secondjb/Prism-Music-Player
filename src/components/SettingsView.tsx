@@ -102,8 +102,6 @@ export const SettingsView: React.FC = () => {
   const togglePreferWordSyncedLyrics = usePlayerStore((s) => s.togglePreferWordSyncedLyrics);
   const inferWordSyncedLyrics = usePlayerStore((s) => s.inferWordSyncedLyrics);
   const toggleInferWordSyncedLyrics = usePlayerStore((s) => s.toggleInferWordSyncedLyrics);
-  const showTrackGridScrollbar = usePlayerStore((s) => s.showTrackGridScrollbar);
-  const toggleShowTrackGridScrollbar = usePlayerStore((s) => s.toggleShowTrackGridScrollbar);
 
   const autoCheckUpdates = usePlayerStore((s) => s.autoCheckUpdates);
   const toggleAutoCheckUpdates = usePlayerStore((s) => s.toggleAutoCheckUpdates);
@@ -798,27 +796,7 @@ export const SettingsView: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
-            <div className="flex items-center gap-3">
-              <Sliders className="w-4 h-4 text-indigo-400" />
-              <div className="flex flex-col">
-                <span className="text-xs font-semibold text-white">Show Song Table Scrollbar</span>
-                <span className="text-[11px] text-zinc-400">Display vertical scrollbar on song grid (uncheck for clean borderless look)</span>
-              </div>
-            </div>
-            <Checkbox
-              checked={showTrackGridScrollbar}
-              onChange={() => toggleShowTrackGridScrollbar()}
-              size="small"
-              sx={{
-                color: 'var(--color-stop-1, #6366f1)',
-                '&.Mui-checked': {
-                  color: 'var(--color-stop-1, #6366f1)',
-                },
-                p: 0.5,
-              }}
-            />
-          </div>
+
 
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3">

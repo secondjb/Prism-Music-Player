@@ -371,96 +371,123 @@ revo-grid revogr-viewport-scroll.colPinEnd::-webkit-scrollbar {
   height: 0 !important;
 }
 
-/* 2. Hidden State: No scrollbar ever (clean borderless appearance) */
-.grid-hide-scrollbar revo-grid revogr-scroll-virtual.vertical,
-revo-grid.hide-scrollbar revogr-scroll-virtual.vertical,
-revo-grid:not(.show-scrollbar) revogr-scroll-virtual.vertical {
-  display: none !important;
-  width: 0 !important;
-  min-width: 0 !important;
-  max-width: 0 !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-  scrollbar-width: none !important;
-}
-
-.grid-hide-scrollbar revo-grid revogr-scroll-virtual.vertical::-webkit-scrollbar,
-revo-grid.hide-scrollbar revogr-scroll-virtual.vertical::-webkit-scrollbar,
-revo-grid:not(.show-scrollbar) revogr-scroll-virtual.vertical::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-}
-
-/* 3. Shown State: Sleek themed vertical scrollbar indicator */
-.grid-show-scrollbar revo-grid revogr-scroll-virtual.vertical,
-revo-grid.show-scrollbar revogr-scroll-virtual.vertical {
+/* 2. Song Grid: Exactly ONE vertical scrollbar, themed according to the current song */
+revo-grid revogr-scroll-virtual,
+revo-grid revogr-scroll-virtual.vertical,
+revo-grid revogr-scroll-virtual[dimension="rgRow"],
+revogr-scroll-virtual.vertical,
+revogr-scroll-virtual[dimension="rgRow"] {
   display: block !important;
+  position: absolute !important;
+  top: 48px !important;
+  right: 2px !important;
+  bottom: 104px !important;
+  height: auto !important;
+  max-height: calc(100% - 48px - 104px) !important;
   width: 8px !important;
   min-width: 8px !important;
   max-width: 8px !important;
   opacity: 1 !important;
   pointer-events: auto !important;
   background: transparent !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  z-index: 50 !important;
   scrollbar-width: thin !important;
-  scrollbar-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 65%, rgba(255, 255, 255, 0.35)) transparent !important;
+  scrollbar-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 60%, rgba(255, 255, 255, 0.3)) transparent !important;
 }
 
-.grid-show-scrollbar revo-grid revogr-scroll-virtual.vertical:hover,
-revo-grid.show-scrollbar revogr-scroll-virtual.vertical:hover {
+revo-grid:hover revogr-scroll-virtual.vertical,
+revo-grid revogr-scroll-virtual.vertical:hover,
+revogr-scroll-virtual.vertical:hover {
   scrollbar-color: var(--color-stop-1, #6366f1) transparent !important;
 }
 
-.grid-show-scrollbar revo-grid revogr-scroll-virtual.vertical::-webkit-scrollbar,
-revo-grid.show-scrollbar revogr-scroll-virtual.vertical::-webkit-scrollbar {
+/* Scrollbar Track */
+revo-grid revogr-scroll-virtual.vertical::-webkit-scrollbar,
+revo-grid revogr-scroll-virtual[dimension="rgRow"]::-webkit-scrollbar,
+revogr-scroll-virtual.vertical::-webkit-scrollbar,
+revogr-scroll-virtual[dimension="rgRow"]::-webkit-scrollbar {
   display: block !important;
   width: 8px !important;
   background: transparent !important;
 }
 
-.grid-show-scrollbar revo-grid revogr-scroll-virtual.vertical::-webkit-scrollbar-track,
-revo-grid.show-scrollbar revogr-scroll-virtual.vertical::-webkit-scrollbar-track {
+revo-grid revogr-scroll-virtual.vertical::-webkit-scrollbar-track,
+revo-grid revogr-scroll-virtual[dimension="rgRow"]::-webkit-scrollbar-track,
+revogr-scroll-virtual.vertical::-webkit-scrollbar-track,
+revogr-scroll-virtual[dimension="rgRow"]::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.03) !important;
   border-radius: 9999px !important;
   border: none !important;
 }
 
-.grid-show-scrollbar revo-grid revogr-scroll-virtual.vertical::-webkit-scrollbar-thumb,
-revo-grid.show-scrollbar revogr-scroll-virtual.vertical::-webkit-scrollbar-thumb {
+/* Scrollbar Themed Thumb */
+revo-grid revogr-scroll-virtual.vertical::-webkit-scrollbar-thumb,
+revo-grid revogr-scroll-virtual[dimension="rgRow"]::-webkit-scrollbar-thumb,
+revogr-scroll-virtual.vertical::-webkit-scrollbar-thumb,
+revogr-scroll-virtual[dimension="rgRow"]::-webkit-scrollbar-thumb {
   display: block !important;
-  background: color-mix(in srgb, var(--color-stop-1, #6366f1) 65%, rgba(255, 255, 255, 0.35)) !important;
+  background: color-mix(in srgb, var(--color-stop-1, #6366f1) 60%, rgba(255, 255, 255, 0.3)) !important;
   border-radius: 9999px !important;
   border: 1.5px solid transparent !important;
   background-clip: padding-box !important;
   transition: background-color 0.2s ease, box-shadow 0.2s ease !important;
 }
 
-.grid-show-scrollbar revo-grid revogr-scroll-virtual.vertical::-webkit-scrollbar-thumb:hover,
-revo-grid.show-scrollbar revogr-scroll-virtual.vertical::-webkit-scrollbar-thumb:hover,
-.grid-show-scrollbar revo-grid revogr-scroll-virtual.vertical:hover::-webkit-scrollbar-thumb,
-revo-grid.show-scrollbar revogr-scroll-virtual.vertical:hover::-webkit-scrollbar-thumb {
+/* Highlight thumb with vibrant song theme on hover or active scroll */
+revo-grid:hover revogr-scroll-virtual.vertical::-webkit-scrollbar-thumb,
+revo-grid:hover revogr-scroll-virtual[dimension="rgRow"]::-webkit-scrollbar-thumb,
+revo-grid.is-scrolling revogr-scroll-virtual.vertical::-webkit-scrollbar-thumb,
+.is-scrolling revogr-scroll-virtual.vertical::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-stop-1, #6366f1) 85%, rgba(255, 255, 255, 0.35)) !important;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-stop-1, #6366f1) 50%, transparent) !important;
+}
+
+/* Full vibrant song theme glow when directly hovering or dragging thumb */
+revo-grid revogr-scroll-virtual.vertical::-webkit-scrollbar-thumb:hover,
+revo-grid revogr-scroll-virtual[dimension="rgRow"]::-webkit-scrollbar-thumb:hover,
+revo-grid revogr-scroll-virtual.vertical:hover::-webkit-scrollbar-thumb,
+revogr-scroll-virtual.vertical::-webkit-scrollbar-thumb:hover {
   background: var(--color-stop-1, #6366f1) !important;
   box-shadow: 0 0 10px var(--color-stop-1, #6366f1) !important;
 }
 
+revo-grid revogr-scroll-virtual.vertical::-webkit-scrollbar-thumb:active,
+revo-grid revogr-scroll-virtual[dimension="rgRow"]::-webkit-scrollbar-thumb:active,
+revogr-scroll-virtual.vertical::-webkit-scrollbar-thumb:active {
+  background: var(--color-stop-1, #6366f1) !important;
+  box-shadow: 0 0 14px var(--color-stop-1, #6366f1), 0 0 4px #fff !important;
+}
+
 /* Hide top and bottom arrows completely across all scrollbar elements */
+revo-grid *::-webkit-scrollbar-button,
 revogr-scroll-virtual::-webkit-scrollbar-button,
 revogr-scroll-virtual *::-webkit-scrollbar-button,
 revogr-viewport-scroll::-webkit-scrollbar-button,
-revogr-viewport-scroll *::-webkit-scrollbar-button,
-revo-grid *::-webkit-scrollbar-button {
+revogr-viewport-scroll *::-webkit-scrollbar-button {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
   background: transparent !important;
 }
 
+revo-grid *::-webkit-scrollbar-corner,
 revogr-scroll-virtual::-webkit-scrollbar-corner,
 revogr-scroll-virtual *::-webkit-scrollbar-corner,
 revogr-viewport-scroll.vertical::-webkit-scrollbar-corner,
 revogr-viewport-scroll .vertical::-webkit-scrollbar-corner,
 revo-grid .scroll-vertical::-webkit-scrollbar-corner {
   background: transparent !important;
+}
+
+/* Prevent RevoGrid from showing cell text editors */
+revo-grid revogr-edit,
+revo-grid .edit-cell,
+revo-grid input.edit-input {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 body {

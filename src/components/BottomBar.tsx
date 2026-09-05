@@ -3,7 +3,6 @@ import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { AudioSlider } from './AudioSlider';
 import { WavyAudioSlider } from './WavyAudioSlider';
-import { invoke } from '@tauri-apps/api/core';
 import {
   Play,
   Pause,
@@ -43,7 +42,6 @@ export const BottomBar: React.FC = () => {
   const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
   const toggleLikeTrack = usePlayerStore((s) => s.toggleLikeTrack);
   const sleepTimer = usePlayerStore((s) => s.sleepTimer);
-  const tickSleepTimerSecond = usePlayerStore((s) => s.tickSleepTimerSecond);
   const showLyricsFullscreen = usePlayerStore((s) => s.showLyricsFullscreen);
   const setShowLyricsFullscreen = usePlayerStore((s) => s.setShowLyricsFullscreen);
   const activeTab = usePlayerStore((s) => s.activeTab);
@@ -78,47 +76,6 @@ export const BottomBar: React.FC = () => {
 
   // Ref for volume wheel scrolling
   const volContainerRef = useRef<HTMLDivElement>(null);
-
-  // Poll playback position & duration from Rust audio engine
-  useEffect(() => {
-    if (!isPlaying || !window.__TAURI_INTERNALS__) return;
-    const interval = setInterval(async () => {
-      try {
-        const res: any = await invoke('get_playback_position');
-        const pos = Array.isArray(res) ? res[0] : res;
-        const durFromRust = Array.isArray(res) ? res[1] : 0;
-        if (typeof pos === 'number' && !isNaN(pos) && pos >= 0) {
-          const state = usePlayerStore.getState();
-          const effectiveDur = durFromRust > 0 ? durFromRust : (state.currentTrack?.duration_secs || state.duration || 0);
-          usePlayerStore.setState({
-            currentTime: pos,
-            ...(effectiveDur > 0 ? { duration: effectiveDur } : {})
-          });
-          const dur = effectiveDur;
-          const rm = state.repeatMode;
-          if (dur > 2 && pos > 0.5 && pos >= dur - 0.5) {
-            if (rm === 'one') {
-              usePlayerStore.getState().seek(0);
-            } else {
-              nextTrack();
-            }
-          }
-        }
-      } catch (e) {
-        // Ignored
-      }
-    }, 250);
-    return () => clearInterval(interval);
-  }, [isPlaying, nextTrack]);
-
-  // Sleep timer interval tick
-  useEffect(() => {
-    if (!sleepTimer.active || sleepTimer.mode !== 'time') return;
-    const interval = setInterval(() => {
-      tickSleepTimerSecond();
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [sleepTimer.active, sleepTimer.mode, tickSleepTimerSecond]);
 
   const formatTime = (secs: number) => {
     if (!secs || isNaN(secs)) return '0:00';

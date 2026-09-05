@@ -31,9 +31,54 @@ export const App: React.FC = () => {
   const showLyricsFullscreen = usePlayerStore((s) => s.showLyricsFullscreen);
   const isQueueOpen = usePlayerStore((s) => s.isQueueOpen);
   const infoModalTrack = usePlayerStore((s) => s.infoModalTrack);
+  const nextTrack = usePlayerStore((s) => s.nextTrack);
+  const sleepTimer = usePlayerStore((s) => s.sleepTimer);
+  const tickSleepTimerSecond = usePlayerStore((s) => s.tickSleepTimerSecond);
 
   const trackArt = useTrackArt(currentTrack);
   const ambientArt = useTrackArt(currentTrack, { thumbnail: true, maxSize: 128 });
+
+  // Continuous audio engine position polling & auto-advance (runs globally regardless of page/tab)
+  useEffect(() => {
+    if (!isPlaying || !window.__TAURI_INTERNALS__) return;
+    const pollInterval = (showLyricsFullscreen || activeTab === 'lyrics') ? 150 : 250;
+    const interval = setInterval(async () => {
+      try {
+        const res: any = await invoke('get_playback_position');
+        const pos = Array.isArray(res) ? res[0] : res;
+        const durFromRust = Array.isArray(res) ? res[1] : 0;
+        if (typeof pos === 'number' && !isNaN(pos) && pos >= 0) {
+          const state = usePlayerStore.getState();
+          const effectiveDur = durFromRust > 0 ? durFromRust : (state.currentTrack?.duration_secs || state.duration || 0);
+          usePlayerStore.setState({
+            currentTime: pos,
+            ...(effectiveDur > 0 ? { duration: effectiveDur } : {})
+          });
+          const dur = effectiveDur;
+          const rm = state.repeatMode;
+          if (dur > 2 && pos > 0.5 && pos >= dur - 0.5) {
+            if (rm === 'one') {
+              usePlayerStore.getState().seek(0);
+            } else {
+              nextTrack();
+            }
+          }
+        }
+      } catch (e) {
+        // Ignored
+      }
+    }, pollInterval);
+    return () => clearInterval(interval);
+  }, [isPlaying, nextTrack, showLyricsFullscreen, activeTab]);
+
+  // Sleep timer interval tick (runs globally)
+  useEffect(() => {
+    if (!sleepTimer.active || sleepTimer.mode !== 'time') return;
+    const interval = setInterval(() => {
+      tickSleepTimerSecond();
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [sleepTimer.active, sleepTimer.mode, tickSleepTimerSecond]);
 
   // Sync MediaSession metadata & action handlers for Windows System Media Transport Controls (SMTC)
   useEffect(() => {

@@ -109,59 +109,96 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
   const [tooltipX, setTooltipX] = useState<number>(0);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
 
-  const percent = Math.max(0, Math.min(1, (value - min) / (max - min || 1)));
+  // Smooth sub-millisecond continuous position interpolation
+  const syncRef = useRef({ val: value, timestamp: performance.now() });
+  useEffect(() => {
+    syncRef.current = { val: value, timestamp: performance.now() };
+  }, [value]);
+
+  const thumbRadius = size === 'sm' ? 5.0 : size === 'lg' ? 7.0 : 6.0;
+  const paddingX = thumbRadius + 4; // Ensures 100% of thumb circle & glow stays inside canvas bounds
+
+  const updateFromPointer = useCallback(
+    (clientX: number, isCommit = false) => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const clickX = clientX - rect.left - paddingX;
+      const availableWidth = Math.max(1, rect.width - 2 * paddingX);
+      const ratio = Math.max(0, Math.min(1, clickX / availableWidth));
+      const rawVal = min + ratio * (max - min);
+      const steppedVal = Math.round(rawVal / step) * step;
+      const clampedVal = Math.max(min, Math.min(max, steppedVal));
+      setHoverVal(clampedVal);
+      setTooltipX(clientX - rect.left);
+      onChange(clampedVal);
+      if (isCommit && onChangeCommitted) {
+        onChangeCommitted(clampedVal);
+      }
+    },
+    [min, max, step, paddingX, onChange, onChangeCommitted]
+  );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const ratio = Math.max(0, Math.min(1, clickX / (rect.width || 1)));
+      const clickX = e.clientX - rect.left - paddingX;
+      const availableWidth = Math.max(1, rect.width - 2 * paddingX);
+      const ratio = Math.max(0, Math.min(1, clickX / availableWidth));
       const rawVal = min + ratio * (max - min);
       const steppedVal = Math.round(rawVal / step) * step;
-      setHoverVal(steppedVal);
-      setTooltipX(clickX);
+      const clampedVal = Math.max(min, Math.min(max, steppedVal));
+      setHoverVal(clampedVal);
+      setTooltipX(e.clientX - rect.left);
       if (isDragging) {
-        onChange(steppedVal);
+        onChange(clampedVal);
       }
     },
-    [min, max, step, isDragging, onChange]
+    [min, max, step, paddingX, isDragging, onChange]
   );
 
   const handleMouseLeave = useCallback(() => {
     setIsHovered(false);
-    setHoverVal(null);
-  }, []);
+    if (!isDragging) setHoverVal(null);
+  }, [isDragging]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       setIsDragging(true);
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const ratio = Math.max(0, Math.min(1, clickX / (rect.width || 1)));
-      const rawVal = min + ratio * (max - min);
-      const steppedVal = Math.round(rawVal / step) * step;
-      onChange(steppedVal);
+      updateFromPointer(e.clientX, false);
     },
-    [min, max, step, onChange]
+    [updateFromPointer]
   );
 
-  const handleMouseUp = useCallback(() => {
-    if (isDragging) {
-      setIsDragging(false);
-      if (onChangeCommitted && hoverVal !== null) {
-        onChangeCommitted(hoverVal);
+  const handleMouseUp = useCallback(
+    (e: MouseEvent) => {
+      if (isDragging) {
+        setIsDragging(false);
+        updateFromPointer(e.clientX, true);
       }
-    }
-  }, [isDragging, onChangeCommitted, hoverVal]);
+    },
+    [isDragging, updateFromPointer]
+  );
+
+  const handleGlobalMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (isDragging) {
+        updateFromPointer(e.clientX, false);
+      }
+    },
+    [isDragging, updateFromPointer]
+  );
 
   useEffect(() => {
     if (isDragging) {
+      window.addEventListener('mousemove', handleGlobalMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
-      return () => window.removeEventListener('mouseup', handleMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleGlobalMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
     }
-  }, [isDragging, handleMouseUp]);
+  }, [isDragging, handleGlobalMouseMove, handleMouseUp]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -171,7 +208,7 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
 
     let animationFrameId: number;
     let lastTime = performance.now();
-    let accumulatedTime = 0;
+    let accumulatedWaveTime = 0;
 
     const smootherstep = (t: number) => {
       const c = Math.max(0, Math.min(1, t));
@@ -182,7 +219,7 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
       const dt = Math.min(100, Math.max(0, now - lastTime));
       lastTime = now;
       if (isPlaying && !isDragging) {
-        accumulatedTime += dt;
+        accumulatedWaveTime += dt;
       }
 
       const rect = canvas.getBoundingClientRect();
@@ -196,39 +233,43 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
 
       const width = rect.width;
       const height = rect.height;
+      const centerY = height / 2;
 
-      // Sizing configurations aligned with LastWave-native 50dp specs
-      let centerY: number;
+      // Sizing configurations aligned with LastWave-native specs
       let baseAmp1: number;
       let baseAmp2: number;
       let baseAmp3: number;
       let trackThickness: number;
-      let thumbRadius: number;
 
       if (size === 'lg') {
-        centerY = height / 2 + 7;
-        baseAmp1 = 14;
-        baseAmp2 = 10.5;
-        baseAmp3 = 7.5;
+        baseAmp1 = 12.0;
+        baseAmp2 = 9.0;
+        baseAmp3 = 6.5;
         trackThickness = 4.5;
-        thumbRadius = 7.5;
       } else if (size === 'sm') {
-        centerY = height / 2 + 3.5;
-        baseAmp1 = 7.5;
-        baseAmp2 = 5.5;
-        baseAmp3 = 4;
+        baseAmp1 = 6.5;
+        baseAmp2 = 4.8;
+        baseAmp3 = 3.5;
         trackThickness = 3.5;
-        thumbRadius = 5.5;
       } else {
-        centerY = height / 2 + 5;
-        baseAmp1 = 11;
-        baseAmp2 = 8;
-        baseAmp3 = 6;
-        trackThickness = 4;
-        thumbRadius = 6.5;
+        baseAmp1 = 9.5;
+        baseAmp2 = 7.0;
+        baseAmp3 = 5.0;
+        trackThickness = 4.0;
       }
 
-      const thumbX = Math.max(0, Math.min(width, percent * width));
+      // Smooth continuous position calculation (no 250ms jagged jumps)
+      let currentVal = value;
+      if (isDragging && hoverVal !== null) {
+        currentVal = hoverVal;
+      } else if (isPlaying) {
+        const elapsedSec = (now - syncRef.current.timestamp) / 1000;
+        currentVal = Math.min(max, Math.max(min, syncRef.current.val + elapsedSec));
+      }
+      const percent = Math.max(0, Math.min(1, (currentVal - min) / (max - min || 1)));
+
+      const activeWidth = Math.max(1, width - 2 * paddingX);
+      const thumbX = paddingX + percent * activeWidth;
 
       // Resolve computed dynamic theme colors
       let rawColor1 = '#6366f1';
@@ -257,32 +298,32 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
       const thumbGlowColor = shiftTonalRgba(primaryRgb, -0.10, 1.25, 0.32);
       const thumbSolidColor = shiftTonalRgba(primaryRgb, +0.15, 0.95, 1.0);
 
-      // Methodical, slow, hypnotic wave cycles (delta-time based, refresh-rate independent)
-      // Cycles: 4800ms, 3600ms, 2600ms
-      const phase1 = ((accumulatedTime % 4800) / 4800) * 2 * Math.PI + 2.2;
-      const phase2 = ((accumulatedTime % 3600) / 3600) * 2 * Math.PI + 1.2;
-      const phase3 = ((accumulatedTime % 2600) / 2600) * 2 * Math.PI;
+      // Methodical, slow wave cycles (delta-time based, refresh-rate independent)
+      const phase1 = ((accumulatedWaveTime % 4800) / 4800) * 2 * Math.PI + 2.2;
+      const phase2 = ((accumulatedWaveTime % 3600) / 3600) * 2 * Math.PI + 1.2;
+      const phase3 = ((accumulatedWaveTime % 2600) / 2600) * 2 * Math.PI;
 
       ctx.clearRect(0, 0, width, height);
 
       // 1. Inactive background track: Full smooth capsule bar with rounded ends
       ctx.beginPath();
-      ctx.moveTo(0, centerY);
-      ctx.lineTo(width, centerY);
+      ctx.moveTo(paddingX, centerY);
+      ctx.lineTo(width - paddingX, centerY);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
       ctx.lineWidth = trackThickness;
       ctx.lineCap = 'round';
       ctx.stroke();
 
       // 2. Active 3-Layer Material Frosted Glass Waves with Dynamic Counter-Gradients
-      if (thumbX > 0) {
+      if (thumbX > paddingX) {
         ctx.save();
         ctx.beginPath();
-        // Clip to active region up to thumbX
-        ctx.rect(0, 0, thumbX, height);
+        // Clip to active region from paddingX to thumbX
+        ctx.rect(paddingX - trackThickness, 0, thumbX - paddingX + 2 * trackThickness, height);
         ctx.clip();
 
-        const transitionLength = Math.min(44, thumbX * 0.48);
+        const activeSpan = thumbX - paddingX;
+        const transitionLength = Math.min(44, activeSpan * 0.48);
         const invTransition = transitionLength > 0 ? 1 / transitionLength : 0;
 
         const populateWave = (
@@ -294,22 +335,23 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
           strokeWidth: number
         ) => {
           ctx.beginPath();
-          ctx.moveTo(0, centerY);
+          ctx.moveTo(paddingX, centerY);
 
           const invWavelength2Pi = (2 * Math.PI) / wavelength;
-          for (let x = 0; x <= thumbX; x += 1.5) {
-            const startEnv = invTransition > 0 ? smootherstep(x * invTransition) : 1;
-            const endEnv = invTransition > 0 ? smootherstep((thumbX - x) * invTransition) : 1;
+          for (let x = paddingX; x <= thumbX; x += 1.5) {
+            const relX = x - paddingX;
+            const startEnv = invTransition > 0 ? smootherstep(relX * invTransition) : 1;
+            const endEnv = invTransition > 0 ? smootherstep((activeSpan - relX) * invTransition) : 1;
             const envelope = startEnv * endEnv;
 
-            const angle = x * invWavelength2Pi - phase;
+            const angle = relX * invWavelength2Pi - phase;
             const waveHeight = (0.5 + 0.5 * Math.sin(angle)) * amplitude * envelope;
             const y = centerY - waveHeight;
             ctx.lineTo(x, y);
           }
           ctx.lineTo(thumbX, centerY);
 
-          const grad = ctx.createLinearGradient(0, centerY, thumbX, centerY);
+          const grad = ctx.createLinearGradient(paddingX, centerY, thumbX, centerY);
           grad.addColorStop(0, strokeColor1);
           grad.addColorStop(1, strokeColor2);
 
@@ -334,11 +376,11 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
         populateWave(95, amp3, phase3, layer3Light, layer3Dark, size === 'sm' ? 1.6 : 2.0);
 
         // 3. Crisp Baseline Bar with Light -> Dark dynamic gradient
-        const baseGrad = ctx.createLinearGradient(0, centerY, thumbX, centerY);
+        const baseGrad = ctx.createLinearGradient(paddingX, centerY, thumbX, centerY);
         baseGrad.addColorStop(0, layer3Light);
         baseGrad.addColorStop(1, layer3Dark);
         ctx.beginPath();
-        ctx.moveTo(0, centerY);
+        ctx.moveTo(paddingX, centerY);
         ctx.lineTo(thumbX, centerY);
         ctx.strokeStyle = baseGrad;
         ctx.lineWidth = trackThickness;
@@ -366,7 +408,7 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
 
     animationFrameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [percent, isPlaying, isDragging, size]);
+  }, [value, isPlaying, isDragging, hoverVal, min, max, size, paddingX, thumbRadius]);
 
   const displayTooltipVal =
     isDragging && hoverVal !== null ? hoverVal : isHovered && hoverVal !== null ? hoverVal : value;
@@ -374,7 +416,7 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
     ? formatTooltip(displayTooltipVal)
     : `${Math.round(((displayTooltipVal - min) / (max - min || 1)) * 100)}%`;
 
-  const containerHeightClass = size === 'lg' ? 'h-11' : size === 'sm' ? 'h-7' : 'h-9';
+  const containerHeightClass = size === 'sm' ? 'h-7' : size === 'lg' ? 'h-10' : 'h-8';
 
   return (
     <div

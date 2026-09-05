@@ -210,6 +210,29 @@ export const normalizePath = (dir: string): string => {
   return path;
 };
 
+let lastVolumeInvokeTime = 0;
+let pendingVolumeTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingVolumeVal: number | null = null;
+
+const sendThrottledVolume = (vol: number) => {
+  const now = performance.now();
+  pendingVolumeVal = vol;
+  if (now - lastVolumeInvokeTime >= 35) {
+    lastVolumeInvokeTime = now;
+    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+      invoke('set_volume', { volume: vol }).catch(() => {});
+    }
+  } else if (!pendingVolumeTimer) {
+    pendingVolumeTimer = setTimeout(() => {
+      pendingVolumeTimer = null;
+      lastVolumeInvokeTime = performance.now();
+      if (pendingVolumeVal !== null && typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+        invoke('set_volume', { volume: pendingVolumeVal }).catch(() => {});
+      }
+    }, 35);
+  }
+};
+
 export const usePlayerStore = create<PlayerState>()(
   persist(
     (set, get) => ({
@@ -585,14 +608,10 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
-      setVolume: async (vol) => {
+      setVolume: (vol) => {
         const clamped = Math.max(0, Math.min(1, vol));
         set({ volume: clamped });
-        try {
-          await invoke('set_volume', { volume: clamped });
-        } catch (e) {
-          console.warn('Rust set_volume error:', e);
-        }
+        sendThrottledVolume(clamped);
       },
 
       nextTrack: async () => {

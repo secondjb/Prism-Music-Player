@@ -376,9 +376,26 @@ export const LyricsView: React.FC = () => {
         formatted.map(async (line) => {
           try {
             const rom = await romanizer.romanizeLine(line.content);
+            const romSyllables = line.syllables.length > 0
+              ? await Promise.all(
+                  line.syllables.map(async (syl) => {
+                    try {
+                      const r = await romanizer.romanizeLine(syl.text);
+                      return {
+                        ...syl,
+                        romanizedText: r !== syl.text ? r : undefined,
+                      };
+                    } catch {
+                      return syl;
+                    }
+                  })
+                )
+              : line.syllables;
+
             return {
               ...line,
               romanized: rom !== line.content ? rom : undefined,
+              syllables: romSyllables,
             };
           } catch {
             return line;
@@ -1187,7 +1204,9 @@ export const LyricsView: React.FC = () => {
                               : undefined
                           }
                         >
-                          {syl.text}
+                          {isRomanizationEnabled && romanizationMode === 'replace' && syl.romanizedText
+                            ? syl.romanizedText
+                            : syl.text}
                         </motion.span>
                       );
                     })}
@@ -1353,7 +1372,7 @@ export const LyricsView: React.FC = () => {
                 max={duration || 100}
                 step={0.1}
                 onChange={(val) => seek(val)}
-                size="lg"
+                size="md"
                 className="flex-1"
                 formatTooltip={(val) => formatTime(val)}
               />
@@ -1364,7 +1383,7 @@ export const LyricsView: React.FC = () => {
                 max={duration || 100}
                 step={0.1}
                 onChange={(val) => seek(val)}
-                size="lg"
+                size="md"
                 className="flex-1"
                 formatTooltip={(val) => formatTime(val)}
               />

@@ -2,6 +2,7 @@ export interface LyricSyllable {
   timeMs: number;
   durationMs: number;
   text: string;
+  romanizedText?: string;
   hasTrailingSpace?: boolean;
 }
 
@@ -158,11 +159,20 @@ export function parseRichLyrics(rawLrc: string): ParsedLyricLine[] {
       const nonWhitespaceWords = words.filter((w) => w.trim().length > 0);
       const totalChars = nonWhitespaceWords.reduce((sum, w) => sum + w.length, 0) || 1;
 
+      const rawGap = next ? next.timeMs - cur.timeMs : 3500;
+      const estimatedSinging = rawGap <= 4500
+        ? Math.max(800, rawGap - 200)
+        : Math.min(rawGap - 350, Math.max(2500, nonWhitespaceWords.length * 320));
+      const totalSingingMs = Math.min(7500, estimatedSinging);
+
       let elapsedInLine = 0;
       for (let wIdx = 0; wIdx < nonWhitespaceWords.length; wIdx++) {
         const token = nonWhitespaceWords[wIdx];
+        const isLast = wIdx === nonWhitespaceWords.length - 1;
         const weight = token.length / totalChars;
-        const sylDur = Math.max(160, Math.round(durationMs * 0.85 * weight));
+        const sylDur = isLast
+          ? Math.max(150, totalSingingMs - elapsedInLine)
+          : Math.max(160, Math.round(totalSingingMs * weight));
         const sylTime = cur.timeMs + elapsedInLine;
         elapsedInLine += sylDur;
 

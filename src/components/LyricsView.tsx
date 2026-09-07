@@ -1004,14 +1004,14 @@ export const LyricsView: React.FC = () => {
             onClick={toggleRomanization}
             className={`p-2.5 rounded-xl transition-all border ${
               isRomanizationEnabled
-                ? 'text-white shadow-lg'
+                ? 'text-white shadow-lg border-transparent'
                 : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
             }`}
             style={
               isRomanizationEnabled
                 ? {
                     backgroundColor: 'var(--color-stop-1, #6366f1)',
-                    borderColor: 'var(--color-stop-2, #818cf8)',
+                    borderColor: 'transparent',
                   }
                 : undefined
             }
@@ -1025,14 +1025,14 @@ export const LyricsView: React.FC = () => {
             onClick={toggleFullscreen}
             className={`p-2.5 rounded-xl transition-all border ${
               isFullscreen
-                ? 'text-white shadow-lg'
+                ? 'text-white shadow-lg border-transparent'
                 : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
             }`}
             style={
               isFullscreen
                 ? {
                     backgroundColor: 'var(--color-stop-1, #6366f1)',
-                    borderColor: 'var(--color-stop-2, #818cf8)',
+                    borderColor: 'transparent',
                   }
                 : undefined
             }
@@ -1045,14 +1045,14 @@ export const LyricsView: React.FC = () => {
             onClick={() => setShowSettings(!showSettings)}
             className={`p-2.5 rounded-xl transition-all border ${
               showSettings
-                ? 'text-white shadow-lg'
+                ? 'text-white shadow-lg border-transparent'
                 : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
             }`}
             style={
               showSettings
                 ? {
                     backgroundColor: 'var(--color-stop-1, #6366f1)',
-                    borderColor: 'var(--color-stop-2, #818cf8)',
+                    borderColor: 'transparent',
                   }
                 : undefined
             }
@@ -1063,7 +1063,7 @@ export const LyricsView: React.FC = () => {
 
           <button
             onClick={handleClose}
-            className="p-2.5 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 border border-white/10"
+            className="p-2.5 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 border border-white/10 transition-all"
             title="Close Lyrics View"
           >
             <X className="w-5 h-5" />

@@ -66,7 +66,10 @@ const DEFAULT_COLOR_STOPS = [
   '#818CF8', // Light Indigo
 ];
 
+let currentExtractRequestId = 0;
+
 export function updateLogoGradientFromImage(imageSrc?: string | null): void {
+  const requestId = ++currentExtractRequestId;
   if (!imageSrc) {
     DEFAULT_COLOR_STOPS.forEach((color, idx) => {
       document.documentElement.style.setProperty(`--color-stop-${idx + 1}`, color);
@@ -77,6 +80,7 @@ export function updateLogoGradientFromImage(imageSrc?: string | null): void {
   const img = new Image();
   img.crossOrigin = 'Anonymous';
   img.onload = () => {
+    if (requestId !== currentExtractRequestId) return;
     try {
       const canvas = document.createElement('canvas');
       canvas.width = 6;
@@ -107,6 +111,7 @@ export function updateLogoGradientFromImage(imageSrc?: string | null): void {
     }
   };
   img.onerror = () => {
+    if (requestId !== currentExtractRequestId) return;
     DEFAULT_COLOR_STOPS.forEach((color, idx) => {
       document.documentElement.style.setProperty(`--color-stop-${idx + 1}`, color);
     });

@@ -123,6 +123,9 @@ export function useTrackArt(
       }
     }
 
+    // Reset to null while loading new track's uncached art
+    setArt(null);
+
     let isMounted = true;
 
     const processArt = async (rawArt: string) => {
@@ -157,11 +160,16 @@ export function useTrackArt(
       req
         .then(async (fetchedArt) => {
           pendingRequests.delete(track.path);
-          if (!isMounted || !fetchedArt) return;
+          if (!isMounted) return;
+          if (!fetchedArt) {
+            setArt(null);
+            return;
+          }
           await processArt(fetchedArt);
         })
         .catch(() => {
           pendingRequests.delete(track.path);
+          if (isMounted) setArt(null);
         });
     }
 

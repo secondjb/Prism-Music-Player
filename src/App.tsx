@@ -19,6 +19,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { logListeningEvent } from './utils/stats';
 import { StatsView } from './components/StatsView';
+import { updateLogoGradientFromImage } from './utils/colorExtractor';
 
 export const App: React.FC = () => {
   const tracks = usePlayerStore((s) => s.tracks);
@@ -37,6 +38,11 @@ export const App: React.FC = () => {
 
   const trackArt = useTrackArt(currentTrack);
   const ambientArt = useTrackArt(currentTrack, { thumbnail: true, maxSize: 128 });
+
+  // Dynamically extract and update theme gradient colors from album art globally across all views
+  useEffect(() => {
+    updateLogoGradientFromImage(trackArt || ambientArt);
+  }, [trackArt, ambientArt]);
 
   // Continuous audio engine position polling & auto-advance (runs globally regardless of page/tab)
   useEffect(() => {

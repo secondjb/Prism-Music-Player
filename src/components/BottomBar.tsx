@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import { SleepTimerModal } from './SleepTimerModal';
 import { AudioDeviceModal } from './AudioDeviceModal';
-import { updateLogoGradientFromImage } from '../utils/colorExtractor';
 
 export const BottomBar: React.FC = () => {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
@@ -53,10 +52,6 @@ export const BottomBar: React.FC = () => {
   const isWavySeekbarEnabled = usePlayerStore((s) => s.isWavySeekbarEnabled);
 
   const trackArt = useTrackArt(currentTrack);
-
-  useEffect(() => {
-    updateLogoGradientFromImage(trackArt);
-  }, [trackArt]);
 
   const [isTimerModalOpen, setIsTimerModalOpen] = useState(false);
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);

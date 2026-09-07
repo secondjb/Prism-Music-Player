@@ -15,6 +15,7 @@ export interface ParsedLyricLine {
   content: string;
   syllables: LyricSyllable[];
   hasSyllables: boolean;
+  hasExplicitSyllables?: boolean;
   romanized?: string;
   transliteration?: string;
 }
@@ -174,6 +175,7 @@ export function parseRichLyrics(
           content: t,
           syllables: [],
           hasSyllables: false,
+          hasExplicitSyllables: false,
         });
       }
     });
@@ -210,8 +212,17 @@ export function parseRichLyrics(
       content: cur.text,
       syllables,
       hasSyllables,
+      hasExplicitSyllables: hasExplicit,
     });
   }
 
   return result;
+}
+
+/**
+ * Returns true if the lyrics contain native, explicit word-by-word timestamps
+ * directly from the LRC file (not just inferred through vocal heuristics).
+ */
+export function hasExplicitWordSync(lines: ParsedLyricLine[]): boolean {
+  return lines.length > 0 && lines[0].startSecs !== -1 && lines.some((l) => Boolean(l.hasExplicitSyllables));
 }

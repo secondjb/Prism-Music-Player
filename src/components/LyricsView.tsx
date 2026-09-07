@@ -6,7 +6,7 @@ import { AudioSlider } from './AudioSlider';
 import { WavyAudioSlider } from './WavyAudioSlider';
 import { M3Selector } from './M3Selector';
 import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
-import { parseRichLyrics, ParsedLyricLine } from '../utils/lyricsParser';
+import { parseRichLyrics, ParsedLyricLine, hasExplicitWordSync } from '../utils/lyricsParser';
 import { createRomanizer } from 'lyric-romanizer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
@@ -927,6 +927,8 @@ export const LyricsView: React.FC = () => {
 
   const RepeatIcon = repeatMode === 'one' ? Repeat1 : Repeat;
   const currentTimeMs = currentTime * 1000;
+  const isUnsynced = lines.length > 0 && lines[0].startSecs === -1;
+  const isWordSynced = hasExplicitWordSync(lines);
 
   return (
     <div
@@ -986,8 +988,23 @@ export const LyricsView: React.FC = () => {
             <Mic2 className="w-5 h-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="font-bold text-white text-base truncate">
-              {lines.length > 0 && lines[0].startSecs === -1 ? 'Unsynced Lyrics' : 'Synced Lyrics'}
+            <h3
+              className="font-bold text-white text-base truncate"
+              title={
+                isUnsynced
+                  ? 'Plain unsynced lyrics'
+                  : isWordSynced
+                    ? 'Native word-by-word timestamps from LRC file'
+                    : inferWordSyncedLyrics
+                      ? 'Line-synced lyrics (word timing is inferred)'
+                      : 'Line-synced lyrics'
+              }
+            >
+              {isUnsynced
+                ? 'Unsynced Lyrics'
+                : isWordSynced
+                  ? 'Word Synced Lyrics'
+                  : 'Synced Lyrics'}
             </h3>
           </div>
           {showAudioSpecs && currentTrack && (

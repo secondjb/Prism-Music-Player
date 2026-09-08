@@ -89,6 +89,32 @@ export const BottomBar: React.FC = () => {
   const [prevVol, setPrevVol] = useState(volume);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [showPlaylistSub, setShowPlaylistSub] = useState(false);
+  const playlistSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handlePlaylistSubmenuEnter = () => {
+    if (playlistSubmenuTimerRef.current) {
+      clearTimeout(playlistSubmenuTimerRef.current);
+      playlistSubmenuTimerRef.current = null;
+    }
+    setShowPlaylistSub(true);
+  };
+
+  const handlePlaylistSubmenuLeave = () => {
+    if (playlistSubmenuTimerRef.current) {
+      clearTimeout(playlistSubmenuTimerRef.current);
+    }
+    playlistSubmenuTimerRef.current = setTimeout(() => {
+      setShowPlaylistSub(false);
+    }, 250);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (playlistSubmenuTimerRef.current) {
+        clearTimeout(playlistSubmenuTimerRef.current);
+      }
+    };
+  }, []);
 
   const playlists = usePlayerStore((s) => s.playlists);
   const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
@@ -316,8 +342,8 @@ export const BottomBar: React.FC = () => {
                 {/* Add to Playlist submenu */}
                 <div
                   className="relative"
-                  onMouseEnter={() => setShowPlaylistSub(true)}
-                  onMouseLeave={() => setShowPlaylistSub(false)}
+                  onMouseEnter={handlePlaylistSubmenuEnter}
+                  onMouseLeave={handlePlaylistSubmenuLeave}
                 >
                   <button
                     type="button"
@@ -343,6 +369,8 @@ export const BottomBar: React.FC = () => {
 
                   {showPlaylistSub && (
                     <div
+                      onMouseEnter={handlePlaylistSubmenuEnter}
+                      onMouseLeave={handlePlaylistSubmenuLeave}
                       style={{
                         backgroundColor:
                           'color-mix(in srgb, var(--color-stop-1, #6366f1) 10%, #141416)',
@@ -352,7 +380,7 @@ export const BottomBar: React.FC = () => {
                           '0 12px 36px -4px rgba(0, 0, 0, 0.7), 0 0 16px color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent)',
                         backdropFilter: 'blur(24px)',
                       }}
-                      className="absolute left-full bottom-0 w-48 border rounded-xl p-1.5 z-50 flex flex-col gap-0.5 ml-1.5 max-h-60 overflow-y-auto custom-scrollbar shadow-2xl animate-in fade-in zoom-in-95 duration-100"
+                      className="absolute left-full bottom-0 w-48 border rounded-xl p-1.5 z-50 flex flex-col gap-0.5 ml-1 before:absolute before:-left-3 before:inset-y-0 before:w-3 before:content-[''] max-h-60 overflow-y-auto custom-scrollbar shadow-2xl animate-in fade-in zoom-in-95 duration-100"
                     >
                       <div
                         className="px-2 py-1 text-[10px] font-semibold text-zinc-400 border-b uppercase tracking-wider"
@@ -387,7 +415,11 @@ export const BottomBar: React.FC = () => {
                               className="flex items-center justify-between w-full px-2 py-1.5 rounded-lg text-left transition-colors cursor-pointer text-zinc-200 hover:text-white"
                             >
                               <span className="truncate pr-2">{pl.name}</span>
-                              {inPlaylist && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                              {inPlaylist && (
+                                <span className="flex items-center justify-center shrink-0 w-4 h-4 ml-1.5 translate-y-[0.5px]">
+                                  <Check className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                                </span>
+                              )}
                             </button>
                           );
                         })

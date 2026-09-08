@@ -810,6 +810,32 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     openPlaylistSubmenu?: boolean;
   } | null>(null);
   const [playlistSubmenuOpen, setPlaylistSubmenuOpen] = useState(false);
+  const playlistSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handlePlaylistSubmenuEnter = useCallback(() => {
+    if (playlistSubmenuTimerRef.current) {
+      clearTimeout(playlistSubmenuTimerRef.current);
+      playlistSubmenuTimerRef.current = null;
+    }
+    setPlaylistSubmenuOpen(true);
+  }, []);
+
+  const handlePlaylistSubmenuLeave = useCallback(() => {
+    if (playlistSubmenuTimerRef.current) {
+      clearTimeout(playlistSubmenuTimerRef.current);
+    }
+    playlistSubmenuTimerRef.current = setTimeout(() => {
+      setPlaylistSubmenuOpen(false);
+    }, 250);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (playlistSubmenuTimerRef.current) {
+        clearTimeout(playlistSubmenuTimerRef.current);
+      }
+    };
+  }, []);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<any>(null);
@@ -1487,8 +1513,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               {/* Add to Playlist with Submenu */}
               <div
                 className="relative"
-                onMouseEnter={() => setPlaylistSubmenuOpen(true)}
-                onMouseLeave={() => setPlaylistSubmenuOpen(false)}
+                onMouseEnter={handlePlaylistSubmenuEnter}
+                onMouseLeave={handlePlaylistSubmenuLeave}
               >
                 <button
                   type="button"
@@ -1509,6 +1535,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
 
                 {playlistSubmenuOpen && (
                   <div
+                    onMouseEnter={handlePlaylistSubmenuEnter}
+                    onMouseLeave={handlePlaylistSubmenuLeave}
                     style={{
                       backgroundColor:
                         'color-mix(in srgb, var(--color-stop-1, #6366f1) 10%, #141416)',
@@ -1519,7 +1547,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                       backdropFilter: 'blur(24px)',
                     }}
                     className={`absolute top-0 ${
-                      isNearRightEdge ? 'right-full mr-1.5' : 'left-full ml-1.5'
+                      isNearRightEdge
+                        ? 'right-full mr-1 before:absolute before:-right-3 before:inset-y-0 before:w-3 before:content-[\'\']'
+                        : 'left-full ml-1 before:absolute before:-left-3 before:inset-y-0 before:w-3 before:content-[\'\']'
                     } w-48 border rounded-xl p-1.5 flex flex-col gap-0.5 text-xs text-zinc-300 z-50 shadow-2xl max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100`}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -1554,7 +1584,12 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                           >
                             <span className="truncate pr-2">{pl.name}</span>
                             {inPlaylist && (
-                              <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                              <span className="flex items-center justify-center shrink-0 w-4 h-4 ml-1.5 translate-y-[0.5px]">
+                                <Check
+                                  className="w-3.5 h-3.5"
+                                  style={{ color: 'var(--color-stop-1, #6366f1)' }}
+                                />
+                              </span>
                             )}
                           </button>
                         );

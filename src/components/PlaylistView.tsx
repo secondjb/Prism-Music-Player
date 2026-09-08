@@ -683,22 +683,22 @@ const SearchTrackRow: React.FC<{
           disabled={isAdded}
           style={{
             backgroundColor: isAdded
-              ? undefined
+              ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 12%, transparent)'
               : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)',
             borderColor: isAdded
-              ? undefined
+              ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, rgba(255, 255, 255, 0.15))'
               : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 45%, rgba(255, 255, 255, 0.15))',
           }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-            isAdded
-              ? 'bg-white/5 text-emerald-400 border border-emerald-500/30 cursor-default'
-              : 'border text-white hover:brightness-125'
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            isAdded ? 'cursor-default' : 'border text-white hover:brightness-125 cursor-pointer'
           }`}
         >
           {isAdded ? (
             <>
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Added</span>
+              <span className="flex items-center justify-center shrink-0 w-3.5 h-3.5 translate-y-[0.5px]">
+                <Check className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              </span>
+              <span style={{ color: 'var(--color-stop-1, #6366f1)' }}>Added</span>
             </>
           ) : (
             <>

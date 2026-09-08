@@ -237,7 +237,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
           damping: lyricsAnimationStyle === 'karaoke_pulse' ? 16 : 22,
           stiffness: lyricsAnimationStyle === 'karaoke_pulse' ? 140 : 170,
         }}
-        className={`text-center cursor-pointer max-w-[90vw] w-full px-8 py-3 rounded-2xl transition-all duration-200 ${
+        className={`text-center cursor-pointer max-w-[90vw] w-full px-8 py-3 rounded-2xl flex flex-col items-center justify-center transition-all duration-200 ${
           isActive && !isUnsynced
             ? 'font-extrabold'
             : isUnsynced
@@ -361,7 +361,10 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
         {/* Word-by-Word Romanization Underneath */}
         {subRom && (
           line.hasSyllables && isActive && !isUnsynced ? (
-            <div className="inline-flex flex-wrap justify-center items-baseline font-mono mt-1 select-none">
+            <div className="w-full flex flex-wrap justify-center items-center gap-1 font-mono mt-1.5 select-none">
+              <span className="text-[9px] uppercase tracking-wider font-semibold px-1 py-0.2 rounded bg-sky-500/15 text-sky-400 border border-sky-500/20 mr-1 shrink-0">
+                Rom
+              </span>
               {line.syllables.map((syl, sIdx) => {
                 const sylStart = syl.timeMs;
                 const sylEnd = syl.timeMs + syl.durationMs;
@@ -396,13 +399,16 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
             </div>
           ) : (
             <div
-              className="font-mono font-normal mt-1 select-none"
+              className="w-full flex items-center justify-center gap-1.5 font-mono font-normal mt-1.5 select-none"
               style={{
                 fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
                 color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 75%, white)',
               }}
             >
-              {subRom}
+              <span className="text-[9px] uppercase tracking-wider font-semibold px-1 py-0.2 rounded bg-sky-500/15 text-sky-400 border border-sky-500/20 shrink-0">
+                Rom
+              </span>
+              <span>{subRom}</span>
             </div>
           )
         )}
@@ -410,7 +416,10 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
         {/* Word-by-Word Translation Underneath */}
         {subTrans && (
           line.hasSyllables && isActive && !isUnsynced ? (
-            <div className="inline-flex flex-wrap justify-center items-baseline font-sans mt-1 select-none">
+            <div className="w-full flex flex-wrap justify-center items-center gap-1 font-sans mt-1.5 select-none">
+              <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 mr-1 shrink-0">
+                Trans
+              </span>
               {line.syllables.map((syl, sIdx) => {
                 const sylStart = syl.timeMs;
                 const sylEnd = syl.timeMs + syl.durationMs;
@@ -445,13 +454,16 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
             </div>
           ) : (
             <div
-              className="font-sans font-normal mt-1 select-none"
+              className="w-full flex items-center justify-center gap-1.5 font-sans font-normal mt-1.5 select-none"
               style={{
                 fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
                 color: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 75%, white)',
               }}
             >
-              {subTrans}
+              <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                Trans
+              </span>
+              <span>{subTrans}</span>
             </div>
           )
         )}

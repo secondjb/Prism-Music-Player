@@ -3,7 +3,7 @@ import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { Track } from '../types/player';
 import { searchWordSyncedLyrics, isWordSyncedLrc } from '../utils/lrclibFetcher';
-import { parseRichLyrics, ParsedLyricLine } from '../utils/lyricsParser';
+import { parseRichLyrics, ParsedLyricLine, hasTranslationInLyrics } from '../utils/lyricsParser';
 import { createRomanizer } from 'lyric-romanizer';
 import { useTrackArt } from '../utils/useTrackArt';
 import { invoke } from '@tauri-apps/api/core';
@@ -26,6 +26,7 @@ import {
   Trash2,
   Globe,
   Languages,
+  List,
 } from 'lucide-react';
 
 const romanizer = createRomanizer();
@@ -34,6 +35,14 @@ export interface WordSyncCandidate {
   track: Track;
   lyrics: string;
   status: 'found' | 'embedding' | 'embedded' | 'failed';
+  hasWordSync?: boolean;
+  hasTranslation?: boolean;
+}
+
+export function getCandidateFeatures(c: WordSyncCandidate) {
+  const hasWordSync = c.hasWordSync !== undefined ? c.hasWordSync : isWordSyncedLrc(c.lyrics);
+  const hasTranslation = c.hasTranslation !== undefined ? c.hasTranslation : hasTranslationInLyrics(c.lyrics);
+  return { hasWordSync, hasTranslation };
 }
 
 function formatTime(secs: number): string {
@@ -102,6 +111,8 @@ export const WordSyncedLyricsFinder: React.FC = () => {
   });
 
   const [activeCandidateIdx, setActiveCandidateIdx] = useState<number>(0);
+  const [candidateFilter, setCandidateFilter] = useState<'all' | 'wordsync' | 'translation' | 'pending' | 'embedded'>('all');
+  const [showCandidateList, setShowCandidateList] = useState<boolean>(false);
   const [isBatchEmbedding, setIsBatchEmbedding] = useState(false);
   const [batchEmbedProgress, setBatchEmbedProgress] = useState<{ current: number; total: number } | null>(null);
 
@@ -118,7 +129,48 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     }
   }, [candidates]);
 
-  const activeCandidate: WordSyncCandidate | undefined = candidates[activeCandidateIdx];
+  // Counts for each category
+  const wordSyncCount = useMemo(
+    () => candidates.filter((c) => (c.hasWordSync !== undefined ? c.hasWordSync : isWordSyncedLrc(c.lyrics))).length,
+    [candidates]
+  );
+  const translationCount = useMemo(
+    () => candidates.filter((c) => (c.hasTranslation !== undefined ? c.hasTranslation : hasTranslationInLyrics(c.lyrics))).length,
+    [candidates]
+  );
+  const embeddedCount = useMemo(
+    () => candidates.filter((c) => c.status === 'embedded').length,
+    [candidates]
+  );
+  const remainingToEmbed = useMemo(
+    () => candidates.filter((c) => c.status !== 'embedded').length,
+    [candidates]
+  );
+
+  // Filtered candidate list based on user filter tab
+  const filteredCandidates = useMemo(() => {
+    switch (candidateFilter) {
+      case 'wordsync':
+        return candidates.filter((c) => (c.hasWordSync !== undefined ? c.hasWordSync : isWordSyncedLrc(c.lyrics)));
+      case 'translation':
+        return candidates.filter((c) => (c.hasTranslation !== undefined ? c.hasTranslation : hasTranslationInLyrics(c.lyrics)));
+      case 'pending':
+        return candidates.filter((c) => c.status !== 'embedded');
+      case 'embedded':
+        return candidates.filter((c) => c.status === 'embedded');
+      case 'all':
+      default:
+        return candidates;
+    }
+  }, [candidates, candidateFilter]);
+
+  const activeCandidate: WordSyncCandidate | undefined =
+    filteredCandidates[activeCandidateIdx] || filteredCandidates[0];
+
+  const activeFeatures = useMemo(
+    () => (activeCandidate ? getCandidateFeatures(activeCandidate) : { hasWordSync: false, hasTranslation: false }),
+    [activeCandidate]
+  );
 
   // Enriched lines for preview (with syllables, romanization, and translation)
   const [enrichedLines, setEnrichedLines] = useState<ParsedLyricLine[]>([]);
@@ -239,8 +291,8 @@ export const WordSyncedLyricsFinder: React.FC = () => {
 
   // Navigate Candidate (if playing, auto-play next track for audition)
   const handleSelectCandidate = (newIdx: number) => {
-    if (newIdx < 0 || newIdx >= candidates.length) return;
-    const targetCandidate = candidates[newIdx];
+    if (newIdx < 0 || newIdx >= filteredCandidates.length) return;
+    const targetCandidate = filteredCandidates[newIdx];
     const shouldAutoPlay = isPlaying && isCandidatePlayingThis;
     setActiveCandidateIdx(newIdx);
     if (shouldAutoPlay && targetCandidate) {
@@ -248,13 +300,13 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     }
   };
 
-  // FIX 3: Embed lyrics for a single candidate and auto-advance
-  const handleEmbedCandidate = async (index: number) => {
-    const candidate = candidates[index];
+  // Embed lyrics for a single candidate and auto-advance
+  const handleEmbedCandidate = async (candidateToEmbed?: WordSyncCandidate) => {
+    const candidate = candidateToEmbed || activeCandidate;
     if (!candidate || candidate.status === 'embedded') return;
 
     setCandidates((prev) =>
-      prev.map((c, i) => (i === index ? { ...c, status: 'embedding' } : c))
+      prev.map((c) => (c.track.id === candidate.track.id ? { ...c, status: 'embedding' } : c))
     );
 
     try {
@@ -278,17 +330,17 @@ export const WordSyncedLyricsFinder: React.FC = () => {
       }
 
       setCandidates((prev) =>
-        prev.map((c, i) => (i === index ? { ...c, status: 'embedded' } : c))
+        prev.map((c) => (c.track.id === candidate.track.id ? { ...c, status: 'embedded' } : c))
       );
 
-      // Auto-advance to next song if available
-      if (index < candidates.length - 1) {
-        handleSelectCandidate(index + 1);
+      // Auto-advance to next song in filtered list if available
+      if (activeCandidateIdx < filteredCandidates.length - 1) {
+        handleSelectCandidate(activeCandidateIdx + 1);
       }
     } catch (err) {
       console.error('Failed to embed lyrics:', err);
       setCandidates((prev) =>
-        prev.map((c, i) => (i === index ? { ...c, status: 'failed' } : c))
+        prev.map((c) => (c.track.id === candidate.track.id ? { ...c, status: 'failed' } : c))
       );
     }
   };
@@ -416,11 +468,15 @@ export const WordSyncedLyricsFinder: React.FC = () => {
             controller.signal
           );
 
-          if (foundWordLrc && isWordSyncedLrc(foundWordLrc)) {
+          if (foundWordLrc && (isWordSyncedLrc(foundWordLrc) || hasTranslationInLyrics(foundWordLrc))) {
+            const hasWordSync = isWordSyncedLrc(foundWordLrc);
+            const hasTranslation = hasTranslationInLyrics(foundWordLrc);
             const candidate: WordSyncCandidate = {
               track,
               lyrics: foundWordLrc,
               status: 'found',
+              hasWordSync,
+              hasTranslation,
             };
             currentCandidates.push(candidate);
             setCandidates([...currentCandidates]);
@@ -468,9 +524,6 @@ export const WordSyncedLyricsFinder: React.FC = () => {
       }
     }
   };
-
-  const remainingToEmbed = candidates.filter((c) => c.status !== 'embedded').length;
-  const embeddedCount = candidates.filter((c) => c.status === 'embedded').length;
 
   return (
     <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-5">
@@ -668,56 +721,221 @@ export const WordSyncedLyricsFinder: React.FC = () => {
       {/* Batch Actions & Summary Bar */}
       {candidates.length > 0 && (
         <div
-          className="p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          className="p-4 rounded-xl border flex flex-col gap-3"
           style={{
             backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 12%, transparent)',
             borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
           }}
         >
-          <div className="flex items-center gap-3">
-            <CheckCircle2 className="w-5 h-5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-            <div>
-              <span className="text-xs font-bold text-white">
-                {candidates.length} Word-Synced Tracks Discovered
-              </span>
-              <p className="text-[11px] text-zinc-400">
-                {embeddedCount} embedded • {remainingToEmbed} ready for review or embedding
-              </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 shrink-0" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <div>
+                <span className="text-xs font-bold text-white">
+                  {candidates.length} Enhanced Lyrics Discovered
+                </span>
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-400 mt-0.5">
+                  <span className="flex items-center gap-1 font-semibold text-indigo-400">
+                    <Zap className="w-3 h-3" />
+                    {wordSyncCount} Word-by-Word
+                  </span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1 font-semibold text-emerald-400">
+                    <Globe className="w-3 h-3" />
+                    {translationCount} Translated
+                  </span>
+                  <span>•</span>
+                  <span className="text-zinc-300">
+                    {embeddedCount} embedded • {remainingToEmbed} ready to embed
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleClearResults}
+                disabled={isBatchEmbedding || isScanning}
+                className="px-3 py-1.5 rounded-lg text-xs text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Clear List
+              </button>
+
+              <button
+                onClick={handleEmbedAll}
+                disabled={isBatchEmbedding || remainingToEmbed === 0}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all shadow-md hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                style={{
+                  backgroundColor: 'var(--color-stop-1, #6366f1)',
+                }}
+              >
+                {isBatchEmbedding ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>
+                      Embedding {batchEmbedProgress?.current}/{batchEmbedProgress?.total}...
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    <span>Embed All Found ({remainingToEmbed})</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleClearResults}
-              disabled={isBatchEmbedding || isScanning}
-              className="px-3 py-1.5 rounded-lg text-xs text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-colors cursor-pointer disabled:opacity-50"
-            >
-              Clear List
-            </button>
+          {/* Filter Tabs & Candidate List Drawer Toggle */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={() => {
+                  setCandidateFilter('all');
+                  setActiveCandidateIdx(0);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  candidateFilter === 'all'
+                    ? 'bg-white/20 text-white shadow-sm'
+                    : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                All ({candidates.length})
+              </button>
+
+              <button
+                onClick={() => {
+                  setCandidateFilter('wordsync');
+                  setActiveCandidateIdx(0);
+                }}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  candidateFilter === 'wordsync'
+                    ? 'bg-indigo-500/30 text-indigo-200 border border-indigo-500/40 shadow-sm'
+                    : 'bg-white/5 text-zinc-400 hover:text-indigo-300 hover:bg-indigo-500/10'
+                }`}
+              >
+                <Zap className="w-3 h-3 text-indigo-400" />
+                Word-by-Word ({wordSyncCount})
+              </button>
+
+              <button
+                onClick={() => {
+                  setCandidateFilter('translation');
+                  setActiveCandidateIdx(0);
+                }}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  candidateFilter === 'translation'
+                    ? 'bg-emerald-500/30 text-emerald-200 border border-emerald-500/40 shadow-sm'
+                    : 'bg-white/5 text-zinc-400 hover:text-emerald-300 hover:bg-emerald-500/10'
+                }`}
+              >
+                <Globe className="w-3 h-3 text-emerald-400" />
+                With Translation ({translationCount})
+              </button>
+
+              <button
+                onClick={() => {
+                  setCandidateFilter('pending');
+                  setActiveCandidateIdx(0);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  candidateFilter === 'pending'
+                    ? 'bg-white/20 text-white shadow-sm'
+                    : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                Pending ({remainingToEmbed})
+              </button>
+
+              <button
+                onClick={() => {
+                  setCandidateFilter('embedded');
+                  setActiveCandidateIdx(0);
+                }}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  candidateFilter === 'embedded'
+                    ? 'bg-emerald-500/30 text-emerald-200 border border-emerald-500/40 shadow-sm'
+                    : 'bg-white/5 text-zinc-400 hover:text-emerald-300 hover:bg-emerald-500/10'
+                }`}
+              >
+                <Check className="w-3 h-3" />
+                Embedded ({embeddedCount})
+              </button>
+            </div>
 
             <button
-              onClick={handleEmbedAll}
-              disabled={isBatchEmbedding || remainingToEmbed === 0}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all shadow-md hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
-              style={{
-                backgroundColor: 'var(--color-stop-1, #6366f1)',
-              }}
+              onClick={() => setShowCandidateList((prev) => !prev)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer ml-auto"
             >
-              {isBatchEmbedding ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>
-                    Embedding {batchEmbedProgress?.current}/{batchEmbedProgress?.total}...
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4" />
-                  <span>Embed All Found ({remainingToEmbed})</span>
-                </>
-              )}
+              <List className="w-3.5 h-3.5" />
+              <span>{showCandidateList ? 'Hide Candidate List' : `Browse Tracks (${filteredCandidates.length})`}</span>
             </button>
           </div>
+
+          {/* Quick Track Browser Drawer */}
+          {showCandidateList && (
+            <div className="max-h-56 overflow-y-auto custom-scrollbar rounded-xl border border-white/10 bg-black/60 p-2 flex flex-col gap-1 mt-1">
+              {filteredCandidates.length === 0 ? (
+                <div className="text-center py-4 text-xs text-zinc-500">
+                  No candidates match the selected filter.
+                </div>
+              ) : (
+                filteredCandidates.map((c, idx) => {
+                  const feats = getCandidateFeatures(c);
+                  const isCurrent = idx === activeCandidateIdx;
+                  return (
+                    <button
+                      key={`${c.track.id}-${idx}`}
+                      onClick={() => handleSelectCandidate(idx)}
+                      className={`flex items-center justify-between p-2 rounded-lg text-left transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'bg-white/15 text-white border border-white/20'
+                          : 'hover:bg-white/5 text-zinc-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 mr-2">
+                        <span className="font-mono text-[11px] text-zinc-500 w-6 shrink-0 text-right">
+                          {idx + 1}.
+                        </span>
+                        <span className="text-xs font-medium truncate">
+                          {c.track.title}
+                        </span>
+                        <span className="text-[11px] text-zinc-400 truncate">
+                          • {c.track.artist}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {feats.hasWordSync ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-0.5">
+                            <Zap className="w-2.5 h-2.5" />
+                            Word
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] text-zinc-500 bg-white/5 border border-white/5">
+                            Line
+                          </span>
+                        )}
+
+                        {feats.hasTranslation && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-0.5">
+                            <Globe className="w-2.5 h-2.5" />
+                            Trans
+                          </span>
+                        )}
+
+                        {c.status === 'embedded' && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 flex items-center gap-0.5">
+                            <Check className="w-2.5 h-2.5" />
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -725,20 +943,22 @@ export const WordSyncedLyricsFinder: React.FC = () => {
       {activeCandidate && (
         <div className="p-5 rounded-2xl border border-white/10 bg-black/40 flex flex-col gap-5">
           {/* Candidate Stepper Navigation */}
-          <div className="flex items-center justify-between border-b border-white/10 pb-3">
-            <div className="flex items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center justify-between border-b border-white/10 pb-3 gap-2">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="text-zinc-400 font-medium">Candidate</span>
               <span className="font-bold text-white">
-                {activeCandidateIdx + 1} of {candidates.length}
+                {activeCandidateIdx + 1} of {filteredCandidates.length}
               </span>
+
+              {/* Status Badge */}
               {activeCandidate.status === 'embedded' ? (
-                <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                   <Check className="w-3 h-3" />
                   Embedded
                 </span>
               ) : activeCandidate.status === 'embedding' ? (
                 <span
-                  className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 animate-pulse"
+                  className="px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 animate-pulse"
                   style={{
                     backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
                     color: 'var(--color-stop-1, #6366f1)',
@@ -750,7 +970,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                 </span>
               ) : (
                 <span
-                  className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1"
+                  className="px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1"
                   style={{
                     backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
                     color: 'var(--color-stop-1, #6366f1)',
@@ -760,9 +980,33 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                   Ready to Embed
                 </span>
               )}
+
+              {/* Word-by-Word Badge */}
+              {activeFeatures.hasWordSync ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/25 text-indigo-300 border border-indigo-500/40 flex items-center gap-1 shadow-sm">
+                  <Zap className="w-3 h-3 text-indigo-400" />
+                  Word-by-Word Sync
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-800 text-zinc-400 border border-white/10 flex items-center gap-1">
+                  Line-Synced
+                </span>
+              )}
+
+              {/* Translation Badge */}
+              {activeFeatures.hasTranslation ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 shadow-sm">
+                  <Globe className="w-3 h-3 text-emerald-400" />
+                  Bilingual Translation
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-800/80 text-zinc-500 border border-white/5">
+                  No Translation
+                </span>
+              )}
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 ml-auto">
               <button
                 onClick={() => handleSelectCandidate(activeCandidateIdx - 1)}
                 disabled={activeCandidateIdx === 0}
@@ -773,7 +1017,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
               </button>
               <button
                 onClick={() => handleSelectCandidate(activeCandidateIdx + 1)}
-                disabled={activeCandidateIdx === candidates.length - 1}
+                disabled={activeCandidateIdx === filteredCandidates.length - 1}
                 className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
                 title="Next Candidate"
               >
@@ -798,6 +1042,28 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                   <span className="text-[11px] text-zinc-500 truncate" title={activeCandidate.track.album}>
                     {activeCandidate.track.album}
                   </span>
+                  {/* Feature Badges for This Track */}
+                  <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    {activeFeatures.hasWordSync ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        <Zap className="w-2.5 h-2.5 text-indigo-400" /> Word-Synced
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-400 border border-white/10">
+                        Line-Synced
+                      </span>
+                    )}
+
+                    {activeFeatures.hasTranslation ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        <Globe className="w-2.5 h-2.5 text-emerald-400" /> Bilingual LRC
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-800/60 text-zinc-500 border border-white/5">
+                        No Translation
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -890,7 +1156,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
               {/* Action Buttons: Embed or Skip */}
               <div className="flex items-center gap-2 pt-2">
                 <button
-                  onClick={() => handleEmbedCandidate(activeCandidateIdx)}
+                  onClick={() => handleEmbedCandidate()}
                   disabled={activeCandidate.status === 'embedded' || activeCandidate.status === 'embedding'}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-md hover:brightness-110 active:scale-95 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{
@@ -920,7 +1186,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
 
                 <button
                   onClick={() => handleSelectCandidate(activeCandidateIdx + 1)}
-                  disabled={activeCandidateIdx === candidates.length - 1}
+                  disabled={activeCandidateIdx === filteredCandidates.length - 1}
                   className="px-4 py-2.5 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-white/10 hover:bg-white/15 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
                 >
                   Skip
@@ -930,22 +1196,36 @@ export const WordSyncedLyricsFinder: React.FC = () => {
 
             {/* Right Column: Live Word-Synced Karaoke Lyrics & Translation Preview */}
             <div className="lg:col-span-7 flex flex-col gap-2">
-              <div className="flex items-center justify-between text-xs px-1">
-                <span className="font-semibold text-zinc-300 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                  <span>Live Word-by-Word & Translation Preview</span>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs px-1 pb-1">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <span className="font-semibold text-zinc-200 flex items-center gap-1.5 shrink-0">
+                    <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                    <span>Live Preview</span>
+                  </span>
+                  {activeFeatures.hasWordSync ? (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
+                      <Zap className="w-2.5 h-2.5 text-indigo-400" />
+                      Word-by-Word
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-zinc-800 text-zinc-400 border border-white/10">
+                      Line-Synced
+                    </span>
+                  )}
+                  {activeFeatures.hasTranslation && (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                      <Globe className="w-2.5 h-2.5 text-emerald-400" />
+                      Translation
+                    </span>
+                  )}
                   {isRomanizationEnabled && (
-                    <span title="Romanization Enabled">
-                      <Languages className="w-3.5 h-3.5 ml-1" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                    <span title="Romanization Enabled" className="px-1.5 py-0.5 rounded text-[10px] text-zinc-400 bg-white/5 border border-white/10 flex items-center gap-1">
+                      <Languages className="w-3 h-3 text-indigo-400" />
+                      Rom
                     </span>
                   )}
-                  {isTranslationEnabled && (
-                    <span title="Translation Enabled">
-                      <Globe className="w-3.5 h-3.5 ml-0.5" style={{ color: 'var(--color-stop-2, #8b5cf6)' }} />
-                    </span>
-                  )}
-                </span>
-                <span className="text-[11px] text-zinc-500">
+                </div>
+                <span className="text-[11px] text-zinc-500 shrink-0 ml-auto font-medium">
                   Click any line or word to seek audio
                 </span>
               </div>
@@ -987,7 +1267,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                           }
                           seek(line.startSecs);
                         }}
-                        className={`p-2.5 rounded-xl transition-all duration-200 cursor-pointer text-center select-none ${
+                        className={`p-2.5 rounded-xl transition-all duration-200 cursor-pointer flex flex-col items-center justify-center text-center select-none ${
                           isLineActive
                             ? 'font-bold scale-[1.02] shadow-lg border'
                             : isLinePast
@@ -1005,7 +1285,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                       >
                         {/* Main Syllables with Word-by-Word active highlight */}
                         {line.hasSyllables && isLineActive ? (
-                          <div className="inline-flex flex-wrap justify-center items-baseline">
+                          <div className="w-full flex flex-wrap justify-center items-baseline">
                             {line.syllables.map((syl, sIdx) => {
                               const sylStart = syl.timeMs;
                               const sylEnd = syl.timeMs + syl.durationMs;
@@ -1058,7 +1338,10 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                         {/* Word-by-Word Romanization Underneath */}
                         {subRom && (
                           line.hasSyllables && isLineActive ? (
-                            <div className="inline-flex flex-wrap justify-center items-baseline font-mono mt-1 select-none">
+                            <div className="w-full flex flex-wrap justify-center items-center gap-1 font-mono mt-1.5 select-none">
+                              <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-400 border border-sky-500/20 mr-1 shrink-0">
+                                Rom
+                              </span>
                               {line.syllables.map((syl, sIdx) => {
                                 const sylStart = syl.timeMs;
                                 const sylEnd = syl.timeMs + syl.durationMs;
@@ -1094,12 +1377,15 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                             </div>
                           ) : (
                             <div
-                              className="font-mono font-normal mt-1 text-xs select-none"
+                              className="w-full flex items-center justify-center gap-1.5 font-mono font-normal mt-1.5 text-xs select-none"
                               style={{
                                 color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 75%, white)',
                               }}
                             >
-                              {subRom}
+                              <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-400 border border-sky-500/20 shrink-0">
+                                Rom
+                              </span>
+                              <span>{subRom}</span>
                             </div>
                           )
                         )}
@@ -1107,7 +1393,10 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                         {/* Word-by-Word Translation Underneath */}
                         {subTrans && (
                           line.hasSyllables && isLineActive ? (
-                            <div className="inline-flex flex-wrap justify-center items-baseline font-sans mt-1 select-none">
+                            <div className="w-full flex flex-wrap justify-center items-center gap-1 font-sans mt-1.5 select-none">
+                              <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 mr-1 shrink-0">
+                                Trans
+                              </span>
                               {line.syllables.map((syl, sIdx) => {
                                 const sylStart = syl.timeMs;
                                 const sylEnd = syl.timeMs + syl.durationMs;
@@ -1143,12 +1432,15 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                             </div>
                           ) : (
                             <div
-                              className="font-sans font-normal mt-1 text-xs select-none"
+                              className="w-full flex items-center justify-center gap-1.5 font-sans font-normal mt-1.5 text-xs select-none"
                               style={{
                                 color: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 75%, white)',
                               }}
                             >
-                              {subTrans}
+                              <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                                Trans
+                              </span>
+                              <span>{subTrans}</span>
                             </div>
                           )
                         )}

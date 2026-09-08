@@ -1,3 +1,5 @@
+import { hasTranslationInLyrics } from './lyricsParser';
+
 export interface LrclibResponse {
   id: number;
   name: string;
@@ -245,14 +247,19 @@ export async function searchWordSyncedLyrics(
   ]);
 
   const lpLrc = lpRes.status === 'fulfilled' ? lpRes.value : null;
-  if (lpLrc && isWordSyncedLrc(lpLrc)) {
-    return lpLrc;
-  }
-
   const lrcLrc = lrclibRes.status === 'fulfilled' ? lrclibRes.value : null;
-  if (lrcLrc && isWordSyncedLrc(lrcLrc)) {
-    return lrcLrc;
-  }
+
+  // Check if either source has both word sync and translation
+  if (lpLrc && isWordSyncedLrc(lpLrc) && hasTranslationInLyrics(lpLrc)) return lpLrc;
+  if (lrcLrc && isWordSyncedLrc(lrcLrc) && hasTranslationInLyrics(lrcLrc)) return lrcLrc;
+
+  // Prefer word-synced version
+  if (lpLrc && isWordSyncedLrc(lpLrc)) return lpLrc;
+  if (lrcLrc && isWordSyncedLrc(lrcLrc)) return lrcLrc;
+
+  // Otherwise return if either has dual-language translation
+  if (lpLrc && hasTranslationInLyrics(lpLrc)) return lpLrc;
+  if (lrcLrc && hasTranslationInLyrics(lrcLrc)) return lrcLrc;
 
   return null;
 }

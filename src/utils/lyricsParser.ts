@@ -298,3 +298,16 @@ export function parseRichLyrics(
 export function hasExplicitWordSync(lines: ParsedLyricLine[]): boolean {
   return lines.length > 0 && lines[0].startSecs !== -1 && lines.some((l) => Boolean(l.hasExplicitSyllables));
 }
+
+/**
+ * Returns true if the LRC file contains official or fan dual-language translations
+ * (either through alternating bilingual lines or inline separators).
+ */
+export function hasTranslationInLyrics(lyrics: string | null | undefined): boolean {
+  if (!lyrics || typeof lyrics !== 'string') return false;
+  // Quick check for common inline delimiters: " // ", " / ", " | "
+  if (/\s+\/\/\s+|\s+\/\s+|\s+\|\s+/.test(lyrics)) return true;
+  // Deep check using parseRichLyrics
+  const parsed = parseRichLyrics(lyrics);
+  return parsed.some((line) => Boolean(line.translation));
+}

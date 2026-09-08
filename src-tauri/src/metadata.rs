@@ -881,14 +881,39 @@ pub fn load_library_from_disk(app_data_path: &Path) -> Result<Vec<TrackMetadata>
 
 pub fn embed_track_lyrics(path_str: &str, lyrics: &str) -> Result<(), String> {
     let path = Path::new(path_str);
-    let mut tag = Tag::read_from_path(path).map_err(|e| e.to_string())?;
-    {
+    // 1. Try metaflac for FLAC Vorbis comments
+    if let Ok(mut tag) = Tag::read_from_path(path) {
         let comments = tag.vorbis_comments_mut();
         comments.comments.remove("SYNCEDLYRICS");
         comments.comments.remove("LYRICS");
         comments.comments.remove("UNSYNCEDLYRICS");
         comments.comments.insert("SYNCEDLYRICS".to_string(), vec![lyrics.to_string()]);
+        if tag.save().is_ok() {
+            return Ok(());
+        }
     }
-    tag.save().map_err(|e| e.to_string())?;
-    Ok(())
+
+    // 2. Fallback using lofty for other audio formats (MP3, M4A, OGG, WAV, etc.)
+    use lofty::file::TaggedFileExt;
+    use lofty::tag::TagExt;
+    if let Ok(mut tagged_file) = lofty::probe::Probe::open(path).and_then(|p| p.read()) {
+        let tag = match tagged_file.primary_tag_mut() {
+            Some(primary_tag) => primary_tag,
+            None => {
+                if let Some(first_tag) = tagged_file.first_tag_mut() {
+                    first_tag
+                } else {
+                    let tag_type = tagged_file.primary_tag_type();
+                    tagged_file.insert_tag(lofty::tag::Tag::new(tag_type));
+                    tagged_file.primary_tag_mut().ok_or_else(|| "Failed to create tag in audio file".to_string())?
+                }
+            }
+        };
+
+        tag.insert_text(lofty::tag::ItemKey::Lyrics, lyrics.to_string());
+        tag.save_to_path(path, lofty::config::WriteOptions::default()).map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    Err("Failed to embed lyrics into track file".to_string())
 }

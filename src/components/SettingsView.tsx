@@ -31,6 +31,7 @@ import {
   openExternalLink,
 } from '../utils/updateChecker';
 import { M3Selector } from './M3Selector';
+import { WordSyncedLyricsFinder } from './WordSyncedLyricsFinder';
 
 const FONT_OPTIONS = [
   { id: 'system-ui, -apple-system, sans-serif', name: 'System Default', desc: 'Native OS typeface' },
@@ -1156,7 +1157,10 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Application Version & GitHub Updates */}
+      {/* 4. Word-Synced Lyrics Finder (LRCLIB & LyricsPlus) */}
+      <WordSyncedLyricsFinder />
+
+      {/* 5. Application Version & GitHub Updates */}
       <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -1306,7 +1310,7 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 5. Privacy, App Reset & Storage (Danger Zone) */}
+      {/* 6. Privacy, App Reset & Storage (Danger Zone) */}
       <div className="glass-card rounded-2xl p-6 border border-rose-500/20 bg-rose-950/10 flex flex-col gap-4 items-center sm:items-stretch text-center sm:text-left">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 flex-1 min-w-0 pr-2">

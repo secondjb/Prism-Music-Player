@@ -1,4 +1,4 @@
-﻿export interface LrclibResponse {
+export interface LrclibResponse {
   id: number;
   name: string;
   artistName: string;
@@ -29,6 +29,11 @@ function cleanArtist(artist: string): string {
     .trim();
 }
 
+export function isWordSyncedLrc(lyrics: string | null | undefined): boolean {
+  if (!lyrics || !lyrics.includes('<')) return false;
+  return /<\d{1,2}:\d{2}(?:[.:]\d{2,3})?>/.test(lyrics);
+}
+
 /**
  * Attempt to fetch rich word-by-word / syllable lyrics from LyricsPlus API (LastWave-native source)
  */
@@ -36,7 +41,8 @@ async function fetchLyricsPlus(
   trackName: string,
   artistName: string,
   albumName?: string,
-  durationSecs?: number
+  durationSecs?: number,
+  signal?: AbortSignal
 ): Promise<string | null> {
   const endpoints = [
     'https://lyricsplus.prjktla.my.id/v2/lyrics/get',
@@ -47,6 +53,7 @@ async function fetchLyricsPlus(
   const cArtist = cleanArtist(artistName);
 
   for (const endpoint of endpoints) {
+    if (signal?.aborted) return null;
     try {
       const url = new URL(endpoint);
       url.searchParams.set('title', cTitle);
@@ -56,15 +63,22 @@ async function fetchLyricsPlus(
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const onParentAbort = () => controller.abort();
+      signal?.addEventListener('abort', onParentAbort);
 
-      const resp = await fetch(url.toString(), {
-        headers: {
-          'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
-          Accept: 'application/json',
-        },
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+      let resp: Response;
+      try {
+        resp = await fetch(url.toString(), {
+          headers: {
+            'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
+            Accept: 'application/json',
+          },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+        signal?.removeEventListener('abort', onParentAbort);
+      }
 
       if (!resp.ok) continue;
       const data = await resp.json();
@@ -119,7 +133,7 @@ export async function fetchLrclibLyrics(
   if (preferWordSync) {
     try {
       const wordLrc = await fetchLyricsPlus(trackName, artistName, albumName, durationSecs);
-      if (wordLrc && wordLrc.includes('<')) {
+      if (wordLrc && isWordSyncedLrc(wordLrc)) {
         return wordLrc;
       }
     } catch {
@@ -165,4 +179,83 @@ export async function fetchLrclibLyrics(
     console.warn('LRCLIB fetch error:', e);
     return null;
   }
+}
+
+/**
+ * Searches explicitly for word-synced lyrics (containing syllable timestamps like <mm:ss.xx>).
+ * Checks LyricsPlus first, and if not found, checks LRCLIB for enhanced LRC lyrics.
+ * Returns the enhanced LRC string if word-synced, or null if only plain/line-synced lyrics exist.
+ */
+export async function searchWordSyncedLyrics(
+  trackName: string,
+  artistName: string,
+  albumName?: string,
+  durationSecs?: number,
+  signal?: AbortSignal
+): Promise<string | null> {
+  if (signal?.aborted) return null;
+  if (!trackName || !trackName.trim()) return null;
+
+  // 1. Check LyricsPlus first (richest source for word-by-word syllable timestamps)
+  try {
+    const lpLrc = await fetchLyricsPlus(trackName, artistName, albumName, durationSecs, signal);
+    if (lpLrc && isWordSyncedLrc(lpLrc)) {
+      return lpLrc;
+    }
+  } catch {
+    // Continue
+  }
+
+  if (signal?.aborted) return null;
+
+  // 2. Check LRCLIB get endpoint
+  try {
+    const params = new URLSearchParams();
+    params.set('track_name', cleanTitle(trackName));
+    params.set('artist_name', cleanArtist(artistName));
+    if (albumName) params.set('album_name', albumName);
+    if (durationSecs && durationSecs > 0) params.set('duration', Math.round(durationSecs).toString());
+
+    const url = `https://lrclib.net/api/get?${params.toString()}`;
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
+        Accept: 'application/json',
+      },
+      signal,
+    });
+
+    if (response.ok) {
+      const data: LrclibResponse = await response.json();
+      if (data?.syncedLyrics && isWordSyncedLrc(data.syncedLyrics)) {
+        return data.syncedLyrics;
+      }
+    } else {
+      // 3. Fallback search query on LRCLIB
+      if (signal?.aborted) return null;
+      const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(`${cleanArtist(artistName)} ${cleanTitle(trackName)}`)}`;
+      const searchRes = await fetch(searchUrl, {
+        headers: {
+          'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
+          Accept: 'application/json',
+        },
+        signal,
+      });
+
+      if (searchRes.ok) {
+        const results: LrclibResponse[] = await searchRes.json();
+        if (Array.isArray(results)) {
+          for (const item of results) {
+            if (item.syncedLyrics && isWordSyncedLrc(item.syncedLyrics)) {
+              return item.syncedLyrics;
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // Network / abort error
+  }
+
+  return null;
 }

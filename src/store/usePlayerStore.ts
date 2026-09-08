@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { Track, ActiveTab, SleepTimer, RepeatMode, Playlist, RefreshLibraryResult } from '../types/player';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -245,6 +245,38 @@ const sendThrottledVolume = (vol: number) => {
       }
     }, 16);
   }
+};
+
+/**
+ * Strip heavy binary and string payloads (unsynced_lyrics and embedded_art_base64)
+ * before serializing to localStorage to prevent exceeding the browser's 5MB origin quota.
+ */
+export const sanitizeTrackForStorage = (t: Track | null | undefined): Track | null => {
+  if (!t) return null as any;
+  const { unsynced_lyrics, embedded_art_base64, ...rest } = t;
+  return rest as Track;
+};
+
+const safeLocalStorage = {
+  getItem: (name: string): string | null => {
+    try {
+      return localStorage.getItem(name);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name: string, value: string): void => {
+    try {
+      localStorage.setItem(name, value);
+    } catch (e) {
+      console.warn(`[usePlayerStore] Failed to save '${name}' to localStorage (quota exceeded or disabled):`, e);
+    }
+  },
+  removeItem: (name: string): void => {
+    try {
+      localStorage.removeItem(name);
+    } catch {}
+  },
 };
 
 export const usePlayerStore = create<PlayerState>()(
@@ -561,37 +593,48 @@ export const usePlayerStore = create<PlayerState>()(
       setTracks: (tracks) => set({ tracks: Array.isArray(tracks) ? tracks : [] }),
 
       playTrack: async (track, contextTracks) => {
-        const { shuffleEnabled } = get();
-        let baseQueue = contextTracks && contextTracks.length > 0 ? [...contextTracks] : [track];
-        let index = baseQueue.findIndex((t) => t.id === track.id);
-        if (index === -1) {
-          baseQueue = [track, ...baseQueue];
-          index = 0;
-        }
-
-        let newQueue = baseQueue;
-        let finalIndex = index;
-        let savedOriginal = baseQueue;
-
-        if (shuffleEnabled) {
-          const remaining = baseQueue.filter((_, i) => i !== index);
-          for (let i = remaining.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+        try {
+          const { shuffleEnabled } = get();
+          let baseQueue = contextTracks && contextTracks.length > 0 ? [...contextTracks] : [track];
+          let index = baseQueue.findIndex((t) => t.id === track.id);
+          if (index === -1) {
+            baseQueue = [track, ...baseQueue];
+            index = 0;
           }
-          newQueue = [track, ...remaining];
-          finalIndex = 0;
+
+          let newQueue = baseQueue;
+          let finalIndex = index;
+          let savedOriginal = baseQueue;
+
+          if (shuffleEnabled) {
+            const remaining = baseQueue.filter((_, i) => i !== index);
+            for (let i = remaining.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+            }
+            newQueue = [track, ...remaining];
+            finalIndex = 0;
+          }
+
+          set({
+            originalQueue: savedOriginal,
+            queue: newQueue,
+            currentIndex: finalIndex,
+            currentTrack: track,
+            duration: track.duration_secs,
+            currentTime: 0,
+            isPlaying: true,
+          });
+        } catch (e) {
+          console.warn('Error setting queue in playTrack:', e);
+          set({
+            currentTrack: track,
+            duration: track.duration_secs,
+            currentTime: 0,
+            isPlaying: true,
+          });
         }
 
-        set({
-          originalQueue: savedOriginal,
-          queue: newQueue,
-          currentIndex: finalIndex,
-          currentTrack: track,
-          duration: track.duration_secs,
-          currentTime: 0,
-          isPlaying: true,
-        });
         try {
           if (window.__TAURI_INTERNALS__) {
             await invoke('set_volume', { volume: get().volume });
@@ -1319,6 +1362,7 @@ export const usePlayerStore = create<PlayerState>()(
     }),
     {
       name: 'prism-music-player-store',
+      storage: createJSONStorage(() => safeLocalStorage),
       partialize: (state) => ({
         likedTrackIds: state.likedTrackIds,
         volume: state.volume,
@@ -1347,10 +1391,10 @@ export const usePlayerStore = create<PlayerState>()(
         inferWordSyncedLyrics: state.inferWordSyncedLyrics,
         includedDirectories: state.includedDirectories,
         excludedDirectories: state.excludedDirectories,
-        queue: state.queue,
-        userQueue: state.userQueue,
+        queue: Array.isArray(state.queue) ? (state.queue.map(sanitizeTrackForStorage) as Track[]) : [],
+        userQueue: Array.isArray(state.userQueue) ? (state.userQueue.map(sanitizeTrackForStorage) as Track[]) : [],
         currentIndex: state.currentIndex,
-        currentTrack: state.currentTrack,
+        currentTrack: sanitizeTrackForStorage(state.currentTrack),
         shuffleEnabled: state.shuffleEnabled,
         repeatMode: state.repeatMode,
         playlists: state.playlists,

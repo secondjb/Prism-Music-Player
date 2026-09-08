@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { usePlayerStore } from './store/usePlayerStore';
+import { Track } from './types/player';
 import { useTrackArt } from './utils/useTrackArt';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -255,12 +256,56 @@ export const App: React.FC = () => {
           const savedTracks: any = await invoke('load_library');
           if (savedTracks && Array.isArray(savedTracks) && savedTracks.length > 0) {
             setTracks(savedTracks);
+
+            // Re-enrich hydrated store tracks with their full lyrics from disk library
+            const trackMap = new Map<string, Track>(savedTracks.map((t: Track) => [t.id, t]));
+            const state = usePlayerStore.getState();
+            let needsUpdate = false;
+            let enrichedCurrentTrack = state.currentTrack;
+            if (state.currentTrack && !state.currentTrack.unsynced_lyrics) {
+              const full = trackMap.get(state.currentTrack.id);
+              if (full?.unsynced_lyrics) {
+                enrichedCurrentTrack = { ...state.currentTrack, unsynced_lyrics: full.unsynced_lyrics };
+                needsUpdate = true;
+              }
+            }
+            const enrichedQueue = state.queue.map((t) => {
+              if (!t.unsynced_lyrics && trackMap.has(t.id)) {
+                needsUpdate = true;
+                return { ...t, unsynced_lyrics: trackMap.get(t.id)!.unsynced_lyrics };
+              }
+              return t;
+            });
+            if (needsUpdate) {
+              usePlayerStore.setState({
+                currentTrack: enrichedCurrentTrack,
+                queue: enrichedQueue,
+              });
+            }
           } else {
             const sampleTracks: any = await invoke('scan_sample_folder');
             if (sampleTracks && Array.isArray(sampleTracks) && sampleTracks.length > 0) {
               setTracks(sampleTracks);
             }
           }
+
+          // Compact candidates in localStorage if bloated
+          try {
+            const rawCandidates = localStorage.getItem('prism_word_sync_candidates');
+            if (rawCandidates && rawCandidates.length > 500 * 1024) {
+              const parsed = JSON.parse(rawCandidates);
+              if (Array.isArray(parsed)) {
+                const compacted = parsed.map((c: any) => {
+                  if (c.track) {
+                    const { unsynced_lyrics, embedded_art_base64, ...rest } = c.track;
+                    return { ...c, track: rest };
+                  }
+                  return c;
+                });
+                localStorage.setItem('prism_word_sync_candidates', JSON.stringify(compacted));
+              }
+            }
+          } catch {}
           
           // Restore playback state
           if (store.currentTrack) {

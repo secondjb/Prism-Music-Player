@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import Checkbox from '@mui/material/Checkbox';
-import { usePlayerStore } from '../store/usePlayerStore';
+import { usePlayerStore, sanitizeTrackForStorage } from '../store/usePlayerStore';
 import { Track } from '../types/player';
 import { searchEnhancedLyrics, isWordSyncedLrc, hasLrcTimestamps } from '../utils/lrclibFetcher';
 import { parseRichLyrics, ParsedLyricLine, hasTranslationInLyrics } from '../utils/lyricsParser';
@@ -166,10 +166,14 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     scanConcurrencyRef.current = scanConcurrency;
   }, [scanConcurrency]);
 
-  // Save candidates on change
+  // Save candidates on change (strip redundant unsynced_lyrics and artwork from candidate.track to save localStorage space)
   useEffect(() => {
     try {
-      localStorage.setItem('prism_word_sync_candidates', JSON.stringify(candidates));
+      const compactCandidates = candidates.map((c) => ({
+        ...c,
+        track: sanitizeTrackForStorage(c.track) || c.track,
+      }));
+      localStorage.setItem('prism_word_sync_candidates', JSON.stringify(compactCandidates));
     } catch (e) {
       console.warn('Failed to persist candidates:', e);
     }
@@ -293,6 +297,17 @@ export const WordSyncedLyricsFinder: React.FC = () => {
   const isCandidatePlayingThis = currentTrack?.id === activeCandidate?.track.id;
   const activeTimeSecs = isCandidatePlayingThis ? currentTime : 0;
   const activeTimeMs = activeTimeSecs * 1000;
+
+  // Pause preview audition if user leaves the lyrics finder while auditioning
+  const isAuditioningRef = useRef(false);
+  isAuditioningRef.current = Boolean(isCandidatePlayingThis && isPlaying);
+  useEffect(() => {
+    return () => {
+      if (isAuditioningRef.current) {
+        usePlayerStore.getState().pause();
+      }
+    };
+  }, []);
 
   // Active line index and set of overlapping active lines in lyrics preview
   const { activeLineIndex, activeLineIndices } = useMemo(() => {

@@ -35,7 +35,9 @@ import {
   Type as TypeIcon,
   Activity,
   Waves,
+  Globe,
 } from 'lucide-react';
+import { translateLyricLines } from '../utils/translation';
 
 const romanizer = createRomanizer();
 
@@ -66,6 +68,11 @@ const ROMANIZATION_OPTIONS = [
   { id: 'replace', name: 'Replace Original', desc: 'Replace original script with romanized text' },
 ] as const;
 
+const TRANSLATION_OPTIONS = [
+  { id: 'below', name: 'Add Below Original', desc: 'Display translation underneath original lyrics' },
+  { id: 'replace', name: 'Replace Original', desc: 'Replace original lyrics with translated text' },
+] as const;
+
 interface LyricLineRowProps {
   line: ParsedLyricLine;
   idx: number;
@@ -77,6 +84,8 @@ interface LyricLineRowProps {
   lyricsFontSizePreset: string;
   isRomanizationEnabled: boolean;
   romanizationMode: string;
+  isTranslationEnabled: boolean;
+  translationMode: string;
   activeFontSize: number;
   inactiveFontSize: number;
   currentTimeMs: number;
@@ -96,6 +105,8 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
     lyricsFontSizePreset,
     isRomanizationEnabled,
     romanizationMode,
+    isTranslationEnabled,
+    translationMode,
     activeFontSize,
     inactiveFontSize,
     currentTimeMs,
@@ -106,9 +117,18 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
       return null;
     }
 
-    const showRom = isRomanizationEnabled && line.romanized;
-    const mainText = showRom && romanizationMode === 'replace' ? line.romanized : line.content;
-    const subText = showRom && romanizationMode === 'below' ? line.romanized : null;
+    const showRom = isRomanizationEnabled && Boolean(line.romanized);
+    const showTrans = isTranslationEnabled && Boolean(line.translation);
+
+    let mainText = line.content;
+    if (showTrans && translationMode === 'replace' && line.translation) {
+      mainText = line.translation;
+    } else if (showRom && romanizationMode === 'replace' && line.romanized) {
+      mainText = line.romanized;
+    }
+
+    const subRom = showRom && romanizationMode === 'below' ? line.romanized : null;
+    const subTrans = showTrans && translationMode === 'below' ? line.translation : null;
 
     let scaleTarget = 1;
     let transXTarget = 0;
@@ -324,7 +344,9 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                       : undefined
                   }
                 >
-                  {isRomanizationEnabled && romanizationMode === 'replace' && syl.romanizedText
+                  {isTranslationEnabled && translationMode === 'replace' && syl.translatedText
+                    ? syl.translatedText
+                    : isRomanizationEnabled && romanizationMode === 'replace' && syl.romanizedText
                     ? syl.romanizedText
                     : syl.text}
                 </motion.span>
@@ -337,16 +359,102 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
           </div>
         )}
 
-        {subText && (
-          <div
-            className="font-mono font-normal mt-1"
-            style={{
-              fontSize: `${Math.max(12, inactiveFontSize * 0.6)}px`,
-              color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 75%, white)',
-            }}
-          >
-            {subText}
-          </div>
+        {/* Word-by-Word Romanization Underneath */}
+        {subRom && (
+          line.hasSyllables && isActive && !isUnsynced ? (
+            <div className="inline-flex flex-wrap justify-center items-baseline font-mono mt-1 select-none">
+              {line.syllables.map((syl, sIdx) => {
+                const sylStart = syl.timeMs;
+                const sylEnd = syl.timeMs + syl.durationMs;
+                const isSylActive = currentTimeMs >= sylStart && currentTimeMs < sylEnd;
+                const isSylPast = currentTimeMs >= sylEnd;
+                const romText = syl.romanizedText || syl.text;
+
+                return (
+                  <span
+                    key={`${line.id}-rom-${sIdx}`}
+                    className={`inline-block transition-all duration-150 ${
+                      syl.hasTrailingSpace ? 'mr-[0.28em]' : ''
+                    }`}
+                    style={{
+                      fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
+                      color: isSylActive
+                        ? 'var(--color-stop-1, #6366f1)'
+                        : isSylPast
+                        ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 85%, white)'
+                        : 'rgba(255, 255, 255, 0.45)',
+                      fontWeight: isSylActive ? 700 : 400,
+                      transform: isSylActive ? 'scale(1.08) translateY(-1px)' : 'scale(1)',
+                      textShadow: isSylActive
+                        ? '0 0 10px var(--color-stop-1, #6366f1), 0 0 20px var(--color-stop-2, #8b5cf6)'
+                        : undefined,
+                    }}
+                  >
+                    {romText}
+                  </span>
+                );
+              })}
+            </div>
+          ) : (
+            <div
+              className="font-mono font-normal mt-1 select-none"
+              style={{
+                fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
+                color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 75%, white)',
+              }}
+            >
+              {subRom}
+            </div>
+          )
+        )}
+
+        {/* Word-by-Word Translation Underneath */}
+        {subTrans && (
+          line.hasSyllables && isActive && !isUnsynced ? (
+            <div className="inline-flex flex-wrap justify-center items-baseline font-sans mt-1 select-none">
+              {line.syllables.map((syl, sIdx) => {
+                const sylStart = syl.timeMs;
+                const sylEnd = syl.timeMs + syl.durationMs;
+                const isSylActive = currentTimeMs >= sylStart && currentTimeMs < sylEnd;
+                const isSylPast = currentTimeMs >= sylEnd;
+                const transText = syl.translatedText || syl.text;
+
+                return (
+                  <span
+                    key={`${line.id}-trans-${sIdx}`}
+                    className={`inline-block transition-all duration-150 ${
+                      syl.hasTrailingSpace ? 'mr-[0.28em]' : ''
+                    }`}
+                    style={{
+                      fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
+                      color: isSylActive
+                        ? 'var(--color-stop-2, #8b5cf6)'
+                        : isSylPast
+                        ? 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 85%, white)'
+                        : 'rgba(255, 255, 255, 0.45)',
+                      fontWeight: isSylActive ? 700 : 400,
+                      transform: isSylActive ? 'scale(1.08) translateY(-1px)' : 'scale(1)',
+                      textShadow: isSylActive
+                        ? '0 0 10px var(--color-stop-2, #8b5cf6), 0 0 20px var(--color-stop-3, #ec4899)'
+                        : undefined,
+                    }}
+                  >
+                    {transText}
+                  </span>
+                );
+              })}
+            </div>
+          ) : (
+            <div
+              className="font-sans font-normal mt-1 select-none"
+              style={{
+                fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
+                color: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 75%, white)',
+              }}
+            >
+              {subTrans}
+            </div>
+          )
         )}
       </motion.div>
     );
@@ -361,7 +469,9 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
       prev.lyricsAnimationStyle === next.lyricsAnimationStyle &&
       prev.line === next.line &&
       prev.isRomanizationEnabled === next.isRomanizationEnabled &&
-      prev.romanizationMode === next.romanizationMode
+      prev.romanizationMode === next.romanizationMode &&
+      prev.isTranslationEnabled === next.isTranslationEnabled &&
+      prev.translationMode === next.translationMode
     ) {
       return true;
     }
@@ -375,7 +485,9 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
       prev.lyricsAnimationStyle === next.lyricsAnimationStyle &&
       prev.line === next.line &&
       prev.isRomanizationEnabled === next.isRomanizationEnabled &&
-      prev.romanizationMode === next.romanizationMode
+      prev.romanizationMode === next.romanizationMode &&
+      prev.isTranslationEnabled === next.isTranslationEnabled &&
+      prev.translationMode === next.translationMode
     ) {
       return true;
     }
@@ -406,6 +518,11 @@ export const LyricsView: React.FC = () => {
     romanizationMode,
     setRomanizationMode,
     toggleRomanization,
+    isTranslationEnabled,
+    translationMode,
+    targetTranslationLanguage,
+    setTranslationMode,
+    toggleTranslation,
     showAudioSpecs,
     toggleShowAudioSpecs,
     autoHideLyricsControls,
@@ -694,7 +811,7 @@ export const LyricsView: React.FC = () => {
     };
   }, [currentTrack?.id, preferOnlineLyrics, preferWordSyncedLyrics, lrclibAutoFetch, autoEmbedLyrics]);
 
-  // 2. Parse & Romanize lines locally whenever rawLrc or isRomanizationEnabled changes
+  // 2. Parse, Romanize & Translate lines locally whenever rawLrc, romanization, or translation changes
   useEffect(() => {
     if (!rawLrc.trim()) {
       setLines([]);
@@ -704,47 +821,59 @@ export const LyricsView: React.FC = () => {
     const formatted = parseRichLyrics(rawLrc, { inferWordSync: inferWordSyncedLyrics });
     setLines(formatted);
 
-    if (isRomanizationEnabled) {
-      let isMounted = true;
-      Promise.all(
-        formatted.map(async (line) => {
-          try {
-            const rom = await romanizer.romanizeLine(line.content);
-            const romSyllables = line.syllables.length > 0
-              ? await Promise.all(
-                  line.syllables.map(async (syl) => {
-                    try {
-                      const r = await romanizer.romanizeLine(syl.text);
-                      return {
-                        ...syl,
-                        romanizedText: r !== syl.text ? r : undefined,
-                      };
-                    } catch {
-                      return syl;
-                    }
-                  })
-                )
-              : line.syllables;
+    let isMounted = true;
 
-            return {
-              ...line,
-              romanized: rom !== line.content ? rom : undefined,
-              syllables: romSyllables,
-            };
-          } catch {
-            return line;
-          }
-        })
-      ).then((updated) => {
-        if (isMounted) {
-          setLines(updated);
-        }
-      });
-      return () => {
-        isMounted = false;
-      };
+    async function enrichLines() {
+      let processed = formatted;
+
+      if (isRomanizationEnabled) {
+        processed = await Promise.all(
+          processed.map(async (line) => {
+            try {
+              const rom = await romanizer.romanizeLine(line.content);
+              const romSyllables = line.syllables.length > 0
+                ? await Promise.all(
+                    line.syllables.map(async (syl) => {
+                      try {
+                        const r = await romanizer.romanizeLine(syl.text);
+                        return {
+                          ...syl,
+                          romanizedText: r !== syl.text ? r : undefined,
+                        };
+                      } catch {
+                        return syl;
+                      }
+                    })
+                  )
+                : line.syllables;
+
+              return {
+                ...line,
+                romanized: rom !== line.content ? rom : undefined,
+                syllables: romSyllables,
+              };
+            } catch {
+              return line;
+            }
+          })
+        );
+      }
+
+      if (isTranslationEnabled) {
+        processed = await translateLyricLines(processed, targetTranslationLanguage);
+      }
+
+      if (isMounted) {
+        setLines(processed);
+      }
     }
-  }, [rawLrc, isRomanizationEnabled, inferWordSyncedLyrics]);
+
+    enrichLines();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [rawLrc, isRomanizationEnabled, isTranslationEnabled, targetTranslationLanguage, inferWordSyncedLyrics]);
 
 
 
@@ -1016,7 +1145,7 @@ export const LyricsView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Translation Toggle Button */}
+          {/* Romanization Toggle Button */}
           <button
             onClick={toggleRomanization}
             className={`p-2.5 rounded-xl transition-all border ${
@@ -1032,9 +1161,30 @@ export const LyricsView: React.FC = () => {
                   }
                 : undefined
             }
-            title={isRomanizationEnabled ? 'Translation Enabled' : 'Translation Disabled'}
+            title={isRomanizationEnabled ? 'Romanization Enabled' : 'Romanization Disabled'}
           >
             <Languages className="w-5 h-5" />
+          </button>
+
+          {/* Translation Toggle Button */}
+          <button
+            onClick={toggleTranslation}
+            className={`p-2.5 rounded-xl transition-all border ${
+              isTranslationEnabled
+                ? 'text-white shadow-lg border-transparent'
+                : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
+            }`}
+            style={
+              isTranslationEnabled
+                ? {
+                    backgroundColor: 'var(--color-stop-1, #6366f1)',
+                    borderColor: 'transparent',
+                  }
+                : undefined
+            }
+            title={isTranslationEnabled ? 'Translation Enabled' : 'Translation Disabled'}
+          >
+            <Globe className="w-5 h-5" />
           </button>
 
           {/* Fullscreen Toggle Button */}
@@ -1141,6 +1291,15 @@ export const LyricsView: React.FC = () => {
                 options={ROMANIZATION_OPTIONS}
               />
 
+              {/* Translation Mode Selector */}
+              <M3Selector
+                label="Translation Mode"
+                icon={<Globe className="w-3.5 h-3.5" />}
+                value={translationMode}
+                onChange={(val) => setTranslationMode(val as any)}
+                options={TRANSLATION_OPTIONS}
+              />
+
               {/* Lyrics Size Presets */}
               <div className="flex flex-col gap-1.5 pt-1">
                 <span className="text-zinc-300 font-semibold text-xs">Lyrics Size Preset</span>
@@ -1220,6 +1379,24 @@ export const LyricsView: React.FC = () => {
                 <Checkbox
                   checked={inferWordSyncedLyrics}
                   onChange={toggleInferWordSyncedLyrics}
+                  size="small"
+                  sx={{
+                    color: 'var(--color-stop-1, #6366f1)',
+                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                    p: 0.5,
+                  }}
+                />
+              </div>
+
+              {/* Lyric Translation Toggle */}
+              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                <div className="flex flex-col pr-2">
+                  <span className="text-white font-medium text-xs">Lyric Translation</span>
+                  <span className="text-[10px] text-zinc-400">Translate lyrics & word timestamps to English</span>
+                </div>
+                <Checkbox
+                  checked={isTranslationEnabled}
+                  onChange={toggleTranslation}
                   size="small"
                   sx={{
                     color: 'var(--color-stop-1, #6366f1)',
@@ -1439,6 +1616,8 @@ export const LyricsView: React.FC = () => {
                 lyricsFontSizePreset={lyricsFontSizePreset}
                 isRomanizationEnabled={isRomanizationEnabled}
                 romanizationMode={romanizationMode}
+                isTranslationEnabled={isTranslationEnabled}
+                translationMode={translationMode}
                 activeFontSize={activeFontSize}
                 inactiveFontSize={inactiveFontSize}
                 currentTimeMs={currentTimeMs}

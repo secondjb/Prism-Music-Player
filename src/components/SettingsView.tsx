@@ -24,6 +24,7 @@ import {
   Waves,
   Activity,
   Type as TypeIcon,
+  Globe,
 } from 'lucide-react';
 import {
   CURRENT_APP_VERSION,
@@ -32,6 +33,16 @@ import {
 } from '../utils/updateChecker';
 import { M3Selector } from './M3Selector';
 import { WordSyncedLyricsFinder } from './WordSyncedLyricsFinder';
+
+const ROMANIZATION_OPTIONS = [
+  { id: 'below', name: 'Add Below Original', desc: 'Display romanization underneath original script' },
+  { id: 'replace', name: 'Replace Original', desc: 'Replace original script with romanized text' },
+] as const;
+
+const TRANSLATION_OPTIONS = [
+  { id: 'below', name: 'Add Below Original', desc: 'Display translation underneath original lyrics' },
+  { id: 'replace', name: 'Replace Original', desc: 'Replace original lyrics with translated text' },
+] as const;
 
 const FONT_OPTIONS = [
   { id: 'system-ui, -apple-system, sans-serif', name: 'System Default', desc: 'Native OS typeface' },
@@ -78,6 +89,10 @@ export const SettingsView: React.FC = () => {
   const toggleRomanization = usePlayerStore((s) => s.toggleRomanization);
   const romanizationMode = usePlayerStore((s) => s.romanizationMode);
   const setRomanizationMode = usePlayerStore((s) => s.setRomanizationMode);
+  const isTranslationEnabled = usePlayerStore((s) => s.isTranslationEnabled);
+  const toggleTranslation = usePlayerStore((s) => s.toggleTranslation);
+  const translationMode = usePlayerStore((s) => s.translationMode);
+  const setTranslationMode = usePlayerStore((s) => s.setTranslationMode);
   const showAudioSpecs = usePlayerStore((s) => s.showAudioSpecs);
   const toggleShowAudioSpecs = usePlayerStore((s) => s.toggleShowAudioSpecs);
   const showAudioSpecsInLibrary = usePlayerStore((s) => s.showAudioSpecsInLibrary);
@@ -818,6 +833,90 @@ export const SettingsView: React.FC = () => {
                 size="sm"
               />
             </div>
+          </div>
+
+          {/* Romanization Mode Setting */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
+            <div className="flex items-center gap-3">
+              <Languages className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Romanization Display Mode</span>
+                <span className="text-[11px] text-zinc-400">Display romanized pronunciation underneath original script or replace it</span>
+              </div>
+            </div>
+            <div className="w-full sm:w-72">
+              <M3Selector
+                value={romanizationMode}
+                onChange={(val) => setRomanizationMode(val as any)}
+                options={ROMANIZATION_OPTIONS}
+                size="sm"
+              />
+            </div>
+          </div>
+
+          {/* Translation Mode Setting */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
+            <div className="flex items-center gap-3">
+              <Globe className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Translation Display Mode</span>
+                <span className="text-[11px] text-zinc-400">Display translated lyrics underneath original text or replace it</span>
+              </div>
+            </div>
+            <div className="w-full sm:w-72">
+              <M3Selector
+                value={translationMode}
+                onChange={(val) => setTranslationMode(val as any)}
+                options={TRANSLATION_OPTIONS}
+                size="sm"
+              />
+            </div>
+          </div>
+
+          {/* Lyric Romanization Toggle */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-3">
+              <Languages className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Enable Romanization</span>
+                <span className="text-[11px] text-zinc-400">Show romanized pronunciation for non-Latin songs</span>
+              </div>
+            </div>
+            <Checkbox
+              checked={isRomanizationEnabled}
+              onChange={() => toggleRomanization()}
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
+            />
+          </div>
+
+          {/* Lyric Translation Toggle */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-3">
+              <Globe className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Enable Lyric Translation</span>
+                <span className="text-[11px] text-zinc-400">Translate non-English lyrics with synchronized timing</span>
+              </div>
+            </div>
+            <Checkbox
+              checked={isTranslationEnabled}
+              onChange={() => toggleTranslation()}
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
+            />
           </div>
 
           {/* Wavy Seekbar Toggle */}

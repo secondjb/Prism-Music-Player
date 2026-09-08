@@ -3,6 +3,7 @@ export interface LyricSyllable {
   durationMs: number;
   text: string;
   romanizedText?: string;
+  translatedText?: string;
   hasTrailingSpace?: boolean;
 }
 
@@ -18,6 +19,7 @@ export interface ParsedLyricLine {
   hasExplicitSyllables?: boolean;
   romanized?: string;
   transliteration?: string;
+  translation?: string;
 }
 
 const TIMESTAMP_REGEX = /\[(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?\]/g;
@@ -187,7 +189,24 @@ export function parseRichLyrics(
 
   for (let i = 0; i < extracted.length; i++) {
     const cur = extracted[i];
-    const next = extracted[i + 1];
+    let next = extracted[i + 1];
+    let content = cur.text;
+    let translation: string | undefined = undefined;
+
+    // Check if next extracted line has identical/near-identical timestamp (dual-language alternating lines)
+    if (next && Math.abs(next.timeMs - cur.timeMs) <= 120 && next.text.trim() && next.text.trim() !== cur.text.trim()) {
+      translation = next.text.trim();
+      i++; // consume translated line
+      next = extracted[i + 1];
+    } else {
+      // Check for inline separator (e.g. "Original // Translation" or "Original / Translation")
+      const sepMatch = content.split(/\s+\/\/\s+|\s+\/\s+|\s+\|\s+/);
+      if (sepMatch.length === 2 && sepMatch[0].trim() && sepMatch[1].trim()) {
+        content = sepMatch[0].trim();
+        translation = sepMatch[1].trim();
+      }
+    }
+
     const rawDur = next ? next.timeMs - cur.timeMs : 3500;
     const durationMs = Math.min(8000, Math.max(1200, rawDur));
 
@@ -198,8 +217,8 @@ export function parseRichLyrics(
     if (hasExplicit) {
       syllables = cur.explicitSyllables;
       hasSyllables = true;
-    } else if (options?.inferWordSync && cur.text.trim()) {
-      syllables = inferLineSyllables(cur.text, cur.timeMs, durationMs);
+    } else if (options?.inferWordSync && content.trim()) {
+      syllables = inferLineSyllables(content, cur.timeMs, durationMs);
       hasSyllables = syllables.length > 0;
     }
 
@@ -209,10 +228,11 @@ export function parseRichLyrics(
       startSecs: cur.timeMs / 1000,
       durationMs,
       durationSecs: durationMs / 1000,
-      content: cur.text,
+      content,
       syllables,
       hasSyllables,
       hasExplicitSyllables: hasExplicit,
+      translation,
     });
   }
 

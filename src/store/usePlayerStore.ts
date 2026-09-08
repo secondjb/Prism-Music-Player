@@ -43,6 +43,9 @@ interface PlayerState {
   preferOnlineLyrics: boolean;
   isRomanizationEnabled: boolean;
   romanizationMode: 'below' | 'replace';
+  isTranslationEnabled: boolean;
+  translationMode: 'below' | 'replace';
+  targetTranslationLanguage: string;
   showAudioSpecs: boolean;
   showAudioSpecsInLibrary: boolean;
   autoHideLyricsControls: boolean;
@@ -135,6 +138,9 @@ interface PlayerState {
   setPreferOnlineLyrics: (enabled: boolean) => void;
   toggleRomanization: () => void;
   setRomanizationMode: (mode: 'below' | 'replace') => void;
+  toggleTranslation: () => void;
+  setTranslationMode: (mode: 'below' | 'replace') => void;
+  setTargetTranslationLanguage: (lang: string) => void;
   toggleShowAudioSpecs: () => void;
   toggleShowAudioSpecsInLibrary: () => void;
   setInfoModalTrack: (track: Track | null) => void;
@@ -268,6 +274,9 @@ export const usePlayerStore = create<PlayerState>()(
       preferOnlineLyrics: false,
       isRomanizationEnabled: true,
       romanizationMode: 'below',
+      isTranslationEnabled: true,
+      translationMode: 'below',
+      targetTranslationLanguage: 'en',
       showAudioSpecs: true,
       showAudioSpecsInLibrary: false,
       autoHideLyricsControls: true,
@@ -849,6 +858,10 @@ export const usePlayerStore = create<PlayerState>()(
       toggleRomanization: () => set((state) => ({ isRomanizationEnabled: !state.isRomanizationEnabled })),
       setRomanizationMode: (mode) => set({ romanizationMode: mode }),
 
+      toggleTranslation: () => set((state) => ({ isTranslationEnabled: !state.isTranslationEnabled })),
+      setTranslationMode: (mode) => set({ translationMode: mode }),
+      setTargetTranslationLanguage: (lang) => set({ targetTranslationLanguage: lang }),
+
       toggleShowAudioSpecs: () => set((state) => ({ showAudioSpecs: !state.showAudioSpecs })),
 
       toggleShowAudioSpecsInLibrary: () =>
@@ -1180,6 +1193,9 @@ export const usePlayerStore = create<PlayerState>()(
         showAudioSpecsInLibrary: state.showAudioSpecsInLibrary,
         isRomanizationEnabled: state.isRomanizationEnabled,
         romanizationMode: state.romanizationMode,
+        isTranslationEnabled: state.isTranslationEnabled,
+        translationMode: state.translationMode,
+        targetTranslationLanguage: state.targetTranslationLanguage,
         autoHideLyricsControls: state.autoHideLyricsControls,
         isStatsCollectionEnabled: state.isStatsCollectionEnabled,
         showDemoStats: state.showDemoStats,

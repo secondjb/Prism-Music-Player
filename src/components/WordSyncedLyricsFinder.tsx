@@ -4,6 +4,8 @@ import { usePlayerStore } from '../store/usePlayerStore';
 import { Track } from '../types/player';
 import { searchWordSyncedLyrics, isWordSyncedLrc } from '../utils/lrclibFetcher';
 import { parseRichLyrics, ParsedLyricLine } from '../utils/lyricsParser';
+import { createRomanizer } from 'lyric-romanizer';
+import { translateLyricLines } from '../utils/translation';
 import { useTrackArt } from '../utils/useTrackArt';
 import { invoke } from '@tauri-apps/api/core';
 import {
@@ -22,7 +24,12 @@ import {
   Music,
   Volume2,
   Zap,
+  Trash2,
+  Globe,
+  Languages,
 } from 'lucide-react';
+
+const romanizer = createRomanizer();
 
 export interface WordSyncCandidate {
   track: Track;
@@ -66,6 +73,11 @@ export const WordSyncedLyricsFinder: React.FC = () => {
   const seek = usePlayerStore((s) => s.seek);
   const currentTime = usePlayerStore((s) => s.currentTime);
   const duration = usePlayerStore((s) => s.duration);
+  const isRomanizationEnabled = usePlayerStore((s) => s.isRomanizationEnabled);
+  const romanizationMode = usePlayerStore((s) => s.romanizationMode);
+  const isTranslationEnabled = usePlayerStore((s) => s.isTranslationEnabled);
+  const translationMode = usePlayerStore((s) => s.translationMode);
+  const targetTranslationLanguage = usePlayerStore((s) => s.targetTranslationLanguage);
 
   const [onlyMissingWordSync, setOnlyMissingWordSync] = useState(true);
   const [scanConcurrency, setScanConcurrency] = useState<number>(10);
@@ -77,7 +89,20 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     activeWorkers?: number;
   } | null>(null);
 
-  const [candidates, setCandidates] = useState<WordSyncCandidate[]>([]);
+  // Persistence across app sessions
+  const [candidates, setCandidates] = useState<WordSyncCandidate[]>(() => {
+    try {
+      const saved = localStorage.getItem('prism_word_sync_candidates');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to load saved candidates:', e);
+    }
+    return [];
+  });
+
   const [activeCandidateIdx, setActiveCandidateIdx] = useState<number>(0);
   const [isBatchEmbedding, setIsBatchEmbedding] = useState(false);
   const [batchEmbedProgress, setBatchEmbedProgress] = useState<{ current: number; total: number } | null>(null);
@@ -86,13 +111,70 @@ export const WordSyncedLyricsFinder: React.FC = () => {
   const lyricsScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const activeLineRef = useRef<HTMLDivElement | null>(null);
 
+  // Save candidates on change
+  useEffect(() => {
+    try {
+      localStorage.setItem('prism_word_sync_candidates', JSON.stringify(candidates));
+    } catch (e) {
+      console.warn('Failed to persist candidates:', e);
+    }
+  }, [candidates]);
+
   const activeCandidate: WordSyncCandidate | undefined = candidates[activeCandidateIdx];
 
-  // Parse enhanced LRC lyrics of current active candidate
-  const parsedLines: ParsedLyricLine[] = useMemo(() => {
-    if (!activeCandidate?.lyrics) return [];
-    return parseRichLyrics(activeCandidate.lyrics);
-  }, [activeCandidate?.lyrics]);
+  // Enriched lines for preview (with syllables, romanization, and translation)
+  const [enrichedLines, setEnrichedLines] = useState<ParsedLyricLine[]>([]);
+
+  useEffect(() => {
+    if (!activeCandidate?.lyrics) {
+      setEnrichedLines([]);
+      return;
+    }
+
+    const formatted = parseRichLyrics(activeCandidate.lyrics);
+    setEnrichedLines(formatted);
+
+    let isMounted = true;
+    async function enrich() {
+      let res = formatted;
+      if (isRomanizationEnabled) {
+        res = await Promise.all(
+          res.map(async (line) => {
+            try {
+              const rom = await romanizer.romanizeLine(line.content);
+              const romSyllables =
+                line.syllables.length > 0
+                  ? await Promise.all(
+                      line.syllables.map(async (syl) => {
+                        try {
+                          const r = await romanizer.romanizeLine(syl.text);
+                          return { ...syl, romanizedText: r !== syl.text ? r : undefined };
+                        } catch {
+                          return syl;
+                        }
+                      })
+                    )
+                  : line.syllables;
+              return { ...line, romanized: rom !== line.content ? rom : undefined, syllables: romSyllables };
+            } catch {
+              return line;
+            }
+          })
+        );
+      }
+      if (isTranslationEnabled) {
+        res = await translateLyricLines(res, targetTranslationLanguage);
+      }
+      if (isMounted) {
+        setEnrichedLines(res);
+      }
+    }
+
+    enrich();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeCandidate?.lyrics, isRomanizationEnabled, isTranslationEnabled, targetTranslationLanguage]);
 
   // Is the currently reviewed candidate also the active player track?
   const isCandidatePlayingThis = currentTrack?.id === activeCandidate?.track.id;
@@ -101,24 +183,35 @@ export const WordSyncedLyricsFinder: React.FC = () => {
 
   // Active line index in lyrics preview
   const activeLineIndex = useMemo(() => {
-    if (!isCandidatePlayingThis || parsedLines.length === 0) return -1;
-    for (let i = parsedLines.length - 1; i >= 0; i--) {
-      if (activeTimeSecs >= parsedLines[i].startSecs) {
+    if (!isCandidatePlayingThis || enrichedLines.length === 0) return -1;
+    for (let i = enrichedLines.length - 1; i >= 0; i--) {
+      if (activeTimeSecs >= enrichedLines[i].startSecs) {
         return i;
       }
     }
     return -1;
-  }, [isCandidatePlayingThis, parsedLines, activeTimeSecs]);
+  }, [isCandidatePlayingThis, enrichedLines, activeTimeSecs]);
 
-  // Auto-scroll lyrics container to active line
+  // FIX 1: Auto-scroll lyrics container ONLY (never scrolls entire page)
   useEffect(() => {
     if (activeLineRef.current && lyricsScrollContainerRef.current) {
-      activeLineRef.current.scrollIntoView({
+      const container = lyricsScrollContainerRef.current;
+      const lineEl = activeLineRef.current;
+      const lineTop = lineEl.offsetTop - container.offsetTop;
+      const targetScroll = lineTop - container.clientHeight / 2 + lineEl.clientHeight / 2;
+      container.scrollTo({
+        top: Math.max(0, targetScroll),
         behavior: 'smooth',
-        block: 'center',
       });
     }
   }, [activeLineIndex]);
+
+  // FIX 2: Reset scroll position to top when navigating to another song
+  useEffect(() => {
+    if (lyricsScrollContainerRef.current) {
+      lyricsScrollContainerRef.current.scrollTop = 0;
+    }
+  }, [activeCandidateIdx]);
 
   // Handle Play/Pause for Candidate
   const handleTogglePlayCandidate = (track: Track) => {
@@ -144,7 +237,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     }
   };
 
-  // Embed lyrics for a single candidate
+  // FIX 3: Embed lyrics for a single candidate and auto-advance
   const handleEmbedCandidate = async (index: number) => {
     const candidate = candidates[index];
     if (!candidate || candidate.status === 'embedded') return;
@@ -176,6 +269,11 @@ export const WordSyncedLyricsFinder: React.FC = () => {
       setCandidates((prev) =>
         prev.map((c, i) => (i === index ? { ...c, status: 'embedded' } : c))
       );
+
+      // Auto-advance to next song if available
+      if (index < candidates.length - 1) {
+        handleSelectCandidate(index + 1);
+      }
     } catch (err) {
       console.error('Failed to embed lyrics:', err);
       setCandidates((prev) =>
@@ -245,21 +343,44 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     setBatchEmbedProgress(null);
   };
 
-  // Start Searching Library for Word-Synced Lyrics (Parallel Concurrency Worker Pool)
-  const handleStartSearch = async () => {
+  // FIX 4: Support both "Scan New Songs" and "Rescan All"
+  const handleStartSearch = async (mode: 'all' | 'new') => {
     if (isScanning) return;
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setIsScanning(true);
 
-    const targetTracks = onlyMissingWordSync
-      ? tracks.filter((t) => !isWordSyncedLrc(t.unsynced_lyrics))
-      : [...tracks];
+    let targetTracks: Track[] = [];
+    let initialCandidates: WordSyncCandidate[] = [];
+
+    if (mode === 'new') {
+      const existingIds = new Set(candidates.map((c) => c.track.id));
+      targetTracks = tracks.filter((t) => !existingIds.has(t.id));
+      if (onlyMissingWordSync) {
+        targetTracks = targetTracks.filter((t) => !isWordSyncedLrc(t.unsynced_lyrics));
+      }
+      initialCandidates = [...candidates];
+    } else {
+      // mode === 'all': scan all
+      targetTracks = onlyMissingWordSync
+        ? tracks.filter((t) => !isWordSyncedLrc(t.unsynced_lyrics))
+        : [...tracks];
+      initialCandidates = [];
+      setCandidates([]);
+      setActiveCandidateIdx(0);
+    }
+
+    if (targetTracks.length === 0) {
+      setIsScanning(false);
+      setScanProgress(null);
+      abortControllerRef.current = null;
+      return;
+    }
 
     let nextTrackIdx = 0;
     let completedCount = 0;
-    const newCandidates: WordSyncCandidate[] = [];
+    const currentCandidates = [...initialCandidates];
     const numWorkers = Math.min(scanConcurrency, targetTracks.length);
 
     setScanProgress({
@@ -290,8 +411,8 @@ export const WordSyncedLyricsFinder: React.FC = () => {
               lyrics: foundWordLrc,
               status: 'found',
             };
-            newCandidates.push(candidate);
-            setCandidates([...newCandidates]);
+            currentCandidates.push(candidate);
+            setCandidates([...currentCandidates]);
           }
         } catch (e) {
           // Skip track on network error
@@ -325,6 +446,18 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     setScanProgress(null);
   };
 
+  const handleClearResults = () => {
+    if (window.confirm('Clear all saved word-synced candidates?')) {
+      setCandidates([]);
+      setActiveCandidateIdx(0);
+      try {
+        localStorage.removeItem('prism_word_sync_candidates');
+      } catch (e) {
+        console.warn('Failed to clear candidates from localStorage:', e);
+      }
+    }
+  };
+
   const remainingToEmbed = candidates.filter((c) => c.status !== 'embedded').length;
   const embeddedCount = candidates.filter((c) => c.status === 'embedded').length;
 
@@ -345,7 +478,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
           </div>
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <span>Word-Synced Lyrics Finder</span>
+              <span>Word-Synced Lyrics & Translation Finder</span>
               <span
                 className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border"
                 style={{
@@ -358,33 +491,60 @@ export const WordSyncedLyricsFinder: React.FC = () => {
               </span>
             </h3>
             <p className="text-xs text-zinc-400">
-              Scan your music library for word-by-word syllable timestamps. Audition tracks one-by-one with live karaoke highlighting or batch embed all found lyrics.
+              Scan your music library for word-by-word syllable timestamps and dual-language translations. Audition tracks with real-time synchronized karaoke and embed directly into audio tags.
             </p>
           </div>
         </div>
 
-        {/* Scan Actions */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Scan Actions: Rescan All, Scan New Songs, Clear Results */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {isScanning ? (
             <button
               onClick={handleCancelSearch}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-red-400 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-all cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-rose-400 border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 transition-all cursor-pointer"
             >
               <XCircle className="w-4 h-4" />
               <span>Cancel Search</span>
             </button>
           ) : (
-            <button
-              onClick={handleStartSearch}
-              disabled={tracks.length === 0}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all shadow-md hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
-              style={{
-                background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #8b5cf6))',
-              }}
-            >
-              <Search className="w-4 h-4" />
-              <span>Search Library for Word Sync</span>
-            </button>
+            <>
+              {/* Scan New Songs */}
+              <button
+                onClick={() => handleStartSearch('new')}
+                disabled={tracks.length === 0}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-white transition-all shadow-md hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                style={{
+                  background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #8b5cf6))',
+                }}
+                title="Scan only library tracks not yet in the candidates list"
+              >
+                <Search className="w-4 h-4" />
+                <span>Scan New Songs</span>
+              </button>
+
+              {/* Rescan All Songs */}
+              <button
+                onClick={() => handleStartSearch('all')}
+                disabled={tracks.length === 0}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                title="Rescan entire library from scratch"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Rescan All</span>
+              </button>
+
+              {/* Clear Results */}
+              {candidates.length > 0 && (
+                <button
+                  onClick={handleClearResults}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all cursor-pointer"
+                  title="Delete saved candidate results"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear Results</span>
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -517,14 +677,9 @@ export const WordSyncedLyricsFinder: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                if (window.confirm('Clear the discovered candidates list?')) {
-                  setCandidates([]);
-                  setActiveCandidateIdx(0);
-                }
-              }}
+              onClick={handleClearResults}
               disabled={isBatchEmbedding || isScanning}
-              className="px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg text-xs text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-colors cursor-pointer disabled:opacity-50"
             >
               Clear List
             </button>
@@ -762,30 +917,54 @@ export const WordSyncedLyricsFinder: React.FC = () => {
               </div>
             </div>
 
-            {/* Right Column: Live Word-Synced Karaoke Lyrics Preview */}
+            {/* Right Column: Live Word-Synced Karaoke Lyrics & Translation Preview */}
             <div className="lg:col-span-7 flex flex-col gap-2">
               <div className="flex items-center justify-between text-xs px-1">
                 <span className="font-semibold text-zinc-300 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                  Live Word-by-Word Preview
+                  <span>Live Word-by-Word & Translation Preview</span>
+                  {isRomanizationEnabled && (
+                    <span title="Romanization Enabled">
+                      <Languages className="w-3.5 h-3.5 ml-1" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                    </span>
+                  )}
+                  {isTranslationEnabled && (
+                    <span title="Translation Enabled">
+                      <Globe className="w-3.5 h-3.5 ml-0.5" style={{ color: 'var(--color-stop-2, #8b5cf6)' }} />
+                    </span>
+                  )}
                 </span>
                 <span className="text-[11px] text-zinc-500">
                   Click any line or word to seek audio
                 </span>
               </div>
 
+              {/* Scrollable container strictly isolated to prevent page scrolling */}
               <div
                 ref={lyricsScrollContainerRef}
                 className="h-80 overflow-y-auto custom-scrollbar p-4 rounded-xl bg-black/60 border border-white/10 flex flex-col gap-3.5"
               >
-                {parsedLines.length === 0 ? (
+                {enrichedLines.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center text-zinc-500 text-xs">
                     No lyrics available to preview
                   </div>
                 ) : (
-                  parsedLines.map((line, idx) => {
+                  enrichedLines.map((line, idx) => {
                     const isLineActive = idx === activeLineIndex;
                     const isLinePast = activeLineIndex >= 0 && idx < activeLineIndex;
+
+                    const showRom = isRomanizationEnabled && Boolean(line.romanized);
+                    const showTrans = isTranslationEnabled && Boolean(line.translation);
+
+                    let mainText = line.content;
+                    if (showTrans && translationMode === 'replace' && line.translation) {
+                      mainText = line.translation;
+                    } else if (showRom && romanizationMode === 'replace' && line.romanized) {
+                      mainText = line.romanized;
+                    }
+
+                    const subRom = showRom && romanizationMode === 'below' ? line.romanized : null;
+                    const subTrans = showTrans && translationMode === 'below' ? line.translation : null;
 
                     return (
                       <div
@@ -813,6 +992,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                             : undefined,
                         }}
                       >
+                        {/* Main Syllables with Word-by-Word active highlight */}
                         {line.hasSyllables && isLineActive ? (
                           <div className="inline-flex flex-wrap justify-center items-baseline">
                             {line.syllables.map((syl, sIdx) => {
@@ -824,6 +1004,13 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                                 activeTimeMs < sylEnd;
                               const isSylPast =
                                 isCandidatePlayingThis && activeTimeMs >= sylEnd;
+
+                              const sylDisplay =
+                                isTranslationEnabled && translationMode === 'replace' && syl.translatedText
+                                  ? syl.translatedText
+                                  : isRomanizationEnabled && romanizationMode === 'replace' && syl.romanizedText
+                                  ? syl.romanizedText
+                                  : syl.text;
 
                               return (
                                 <span
@@ -843,7 +1030,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                                       : undefined,
                                   }}
                                 >
-                                  {syl.text}
+                                  {sylDisplay}
                                 </span>
                               );
                             })}
@@ -853,8 +1040,106 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                             className="text-sm font-medium"
                             style={isLineActive ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
                           >
-                            {line.content}
+                            {mainText}
                           </span>
+                        )}
+
+                        {/* Word-by-Word Romanization Underneath */}
+                        {subRom && (
+                          line.hasSyllables && isLineActive ? (
+                            <div className="inline-flex flex-wrap justify-center items-baseline font-mono mt-1 select-none">
+                              {line.syllables.map((syl, sIdx) => {
+                                const sylStart = syl.timeMs;
+                                const sylEnd = syl.timeMs + syl.durationMs;
+                                const isSylActive =
+                                  isCandidatePlayingThis && activeTimeMs >= sylStart && activeTimeMs < sylEnd;
+                                const isSylPast = isCandidatePlayingThis && activeTimeMs >= sylEnd;
+                                const romText = syl.romanizedText || syl.text;
+
+                                return (
+                                  <span
+                                    key={`syl-rom-${sIdx}`}
+                                    className={`inline-block transition-all duration-150 ${
+                                      syl.hasTrailingSpace ? 'mr-[0.28em]' : ''
+                                    }`}
+                                    style={{
+                                      fontSize: '11px',
+                                      color: isSylActive
+                                        ? 'var(--color-stop-1, #6366f1)'
+                                        : isSylPast
+                                        ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 85%, white)'
+                                        : 'rgba(255, 255, 255, 0.45)',
+                                      fontWeight: isSylActive ? 700 : 400,
+                                      transform: isSylActive ? 'scale(1.08) translateY(-1px)' : 'scale(1)',
+                                      textShadow: isSylActive
+                                        ? '0 0 10px var(--color-stop-1, #6366f1)'
+                                        : undefined,
+                                    }}
+                                  >
+                                    {romText}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div
+                              className="font-mono font-normal mt-1 text-xs select-none"
+                              style={{
+                                color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 75%, white)',
+                              }}
+                            >
+                              {subRom}
+                            </div>
+                          )
+                        )}
+
+                        {/* Word-by-Word Translation Underneath */}
+                        {subTrans && (
+                          line.hasSyllables && isLineActive ? (
+                            <div className="inline-flex flex-wrap justify-center items-baseline font-sans mt-1 select-none">
+                              {line.syllables.map((syl, sIdx) => {
+                                const sylStart = syl.timeMs;
+                                const sylEnd = syl.timeMs + syl.durationMs;
+                                const isSylActive =
+                                  isCandidatePlayingThis && activeTimeMs >= sylStart && activeTimeMs < sylEnd;
+                                const isSylPast = isCandidatePlayingThis && activeTimeMs >= sylEnd;
+                                const transText = syl.translatedText || syl.text;
+
+                                return (
+                                  <span
+                                    key={`syl-trans-${sIdx}`}
+                                    className={`inline-block transition-all duration-150 ${
+                                      syl.hasTrailingSpace ? 'mr-[0.28em]' : ''
+                                    }`}
+                                    style={{
+                                      fontSize: '11px',
+                                      color: isSylActive
+                                        ? 'var(--color-stop-2, #8b5cf6)'
+                                        : isSylPast
+                                        ? 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 85%, white)'
+                                        : 'rgba(255, 255, 255, 0.45)',
+                                      fontWeight: isSylActive ? 700 : 400,
+                                      transform: isSylActive ? 'scale(1.08) translateY(-1px)' : 'scale(1)',
+                                      textShadow: isSylActive
+                                        ? '0 0 10px var(--color-stop-2, #8b5cf6)'
+                                        : undefined,
+                                    }}
+                                  >
+                                    {transText}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div
+                              className="font-sans font-normal mt-1 text-xs select-none"
+                              style={{
+                                color: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 75%, white)',
+                              }}
+                            >
+                              {subTrans}
+                            </div>
+                          )
                         )}
                       </div>
                     );

@@ -319,28 +319,45 @@ const TitleCell: React.FC<any> = ({ model }) => {
         e.currentTarget.dispatchEvent(evt);
       }}
     >
-      <span
-        title={track.title}
-        className={`truncate font-medium min-w-0 leading-snug pb-0.5 ${
-          trackGridDensity === 'massive'
-            ? 'text-xl'
-            : trackGridDensity === 'huge'
-            ? 'text-lg'
-            : trackGridDensity === 'extra-large'
-            ? 'text-base'
-            : 'text-sm'
-        }`}
-        style={
-          isCurrentPlaying
-            ? {
-                color: 'var(--color-stop-1, #6366f1)',
-                fontWeight: 700,
-              }
-            : { color: '#ffffff' }
-        }
-      >
-        {track.title}
-      </span>
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span
+          title={track.title}
+          className={`truncate font-medium min-w-0 leading-snug pb-0.5 ${
+            trackGridDensity === 'massive'
+              ? 'text-xl'
+              : trackGridDensity === 'huge'
+              ? 'text-lg'
+              : trackGridDensity === 'extra-large'
+              ? 'text-base'
+              : 'text-sm'
+          }`}
+          style={
+            isCurrentPlaying
+              ? {
+                  color: 'var(--color-stop-1, #6366f1)',
+                  fontWeight: 700,
+                }
+              : track.missing_since
+              ? { color: '#a1a1aa' }
+              : { color: '#ffffff' }
+          }
+        >
+          {track.title}
+        </span>
+        {track.missing_since && (
+          <span
+            className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold border shrink-0 leading-tight"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-3, #ec4899) 20%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-3, #ec4899) 40%, transparent)',
+              color: 'var(--color-stop-3, #ec4899)',
+            }}
+            title="Audio file is currently missing on disk (retained for 24h before automatic deletion)"
+          >
+            Missing
+          </span>
+        )}
+      </div>
       {showSubArtistUnderTitle && (
         <div className="flex items-center min-w-0 leading-none -mt-0.5">
           {hasSubArtistLink ? (

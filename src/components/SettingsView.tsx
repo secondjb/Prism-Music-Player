@@ -63,6 +63,10 @@ export const SettingsView: React.FC = () => {
   const addExcludedDirectory = usePlayerStore((s) => s.addExcludedDirectory);
   const removeExcludedDirectory = usePlayerStore((s) => s.removeExcludedDirectory);
   const rescanConfiguredLibraries = usePlayerStore((s) => s.rescanConfiguredLibraries);
+  const refreshConfiguredLibraries = usePlayerStore((s) => s.refreshConfiguredLibraries);
+  const purgeMissingTracks = usePlayerStore((s) => s.purgeMissingTracks);
+  const isRefreshingLibrary = usePlayerStore((s) => s.isRefreshingLibrary);
+  const lastRefreshResult = usePlayerStore((s) => s.lastRefreshResult);
   const analyzeAndIndexAudio = usePlayerStore((s) => s.analyzeAndIndexAudio);
   const clearAudioAnalysis = usePlayerStore((s) => s.clearAudioAnalysis);
   const wipeDataAndReset = usePlayerStore((s) => s.wipeDataAndReset);
@@ -114,7 +118,9 @@ export const SettingsView: React.FC = () => {
   const setScanStatusMessage = usePlayerStore((s) => s.setScanStatusMessage);
 
   const [isScanningLocal, setIsScanningLocal] = useState(false);
+  const [isRefreshingLocal, setIsRefreshingLocal] = useState(false);
   const isScanning = isScanningStore || isScanningLocal;
+  const isRefreshing = isRefreshingLibrary || isRefreshingLocal;
 
   const [isAnalyzingAudio, setIsAnalyzingAudio] = useState(false);
   const [showWipeModal, setShowWipeModal] = useState(false);
@@ -128,6 +134,7 @@ export const SettingsView: React.FC = () => {
   const keyCount = tracks.filter((t) => Boolean(t.key)).length;
   const bpmCount = tracks.filter((t) => Boolean(t.bpm)).length;
   const keyOrBpmCount = tracks.filter((t) => Boolean(t.key || t.bpm)).length;
+  const missingTracksCount = tracks.filter((t) => Boolean(t.missing_since)).length;
 
   const handleManualAddPath = async (pathToAdd?: string) => {
     const target = (pathToAdd || customPathInput).trim();
@@ -147,6 +154,18 @@ export const SettingsView: React.FC = () => {
     setIsScanningLocal(true);
     await rescanConfiguredLibraries();
     setIsScanningLocal(false);
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshingLocal(true);
+    await refreshConfiguredLibraries();
+    setIsRefreshingLocal(false);
+  };
+
+  const handlePurgeMissing = async () => {
+    if (window.confirm("Remove all missing songs from library index now?")) {
+      await purgeMissingTracks();
+    }
   };
 
   const audioAnalysisProgress = usePlayerStore((s) => s.audioAnalysisProgress);
@@ -221,7 +240,26 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing || isScanning || includedDirectories.length === 0}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-medium text-xs transition-all shadow-md ${
+              isRefreshing || isScanning || includedDirectories.length === 0
+                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
+                : 'text-white hover:scale-[1.02] active:scale-[0.98]'
+            }`}
+            style={
+              !isRefreshing && !isScanning && includedDirectories.length > 0
+                ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                : undefined
+            }
+            title="Scan included folders for new songs (detecting Key & BPM) and check for missing files"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>{isRefreshing ? 'Refreshing...' : 'Refresh Folders'}</span>
+          </button>
+
           <button
             onClick={handleAnalyzeAudio}
             disabled={isAnalyzing || totalTracks === 0}
@@ -232,7 +270,7 @@ export const SettingsView: React.FC = () => {
             }`}
             style={
               !isAnalyzing && totalTracks > 0
-                ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                ? { backgroundColor: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 85%, black)' }
                 : undefined
             }
             title="Analyze audio waveforms asynchronously to calculate missing Key and BPM"
@@ -251,47 +289,71 @@ export const SettingsView: React.FC = () => {
 
           <button
             onClick={handleRescan}
-            disabled={isScanning || includedDirectories.length === 0}
+            disabled={isScanning || isRefreshing || includedDirectories.length === 0}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-medium text-xs transition-all shadow-md ${
-              isScanning || includedDirectories.length === 0
+              isScanning || isRefreshing || includedDirectories.length === 0
                 ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
                 : 'text-white hover:scale-[1.02] active:scale-[0.98]'
             }`}
             style={
-              !isScanning && includedDirectories.length > 0
-                ? { backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 85%, black)' }
+              !isScanning && !isRefreshing && includedDirectories.length > 0
+                ? { backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 60%, black)' }
                 : undefined
             }
+            title="Force re-reading of all ID3/Vorbis tags from disk for all tracks"
           >
             <RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
-            <span>{isScanning ? 'Indexing...' : 'Re-index Tags'}</span>
+            <span>{isScanning ? 'Indexing...' : 'Re-index All'}</span>
           </button>
         </div>
       </div>
 
 
       {/* Library Tag Indexing Stats Card */}
-      <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-4 bg-gradient-to-br from-indigo-950/20 to-purple-950/20">
+      <div
+        className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-4 shadow-xl"
+        style={{
+          background:
+            'linear-gradient(to bottom right, color-mix(in srgb, var(--color-stop-1, #6366f1) 16%, transparent), color-mix(in srgb, var(--color-stop-2, #8b5cf6) 16%, transparent))',
+          borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+        }}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <RefreshCw className={`w-5 h-5 text-indigo-400 ${isScanning ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`w-5 h-5 ${isScanning || isRefreshing ? 'animate-spin' : ''}`}
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+            />
             <div>
               <h3 className="text-base font-bold text-white">Library Indexing & Tag Coverage</h3>
               <p className="text-xs text-zinc-400">
                 {isScanning
                   ? 'Currently reading local files and updating metadata index...'
+                  : isRefreshing
+                  ? 'Checking for new tracks (analyzing Key/BPM) and missing files...'
                   : `All ${totalTracks} tracks stored in local AppData index (library.json) for instant search.`}
               </p>
             </div>
           </div>
           <span
-            className={`px-3 py-1 rounded-full text-xs font-bold ${
-              isScanning
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
-                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-            }`}
+            className="px-3 py-1 rounded-full text-xs font-bold"
+            style={
+              isScanning || isRefreshing
+                ? {
+                    backgroundColor: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 20%, transparent)',
+                    color: 'var(--color-stop-2, #8b5cf6)',
+                    borderColor: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 35%, transparent)',
+                    borderWidth: '1px',
+                  }
+                : {
+                    backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                    color: 'var(--color-stop-1, #6366f1)',
+                    borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+                    borderWidth: '1px',
+                  }
+            }
           >
-            {isScanning ? 'Indexing in progress' : 'Library Fully Indexed'}
+            {isScanning ? 'Indexing in progress' : isRefreshing ? 'Refreshing folders...' : 'Library Fully Indexed'}
           </span>
         </div>
 
@@ -303,7 +365,10 @@ export const SettingsView: React.FC = () => {
 
           <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-1">
             <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Genre Tag Coverage</span>
-            <span className="text-2xl font-black font-mono text-indigo-300">
+            <span
+              className="text-2xl font-black font-mono"
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+            >
               {totalTracks > 0 ? `${Math.round((genreCount / totalTracks) * 100)}%` : '0%'}
             </span>
             <span className="text-[10px] text-zinc-500 font-mono">{genreCount} / {totalTracks} tracks</span>
@@ -311,7 +376,10 @@ export const SettingsView: React.FC = () => {
 
           <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-1">
             <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Year / Date Tags</span>
-            <span className="text-2xl font-black font-mono text-purple-300">
+            <span
+              className="text-2xl font-black font-mono"
+              style={{ color: 'var(--color-stop-2, #8b5cf6)' }}
+            >
               {totalTracks > 0 ? `${Math.round((yearCount / totalTracks) * 100)}%` : '0%'}
             </span>
             <span className="text-[10px] text-zinc-500 font-mono">{yearCount} / {totalTracks} tracks</span>
@@ -319,7 +387,10 @@ export const SettingsView: React.FC = () => {
 
           <div className="p-4 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-1">
             <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Key & BPM Coverage</span>
-            <span className="text-2xl font-black font-mono text-pink-300">
+            <span
+              className="text-2xl font-black font-mono"
+              style={{ color: 'var(--color-stop-3, #ec4899)' }}
+            >
               {totalTracks > 0 ? `${Math.round((keyOrBpmCount / totalTracks) * 100)}%` : '0%'}
             </span>
             <span className="text-[10px] text-zinc-500 font-mono">Key: {keyCount} • BPM: {bpmCount}</span>
@@ -333,20 +404,21 @@ export const SettingsView: React.FC = () => {
       {/* Live Folder Scan Status Banner */}
       {scanStatusMessage && (
         <div
-          className={`p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-xl transition-all ${
-            isScanning
-              ? 'bg-indigo-950/60 border-indigo-500/50 text-indigo-200 animate-pulse'
-              : scanStatusMessage.includes('Success') || totalTracks > 0
-              ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-200'
-              : 'bg-amber-950/60 border-amber-500/50 text-amber-200'
-          }`}
+          className="p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-xl transition-all"
+          style={{
+            backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, #09090b)',
+            borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+          }}
         >
           <div className="flex items-center gap-3">
-            <RefreshCw className={`w-5 h-5 shrink-0 ${isScanning ? 'animate-spin text-indigo-400' : 'text-emerald-400'}`} />
+            <RefreshCw
+              className={`w-5 h-5 shrink-0 ${isScanning || isRefreshing ? 'animate-spin' : ''}`}
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+            />
             <div>
               <p className="text-xs font-bold text-white">{scanStatusMessage}</p>
-              {!isScanning && totalTracks === 0 && (
-                <p className="text-[11px] text-amber-300/80 mt-0.5">
+              {!isScanning && !isRefreshing && totalTracks === 0 && (
+                <p className="text-[11px] text-zinc-300 mt-0.5">
                   Tip: Tap a Quick-Add preset below or type your folder path manually. Supported formats: FLAC, MP3, M4A, WAV, OGG, AAC.
                 </p>
               )}
@@ -376,15 +448,85 @@ export const SettingsView: React.FC = () => {
               </p>
             </div>
           </div>
-          <button
-            onClick={handleAddIncludedDir}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-white text-xs font-semibold transition-all hover:scale-105 shadow-md"
-            style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-          >
-            <FolderPlus className="w-4 h-4" />
-            <span>Open Folder Picker</span>
-          </button>
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing || isScanning || includedDirectories.length === 0}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-white text-xs font-semibold transition-all shadow-md ${
+                isRefreshing || isScanning || includedDirectories.length === 0
+                  ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-white/5'
+                  : 'hover:scale-105 active:scale-95 cursor-pointer'
+              }`}
+              style={
+                !isRefreshing && !isScanning && includedDirectories.length > 0
+                  ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                  : undefined
+              }
+              title="Refresh included folders to check for new songs (detecting Key & BPM) and mark missing files"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span>{isRefreshing ? 'Checking...' : 'Refresh Directories'}</span>
+            </button>
+
+            <button
+              onClick={handleAddIncludedDir}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-white text-xs font-semibold transition-all hover:scale-105 shadow-md cursor-pointer"
+              style={{ backgroundColor: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 80%, black)' }}
+            >
+              <FolderPlus className="w-4 h-4" />
+              <span>Open Folder Picker</span>
+            </button>
+          </div>
         </div>
+
+        {/* Missing Songs Alert */}
+        {missingTracksCount > 0 && (
+          <div
+            className="p-3.5 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-lg"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-3, #ec4899) 15%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-3, #ec4899) 35%, transparent)',
+            }}
+          >
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+              <span className="text-zinc-200">
+                <strong className="text-white">{missingTracksCount}</strong> song{missingTracksCount > 1 ? 's are' : ' is'} currently missing from disk. Indexed metadata is retained for 24 hours before automatic deletion.
+              </span>
+            </div>
+            <button
+              onClick={handlePurgeMissing}
+              className="px-3 py-1.5 rounded-lg font-semibold text-white text-[11px] transition-all hover:scale-105 shrink-0 shadow-md cursor-pointer"
+              style={{ backgroundColor: 'color-mix(in srgb, var(--color-stop-3, #ec4899) 80%, black)' }}
+            >
+              Purge Missing Now
+            </button>
+          </div>
+        )}
+
+        {/* Last Refresh Summary Pill */}
+        {lastRefreshResult && (
+          <div
+            className="px-3.5 py-2 rounded-xl border flex items-center justify-between gap-2 text-xs"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 10%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+            }}
+          >
+            <span className="text-zinc-300">
+              Last refresh:{' '}
+              <strong className="text-white">+{lastRefreshResult.added_count}</strong> new song(s) indexed with Key & BPM,{' '}
+              <strong className="text-white">{lastRefreshResult.missing_count}</strong> missing,{' '}
+              <strong className="text-white">{lastRefreshResult.removed_count}</strong> purged.
+            </span>
+            <span
+              className="text-[11px] font-mono"
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+            >
+              Total: {lastRefreshResult.total_count}
+            </span>
+          </div>
+        )}
 
         {/* Manual Folder Path Input */}
         <div className="flex items-center gap-2 pt-2 border-t border-white/10">
@@ -396,14 +538,17 @@ export const SettingsView: React.FC = () => {
               if (e.key === 'Enter') handleManualAddPath();
             }}
             placeholder="Type or paste custom folder path (e.g. C:\Users\YourName\Music)"
-            className="flex-1 bg-zinc-900 border border-white/10 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none transition-colors"
+            className="flex-1 bg-zinc-900 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none transition-colors"
+            style={{
+              borderColor: customPathInput.trim() ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 50%, transparent)' : undefined,
+            }}
           />
           <button
             onClick={() => handleManualAddPath()}
-            disabled={!customPathInput.trim() || isScanning}
-            className="px-4 py-2 rounded-xl disabled:bg-zinc-800 disabled:text-zinc-600 text-white text-xs font-semibold transition-all shrink-0"
+            disabled={!customPathInput.trim() || isScanning || isRefreshing}
+            className="px-4 py-2 rounded-xl disabled:bg-zinc-800 disabled:text-zinc-600 text-white text-xs font-semibold transition-all shrink-0 cursor-pointer disabled:cursor-not-allowed"
             style={
-              customPathInput.trim() && !isScanning
+              customPathInput.trim() && !isScanning && !isRefreshing
                 ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
                 : undefined
             }
@@ -417,7 +562,7 @@ export const SettingsView: React.FC = () => {
             <Folder className="w-8 h-8 text-zinc-600" />
             <span className="text-xs font-semibold text-zinc-300">No included directories configured</span>
             <p className="text-[11px] text-zinc-500 max-w-xs">
-              Click "Add Folder" above to choose directories containing your FLAC audio library.
+              Click "Add Folder" above to choose directories containing your audio library.
             </p>
           </div>
         ) : (
@@ -428,12 +573,15 @@ export const SettingsView: React.FC = () => {
                 className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0 pr-4">
-                  <Folder className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <Folder
+                    className="w-4 h-4 shrink-0"
+                    style={{ color: 'var(--color-stop-1, #6366f1)' }}
+                  />
                   <span className="text-xs font-mono text-white truncate">{dir}</span>
                 </div>
                 <button
                   onClick={() => removeIncludedDirectory(dir)}
-                  className="p-1.5 text-zinc-500 hover:text-red-400 rounded-lg hover:bg-white/10 transition-colors shrink-0"
+                  className="p-1.5 text-zinc-500 hover:text-red-400 rounded-lg hover:bg-white/10 transition-colors shrink-0 cursor-pointer"
                   title="Remove folder from library"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -448,7 +596,10 @@ export const SettingsView: React.FC = () => {
       <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <FolderMinus className="w-5 h-5 text-amber-400" />
+            <FolderMinus
+              className="w-5 h-5 shrink-0"
+              style={{ color: 'var(--color-stop-2, #8b5cf6)' }}
+            />
             <div>
               <h3 className="text-base font-bold text-white">Excluded Subfolders</h3>
               <p className="text-xs text-zinc-400">
@@ -458,9 +609,14 @@ export const SettingsView: React.FC = () => {
           </div>
           <button
             onClick={handleAddExcludedDir}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white text-xs font-semibold transition-all border border-white/10 hover:scale-105"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border hover:scale-105 cursor-pointer"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 20%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 35%, transparent)',
+              color: 'var(--color-stop-2, #8b5cf6)',
+            }}
           >
-            <FolderMinus className="w-4 h-4 text-amber-400" />
+            <FolderMinus className="w-4 h-4" />
             <span>Exclude Folder</span>
           </button>
         </div>
@@ -477,12 +633,15 @@ export const SettingsView: React.FC = () => {
                 className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0 pr-4">
-                  <FolderGit2 className="w-4 h-4 text-amber-400 shrink-0" />
+                  <FolderGit2
+                    className="w-4 h-4 shrink-0"
+                    style={{ color: 'var(--color-stop-2, #8b5cf6)' }}
+                  />
                   <span className="text-xs font-mono text-zinc-300 truncate">{dir}</span>
                 </div>
                 <button
                   onClick={() => removeExcludedDirectory(dir)}
-                  className="p-1.5 text-zinc-500 hover:text-red-400 rounded-lg hover:bg-white/10 transition-colors shrink-0"
+                  className="p-1.5 text-zinc-500 hover:text-red-400 rounded-lg hover:bg-white/10 transition-colors shrink-0 cursor-pointer"
                   title="Remove exclusion rule"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -496,7 +655,7 @@ export const SettingsView: React.FC = () => {
       {/* 3. Audio Specs & Lyrics Preferences */}
       <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-5">
         <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
-          <Sliders className="w-5 h-5 text-indigo-400" />
+          <Sliders className="w-5 h-5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
           <div>
             <h3 className="text-base font-bold text-white">Playback & Lyrics Preferences</h3>
             <p className="text-xs text-zinc-400">Configure online lyrics auto-fetch and display options.</p>
@@ -506,7 +665,7 @@ export const SettingsView: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3">
-              <Mic2 className="w-4 h-4 text-indigo-400" />
+              <Mic2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Auto-fetch Online Lyrics</span>
                 <span className="text-[11px] text-zinc-400">Fetch synced lyrics from LRCLIB if embedded lyrics missing</span>
@@ -528,7 +687,7 @@ export const SettingsView: React.FC = () => {
 
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3">
-              <Languages className="w-4 h-4 text-indigo-400" />
+              <Languages className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Lyric Romanization / Translation</span>
                 <span className="text-[11px] text-zinc-400">Romanize non-Latin script lyrics automatically</span>
@@ -551,7 +710,7 @@ export const SettingsView: React.FC = () => {
           {/* Romanization Mode Setting */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
             <div className="flex items-center gap-3">
-              <Languages className="w-4 h-4 text-indigo-400" />
+              <Languages className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Romanization Display Mode</span>
                 <span className="text-[11px] text-zinc-400">Choose whether romanization is shown below or replaces original text</span>
@@ -594,7 +753,7 @@ export const SettingsView: React.FC = () => {
           {/* Lyrics Font Size Setting */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
             <div className="flex items-center gap-3">
-              <Mic2 className="w-4 h-4 text-indigo-400" />
+              <Mic2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Lyrics Font Size Preset</span>
                 <span className="text-[11px] text-zinc-400">Choose default font scaling preset for Karaoke & Lyrics view</span>
@@ -686,7 +845,7 @@ export const SettingsView: React.FC = () => {
           {/* Prefer Word-Synced Lyrics Toggle */}
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3">
-              <Mic2 className="w-4 h-4 text-indigo-400" />
+              <Mic2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Prefer Syllable/Word Sync</span>
                 <span className="text-[11px] text-zinc-400">Fetch word-level synced lyrics when available</span>
@@ -709,7 +868,7 @@ export const SettingsView: React.FC = () => {
           {/* Infer Word-by-Word Sync Toggle */}
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3">
-              <Sparkles className="w-4 h-4 text-pink-400" />
+              <Sparkles className="w-4 h-4" style={{ color: 'var(--color-stop-3, #ec4899)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Infer Word-by-Word Sync</span>
                 <span className="text-[11px] text-zinc-400">Automatically estimate word-level timing for standard line-synced lyrics</span>
@@ -732,7 +891,7 @@ export const SettingsView: React.FC = () => {
           {/* Auto-embed Lyrics Toggle */}
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3">
-              <Download className="w-4 h-4 text-indigo-400" />
+              <Download className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Auto-embed Lyrics to Audio Files</span>
                 <span className="text-[11px] text-zinc-400">Save fetched online lyrics directly into local tracks</span>
@@ -754,7 +913,7 @@ export const SettingsView: React.FC = () => {
 
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3">
-              <Sparkles className="w-4 h-4 text-amber-400" />
+              <Sparkles className="w-4 h-4" style={{ color: 'var(--color-stop-2, #8b5cf6)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Show Audio Specs Badge</span>
                 <span className="text-[11px] text-zinc-400">Display sample rate (kHz) and bit rate in player bar</span>
@@ -776,7 +935,7 @@ export const SettingsView: React.FC = () => {
 
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3">
-              <Sparkles className="w-4 h-4 text-amber-300" />
+              <Sparkles className="w-4 h-4" style={{ color: 'var(--color-stop-2, #8b5cf6)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Show Audio Format in Library</span>
                 <span className="text-[11px] text-zinc-400">Display sample rate / bit depth column in track list</span>
@@ -800,7 +959,7 @@ export const SettingsView: React.FC = () => {
 
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3">
-              <Info className="w-4 h-4 text-indigo-400" />
+              <Info className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Auto-hide Lyrics Controls</span>
                 <span className="text-[11px] text-zinc-400">Fade overlay controls after mouse stops moving</span>
@@ -822,7 +981,7 @@ export const SettingsView: React.FC = () => {
 
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3">
-              <Mic2 className="w-4 h-4 text-indigo-300" />
+              <Mic2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Prefer Online Lyrics</span>
                 <span className="text-[11px] text-zinc-400">Always check online LRCLIB first before embedded lyrics</span>
@@ -844,7 +1003,7 @@ export const SettingsView: React.FC = () => {
 
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
             <div className="flex items-center gap-3">
-              <BarChart2 className="w-4 h-4 text-emerald-400" />
+              <BarChart2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Enable Listening Statistics</span>
                 <span className="text-[11px] text-zinc-400">Log play counts to build personalized stats</span>
@@ -865,9 +1024,15 @@ export const SettingsView: React.FC = () => {
           </div>
 
           {/* Showcase & Demo Data (For Screenshots & Testing) */}
-          <div className="flex items-center justify-between p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 col-span-1 md:col-span-2">
+          <div
+            className="flex items-center justify-between p-3.5 rounded-xl border col-span-1 md:col-span-2"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 10%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+            }}
+          >
             <div className="flex items-center gap-3">
-              <Sparkles className="w-4 h-4 text-indigo-400" />
+              <Sparkles className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Show Simulated Listening Stats</span>
                 <span className="text-[11px] text-zinc-400">Populate realistic demo analytics in Listening Dashboard (ideal for screenshots & UI preview)</span>
@@ -888,9 +1053,15 @@ export const SettingsView: React.FC = () => {
           </div>
 
           {/* Anonymize Stats Names */}
-          <div className="flex items-center justify-between p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 col-span-1 md:col-span-2">
+          <div
+            className="flex items-center justify-between p-3.5 rounded-xl border col-span-1 md:col-span-2"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 10%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+            }}
+          >
             <div className="flex items-center gap-3">
-              <Sparkles className="w-4 h-4 text-indigo-400" />
+              <Sparkles className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Anonymize Stats Names</span>
                 <span className="text-[11px] text-zinc-400">Show placeholder names (Song 1, Artist 1, Genre 1) while keeping your real listening data & counts</span>
@@ -910,9 +1081,15 @@ export const SettingsView: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center justify-between p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 col-span-1 md:col-span-2">
+          <div
+            className="flex items-center justify-between p-3.5 rounded-xl border col-span-1 md:col-span-2"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 10%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 25%, transparent)',
+            }}
+          >
             <div className="flex items-center gap-3">
-              <Sparkles className="w-4 h-4 text-indigo-400" />
+              <Sparkles className="w-4 h-4" style={{ color: 'var(--color-stop-2, #8b5cf6)' }} />
               <div className="flex flex-col">
                 <span className="text-xs font-semibold text-white">Generate Demo Playlists</span>
                 <span className="text-[11px] text-zinc-400">Auto-create sample curated playlists (Midnight Synthwave, Lo-Fi Chill, etc.)</span>
@@ -924,7 +1101,11 @@ export const SettingsView: React.FC = () => {
                 setDemoPlaylistsCreated(true);
                 setTimeout(() => setDemoPlaylistsCreated(false), 3000);
               }}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600/30 text-indigo-300 hover:bg-indigo-600/50 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer hover:opacity-90"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 25%, transparent)',
+                color: 'var(--color-stop-2, #8b5cf6)',
+              }}
             >
               {demoPlaylistsCreated ? 'Playlists Created!' : 'Generate Playlists'}
             </button>
@@ -979,13 +1160,27 @@ export const SettingsView: React.FC = () => {
       <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shrink-0">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center border shrink-0"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+                color: 'var(--color-stop-1, #6366f1)',
+              }}
+            >
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold text-white">Prism Music Player</h3>
-                <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                <span
+                  className="px-2 py-0.5 rounded-full text-xs font-mono font-bold border"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+                    color: 'var(--color-stop-1, #6366f1)',
+                  }}
+                >
                   {CURRENT_APP_VERSION}
                 </span>
               </div>
@@ -999,19 +1194,31 @@ export const SettingsView: React.FC = () => {
             <button
               onClick={() => checkAppUpdate(true)}
               disabled={isCheckingUpdate}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold transition-all hover:scale-105 border border-white/10 disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-white text-xs font-semibold transition-all hover:scale-105 border disabled:opacity-50 cursor-pointer"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
+              }}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isCheckingUpdate ? 'animate-spin text-indigo-400' : ''}`} />
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${isCheckingUpdate ? 'animate-spin' : ''}`}
+                style={{ color: 'var(--color-stop-1, #6366f1)' }}
+              />
               <span>{isCheckingUpdate ? 'Checking...' : 'Check for Updates'}</span>
             </button>
 
             <button
               onClick={() => openExternalLink(GITHUB_RELEASES_URL)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-200 text-xs font-semibold transition-all hover:scale-105 border border-indigo-500/30 cursor-pointer"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all hover:scale-105 border cursor-pointer"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 25%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 40%, transparent)',
+                color: 'var(--color-stop-2, #8b5cf6)',
+              }}
             >
               <GitBranch className="w-3.5 h-3.5" />
               <span>Releases Page</span>
-              <ExternalLink className="w-3 h-3 text-indigo-400" />
+              <ExternalLink className="w-3 h-3" style={{ color: 'var(--color-stop-2, #8b5cf6)' }} />
             </button>
           </div>
         </div>
@@ -1020,7 +1227,14 @@ export const SettingsView: React.FC = () => {
         {latestUpdateResult && (
           <div>
             {latestUpdateResult.hasUpdate ? (
-              <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-950/60 via-purple-950/60 to-pink-950/60 border border-indigo-500/40 shadow-lg shadow-indigo-950/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in zoom-in-95 duration-200">
+              <div
+                className="p-4 rounded-xl border shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in zoom-in-95 duration-200"
+                style={{
+                  background:
+                    'linear-gradient(to right, color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, #09090b), color-mix(in srgb, var(--color-stop-2, #8b5cf6) 25%, #09090b), color-mix(in srgb, var(--color-stop-3, #ec4899) 25%, #09090b))',
+                  borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                }}
+              >
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
                     <span className="flex h-2.5 w-2.5 relative">
@@ -1032,7 +1246,12 @@ export const SettingsView: React.FC = () => {
                     </span>
                   </div>
                   {latestUpdateResult.releaseName && latestUpdateResult.releaseName !== latestUpdateResult.latestVersion && (
-                    <span className="text-xs text-indigo-200 font-medium">{latestUpdateResult.releaseName}</span>
+                    <span
+                      className="text-xs font-medium"
+                      style={{ color: 'var(--color-stop-2, #8b5cf6)' }}
+                    >
+                      {latestUpdateResult.releaseName}
+                    </span>
                   )}
                   <span className="text-[11px] text-zinc-400">
                     A newer build is ready to download on GitHub.
@@ -1041,7 +1260,11 @@ export const SettingsView: React.FC = () => {
 
                 <button
                   onClick={() => openExternalLink(latestUpdateResult.releaseUrl)}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-pink-600 text-white text-xs font-bold shadow-md hover:scale-105 transition-transform cursor-pointer shrink-0"
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white text-xs font-bold shadow-md hover:scale-105 transition-transform cursor-pointer shrink-0"
+                  style={{
+                    background:
+                      'linear-gradient(to right, var(--color-stop-1, #6366f1), var(--color-stop-3, #ec4899))',
+                  }}
                 >
                   <Download className="w-4 h-4" />
                   <span>Download {latestUpdateResult.latestVersion}</span>

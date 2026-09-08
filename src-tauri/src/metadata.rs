@@ -26,6 +26,8 @@ pub struct TrackMetadata {
     pub date: Option<String>,
     pub key: Option<String>,
     pub bpm: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub missing_since: Option<u64>,
 }
 
 
@@ -460,6 +462,7 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
         date,
         key,
         bpm,
+        missing_since: None,
     })
 
 }
@@ -576,6 +579,7 @@ pub fn parse_audio_file(path: &Path) -> Option<TrackMetadata> {
         date,
         key,
         bpm,
+        missing_since: None,
     })
 }
 
@@ -617,10 +621,10 @@ pub fn normalize_android_path(dir_path: &str) -> String {
     path
 }
 
-pub fn scan_configured_directories(
+pub fn collect_audio_paths(
     included_dirs: &[String],
     excluded_dirs: &[String],
-) -> Vec<TrackMetadata> {
+) -> Vec<PathBuf> {
     let mut all_audio_paths: Vec<PathBuf> = Vec::new();
     let excluded_paths: Vec<PathBuf> = excluded_dirs
         .iter()
@@ -681,7 +685,14 @@ pub fn scan_configured_directories(
 
     all_audio_paths.sort();
     all_audio_paths.dedup();
+    all_audio_paths
+}
 
+pub fn scan_configured_directories(
+    included_dirs: &[String],
+    excluded_dirs: &[String],
+) -> Vec<TrackMetadata> {
+    let all_audio_paths = collect_audio_paths(included_dirs, excluded_dirs);
     all_audio_paths
         .into_par_iter()
         .filter_map(|path| parse_audio_file(&path))
@@ -690,6 +701,153 @@ pub fn scan_configured_directories(
 
 pub fn scan_directory_for_tracks(dir_path: &str) -> Vec<TrackMetadata> {
     scan_configured_directories(&[dir_path.to_string()], &[])
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RefreshLibraryResult {
+    pub tracks: Vec<TrackMetadata>,
+    pub added_count: usize,
+    pub missing_count: usize,
+    pub restored_count: usize,
+    pub removed_count: usize,
+    pub total_count: usize,
+}
+
+pub fn refresh_configured_directories(
+    app_data_path: &Path,
+    included_dirs: &[String],
+    excluded_dirs: &[String],
+) -> Result<RefreshLibraryResult, String> {
+    let existing_tracks = load_library_from_disk(app_data_path).unwrap_or_default();
+    let current_audio_paths = collect_audio_paths(included_dirs, excluded_dirs);
+
+    fn normalize_key(p: &Path) -> String {
+        p.to_string_lossy().replace('\\', "/").to_lowercase()
+    }
+
+    use std::collections::{HashMap, HashSet};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let mut disk_paths_map: HashMap<String, PathBuf> = HashMap::new();
+    for p in &current_audio_paths {
+        disk_paths_map.insert(normalize_key(p), p.clone());
+    }
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    let one_day_secs: u64 = 24 * 60 * 60; // 86400 seconds (1 day)
+
+    let mut final_tracks: Vec<TrackMetadata> = Vec::with_capacity(existing_tracks.len() + 32);
+    let mut processed_keys: HashSet<String> = HashSet::new();
+
+    let mut restored_count = 0;
+    let mut missing_count = 0;
+    let mut removed_count = 0;
+
+    // Check existing tracks
+    for mut track in existing_tracks {
+        let key = normalize_key(Path::new(&track.path));
+        processed_keys.insert(key.clone());
+
+        if disk_paths_map.contains_key(&key) {
+            // File is present on disk!
+            if track.missing_since.is_some() {
+                track.missing_since = None;
+                restored_count += 1;
+            }
+            final_tracks.push(track);
+        } else {
+            // File is not in the currently scanned paths
+            let file_exists = Path::new(&track.path).exists();
+            if file_exists {
+                final_tracks.push(track);
+            } else {
+                // File does not exist on disk
+                let first_missing = track.missing_since.unwrap_or(now);
+                if track.missing_since.is_none() {
+                    track.missing_since = Some(now);
+                }
+
+                if now.saturating_sub(first_missing) >= one_day_secs {
+                    // Has been missing for at least 24 hours -> purge from index
+                    removed_count += 1;
+                } else {
+                    // Retain in library for the 24-hour grace period
+                    track.missing_since = Some(first_missing);
+                    missing_count += 1;
+                    final_tracks.push(track);
+                }
+            }
+        }
+    }
+
+    // Identify brand new audio files on disk
+    let new_paths: Vec<PathBuf> = current_audio_paths
+        .into_iter()
+        .filter(|p| !processed_keys.contains(&normalize_key(p)))
+        .collect();
+
+    let added_count = new_paths.len();
+
+    // Parse metadata for new files only
+    let mut new_tracks: Vec<TrackMetadata> = new_paths
+        .into_par_iter()
+        .filter_map(|p| parse_audio_file(&p))
+        .collect();
+
+    // Run audio waveform Key & BPM analysis exclusively on new tracks
+    new_tracks.par_iter_mut().for_each(|track| {
+        if track.bpm.is_none() || track.key.is_none() {
+            let p = PathBuf::from(&track.path);
+            let analysis = crate::audio_analysis::analyze_audio_waveform(&p);
+            if track.bpm.is_none() {
+                track.bpm = analysis.bpm;
+            }
+            if track.key.is_none() {
+                track.key = analysis.key;
+            }
+        }
+    });
+
+    final_tracks.extend(new_tracks);
+
+    // Save updated library to disk
+    save_library_to_disk(app_data_path, &final_tracks)?;
+
+    let total_count = final_tracks.len();
+
+    Ok(RefreshLibraryResult {
+        tracks: final_tracks,
+        added_count,
+        missing_count,
+        restored_count,
+        removed_count,
+        total_count,
+    })
+}
+
+pub fn purge_missing_from_library(app_data_path: &Path) -> Result<RefreshLibraryResult, String> {
+    let existing_tracks = load_library_from_disk(app_data_path).unwrap_or_default();
+    let before_count = existing_tracks.len();
+    let final_tracks: Vec<TrackMetadata> = existing_tracks
+        .into_iter()
+        .filter(|t| t.missing_since.is_none())
+        .collect();
+    let removed_count = before_count.saturating_sub(final_tracks.len());
+
+    save_library_to_disk(app_data_path, &final_tracks)?;
+
+    Ok(RefreshLibraryResult {
+        tracks: final_tracks.clone(),
+        added_count: 0,
+        missing_count: 0,
+        restored_count: 0,
+        removed_count,
+        total_count: final_tracks.len(),
+    })
 }
 
 pub fn save_library_to_disk(app_data_path: &Path, tracks: &[TrackMetadata]) -> Result<(), String> {

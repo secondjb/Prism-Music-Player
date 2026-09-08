@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Track, ActiveTab, SleepTimer, RepeatMode, Playlist } from '../types/player';
+import { Track, ActiveTab, SleepTimer, RepeatMode, Playlist, RefreshLibraryResult } from '../types/player';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { fetchLatestRelease, UpdateCheckResult } from '../utils/updateChecker';
@@ -100,6 +100,10 @@ interface PlayerState {
   addExcludedDirectory: (dir: string) => Promise<void>;
   removeExcludedDirectory: (dir: string) => Promise<void>;
   rescanConfiguredLibraries: () => Promise<void>;
+  refreshConfiguredLibraries: () => Promise<RefreshLibraryResult | null>;
+  purgeMissingTracks: () => Promise<void>;
+  isRefreshingLibrary: boolean;
+  lastRefreshResult: RefreshLibraryResult | null;
   analyzeAndIndexAudio: () => Promise<void>;
   clearAudioAnalysis: () => Promise<void>;
   setScanStatusMessage: (msg: string | null) => void;
@@ -270,6 +274,8 @@ export const usePlayerStore = create<PlayerState>()(
       includedDirectories: [],
       excludedDirectories: [],
       isScanning: false,
+      isRefreshingLibrary: false,
+      lastRefreshResult: null,
       scanStatusMessage: null,
       infoModalTrack: null,
       lyricsFontSizePreset: 'normal',
@@ -450,6 +456,70 @@ export const usePlayerStore = create<PlayerState>()(
             isScanning: false,
             scanStatusMessage: `Folder scan warning: ${e?.message || String(e)}`,
           });
+        }
+      },
+
+      refreshConfiguredLibraries: async () => {
+        const { includedDirectories, excludedDirectories, setTracks } = get();
+        if (includedDirectories.length === 0) {
+          set({
+            isRefreshingLibrary: false,
+            scanStatusMessage: 'No music folders configured yet to refresh.',
+          });
+          return null;
+        }
+
+        set({
+          isRefreshingLibrary: true,
+          scanStatusMessage: 'Checking included directories for new or missing tracks...',
+        });
+
+        try {
+          if (window.__TAURI_INTERNALS__) {
+            const res: RefreshLibraryResult = await invoke('refresh_libraries', {
+              includedDirs: includedDirectories,
+              excludedDirs: excludedDirectories,
+            });
+
+            setTracks(res.tracks);
+            set({
+              isRefreshingLibrary: false,
+              lastRefreshResult: res,
+              scanStatusMessage: `Refresh complete: +${res.added_count} new song(s) indexed (Key & BPM detected), ${res.missing_count} missing, ${res.removed_count} purged.`,
+            });
+            return res;
+          } else {
+            set({
+              isRefreshingLibrary: false,
+              scanStatusMessage: 'Refresh unavailable in standard web browser mode.',
+            });
+            return null;
+          }
+        } catch (e: any) {
+          console.warn('Refresh libraries error:', e);
+          set({
+            isRefreshingLibrary: false,
+            scanStatusMessage: `Refresh warning: ${e?.message || String(e)}`,
+          });
+          return null;
+        }
+      },
+
+      purgeMissingTracks: async () => {
+        try {
+          if (window.__TAURI_INTERNALS__) {
+            const res: RefreshLibraryResult = await invoke('purge_missing_tracks');
+            get().setTracks(res.tracks);
+            set({
+              lastRefreshResult: res,
+              scanStatusMessage: `Purged ${res.removed_count} missing track(s) from library.`,
+            });
+          } else {
+            const filtered = get().tracks.filter((t) => !t.missing_since);
+            get().setTracks(filtered);
+          }
+        } catch (e: any) {
+          console.warn('Purge missing error:', e);
         }
       },
 

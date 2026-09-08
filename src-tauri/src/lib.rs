@@ -1,4 +1,5 @@
 mod audio;
+pub mod audio_analysis;
 mod metadata;
 mod stats;
 
@@ -40,6 +41,40 @@ fn scan_libraries(
         let _ = save_library_to_disk(&app_data_dir, &tracks);
     }
     Ok(tracks)
+}
+
+#[tauri::command]
+async fn refresh_libraries(
+    app_handle: AppHandle,
+    included_dirs: Vec<String>,
+    excluded_dirs: Vec<String>,
+) -> Result<metadata::RefreshLibraryResult, String> {
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+
+    tokio::task::spawn_blocking(move || {
+        metadata::refresh_configured_directories(&app_data_dir, &included_dirs, &excluded_dirs)
+    })
+    .await
+    .map_err(|e| format!("Task execution failed: {}", e))?
+}
+
+#[tauri::command]
+async fn purge_missing_tracks(
+    app_handle: AppHandle,
+) -> Result<metadata::RefreshLibraryResult, String> {
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+
+    tokio::task::spawn_blocking(move || {
+        metadata::purge_missing_from_library(&app_data_dir)
+    })
+    .await
+    .map_err(|e| format!("Task execution failed: {}", e))?
 }
 
 #[tauri::command]
@@ -361,9 +396,6 @@ fn filter_tracks(app_handle: AppHandle, params: FilterParams) -> Result<Vec<Stri
     Ok(matching_ids)
 }
 
-
-mod audio_analysis;
-
 #[derive(Clone, serde::Serialize)]
 struct AudioAnalysisProgress {
     current: usize,
@@ -603,6 +635,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             scan_directory,
             scan_libraries,
+            refresh_libraries,
+            purge_missing_tracks,
             scan_sample_folder,
             save_library,
             load_library,

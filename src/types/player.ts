@@ -18,6 +18,16 @@ export interface Track {
   date?: string | null;
   key?: string | null;
   bpm?: number | null;
+  missing_since?: number | null;
+}
+
+export interface RefreshLibraryResult {
+  tracks: Track[];
+  added_count: number;
+  missing_count: number;
+  restored_count: number;
+  removed_count: number;
+  total_count: number;
 }
 
 export type ActiveTab = 'home' | 'search' | 'library' | 'playlists' | 'liked' | 'albums' | 'artists' | 'folders' | 'lyrics' | 'settings' | 'filter' | 'stats' | 'artistView' | 'albumView';

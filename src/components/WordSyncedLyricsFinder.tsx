@@ -113,6 +113,38 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     return [];
   });
 
+  // Scanned tracks persistence (tracks already searched)
+  const [scannedTrackIds, setScannedTrackIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('prism_word_sync_scanned_ids');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set(parsed);
+      }
+    } catch {}
+    return new Set();
+  });
+  const scannedTrackIdsRef = useRef<Set<string>>(scannedTrackIds);
+  useEffect(() => {
+    scannedTrackIdsRef.current = scannedTrackIds;
+  }, [scannedTrackIds]);
+
+  // Rejected tracks persistence (user dismissed bad translations / syncs)
+  const [rejectedTrackIds, setRejectedTrackIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('prism_word_sync_rejected_ids');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return new Set(parsed);
+      }
+    } catch {}
+    return new Set();
+  });
+  const rejectedTrackIdsRef = useRef<Set<string>>(rejectedTrackIds);
+  useEffect(() => {
+    rejectedTrackIdsRef.current = rejectedTrackIds;
+  }, [rejectedTrackIds]);
+
   const [activeCandidateIdx, setActiveCandidateIdx] = useState<number>(0);
   const [candidateFilter, setCandidateFilter] = useState<'all' | 'wordsync' | 'translation' | 'synced' | 'pending' | 'embedded'>('all');
   const [showCandidateList, setShowCandidateList] = useState<boolean>(false);
@@ -120,8 +152,19 @@ export const WordSyncedLyricsFinder: React.FC = () => {
   const [batchEmbedProgress, setBatchEmbedProgress] = useState<{ current: number; total: number } | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isScanningRef = useRef<boolean>(false);
+  const activeWorkersCountRef = useRef<number>(0);
+  const scanConcurrencyRef = useRef<number>(scanConcurrency);
+  const nextTrackIdxRef = useRef<number>(0);
+  const targetTracksRef = useRef<Track[]>([]);
+  const completedCountRef = useRef<number>(0);
+
   const lyricsScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const activeLineRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    scanConcurrencyRef.current = scanConcurrency;
+  }, [scanConcurrency]);
 
   // Save candidates on change
   useEffect(() => {
@@ -131,6 +174,20 @@ export const WordSyncedLyricsFinder: React.FC = () => {
       console.warn('Failed to persist candidates:', e);
     }
   }, [candidates]);
+
+  // Unscanned remaining tracks count (for "Continue Search")
+  const unscannedRemainingCount = useMemo(() => {
+    const candidateIds = new Set(candidates.map((c) => c.track.id));
+    return tracks.filter((t) => {
+      if (candidateIds.has(t.id)) return false;
+      if (scannedTrackIds.has(t.id)) return false;
+      if (rejectedTrackIds.has(t.id)) return false;
+      if (onlyMissingWordSync) {
+        return !isWordSyncedLrc(t.unsynced_lyrics) || !hasTranslationInLyrics(t.unsynced_lyrics);
+      }
+      return true;
+    }).length;
+  }, [tracks, scannedTrackIds, candidates, rejectedTrackIds, onlyMissingWordSync]);
 
   // Counts for each category
   const wordSyncCount = useMemo(
@@ -415,58 +472,83 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     setBatchEmbedProgress(null);
   };
 
-  // FIX 4: Support both "Scan New Songs" and "Rescan All"
-  const handleStartSearch = async (mode: 'all' | 'new') => {
-    if (isScanning) return;
+  // Reject a candidate track (bad translation or bad sync)
+  const handleRejectCandidate = (candidateToReject?: WordSyncCandidate) => {
+    const candidate = candidateToReject || activeCandidate;
+    if (!candidate) return;
 
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-    setIsScanning(true);
-
-    let targetTracks: Track[] = [];
-    let initialCandidates: WordSyncCandidate[] = [];
-
-    if (mode === 'new') {
-      const existingIds = new Set(candidates.map((c) => c.track.id));
-      targetTracks = tracks.filter((t) => !existingIds.has(t.id));
-      if (onlyMissingWordSync) {
-        targetTracks = targetTracks.filter((t) => !isWordSyncedLrc(t.unsynced_lyrics) || !hasTranslationInLyrics(t.unsynced_lyrics));
-      }
-      initialCandidates = [...candidates];
-    } else {
-      // mode === 'all': scan all
-      targetTracks = onlyMissingWordSync
-        ? tracks.filter((t) => !isWordSyncedLrc(t.unsynced_lyrics) || !hasTranslationInLyrics(t.unsynced_lyrics))
-        : [...tracks];
-      initialCandidates = [];
-      setCandidates([]);
-      setActiveCandidateIdx(0);
-    }
-
-    if (targetTracks.length === 0) {
-      setIsScanning(false);
-      setScanProgress(null);
-      abortControllerRef.current = null;
-      return;
-    }
-
-    let nextTrackIdx = 0;
-    let completedCount = 0;
-    const currentCandidates = [...initialCandidates];
-    const numWorkers = Math.min(scanConcurrency, targetTracks.length);
-
-    setScanProgress({
-      current: 0,
-      total: targetTracks.length,
-      currentTitle: `Starting parallel scan with ${numWorkers} workers...`,
-      activeWorkers: numWorkers,
+    // Add to rejected IDs
+    setRejectedTrackIds((prev) => {
+      const updated = new Set(prev);
+      updated.add(candidate.track.id);
+      rejectedTrackIdsRef.current = updated;
+      try {
+        localStorage.setItem('prism_word_sync_rejected_ids', JSON.stringify(Array.from(updated)));
+      } catch {}
+      return updated;
     });
 
-    const workerPromises = Array.from({ length: numWorkers }, async () => {
-      while (nextTrackIdx < targetTracks.length) {
-        if (controller.signal.aborted) break;
-        const i = nextTrackIdx++;
-        const track = targetTracks[i];
+    // Remove from candidates list
+    setCandidates((prev) => prev.filter((c) => c.track.id !== candidate.track.id));
+
+    // Keep active index in bounds
+    if (activeCandidateIdx >= filteredCandidates.length - 1) {
+      setActiveCandidateIdx(Math.max(0, filteredCandidates.length - 2));
+    }
+  };
+
+  const handleResetRejected = () => {
+    if (window.confirm(`Reset ${rejectedTrackIds.size} rejected track(s) so they can be discovered again?`)) {
+      rejectedTrackIdsRef.current.clear();
+      setRejectedTrackIds(new Set());
+      try {
+        localStorage.removeItem('prism_word_sync_rejected_ids');
+      } catch {}
+    }
+  };
+
+  // Dynamic concurrency adjuster (can be called anytime, even while actively scanning!)
+  const handleSetConcurrency = (newCount: number) => {
+    setScanConcurrency(newCount);
+    scanConcurrencyRef.current = newCount;
+
+    if (isScanningRef.current && !abortControllerRef.current?.signal.aborted) {
+      const active = activeWorkersCountRef.current;
+      if (newCount > active) {
+        const toSpawn = Math.min(newCount - active, Math.max(0, targetTracksRef.current.length - nextTrackIdxRef.current));
+        for (let i = 0; i < toSpawn; i++) {
+          spawnWorker();
+        }
+      }
+      setScanProgress((prev) =>
+        prev ? { ...prev, activeWorkers: Math.min(newCount, targetTracksRef.current.length) } : null
+      );
+    }
+  };
+
+  // Worker loop for dynamic concurrency pool
+  const spawnWorker = async () => {
+    if (!isScanningRef.current || abortControllerRef.current?.signal.aborted) return;
+    activeWorkersCountRef.current++;
+
+    setScanProgress((prev) =>
+      prev ? { ...prev, activeWorkers: activeWorkersCountRef.current } : null
+    );
+
+    try {
+      while (
+        nextTrackIdxRef.current < targetTracksRef.current.length &&
+        !abortControllerRef.current?.signal.aborted &&
+        isScanningRef.current
+      ) {
+        // If user decreased concurrency, gracefully terminate this worker
+        if (activeWorkersCountRef.current > scanConcurrencyRef.current) {
+          break;
+        }
+
+        const idx = nextTrackIdxRef.current++;
+        const track = targetTracksRef.current[idx];
+        if (!track) break;
 
         try {
           const discovered = await searchEnhancedLyrics(
@@ -474,8 +556,11 @@ export const WordSyncedLyricsFinder: React.FC = () => {
             track.artist,
             track.album,
             track.duration_secs,
-            controller.signal
+            abortControllerRef.current?.signal
           );
+
+          // Mark track as scanned
+          scannedTrackIdsRef.current.add(track.id);
 
           if (discovered && discovered.lyrics?.trim()) {
             const trackHasSynced = hasLrcTimestamps(track.unsynced_lyrics);
@@ -487,7 +572,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
               (discovered.hasTranslation && !trackHasTranslation) ||
               (discovered.isSynced && !trackHasSynced);
 
-            if (isUpgrade || !onlyMissingWordSync) {
+            if ((isUpgrade || !onlyMissingWordSync) && !rejectedTrackIdsRef.current.has(track.id)) {
               const candidate: WordSyncCandidate = {
                 track,
                 lyrics: discovered.lyrics,
@@ -497,51 +582,152 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                 isSynced: discovered.isSynced,
                 source: discovered.source,
               };
-              currentCandidates.push(candidate);
-              setCandidates([...currentCandidates]);
+              setCandidates((prev) => {
+                if (prev.some((c) => c.track.id === track.id)) return prev;
+                return [...prev, candidate];
+              });
             }
           }
         } catch (e) {
-          // Skip track on network error
+          // Skip on glitch
         } finally {
-          completedCount++;
-          if (!controller.signal.aborted) {
+          completedCountRef.current++;
+          if (!abortControllerRef.current?.signal.aborted && isScanningRef.current) {
             setScanProgress({
-              current: completedCount,
-              total: targetTracks.length,
+              current: completedCountRef.current,
+              total: targetTracksRef.current.length,
               currentTitle: `${track.title} • ${track.artist}`,
-              activeWorkers: numWorkers,
+              activeWorkers: activeWorkersCountRef.current,
             });
           }
         }
 
-        // Brief 60ms delay per worker between songs to respect rate limits and keep socket healthy
+        // Pacing delay
         await new Promise((r) => setTimeout(r, 60));
       }
-    });
+    } finally {
+      activeWorkersCountRef.current--;
+      setScanProgress((prev) =>
+        prev ? { ...prev, activeWorkers: activeWorkersCountRef.current } : null
+      );
 
-    await Promise.all(workerPromises);
+      // Persist scanned IDs
+      try {
+        localStorage.setItem(
+          'prism_word_sync_scanned_ids',
+          JSON.stringify(Array.from(scannedTrackIdsRef.current))
+        );
+        setScannedTrackIds(new Set(scannedTrackIdsRef.current));
+      } catch {}
 
-    setIsScanning(false);
-    setScanProgress(null);
-    abortControllerRef.current = null;
+      // If all workers finished, finalize scanning state
+      if (activeWorkersCountRef.current <= 0 && isScanningRef.current) {
+        setIsScanning(false);
+        isScanningRef.current = false;
+        setScanProgress(null);
+        abortControllerRef.current = null;
+      }
+    }
   };
 
-  const handleCancelSearch = () => {
+  const handleStartSearch = async (mode: 'continue' | 'all') => {
+    if (isScanning) return;
+
+    let targetTracks: Track[] = [];
+    const candidateIds = new Set(candidates.map((c) => c.track.id));
+
+    if (mode === 'all') {
+      if (
+        candidates.length > 0 &&
+        !window.confirm('Rescan all tracks from scratch? This will clear current candidate results.')
+      ) {
+        return;
+      }
+      scannedTrackIdsRef.current.clear();
+      setScannedTrackIds(new Set());
+      try {
+        localStorage.removeItem('prism_word_sync_scanned_ids');
+      } catch {}
+
+      setCandidates([]);
+      setActiveCandidateIdx(0);
+      targetTracks = onlyMissingWordSync
+        ? tracks.filter((t) => !isWordSyncedLrc(t.unsynced_lyrics) || !hasTranslationInLyrics(t.unsynced_lyrics))
+        : [...tracks];
+    } else {
+      // mode === 'continue': keep existing candidates and scan remaining tracks
+      targetTracks = tracks.filter((t) => {
+        if (candidateIds.has(t.id)) return false;
+        if (scannedTrackIdsRef.current.has(t.id)) return false;
+        if (rejectedTrackIdsRef.current.has(t.id)) return false;
+        if (onlyMissingWordSync) {
+          return !isWordSyncedLrc(t.unsynced_lyrics) || !hasTranslationInLyrics(t.unsynced_lyrics);
+        }
+        return true;
+      });
+    }
+
+    if (targetTracks.length === 0) {
+      alert('All eligible library tracks have already been scanned! You can click "Rescan All" to re-verify.');
+      return;
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    isScanningRef.current = true;
+    setIsScanning(true);
+
+    targetTracksRef.current = targetTracks;
+    nextTrackIdxRef.current = 0;
+    completedCountRef.current = 0;
+    activeWorkersCountRef.current = 0;
+
+    const numWorkers = Math.min(scanConcurrencyRef.current, targetTracks.length);
+
+    setScanProgress({
+      current: 0,
+      total: targetTracks.length,
+      currentTitle: `Starting search with ${numWorkers} worker agent(s)...`,
+      activeWorkers: numWorkers,
+    });
+
+    for (let i = 0; i < numWorkers; i++) {
+      spawnWorker();
+    }
+  };
+
+  const handlePauseSearch = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    isScanningRef.current = false;
     setIsScanning(false);
     setScanProgress(null);
+
+    try {
+      localStorage.setItem(
+        'prism_word_sync_scanned_ids',
+        JSON.stringify(Array.from(scannedTrackIdsRef.current))
+      );
+      setScannedTrackIds(new Set(scannedTrackIdsRef.current));
+    } catch {}
   };
 
+
   const handleClearResults = () => {
-    if (window.confirm('Clear all saved word-synced candidates?')) {
+    if (
+      window.confirm(
+        'Clear all saved candidates? This will also reset scanned progress so you can scan fresh.'
+      )
+    ) {
       setCandidates([]);
       setActiveCandidateIdx(0);
+      scannedTrackIdsRef.current.clear();
+      setScannedTrackIds(new Set());
       try {
         localStorage.removeItem('prism_word_sync_candidates');
+        localStorage.removeItem('prism_word_sync_scanned_ids');
       } catch (e) {
         console.warn('Failed to clear candidates from localStorage:', e);
       }
@@ -583,52 +769,73 @@ export const WordSyncedLyricsFinder: React.FC = () => {
           </div>
         </div>
 
-        {/* Scan Actions: Rescan All, Scan New Songs, Clear Results */}
+        {/* Scan Actions: Continue Search, Pause Search, Rescan All, Clear Results */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           {isScanning ? (
             <button
-              onClick={handleCancelSearch}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-rose-400 border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 transition-all cursor-pointer"
+              onClick={handlePauseSearch}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-amber-300 border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-all cursor-pointer shadow-sm"
             >
-              <XCircle className="w-4 h-4" />
-              <span>Cancel Search</span>
+              <Pause className="w-4 h-4" />
+              <span>Pause Search</span>
             </button>
           ) : (
             <>
-              {/* Scan New Songs */}
+              {/* Continue / Start Search */}
               <button
-                onClick={() => handleStartSearch('new')}
+                onClick={() => handleStartSearch('continue')}
                 disabled={tracks.length === 0}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-white transition-all shadow-md hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all shadow-md hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
                 style={{
                   background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #8b5cf6))',
                 }}
-                title="Scan only library tracks not yet in the candidates list"
+                title={
+                  candidates.length > 0
+                    ? `Keep existing ${candidates.length} candidates and search ${unscannedRemainingCount} remaining tracks`
+                    : 'Start scanning library tracks'
+                }
               >
                 <Search className="w-4 h-4" />
-                <span>Scan New Songs</span>
+                <span>
+                  {candidates.length > 0
+                    ? unscannedRemainingCount > 0
+                      ? `Continue Search (${unscannedRemainingCount} left)`
+                      : 'Scan New Tracks'
+                    : `Start Search (${unscannedRemainingCount} tracks)`}
+                </span>
               </button>
 
-              {/* Rescan All Songs */}
+              {/* Rescan All Songs from Scratch */}
               <button
                 onClick={() => handleStartSearch('all')}
                 disabled={tracks.length === 0}
                 className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
-                title="Rescan entire library from scratch"
+                title="Rescan entire library from scratch (re-checks all tracks)"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Rescan All</span>
               </button>
+
+              {/* Reset Rejected */}
+              {rejectedTrackIds.size > 0 && (
+                <button
+                  onClick={handleResetRejected}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-200 bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer"
+                  title="Clear rejected songs list so previously dismissed tracks can be discovered again"
+                >
+                  <span>Reset Rejected ({rejectedTrackIds.size})</span>
+                </button>
+              )}
 
               {/* Clear Results */}
               {candidates.length > 0 && (
                 <button
                   onClick={handleClearResults}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all cursor-pointer"
-                  title="Delete saved candidate results"
+                  title="Delete saved candidate results and reset scanned progress"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Clear Results</span>
+                  <span>Clear List</span>
                 </button>
               )}
             </>
@@ -662,14 +869,14 @@ export const WordSyncedLyricsFinder: React.FC = () => {
         />
       </div>
 
-      {/* Parallel Concurrency Selector */}
+      {/* Parallel Worker Agents Selector */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3">
         <div className="flex items-center gap-3">
           <Zap className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
           <div className="flex flex-col">
-            <span className="text-xs font-semibold text-white">Parallel Concurrency Speed</span>
+            <span className="text-xs font-semibold text-white">Parallel Worker Agents</span>
             <span className="text-[11px] text-zinc-400">
-              Balanced speeds ensure comprehensive coverage across 1,000+ tracks without rate-limiting
+              Adjust number of concurrent agents anytime — changes take effect immediately even while searching
             </span>
           </div>
         </div>
@@ -679,11 +886,11 @@ export const WordSyncedLyricsFinder: React.FC = () => {
             { count: 4, label: '4x Balanced' },
             { count: 6, label: '6x Fast' },
             { count: 8, label: '8x Turbo' },
+            { count: 12, label: '12x Max' },
           ].map((opt) => (
             <button
               key={opt.count}
-              disabled={isScanning}
-              onClick={() => setScanConcurrency(opt.count)}
+              onClick={() => handleSetConcurrency(opt.count)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 scanConcurrency === opt.count
                   ? 'text-white shadow-md font-semibold'
@@ -732,7 +939,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
           <div className="flex items-center justify-between text-[11px] text-zinc-400">
             <span className="flex items-center gap-1.5">
               <Zap className="w-3 h-3" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-              <span>{scanProgress.activeWorkers || scanConcurrency} parallel workers active</span>
+              <span>{scanProgress.activeWorkers ?? scanConcurrency} worker agent(s) active (switch speeds above anytime)</span>
             </span>
             <span style={{ color: 'var(--color-stop-1, #6366f1)' }} className="font-semibold">
               Found {candidates.length} candidate(s)
@@ -977,6 +1184,17 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                             <Check className="w-2.5 h-2.5" />
                           </span>
                         )}
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRejectCandidate(c);
+                          }}
+                          className="p-1 rounded text-zinc-500 hover:text-rose-400 hover:bg-rose-500/15 transition-colors cursor-pointer"
+                          title="Reject candidate (dismiss from list)"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </button>
                   );
@@ -1244,6 +1462,15 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                       <span>Embed Lyrics into File</span>
                     </>
                   )}
+                </button>
+
+                <button
+                  onClick={() => handleRejectCandidate(activeCandidate)}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-300 hover:text-rose-100 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 transition-all cursor-pointer"
+                  title="Reject this candidate (won't appear again in scan results)"
+                >
+                  <XCircle className="w-4 h-4" />
+                  <span>Reject</span>
                 </button>
 
                 <button

@@ -54,7 +54,7 @@ let lyricsPlusRateLimitUntil = 0;
 
 /**
  * Attempt to fetch rich word-by-word / syllable lyrics from LyricsPlus API (LastWave-native source)
- * Includes retry on 429 Too Many Requests and parses syllable timestamps + dual-language translations.
+ * Includes progressive retry on 429 Too Many Requests and parses syllable timestamps + dual-language translations.
  */
 async function fetchLyricsPlus(
   trackName: string,
@@ -69,13 +69,13 @@ async function fetchLyricsPlus(
 
   if (signal?.aborted) return null;
 
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 4; attempt++) {
     if (signal?.aborted) return null;
 
-    // Respect active rate limit window
+    // Respect active rate limit window across all workers
     const waitMs = lyricsPlusRateLimitUntil - Date.now();
     if (waitMs > 0) {
-      await new Promise((r) => setTimeout(r, Math.min(waitMs, 3000)));
+      await new Promise((r) => setTimeout(r, Math.min(waitMs, 4000)));
       if (signal?.aborted) return null;
     }
 
@@ -87,7 +87,7 @@ async function fetchLyricsPlus(
       if (durationSecs && durationSecs > 0) url.searchParams.set('duration', Math.round(durationSecs).toString());
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const timeoutId = setTimeout(() => controller.abort(), 6500);
       const onParentAbort = () => controller.abort();
       signal?.addEventListener('abort', onParentAbort);
 
@@ -106,9 +106,10 @@ async function fetchLyricsPlus(
       }
 
       if (resp.status === 429) {
-        // Rate limited: back off for 2.5s and retry
-        lyricsPlusRateLimitUntil = Date.now() + 2500;
-        await new Promise((r) => setTimeout(r, 2500));
+        // Progressive backoff: 2.5s, 4s, 6s...
+        const backoff = Math.min(8000, 2500 * Math.pow(1.5, attempt));
+        lyricsPlusRateLimitUntil = Date.now() + backoff;
+        await new Promise((r) => setTimeout(r, backoff));
         continue;
       }
 
@@ -152,8 +153,8 @@ async function fetchLyricsPlus(
       return null;
     } catch {
       // Timeout or network glitch: pause and retry
-      if (attempt < 2) {
-        await new Promise((r) => setTimeout(r, 600));
+      if (attempt < 3) {
+        await new Promise((r) => setTimeout(r, 800));
       }
     }
   }
@@ -172,56 +173,67 @@ async function fetchLrclibDirect(
   const cTitle = cleanTitle(trackName);
   const cArtist = cleanArtist(artistName);
 
-  try {
-    const params = new URLSearchParams();
-    params.set('track_name', cTitle);
-    params.set('artist_name', cArtist);
-    if (albumName) params.set('album_name', albumName);
-    if (durationSecs && durationSecs > 0) params.set('duration', Math.round(durationSecs).toString());
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-    const onParentAbort = () => controller.abort();
-    signal?.addEventListener('abort', onParentAbort);
-
-    const url = `https://lrclib.net/api/get?${params.toString()}`;
-    let response: Response;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (signal?.aborted) return null;
     try {
-      response = await fetch(url, {
-        headers: {
-          'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
-          Accept: 'application/json',
-        },
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeoutId);
-      signal?.removeEventListener('abort', onParentAbort);
-    }
+      const params = new URLSearchParams();
+      params.set('track_name', cTitle);
+      params.set('artist_name', cArtist);
+      if (albumName) params.set('album_name', albumName);
+      if (durationSecs && durationSecs > 0) params.set('duration', Math.round(durationSecs).toString());
 
-    if (response.ok) {
-      const data: LrclibResponse = await response.json();
-      if (data?.syncedLyrics) return data.syncedLyrics;
-      if (data?.plainLyrics) return data.plainLyrics;
-    } else {
-      // Fallback search
-      const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(`${cArtist} ${cTitle}`)}`;
-      const searchRes = await fetch(searchUrl, {
-        headers: {
-          'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
-        },
-        signal,
-      });
-      if (searchRes.ok) {
-        const results: LrclibResponse[] = await searchRes.json();
-        if (results && results.length > 0) {
-          const match = results.find((r) => r.syncedLyrics) || results.find((r) => r.plainLyrics) || results[0];
-          return match.syncedLyrics || match.plainLyrics || null;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6500);
+      const onParentAbort = () => controller.abort();
+      signal?.addEventListener('abort', onParentAbort);
+
+      const url = `https://lrclib.net/api/get?${params.toString()}`;
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          headers: {
+            'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
+            Accept: 'application/json',
+          },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+        signal?.removeEventListener('abort', onParentAbort);
+      }
+
+      if (response.status === 429 || response.status === 503) {
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+
+      if (response.ok) {
+        const data: LrclibResponse = await response.json();
+        if (data?.syncedLyrics) return data.syncedLyrics;
+        if (data?.plainLyrics) return data.plainLyrics;
+      } else {
+        // Fallback search
+        const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(`${cArtist} ${cTitle}`)}`;
+        const searchRes = await fetch(searchUrl, {
+          headers: {
+            'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
+          },
+          signal,
+        });
+        if (searchRes.ok) {
+          const results: LrclibResponse[] = await searchRes.json();
+          if (results && results.length > 0) {
+            const match = results.find((r) => r.syncedLyrics) || results.find((r) => r.plainLyrics) || results[0];
+            return match.syncedLyrics || match.plainLyrics || null;
+          }
         }
       }
+      return null;
+    } catch {
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 500));
+      }
     }
-  } catch {
-    // Timeout or network error
   }
   return null;
 }

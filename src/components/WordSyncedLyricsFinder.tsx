@@ -21,6 +21,7 @@ import {
   Check,
   Music,
   Volume2,
+  Zap,
 } from 'lucide-react';
 
 export interface WordSyncCandidate {
@@ -67,11 +68,13 @@ export const WordSyncedLyricsFinder: React.FC = () => {
   const duration = usePlayerStore((s) => s.duration);
 
   const [onlyMissingWordSync, setOnlyMissingWordSync] = useState(true);
+  const [scanConcurrency, setScanConcurrency] = useState<number>(10);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<{
     current: number;
     total: number;
     currentTitle: string;
+    activeWorkers?: number;
   } | null>(null);
 
   const [candidates, setCandidates] = useState<WordSyncCandidate[]>([]);
@@ -181,44 +184,57 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     }
   };
 
-  // Embed All Found Candidates
+  // Embed All Found Candidates (Parallel Worker Pool)
   const handleEmbedAll = async () => {
     const pendingCandidates = candidates.filter((c) => c.status !== 'embedded');
     if (pendingCandidates.length === 0) return;
 
     setIsBatchEmbedding(true);
     let currentStoreTracks = [...usePlayerStore.getState().tracks];
+    const embedConcurrency = 6;
+    let nextEmbedIdx = 0;
+    let completedEmbeds = 0;
 
-    for (let i = 0; i < pendingCandidates.length; i++) {
-      const candidate = pendingCandidates[i];
-      setBatchEmbedProgress({ current: i + 1, total: pendingCandidates.length });
+    const embedWorkers = Array.from(
+      { length: Math.min(embedConcurrency, pendingCandidates.length) },
+      async () => {
+        while (nextEmbedIdx < pendingCandidates.length) {
+          const idx = nextEmbedIdx++;
+          const candidate = pendingCandidates[idx];
 
-      try {
-        if (window.__TAURI_INTERNALS__) {
-          await invoke('embed_lyrics', {
-            path: candidate.track.path,
-            lyrics: candidate.lyrics,
-          });
+          try {
+            if (window.__TAURI_INTERNALS__) {
+              await invoke('embed_lyrics', {
+                path: candidate.track.path,
+                lyrics: candidate.lyrics,
+              });
+            }
+
+            currentStoreTracks = currentStoreTracks.map((t) =>
+              t.id === candidate.track.id ? { ...t, unsynced_lyrics: candidate.lyrics } : t
+            );
+
+            setCandidates((prev) =>
+              prev.map((c) =>
+                c.track.id === candidate.track.id ? { ...c, status: 'embedded' } : c
+              )
+            );
+          } catch (e) {
+            console.error('Batch embed failed for', candidate.track.title, e);
+            setCandidates((prev) =>
+              prev.map((c) =>
+                c.track.id === candidate.track.id ? { ...c, status: 'failed' } : c
+              )
+            );
+          } finally {
+            completedEmbeds++;
+            setBatchEmbedProgress({ current: completedEmbeds, total: pendingCandidates.length });
+          }
         }
-
-        currentStoreTracks = currentStoreTracks.map((t) =>
-          t.id === candidate.track.id ? { ...t, unsynced_lyrics: candidate.lyrics } : t
-        );
-
-        setCandidates((prev) =>
-          prev.map((c) =>
-            c.track.id === candidate.track.id ? { ...c, status: 'embedded' } : c
-          )
-        );
-      } catch (e) {
-        console.error('Batch embed failed for', candidate.track.title, e);
-        setCandidates((prev) =>
-          prev.map((c) =>
-            c.track.id === candidate.track.id ? { ...c, status: 'failed' } : c
-          )
-        );
       }
-    }
+    );
+
+    await Promise.all(embedWorkers);
 
     setTracks(currentStoreTracks);
     if (window.__TAURI_INTERNALS__) {
@@ -229,7 +245,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     setBatchEmbedProgress(null);
   };
 
-  // Start Searching Library for Word-Synced Lyrics
+  // Start Searching Library for Word-Synced Lyrics (Parallel Concurrency Worker Pool)
   const handleStartSearch = async () => {
     if (isScanning) return;
 
@@ -241,49 +257,59 @@ export const WordSyncedLyricsFinder: React.FC = () => {
       ? tracks.filter((t) => !isWordSyncedLrc(t.unsynced_lyrics))
       : [...tracks];
 
+    let nextTrackIdx = 0;
+    let completedCount = 0;
+    const newCandidates: WordSyncCandidate[] = [];
+    const numWorkers = Math.min(scanConcurrency, targetTracks.length);
+
     setScanProgress({
       current: 0,
       total: targetTracks.length,
-      currentTitle: 'Initializing scan...',
+      currentTitle: `Starting parallel scan with ${numWorkers} workers...`,
+      activeWorkers: numWorkers,
     });
 
-    const newCandidates: WordSyncCandidate[] = [];
+    const workerPromises = Array.from({ length: numWorkers }, async () => {
+      while (nextTrackIdx < targetTracks.length) {
+        if (controller.signal.aborted) break;
+        const i = nextTrackIdx++;
+        const track = targetTracks[i];
 
-    for (let i = 0; i < targetTracks.length; i++) {
-      if (controller.signal.aborted) break;
+        try {
+          const foundWordLrc = await searchWordSyncedLyrics(
+            track.title,
+            track.artist,
+            track.album,
+            track.duration_secs,
+            controller.signal
+          );
 
-      const track = targetTracks[i];
-      setScanProgress({
-        current: i + 1,
-        total: targetTracks.length,
-        currentTitle: `${track.title} • ${track.artist}`,
-      });
-
-      try {
-        const foundWordLrc = await searchWordSyncedLyrics(
-          track.title,
-          track.artist,
-          track.album,
-          track.duration_secs,
-          controller.signal
-        );
-
-        if (foundWordLrc && isWordSyncedLrc(foundWordLrc)) {
-          const candidate: WordSyncCandidate = {
-            track,
-            lyrics: foundWordLrc,
-            status: 'found',
-          };
-          newCandidates.push(candidate);
-          setCandidates([...newCandidates]);
+          if (foundWordLrc && isWordSyncedLrc(foundWordLrc)) {
+            const candidate: WordSyncCandidate = {
+              track,
+              lyrics: foundWordLrc,
+              status: 'found',
+            };
+            newCandidates.push(candidate);
+            setCandidates([...newCandidates]);
+          }
+        } catch (e) {
+          // Skip track on network error
+        } finally {
+          completedCount++;
+          if (!controller.signal.aborted) {
+            setScanProgress({
+              current: completedCount,
+              total: targetTracks.length,
+              currentTitle: `${track.title} • ${track.artist}`,
+              activeWorkers: numWorkers,
+            });
+          }
         }
-      } catch (e) {
-        // Skip track on network error
       }
+    });
 
-      // Small 60ms pause between tracks to prevent API rate-limits and keep UI responsive
-      await new Promise((resolve) => setTimeout(resolve, 60));
-    }
+    await Promise.all(workerPromises);
 
     setIsScanning(false);
     setScanProgress(null);
@@ -389,6 +415,45 @@ export const WordSyncedLyricsFinder: React.FC = () => {
         />
       </div>
 
+      {/* Parallel Concurrency Selector */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3">
+        <div className="flex items-center gap-3">
+          <Zap className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+          <div className="flex flex-col">
+            <span className="text-xs font-semibold text-white">Parallel Concurrency Speed</span>
+            <span className="text-[11px] text-zinc-400">
+              Run multiple requests simultaneously to scan large libraries in seconds
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10 shrink-0 self-start sm:self-auto">
+          {[
+            { count: 4, label: '4x' },
+            { count: 8, label: '8x' },
+            { count: 12, label: '12x Turbo' },
+            { count: 16, label: '16x Max' },
+          ].map((opt) => (
+            <button
+              key={opt.count}
+              disabled={isScanning}
+              onClick={() => setScanConcurrency(opt.count)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                scanConcurrency === opt.count
+                  ? 'text-white shadow-md font-semibold'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+              style={
+                scanConcurrency === opt.count
+                  ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                  : undefined
+              }
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Live Scanning Progress Bar */}
       {isScanning && scanProgress && (
         <div
@@ -418,7 +483,10 @@ export const WordSyncedLyricsFinder: React.FC = () => {
             />
           </div>
           <div className="flex items-center justify-between text-[11px] text-zinc-400">
-            <span>Checking LRCLIB and LyricsPlus database...</span>
+            <span className="flex items-center gap-1.5">
+              <Zap className="w-3 h-3" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <span>{scanProgress.activeWorkers || scanConcurrency} parallel workers active</span>
+            </span>
             <span style={{ color: 'var(--color-stop-1, #6366f1)' }} className="font-semibold">
               Found {candidates.length} candidate(s)
             </span>

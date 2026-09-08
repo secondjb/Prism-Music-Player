@@ -44,81 +44,123 @@ async function fetchLyricsPlus(
   durationSecs?: number,
   signal?: AbortSignal
 ): Promise<string | null> {
-  const endpoints = [
-    'https://lyricsplus.prjktla.my.id/v2/lyrics/get',
-    'https://lyricsplus.clashgram.workers.dev/v2/lyrics/get',
-  ];
+  const endpoint = 'https://lyricsplus.prjktla.my.id/v2/lyrics/get';
 
   const cTitle = cleanTitle(trackName);
   const cArtist = cleanArtist(artistName);
 
-  for (const endpoint of endpoints) {
-    if (signal?.aborted) return null;
+  if (signal?.aborted) return null;
+  try {
+    const url = new URL(endpoint);
+    url.searchParams.set('title', cTitle);
+    url.searchParams.set('artist', cArtist);
+    if (albumName) url.searchParams.set('album', albumName);
+    if (durationSecs && durationSecs > 0) url.searchParams.set('duration', Math.round(durationSecs).toString());
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const onParentAbort = () => controller.abort();
+    signal?.addEventListener('abort', onParentAbort);
+
+    let resp: Response;
     try {
-      const url = new URL(endpoint);
-      url.searchParams.set('title', cTitle);
-      url.searchParams.set('artist', cArtist);
-      if (albumName) url.searchParams.set('album', albumName);
-      if (durationSecs && durationSecs > 0) url.searchParams.set('duration', Math.round(durationSecs).toString());
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
-      const onParentAbort = () => controller.abort();
-      signal?.addEventListener('abort', onParentAbort);
-
-      let resp: Response;
-      try {
-        resp = await fetch(url.toString(), {
-          headers: {
-            'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
-            Accept: 'application/json',
-          },
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(timeoutId);
-        signal?.removeEventListener('abort', onParentAbort);
-      }
-
-      if (!resp.ok) continue;
-      const data = await resp.json();
-      if (!data || !Array.isArray(data.lyrics) || data.lyrics.length === 0) continue;
-
-      // Convert LyricsPlus structure to Enhanced LRC with <mm:ss.xx> inline timestamps
-      const lrcLines: string[] = [];
-
-      for (const line of data.lyrics) {
-        const lineMs = typeof line.time === 'number' ? line.time : 0;
-        const totalSec = Math.floor(lineMs / 1000);
-        const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
-        const s = (totalSec % 60).toString().padStart(2, '0');
-        const cs = Math.floor((lineMs % 1000) / 10).toString().padStart(2, '0');
-        const tag = `[${m}:${s}.${cs}]`;
-
-        if (Array.isArray(line.syllabus) && line.syllabus.length > 0) {
-          let inlineBody = '';
-          for (const syl of line.syllabus) {
-            const sylMs = typeof syl.time === 'number' ? syl.time : lineMs;
-            const sylSec = Math.floor(sylMs / 1000);
-            const sm = Math.floor(sylSec / 60).toString().padStart(2, '0');
-            const ss = (sylSec % 60).toString().padStart(2, '0');
-            const scs = Math.floor((sylMs % 1000) / 10).toString().padStart(2, '0');
-            inlineBody += `<${sm}:${ss}.${scs}>${syl.text} `;
-          }
-          lrcLines.push(`${tag} ${inlineBody.trim()}`);
-        } else {
-          lrcLines.push(`${tag} ${line.text || ''}`);
-        }
-      }
-
-      if (lrcLines.length > 0) {
-        return lrcLines.join('\n');
-      }
-    } catch {
-      // Continue to next endpoint or fallback
+      resp = await fetch(url.toString(), {
+        headers: {
+          'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+      signal?.removeEventListener('abort', onParentAbort);
     }
+
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (!data || !Array.isArray(data.lyrics) || data.lyrics.length === 0) return null;
+
+    // Convert LyricsPlus structure to Enhanced LRC with <mm:ss.xx> inline timestamps
+    const lrcLines: string[] = [];
+
+    for (const line of data.lyrics) {
+      const lineMs = typeof line.time === 'number' ? line.time : 0;
+      const totalSec = Math.floor(lineMs / 1000);
+      const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
+      const s = (totalSec % 60).toString().padStart(2, '0');
+      const cs = Math.floor((lineMs % 1000) / 10).toString().padStart(2, '0');
+      const tag = `[${m}:${s}.${cs}]`;
+
+      if (Array.isArray(line.syllabus) && line.syllabus.length > 0) {
+        let inlineBody = '';
+        for (const syl of line.syllabus) {
+          const sylMs = typeof syl.time === 'number' ? syl.time : lineMs;
+          const sylSec = Math.floor(sylMs / 1000);
+          const sm = Math.floor(sylSec / 60).toString().padStart(2, '0');
+          const ss = (sylSec % 60).toString().padStart(2, '0');
+          const scs = Math.floor((sylMs % 1000) / 10).toString().padStart(2, '0');
+          inlineBody += `<${sm}:${ss}.${scs}>${syl.text} `;
+        }
+        lrcLines.push(`${tag} ${inlineBody.trim()}`);
+      } else {
+        lrcLines.push(`${tag} ${line.text || ''}`);
+      }
+    }
+
+    if (lrcLines.length > 0) {
+      return lrcLines.join('\n');
+    }
+  } catch {
+    // Timeout or aborted
   }
 
+  return null;
+}
+
+async function fetchLrclibDirect(
+  trackName: string,
+  artistName: string,
+  albumName?: string,
+  durationSecs?: number,
+  signal?: AbortSignal
+): Promise<string | null> {
+  if (signal?.aborted) return null;
+  try {
+    const params = new URLSearchParams();
+    params.set('track_name', cleanTitle(trackName));
+    params.set('artist_name', cleanArtist(artistName));
+    if (albumName) params.set('album_name', albumName);
+    if (durationSecs && durationSecs > 0) params.set('duration', Math.round(durationSecs).toString());
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const onParentAbort = () => controller.abort();
+    signal?.addEventListener('abort', onParentAbort);
+
+    const url = `https://lrclib.net/api/get?${params.toString()}`;
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        headers: {
+          'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+      signal?.removeEventListener('abort', onParentAbort);
+    }
+
+    if (response.ok) {
+      const data: LrclibResponse = await response.json();
+      if (data?.syncedLyrics && isWordSyncedLrc(data.syncedLyrics)) {
+        return data.syncedLyrics;
+      }
+    }
+  } catch {
+    // Timeout or network error
+  }
   return null;
 }
 
@@ -183,7 +225,7 @@ export async function fetchLrclibLyrics(
 
 /**
  * Searches explicitly for word-synced lyrics (containing syllable timestamps like <mm:ss.xx>).
- * Checks LyricsPlus first, and if not found, checks LRCLIB for enhanced LRC lyrics.
+ * Queries LyricsPlus and LRCLIB in parallel with fast timeouts for maximum throughput.
  * Returns the enhanced LRC string if word-synced, or null if only plain/line-synced lyrics exist.
  */
 export async function searchWordSyncedLyrics(
@@ -196,65 +238,20 @@ export async function searchWordSyncedLyrics(
   if (signal?.aborted) return null;
   if (!trackName || !trackName.trim()) return null;
 
-  // 1. Check LyricsPlus first (richest source for word-by-word syllable timestamps)
-  try {
-    const lpLrc = await fetchLyricsPlus(trackName, artistName, albumName, durationSecs, signal);
-    if (lpLrc && isWordSyncedLrc(lpLrc)) {
-      return lpLrc;
-    }
-  } catch {
-    // Continue
+  // Run LyricsPlus and LRCLIB in parallel
+  const [lpRes, lrclibRes] = await Promise.allSettled([
+    fetchLyricsPlus(trackName, artistName, albumName, durationSecs, signal),
+    fetchLrclibDirect(trackName, artistName, albumName, durationSecs, signal),
+  ]);
+
+  const lpLrc = lpRes.status === 'fulfilled' ? lpRes.value : null;
+  if (lpLrc && isWordSyncedLrc(lpLrc)) {
+    return lpLrc;
   }
 
-  if (signal?.aborted) return null;
-
-  // 2. Check LRCLIB get endpoint
-  try {
-    const params = new URLSearchParams();
-    params.set('track_name', cleanTitle(trackName));
-    params.set('artist_name', cleanArtist(artistName));
-    if (albumName) params.set('album_name', albumName);
-    if (durationSecs && durationSecs > 0) params.set('duration', Math.round(durationSecs).toString());
-
-    const url = `https://lrclib.net/api/get?${params.toString()}`;
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
-        Accept: 'application/json',
-      },
-      signal,
-    });
-
-    if (response.ok) {
-      const data: LrclibResponse = await response.json();
-      if (data?.syncedLyrics && isWordSyncedLrc(data.syncedLyrics)) {
-        return data.syncedLyrics;
-      }
-    } else {
-      // 3. Fallback search query on LRCLIB
-      if (signal?.aborted) return null;
-      const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(`${cleanArtist(artistName)} ${cleanTitle(trackName)}`)}`;
-      const searchRes = await fetch(searchUrl, {
-        headers: {
-          'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
-          Accept: 'application/json',
-        },
-        signal,
-      });
-
-      if (searchRes.ok) {
-        const results: LrclibResponse[] = await searchRes.json();
-        if (Array.isArray(results)) {
-          for (const item of results) {
-            if (item.syncedLyrics && isWordSyncedLrc(item.syncedLyrics)) {
-              return item.syncedLyrics;
-            }
-          }
-        }
-      }
-    }
-  } catch {
-    // Network / abort error
+  const lrcLrc = lrclibRes.status === 'fulfilled' ? lrclibRes.value : null;
+  if (lrcLrc && isWordSyncedLrc(lrcLrc)) {
+    return lrcLrc;
   }
 
   return null;

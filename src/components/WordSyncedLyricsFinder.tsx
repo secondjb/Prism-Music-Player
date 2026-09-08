@@ -5,7 +5,6 @@ import { Track } from '../types/player';
 import { searchWordSyncedLyrics, isWordSyncedLrc } from '../utils/lrclibFetcher';
 import { parseRichLyrics, ParsedLyricLine } from '../utils/lyricsParser';
 import { createRomanizer } from 'lyric-romanizer';
-import { translateLyricLines } from '../utils/translation';
 import { useTrackArt } from '../utils/useTrackArt';
 import { invoke } from '@tauri-apps/api/core';
 import {
@@ -77,7 +76,6 @@ export const WordSyncedLyricsFinder: React.FC = () => {
   const romanizationMode = usePlayerStore((s) => s.romanizationMode);
   const isTranslationEnabled = usePlayerStore((s) => s.isTranslationEnabled);
   const translationMode = usePlayerStore((s) => s.translationMode);
-  const targetTranslationLanguage = usePlayerStore((s) => s.targetTranslationLanguage);
 
   const [onlyMissingWordSync, setOnlyMissingWordSync] = useState(true);
   const [scanConcurrency, setScanConcurrency] = useState<number>(10);
@@ -162,9 +160,6 @@ export const WordSyncedLyricsFinder: React.FC = () => {
           })
         );
       }
-      if (isTranslationEnabled) {
-        res = await translateLyricLines(res, targetTranslationLanguage);
-      }
       if (isMounted) {
         setEnrichedLines(res);
       }
@@ -174,22 +169,38 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [activeCandidate?.lyrics, isRomanizationEnabled, isTranslationEnabled, targetTranslationLanguage]);
+  }, [activeCandidate?.lyrics, isRomanizationEnabled]);
 
   // Is the currently reviewed candidate also the active player track?
   const isCandidatePlayingThis = currentTrack?.id === activeCandidate?.track.id;
   const activeTimeSecs = isCandidatePlayingThis ? currentTime : 0;
   const activeTimeMs = activeTimeSecs * 1000;
 
-  // Active line index in lyrics preview
-  const activeLineIndex = useMemo(() => {
-    if (!isCandidatePlayingThis || enrichedLines.length === 0) return -1;
-    for (let i = enrichedLines.length - 1; i >= 0; i--) {
-      if (activeTimeSecs >= enrichedLines[i].startSecs) {
-        return i;
+  // Active line index and set of overlapping active lines in lyrics preview
+  const { activeLineIndex, activeLineIndices } = useMemo(() => {
+    if (!isCandidatePlayingThis || enrichedLines.length === 0) {
+      return { activeLineIndex: -1, activeLineIndices: new Set<number>() };
+    }
+    let lastActiveIdx = -1;
+    const indices = new Set<number>();
+    for (let i = 0; i < enrichedLines.length; i++) {
+      const line = enrichedLines[i];
+      if (activeTimeSecs >= line.startSecs) {
+        lastActiveIdx = i;
+      }
+      let endSecs = line.startSecs + line.durationSecs;
+      if (line.syllables.length > 0) {
+        const lastSyl = line.syllables[line.syllables.length - 1];
+        endSecs = Math.max(endSecs, (lastSyl.timeMs + lastSyl.durationMs) / 1000);
+      }
+      if (activeTimeSecs >= line.startSecs && activeTimeSecs < endSecs) {
+        indices.add(i);
       }
     }
-    return -1;
+    if (indices.size === 0 && lastActiveIdx !== -1) {
+      indices.add(lastActiveIdx);
+    }
+    return { activeLineIndex: lastActiveIdx, activeLineIndices: indices };
   }, [isCandidatePlayingThis, enrichedLines, activeTimeSecs]);
 
   // FIX 1: Auto-scroll lyrics container ONLY (never scrolls entire page)
@@ -950,8 +961,8 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                   </div>
                 ) : (
                   enrichedLines.map((line, idx) => {
-                    const isLineActive = idx === activeLineIndex;
-                    const isLinePast = activeLineIndex >= 0 && idx < activeLineIndex;
+                    const isLineActive = activeLineIndices.has(idx) || idx === activeLineIndex;
+                    const isLinePast = !isLineActive && activeLineIndex >= 0 && idx < activeLineIndex;
 
                     const showRom = isRomanizationEnabled && Boolean(line.romanized);
                     const showTrans = isTranslationEnabled && Boolean(line.translation);

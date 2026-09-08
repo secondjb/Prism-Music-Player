@@ -193,13 +193,27 @@ export function parseRichLyrics(
     let content = cur.text;
     let translation: string | undefined = undefined;
 
-    // Check if next extracted line has identical/near-identical timestamp (dual-language alternating lines)
-    if (next && Math.abs(next.timeMs - cur.timeMs) <= 120 && next.text.trim() && next.text.trim() !== cur.text.trim()) {
+    const hasNonLatin = (str: string) =>
+      /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u0400-\u04ff\uac00-\ud7af]/.test(str);
+
+    // Only treat next line as translation if it's explicitly bilingual (e.g. CJK original + Latin translation)
+    // and neither line is an explicit vocal marker like "(Singer)" or "[Chorus]"
+    const isBilingualTranslationPair =
+      next &&
+      Math.abs(next.timeMs - cur.timeMs) <= 150 &&
+      next.text.trim() &&
+      next.text.trim() !== cur.text.trim() &&
+      hasNonLatin(cur.text) &&
+      !hasNonLatin(next.text) &&
+      !next.text.trim().startsWith('(') &&
+      !cur.text.trim().startsWith('(');
+
+    if (isBilingualTranslationPair && next) {
       translation = next.text.trim();
       i++; // consume translated line
       next = extracted[i + 1];
     } else {
-      // Check for inline separator (e.g. "Original // Translation" or "Original / Translation")
+      // Check for inline separator (e.g. "Original // Translation" or "Original / Translation" or "Original | Translation")
       const sepMatch = content.split(/\s+\/\/\s+|\s+\/\s+|\s+\|\s+/);
       if (sepMatch.length === 2 && sepMatch[0].trim() && sepMatch[1].trim()) {
         content = sepMatch[0].trim();
@@ -207,10 +221,26 @@ export function parseRichLyrics(
       }
     }
 
-    const rawDur = next ? next.timeMs - cur.timeMs : 3500;
-    const durationMs = Math.min(8000, Math.max(1200, rawDur));
-
     const hasExplicit = cur.explicitSyllables.length > 0;
+    let durationMs: number;
+
+    if (hasExplicit && cur.explicitSyllables.length > 0) {
+      // If line has explicit syllables, duration is defined by the end of the last syllable,
+      // allowing overlapping lines to continue singing concurrently even after the next line starts!
+      const lastSyl = cur.explicitSyllables[cur.explicitSyllables.length - 1];
+      const explicitSpanMs = lastSyl.timeMs + lastSyl.durationMs - cur.timeMs;
+      durationMs = Math.max(1200, explicitSpanMs);
+    } else {
+      const wordsCount = content.trim().split(/\s+/).filter(Boolean).length;
+      const estimatedSingMs = Math.max(2000, wordsCount * 450);
+      const rawDur = next ? next.timeMs - cur.timeMs : 4000;
+      // If next line starts almost immediately (overlapping voice), don't truncate to 0 or 100ms
+      durationMs =
+        rawDur < 1500 && wordsCount > 2
+          ? Math.min(8000, estimatedSingMs)
+          : Math.min(9000, Math.max(1500, rawDur));
+    }
+
     let syllables: LyricSyllable[] = [];
     let hasSyllables = false;
 
@@ -220,6 +250,28 @@ export function parseRichLyrics(
     } else if (options?.inferWordSync && content.trim()) {
       syllables = inferLineSyllables(content, cur.timeMs, durationMs);
       hasSyllables = syllables.length > 0;
+    }
+
+    // Align official/fan translation words to syllables if present
+    if (translation && syllables.length > 0) {
+      const transWords = translation.trim().split(/\s+/).filter(Boolean);
+      if (transWords.length > 0) {
+        syllables = syllables.map((syl, sIdx) => {
+          const transWordIdx = Math.min(
+            transWords.length - 1,
+            Math.floor((sIdx / syllables.length) * transWords.length)
+          );
+          const prevTransIdx =
+            sIdx > 0
+              ? Math.floor(((sIdx - 1) / syllables.length) * transWords.length)
+              : -1;
+          const wordText = transWordIdx !== prevTransIdx ? transWords[transWordIdx] : '';
+          return {
+            ...syl,
+            translatedText: wordText || undefined,
+          };
+        });
+      }
     }
 
     result.push({

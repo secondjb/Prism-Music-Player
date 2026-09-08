@@ -213,7 +213,7 @@ const OrderCell: React.FC<any> = ({ model, rowIndex }) => {
         ) : (
           <>
             <span className={`group-hover/row:hidden text-zinc-400 font-medium ${config.textClass}`}>
-              {(rowIndex ?? 0) + 1}
+              {model?.order ?? ((rowIndex ?? 0) + 1)}
             </span>
             <Play className={`${config.iconClass} hidden group-hover/row:block fill-white text-white ml-0.5`} />
           </>
@@ -1011,12 +1011,18 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
 
   // Helper to ensure spacer padding rows always stay at the very bottom during column sorts
   const createSpacerAwareCompare = useCallback((prop: string) => {
-    return function (this: { order?: 'asc' | 'desc'; column?: any }, a: any, b: any) {
-      if (a?.__isSpacer && b?.__isSpacer) return 0;
-      if (a?.__isSpacer) return this?.order === 'desc' ? -1 : 1;
-      if (b?.__isSpacer) return this?.order === 'desc' ? 1 : -1;
-      const aVal = a?.[prop];
-      const bVal = b?.[prop];
+    return function (this: { order?: 'asc' | 'desc'; column?: any }, propOrA: any, aOrB: any, bOrUndefined?: any) {
+      const itemA = bOrUndefined !== undefined ? aOrB : propOrA;
+      const itemB = bOrUndefined !== undefined ? bOrUndefined : aOrB;
+      const propName = typeof propOrA === 'string' ? propOrA : prop;
+      const isDesc = this?.order === 'desc';
+
+      if (itemA?.__isSpacer && itemB?.__isSpacer) return 0;
+      if (itemA?.__isSpacer) return isDesc ? -1 : 1;
+      if (itemB?.__isSpacer) return isDesc ? 1 : -1;
+
+      const aVal = itemA?.[propName];
+      const bVal = itemB?.[propName];
       if (typeof aVal === 'number' && typeof bVal === 'number') {
         return aVal - bVal;
       }
@@ -1041,9 +1047,12 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.order,
         minSize: MIN_COLUMN_WIDTHS.order,
-        sortable: false,
+        sortable: true,
+        order: sortState?.prop === 'order' ? sortState.order : undefined,
         filter: false,
+        columnTemplate: columnHeaderTemplate,
         cellTemplate: orderCellTemplate,
+        cellCompare: createSpacerAwareCompare('order'),
       },
       art: {
         prop: 'art',
@@ -1215,6 +1224,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     if (tracks.length === 0) return [];
     const baseSource = tracks.map((track, idx) => ({
       ...track,
+      order: idx + 1,
       rowIndex: idx,
       rowClass: `group/row select-none ${currentTrack?.id === track.id ? 'is-current-playing' : ''}`,
     }));
@@ -1230,6 +1240,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         duration_secs: 0,
         year: null,
         genre: '',
+        order: 999999999,
         rowIndex: -1,
         __isSpacer: true,
         rowClass: 'spacer-row pointer-events-none opacity-0 select-none !bg-transparent border-none',
@@ -1242,6 +1253,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         duration_secs: 0,
         year: null,
         genre: '',
+        order: 999999999,
         rowIndex: -1,
         __isSpacer: true,
         rowClass: 'spacer-row pointer-events-none opacity-0 select-none !bg-transparent border-none',

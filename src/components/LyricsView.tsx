@@ -37,7 +37,6 @@ import {
   Waves,
   Globe,
 } from 'lucide-react';
-import { translateLyricLines } from '../utils/translation';
 
 const romanizer = createRomanizer();
 
@@ -520,7 +519,6 @@ export const LyricsView: React.FC = () => {
     toggleRomanization,
     isTranslationEnabled,
     translationMode,
-    targetTranslationLanguage,
     setTranslationMode,
     toggleTranslation,
     showAudioSpecs,
@@ -662,13 +660,28 @@ export const LyricsView: React.FC = () => {
 
   const isCompact = windowWidth < 850;
 
-  // Determine active line index
+  // Determine active line index and set of overlapping active lines (spoken at the same time)
   let activeIndex = -1;
+  const activeLineIndices = new Set<number>();
+
   if (lines.length > 0 && lines[0].startSecs !== -1) {
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startSecs <= currentTime) {
+      const line = lines[i];
+      if (line.startSecs <= currentTime) {
         activeIndex = i;
       }
+      let endSecs = line.startSecs + line.durationSecs;
+      if (line.syllables.length > 0) {
+        const lastSyl = line.syllables[line.syllables.length - 1];
+        endSecs = Math.max(endSecs, (lastSyl.timeMs + lastSyl.durationMs) / 1000);
+      }
+      if (currentTime >= line.startSecs && currentTime < endSecs) {
+        activeLineIndices.add(i);
+      }
+    }
+
+    if (activeLineIndices.size === 0 && activeIndex !== -1) {
+      activeLineIndices.add(activeIndex);
     }
   }
 
@@ -858,11 +871,7 @@ export const LyricsView: React.FC = () => {
           })
         );
       }
-
-      if (isTranslationEnabled) {
-        processed = await translateLyricLines(processed, targetTranslationLanguage);
-      }
-
+ 
       if (isMounted) {
         setLines(processed);
       }
@@ -873,7 +882,7 @@ export const LyricsView: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [rawLrc, isRomanizationEnabled, isTranslationEnabled, targetTranslationLanguage, inferWordSyncedLyrics]);
+  }, [rawLrc, isRomanizationEnabled, inferWordSyncedLyrics]);
 
 
 
@@ -1599,9 +1608,9 @@ export const LyricsView: React.FC = () => {
         ) : (
           lines.map((line, idx) => {
             const isUnsynced = line.startSecs === -1;
-            const isActive = isUnsynced || idx === activeIndex;
-            const isPast = activeIndex >= 0 && idx < activeIndex;
-            const distance = Math.abs(idx - activeIndex);
+            const isActive = isUnsynced || activeLineIndices.has(idx);
+            const isPast = !isActive && activeIndex >= 0 && idx < activeIndex;
+            const distance = isActive ? 0 : Math.abs(idx - activeIndex);
 
             return (
               <LyricLineRow

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
@@ -506,6 +506,164 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
   }
 );
 
+const hasMusicNoteOrInstrumental = (text: string): boolean => {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (/[♪♫]/.test(trimmed)) return true;
+  if (/^\[?\s*(instrumental|solo|music|outro|intro|guitar solo|piano solo)\s*\]?$/i.test(trimmed)) return true;
+  return false;
+};
+
+const getLineEndSecs = (line: ParsedLyricLine): number => {
+  if (line.syllables && line.syllables.length > 0) {
+    const lastSyl = line.syllables[line.syllables.length - 1];
+    return Math.max(line.startSecs + 1, (lastSyl.timeMs + lastSyl.durationMs) / 1000);
+  }
+  const wordsCount = line.content.trim().split(/\s+/).filter(Boolean).length;
+  const estimatedSecs = Math.max(2.0, Math.min(line.durationSecs || 4.0, wordsCount * 0.55));
+  return line.startSecs + estimatedSecs;
+};
+
+interface LyricInterludeRowProps {
+  id: string;
+  startSecs: number;
+  endSecs: number;
+  currentTime: number;
+  isPlaying: boolean;
+  isActive: boolean;
+  isPast: boolean;
+  distance: number;
+  lyricsFontSizePreset: string;
+  activeFontSize: number;
+  onSeek: (secs: number) => void;
+}
+
+const LyricInterludeRow: React.FC<LyricInterludeRowProps> = React.memo(({
+  id,
+  startSecs,
+  endSecs,
+  currentTime,
+  isPlaying,
+  isActive,
+  isPast,
+  distance,
+  lyricsFontSizePreset,
+  activeFontSize,
+  onSeek,
+}) => {
+  if (lyricsFontSizePreset === 'maximum' && distance > 1) {
+    return null;
+  }
+
+  // Smooth local time tracking with RAF for fluid 60/120fps interpolation
+  const [animTime, setAnimTime] = useState(currentTime);
+  const syncRef = useRef({ time: currentTime, perf: performance.now() });
+
+  useEffect(() => {
+    syncRef.current = { time: currentTime, perf: performance.now() };
+    setAnimTime(currentTime);
+  }, [currentTime]);
+
+  useEffect(() => {
+    if (!isActive || !isPlaying) {
+      setAnimTime(currentTime);
+      return;
+    }
+
+    let rafId: number;
+    const loop = () => {
+      const elapsedSecs = (performance.now() - syncRef.current.perf) / 1000;
+      const interpolated = syncRef.current.time + elapsedSecs;
+      setAnimTime(interpolated);
+      rafId = requestAnimationFrame(loop);
+    };
+    rafId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafId);
+  }, [isActive, isPlaying, currentTime]);
+
+  // Calculate 3-phase interpolation across the full gap:
+  // Phase 1 (first third): Dot 1 rises up and lands back down
+  // Phase 2 (middle third): Dot 2 rises up and lands back down
+  // Phase 3 (final third): Dot 3 rises up and lands all the way back down right as next lyric begins
+  const totalGap = Math.max(0.1, endSecs - startSecs);
+  const clampedTime = Math.max(startSecs, Math.min(endSecs, animTime));
+  const progress = Math.max(0, Math.min(1, (clampedTime - startSecs) / totalGap));
+
+  // Jump height scaled with font size
+  const jumpHeight = Math.max(14, Math.min(26, activeFontSize * 0.45));
+
+  // Phase 1: progress in [0, 1/3)
+  let y1 = 0;
+  let p1 = 0;
+  if (progress >= 0 && progress < 1 / 3) {
+    p1 = progress * 3;
+    y1 = -Math.sin(p1 * Math.PI) * jumpHeight;
+  }
+
+  // Phase 2: progress in [1/3, 2/3)
+  let y2 = 0;
+  let p2 = 0;
+  if (progress >= 1 / 3 && progress < 2 / 3) {
+    p2 = (progress - 1 / 3) * 3;
+    y2 = -Math.sin(p2 * Math.PI) * jumpHeight;
+  }
+
+  // Phase 3: progress in [2/3, 1]
+  let y3 = 0;
+  let p3 = 0;
+  if (progress >= 2 / 3 && progress <= 1) {
+    p3 = (progress - 2 / 3) * 3;
+    y3 = -Math.sin(p3 * Math.PI) * jumpHeight;
+  }
+
+  const dotSize = Math.max(12, Math.min(18, activeFontSize * 0.35));
+
+  const dot1Active = p1 > 0 && p1 < 1;
+  const dot2Active = p2 > 0 && p2 < 1;
+  const dot3Active = p3 > 0 && p3 < 1;
+
+  const renderDot = (y: number, isDotJumping: boolean, key: number) => {
+    const scale = isDotJumping ? 1.25 : isActive ? 1.05 : 0.95;
+    const opacity = isDotJumping ? 1 : isActive ? 0.7 : isPast ? 0.25 : 0.4;
+
+    return (
+      <div
+        key={key}
+        className="rounded-full transition-shadow duration-150"
+        style={{
+          width: `${dotSize}px`,
+          height: `${dotSize}px`,
+          transform: `translateY(${y.toFixed(2)}px) scale(${scale.toFixed(2)})`,
+          opacity,
+          background: isDotJumping || isActive
+            ? 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #818cf8))'
+            : 'rgba(255, 255, 255, 0.4)',
+          boxShadow: isDotJumping
+            ? '0 0 16px var(--color-stop-1, #6366f1), 0 0 28px color-mix(in srgb, var(--color-stop-2, #818cf8) 60%, transparent)'
+            : 'none',
+          willChange: 'transform',
+        }}
+      />
+    );
+  };
+
+  return (
+    <div
+      id={id}
+      onClick={() => onSeek(startSecs)}
+      className="text-center cursor-pointer max-w-[90vw] w-full py-6 flex items-center justify-center gap-4 transition-all duration-300"
+      style={{
+        opacity: isActive ? 1 : isPast ? 0.3 : 0.45,
+      }}
+      title={`Interlude (${(endSecs - startSecs).toFixed(1)}s)`}
+    >
+      {renderDot(y1, dot1Active, 1)}
+      {renderDot(y2, dot2Active, 2)}
+      {renderDot(y3, dot3Active, 3)}
+    </div>
+  );
+});
+
 export const LyricsView: React.FC = () => {
   const {
     currentTrack,
@@ -672,6 +830,54 @@ export const LyricsView: React.FC = () => {
 
   const isCompact = windowWidth < 850;
 
+  interface InterludeGap {
+    key: string;
+    startSecs: number;
+    endSecs: number;
+    insertIndex: number;
+  }
+
+  // Memoize interlude gaps (intro or >=5s pauses between lines without music notes/instrumental tags)
+  const interludeList = useMemo<InterludeGap[]>(() => {
+    if (lines.length === 0 || lines[0].startSecs === -1) return [];
+    const interludes: InterludeGap[] = [];
+
+    // Intro gap >= 5.0s
+    if (lines[0].startSecs >= 5.0 && !hasMusicNoteOrInstrumental(lines[0].content)) {
+      interludes.push({
+        key: 'lyric-interlude-intro',
+        startSecs: 0,
+        endSecs: lines[0].startSecs,
+        insertIndex: 0,
+      });
+    }
+
+    for (let i = 0; i < lines.length - 1; i++) {
+      const curLine = lines[i];
+      const nextLine = lines[i + 1];
+      const lineEnd = getLineEndSecs(curLine);
+      const gap = nextLine.startSecs - lineEnd;
+      if (
+        (gap >= 5.0 || (nextLine.startSecs - curLine.startSecs >= 6.0 && gap >= 4.0)) &&
+        !hasMusicNoteOrInstrumental(curLine.content) &&
+        !hasMusicNoteOrInstrumental(nextLine.content)
+      ) {
+        interludes.push({
+          key: `lyric-interlude-${i}`,
+          startSecs: lineEnd,
+          endSecs: nextLine.startSecs,
+          insertIndex: i + 1,
+        });
+      }
+    }
+
+    return interludes;
+  }, [lines]);
+
+  const activeInterlude = interludeList.find(
+    (item) => currentTime >= item.startSecs && currentTime < item.endSecs
+  );
+
   // Determine active line index and set of overlapping active lines (spoken at the same time)
   let activeIndex = -1;
   const activeLineIndices = new Set<number>();
@@ -692,7 +898,7 @@ export const LyricsView: React.FC = () => {
       }
     }
 
-    if (activeLineIndices.size === 0 && activeIndex !== -1) {
+    if (activeLineIndices.size === 0 && activeIndex !== -1 && !activeInterlude) {
       activeLineIndices.add(activeIndex);
     }
   }
@@ -902,23 +1108,29 @@ export const LyricsView: React.FC = () => {
   const userInteractingRef = useRef(false);
   const userInteractionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 4. Smooth scroll active line to center
+  // 4. Smooth scroll active line or active interlude to center
   const scrollToActive = () => {
-    if (containerRef.current && activeIndex !== -1) {
-      const lineEl = document.getElementById(`lyric-line-${activeIndex}`);
-      const containerEl = containerRef.current;
-      if (lineEl) {
-        const targetTop = lineEl.offsetTop - containerEl.clientHeight / 2 + lineEl.clientHeight / 2;
-        isProgrammaticScrollRef.current = true;
-        setIsScrollbarVisible(false);
-        containerEl.scrollTo({
-          top: targetTop,
-          behavior: 'smooth',
-        });
-        setTimeout(() => {
-          isProgrammaticScrollRef.current = false;
-        }, 800);
-      }
+    if (!containerRef.current) return;
+    const containerEl = containerRef.current;
+    let targetEl: HTMLElement | null = null;
+
+    if (activeInterlude) {
+      targetEl = document.getElementById(activeInterlude.key);
+    } else if (activeIndex !== -1) {
+      targetEl = document.getElementById(`lyric-line-${activeIndex}`);
+    }
+
+    if (targetEl) {
+      const targetTop = targetEl.offsetTop - containerEl.clientHeight / 2 + targetEl.clientHeight / 2;
+      isProgrammaticScrollRef.current = true;
+      setIsScrollbarVisible(false);
+      containerEl.scrollTo({
+        top: Math.max(0, targetTop),
+        behavior: 'smooth',
+      });
+      setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 800);
     }
   };
 
@@ -939,9 +1151,9 @@ export const LyricsView: React.FC = () => {
     }
   }, [currentTrack?.id]);
 
-  // Keep at top if lyrics load and song is at intro (activeIndex === -1)
+  // Keep at top if lyrics load and song is at intro (activeIndex === -1 and no interlude)
   useEffect(() => {
-    if (activeIndex === -1 && !isUserScrolled && containerRef.current) {
+    if (activeIndex === -1 && !activeInterlude && !isUserScrolled && containerRef.current) {
       isProgrammaticScrollRef.current = true;
       setIsScrollbarVisible(false);
       containerRef.current.scrollTo({
@@ -953,9 +1165,9 @@ export const LyricsView: React.FC = () => {
       }, 600);
       return () => clearTimeout(timer);
     }
-  }, [lines, activeIndex, isUserScrolled]);
+  }, [lines, activeIndex, activeInterlude?.key, isUserScrolled]);
 
-  // 5. Detect genuine user scrolling (wheel/touch/drag) away from current lyric line
+  // 5. Detect genuine user scrolling (wheel/touch/drag) away from current lyric line or interlude
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -980,13 +1192,17 @@ export const LyricsView: React.FC = () => {
         setIsScrollbarVisible(false);
       }
 
-      // Only unsync if it's NOT a programmatic scroll, user is actively scrolling, and scrolled away from active line
-      if (!isProgrammaticScrollRef.current && userInteractingRef.current && activeIndex !== -1) {
-        const lineEl = document.getElementById(`lyric-line-${activeIndex}`);
-        if (lineEl) {
-          const targetTop = lineEl.offsetTop - el.clientHeight / 2 + lineEl.clientHeight / 2;
+      // Only unsync if it's NOT a programmatic scroll, user is actively scrolling, and scrolled away from active line/interlude
+      if (!isProgrammaticScrollRef.current && userInteractingRef.current) {
+        const targetEl = activeInterlude
+          ? document.getElementById(activeInterlude.key)
+          : activeIndex !== -1
+          ? document.getElementById(`lyric-line-${activeIndex}`)
+          : null;
+        if (targetEl) {
+          const targetTop = targetEl.offsetTop - el.clientHeight / 2 + targetEl.clientHeight / 2;
           const distance = Math.abs(el.scrollTop - targetTop);
-          // Require at least 100px displacement from the centered active line to consider it an unsync scroll
+          // Require at least 100px displacement from the centered active item to consider it an unsync scroll
           if (distance > 100) {
             setIsUserScrolled(true);
           }
@@ -1007,13 +1223,13 @@ export const LyricsView: React.FC = () => {
       if (scrollbarTimerRef.current) clearTimeout(scrollbarTimerRef.current);
       if (userInteractionTimeoutRef.current) clearTimeout(userInteractionTimeoutRef.current);
     };
-  }, [activeIndex]);
+  }, [activeIndex, activeInterlude?.key]);
 
   useEffect(() => {
-    if (!isUserScrolled && activeIndex !== -1) {
+    if (!isUserScrolled && (activeInterlude || activeIndex !== -1)) {
       scrollToActive();
     }
-  }, [activeIndex, isUserScrolled]);
+  }, [activeIndex, activeInterlude?.key, isUserScrolled]);
 
   const handleClose = async () => {
     setShowLyricsFullscreen(false);
@@ -1624,30 +1840,59 @@ export const LyricsView: React.FC = () => {
             const isPast = !isActive && activeIndex >= 0 && idx < activeIndex;
             const distance = isActive ? 0 : Math.abs(idx - activeIndex);
 
+            // Interlude before this line (intro at index 0, or interlude between idx-1 and idx)
+            const interludeBefore = !isUnsynced
+              ? interludeList.find((item) => item.insertIndex === idx)
+              : null;
+
             return (
-              <LyricLineRow
-                key={line.id}
-                line={line}
-                idx={idx}
-                isActive={isActive}
-                isPast={isPast}
-                distance={distance}
-                isUnsynced={isUnsynced}
-                lyricsAnimationStyle={lyricsAnimationStyle}
-                lyricsFontSizePreset={lyricsFontSizePreset}
-                isRomanizationEnabled={isRomanizationEnabled}
-                romanizationMode={romanizationMode}
-                isTranslationEnabled={isTranslationEnabled}
-                translationMode={translationMode}
-                activeFontSize={activeFontSize}
-                inactiveFontSize={inactiveFontSize}
-                currentTimeMs={currentTimeMs}
-                activeLineRef={activeLineRef}
-                onSeek={(secs) => {
-                  seek(secs);
-                  setIsUserScrolled(false);
-                }}
-              />
+              <React.Fragment key={line.id}>
+                {interludeBefore && (
+                  <LyricInterludeRow
+                    key={interludeBefore.key}
+                    id={interludeBefore.key}
+                    startSecs={interludeBefore.startSecs}
+                    endSecs={interludeBefore.endSecs}
+                    currentTime={currentTime}
+                    isPlaying={isPlaying}
+                    isActive={activeInterlude?.key === interludeBefore.key}
+                    isPast={currentTime >= interludeBefore.endSecs}
+                    distance={
+                      activeInterlude?.key === interludeBefore.key
+                        ? 0
+                        : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0))
+                    }
+                    lyricsFontSizePreset={lyricsFontSizePreset}
+                    activeFontSize={activeFontSize}
+                    onSeek={(secs) => {
+                      seek(secs);
+                      setIsUserScrolled(false);
+                    }}
+                  />
+                )}
+                <LyricLineRow
+                  line={line}
+                  idx={idx}
+                  isActive={isActive}
+                  isPast={isPast}
+                  distance={distance}
+                  isUnsynced={isUnsynced}
+                  lyricsAnimationStyle={lyricsAnimationStyle}
+                  lyricsFontSizePreset={lyricsFontSizePreset}
+                  isRomanizationEnabled={isRomanizationEnabled}
+                  romanizationMode={romanizationMode}
+                  isTranslationEnabled={isTranslationEnabled}
+                  translationMode={translationMode}
+                  activeFontSize={activeFontSize}
+                  inactiveFontSize={inactiveFontSize}
+                  currentTimeMs={currentTimeMs}
+                  activeLineRef={activeLineRef}
+                  onSeek={(secs) => {
+                    seek(secs);
+                    setIsUserScrolled(false);
+                  }}
+                />
+              </React.Fragment>
             );
           })
         )}

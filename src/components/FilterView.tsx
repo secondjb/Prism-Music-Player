@@ -177,7 +177,7 @@ export const FilterView: React.FC = () => {
   const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
   const toggleLikeTrack = usePlayerStore((s) => s.toggleLikeTrack);
   const createPlaylist = usePlayerStore((s) => s.createPlaylist);
-  const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
+  const addTracksToPlaylist = usePlayerStore((s) => s.addTracksToPlaylist);
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const setInfoModalTrack = usePlayerStore((s) => s.setInfoModalTrack);
 
@@ -396,15 +396,14 @@ export const FilterView: React.FC = () => {
 
   const handleConfirmSavePlaylist = () => {
     if (!playlistNameInput.trim() || filteredTrackIds.length === 0) return;
-    createPlaylist(playlistNameInput.trim());
+    const name = playlistNameInput.trim();
+    createPlaylist(name);
 
     const statePlaylists = usePlayerStore.getState().playlists;
-    const createdPl = statePlaylists.find((p) => p.name === playlistNameInput.trim()) || statePlaylists[statePlaylists.length - 1];
+    const createdPl = statePlaylists.find((p) => p.name === name) || statePlaylists[statePlaylists.length - 1];
 
     if (createdPl) {
-      filteredTrackIds.forEach((trackId) => {
-        addTrackToPlaylist(createdPl.id, trackId);
-      });
+      addTracksToPlaylist(createdPl.id, filteredTrackIds);
     }
 
     setShowSaveModal(false);
@@ -485,14 +484,21 @@ export const FilterView: React.FC = () => {
 
             {/* Custom Inline Playlist Naming Popover Modal */}
             {showSaveModal && (
-              <div className="absolute right-0 top-14 z-50 w-80 glass-panel border border-indigo-500/30 rounded-2xl p-4 shadow-2xl flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
+              <div
+                className="absolute right-0 top-14 z-50 w-80 glass-panel border rounded-2xl p-4 shadow-2xl flex flex-col gap-3 animate-in fade-in slide-in-from-top-2"
+                style={{
+                  borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, rgba(255, 255, 255, 0.12))',
+                  boxShadow:
+                    '0 16px 36px rgba(0, 0, 0, 0.6), 0 0 20px color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                }}
+              >
                 <div className="flex items-center justify-between border-b border-white/10 pb-2">
                   <span className="text-xs font-bold text-white flex items-center gap-2">
-                    <PlusCircle className="w-4 h-4 text-indigo-400" /> Save Filtered Playlist
+                    <PlusCircle className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} /> Save Filtered Playlist
                   </span>
                   <button
                     onClick={() => setShowSaveModal(false)}
-                    className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10"
+                    className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 cursor-pointer"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -506,22 +512,30 @@ export const FilterView: React.FC = () => {
                   onChange={(e) => setPlaylistNameInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleConfirmSavePlaylist();
+                    if (e.key === 'Escape') setShowSaveModal(false);
                   }}
                   placeholder="Enter playlist name..."
-                  className="w-full bg-zinc-900 border border-white/10 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none transition-colors"
+                  className="w-full bg-zinc-900 border rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none transition-colors"
+                  style={{
+                    borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, rgba(255, 255, 255, 0.15))',
+                  }}
                   autoFocus
                 />
                 <div className="flex items-center justify-end gap-2 pt-1">
                   <button
                     onClick={() => setShowSaveModal(false)}
-                    className="px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-300 text-xs font-medium hover:bg-zinc-700 transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-300 text-xs font-medium hover:bg-zinc-700 transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleConfirmSavePlaylist}
                     disabled={!playlistNameInput.trim()}
-                    className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors disabled:opacity-40"
+                    className="px-4 py-1.5 rounded-lg text-white text-xs font-semibold transition-all disabled:opacity-40 hover:brightness-110 cursor-pointer shadow-md"
+                    style={{
+                      background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #818cf8))',
+                      boxShadow: '0 4px 12px color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
+                    }}
                   >
                     Save Playlist
                   </button>

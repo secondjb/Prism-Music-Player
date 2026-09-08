@@ -34,6 +34,7 @@ import {
   DEFAULT_COLUMN_ORDER,
 } from '../hooks/useTrackTableState';
 import { ColumnConfigModal } from './ColumnConfigModal';
+import { CreatePlaylistModal } from './CreatePlaylistModal';
 
 interface TrackTableViewProps {
   tracks: Track[];
@@ -820,6 +821,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   } = useTrackTableState();
 
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [newPlaylistTrack, setNewPlaylistTrack] = useState<Track | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -1636,19 +1638,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        const name = window.prompt('Enter new playlist name:');
-                        if (name && name.trim()) {
-                          const trimmed = name.trim();
-                          createPlaylist(trimmed);
-                          setTimeout(() => {
-                            const latest = usePlayerStore.getState().playlists;
-                            const created = latest.find((p) => p.name === trimmed);
-                            if (created) {
-                              addTrackToPlaylist(created.id, contextMenu.track.id);
-                            }
-                          }, 50);
-                          setContextMenu(null);
-                        }
+                        setNewPlaylistTrack(contextMenu.track);
+                        setContextMenu(null);
+                        setPlaylistSubmenuOpen(false);
                       }}
                       onMouseEnter={(e) => handleItemHover(e, true)}
                       onMouseLeave={(e) => handleItemHover(e, false)}
@@ -1721,6 +1713,25 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
           </div>
         );
       })()}
+
+      {/* Create Playlist Modal */}
+      <CreatePlaylistModal
+        isOpen={Boolean(newPlaylistTrack)}
+        onClose={() => setNewPlaylistTrack(null)}
+        onConfirm={(playlistName) => {
+          if (newPlaylistTrack) {
+            createPlaylist(playlistName);
+            setTimeout(() => {
+              const latest = usePlayerStore.getState().playlists;
+              const created = latest.find((p) => p.name === playlistName);
+              if (created) {
+                addTrackToPlaylist(created.id, newPlaylistTrack.id);
+              }
+            }, 50);
+            setNewPlaylistTrack(null);
+          }
+        }}
+      />
     </div>
   );
 };

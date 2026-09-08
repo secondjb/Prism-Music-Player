@@ -30,6 +30,7 @@ import {
 import { Track } from '../types/player';
 import { SleepTimerModal } from './SleepTimerModal';
 import { AudioDeviceModal } from './AudioDeviceModal';
+import { CreatePlaylistModal } from './CreatePlaylistModal';
 
 const handleTrackDragStart = (e: React.DragEvent, track: Track) => {
   if (!track || !track.id) return;
@@ -85,6 +86,7 @@ export const BottomBar: React.FC = () => {
 
   const [isTimerModalOpen, setIsTimerModalOpen] = useState(false);
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
+  const [showCreatePlaylistModal, setShowCreatePlaylistModal] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [prevVol, setPrevVol] = useState(volume);
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -436,20 +438,9 @@ export const BottomBar: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          const name = window.prompt('Enter new playlist name:');
-                          if (name && name.trim()) {
-                            const trimmed = name.trim();
-                            createPlaylist(trimmed);
-                            setTimeout(() => {
-                              const latest = usePlayerStore.getState().playlists;
-                              const created = latest.find((p) => p.name === trimmed);
-                              if (created) {
-                                addTrackToPlaylist(created.id, currentTrack.id);
-                              }
-                            }, 50);
-                            setShowContextMenu(false);
-                            setShowPlaylistSub(false);
-                          }
+                          setShowCreatePlaylistModal(true);
+                          setShowContextMenu(false);
+                          setShowPlaylistSub(false);
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor =
@@ -748,6 +739,22 @@ export const BottomBar: React.FC = () => {
             <AudioDeviceModal
               isOpen={isDeviceModalOpen}
               onClose={() => setIsDeviceModalOpen(false)}
+            />
+            <CreatePlaylistModal
+              isOpen={showCreatePlaylistModal}
+              onClose={() => setShowCreatePlaylistModal(false)}
+              onConfirm={(playlistName) => {
+                if (currentTrack) {
+                  createPlaylist(playlistName);
+                  setTimeout(() => {
+                    const latest = usePlayerStore.getState().playlists;
+                    const created = latest.find((p) => p.name === playlistName);
+                    if (created) {
+                      addTrackToPlaylist(created.id, currentTrack.id);
+                    }
+                  }, 50);
+                }
+              }}
             />
           </div>
 

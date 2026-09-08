@@ -181,6 +181,7 @@ interface PlayerState {
   deletePlaylist: (id: string) => void;
   renamePlaylist: (id: string, name: string) => void;
   addTrackToPlaylist: (playlistId: string, trackId: string) => void;
+  addTracksToPlaylist: (playlistId: string, trackIds: string[]) => void;
   removeTrackFromPlaylist: (playlistId: string, trackId: string) => void;
   reorderPlaylistTracks: (playlistId: string, fromIdx: number, toIdx: number) => void;
   setActivePlaylistId: (id: string | null) => void;
@@ -838,6 +839,49 @@ export const usePlayerStore = create<PlayerState>()(
           const newLiked = liked
             ? state.likedTrackIds.filter((id) => id !== trackId)
             : [...state.likedTrackIds, trackId];
+
+          if (state.activePlaylistId === '__liked__' || state.activePlaylistId === 'liked') {
+            if (liked) {
+              // Unliking while in liked playlist
+              const newOriginalQueue = state.originalQueue.filter((t) => t.id !== trackId);
+              const removeIdx = state.queue.findIndex((t) => t.id === trackId);
+              const newQueue = state.queue.filter((t) => t.id !== trackId);
+              let newCurrentIndex = state.currentIndex;
+              if (removeIdx !== -1) {
+                if (removeIdx < state.currentIndex) {
+                  newCurrentIndex = Math.max(0, state.currentIndex - 1);
+                } else if (removeIdx === state.currentIndex) {
+                  newCurrentIndex = Math.min(newCurrentIndex, Math.max(0, newQueue.length - 1));
+                }
+              }
+              return {
+                likedTrackIds: newLiked,
+                originalQueue: newOriginalQueue,
+                queue: newQueue,
+                currentIndex: newCurrentIndex,
+              };
+            } else {
+              // Liking a track while in liked playlist
+              const addedTrack = state.tracks.find((t) => t.id === trackId);
+              if (addedTrack) {
+                const newOriginalQueue = [...state.originalQueue, addedTrack];
+                const newQueue = [...state.queue];
+                if (state.shuffleEnabled) {
+                  const minIdx = Math.max(0, state.currentIndex + 1);
+                  const insertIdx = minIdx + Math.floor(Math.random() * (newQueue.length - minIdx + 1));
+                  newQueue.splice(insertIdx, 0, addedTrack);
+                } else {
+                  newQueue.push(addedTrack);
+                }
+                return {
+                  likedTrackIds: newLiked,
+                  originalQueue: newOriginalQueue,
+                  queue: newQueue,
+                };
+              }
+            }
+          }
+
           return { likedTrackIds: newLiked };
         });
       },
@@ -945,23 +989,112 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       addTrackToPlaylist: (playlistId, trackId) => {
-        set((state) => ({
-          playlists: state.playlists.map((p) =>
-            p.id === playlistId && !p.trackIds.includes(trackId)
-              ? { ...p, trackIds: [...p.trackIds, trackId] }
-              : p
-          ),
-        }));
+        set((state) => {
+          const playlist = state.playlists.find((p) => p.id === playlistId);
+          if (!playlist || playlist.trackIds.includes(trackId)) {
+            return state;
+          }
+          const updatedPlaylists = state.playlists.map((p) =>
+            p.id === playlistId ? { ...p, trackIds: [...p.trackIds, trackId] } : p
+          );
+
+          if (state.activePlaylistId === playlistId) {
+            const addedTrack = state.tracks.find((t) => t.id === trackId);
+            if (addedTrack) {
+              const newOriginal = [...state.originalQueue, addedTrack];
+              const newQueue = [...state.queue];
+              if (state.shuffleEnabled) {
+                const minIdx = Math.max(0, state.currentIndex + 1);
+                const insertIdx = minIdx + Math.floor(Math.random() * (newQueue.length - minIdx + 1));
+                newQueue.splice(insertIdx, 0, addedTrack);
+              } else {
+                newQueue.push(addedTrack);
+              }
+              return {
+                playlists: updatedPlaylists,
+                originalQueue: newOriginal,
+                queue: newQueue,
+              };
+            }
+          }
+
+          return { playlists: updatedPlaylists };
+        });
+      },
+
+      addTracksToPlaylist: (playlistId, trackIds) => {
+        set((state) => {
+          const playlist = state.playlists.find((p) => p.id === playlistId);
+          if (!playlist) return state;
+          const toAdd = trackIds.filter((tid) => !playlist.trackIds.includes(tid));
+          if (toAdd.length === 0) return state;
+
+          const updatedPlaylists = state.playlists.map((p) =>
+            p.id === playlistId ? { ...p, trackIds: [...p.trackIds, ...toAdd] } : p
+          );
+
+          if (state.activePlaylistId === playlistId) {
+            const addedTracks = toAdd
+              .map((tid) => state.tracks.find((t) => t.id === tid))
+              .filter((t): t is Track => Boolean(t));
+
+            if (addedTracks.length > 0) {
+              const newOriginal = [...state.originalQueue, ...addedTracks];
+              const newQueue = [...state.queue];
+              if (state.shuffleEnabled) {
+                const shuffledAdded = [...addedTracks];
+                for (let i = shuffledAdded.length - 1; i > 0; i--) {
+                  const j = Math.floor(Math.random() * (i + 1));
+                  [shuffledAdded[i], shuffledAdded[j]] = [shuffledAdded[j], shuffledAdded[i]];
+                }
+                const minIdx = Math.max(0, state.currentIndex + 1);
+                const insertIdx = minIdx + Math.floor(Math.random() * (newQueue.length - minIdx + 1));
+                newQueue.splice(insertIdx, 0, ...shuffledAdded);
+              } else {
+                newQueue.push(...addedTracks);
+              }
+              return {
+                playlists: updatedPlaylists,
+                originalQueue: newOriginal,
+                queue: newQueue,
+              };
+            }
+          }
+
+          return { playlists: updatedPlaylists };
+        });
       },
 
       removeTrackFromPlaylist: (playlistId, trackId) => {
-        set((state) => ({
-          playlists: state.playlists.map((p) =>
+        set((state) => {
+          const updatedPlaylists = state.playlists.map((p) =>
             p.id === playlistId
               ? { ...p, trackIds: p.trackIds.filter((id) => id !== trackId) }
               : p
-          ),
-        }));
+          );
+
+          if (state.activePlaylistId === playlistId) {
+            const newOriginalQueue = state.originalQueue.filter((t) => t.id !== trackId);
+            const removeIdx = state.queue.findIndex((t) => t.id === trackId);
+            const newQueue = state.queue.filter((t) => t.id !== trackId);
+            let newCurrentIndex = state.currentIndex;
+            if (removeIdx !== -1) {
+              if (removeIdx < state.currentIndex) {
+                newCurrentIndex = Math.max(0, state.currentIndex - 1);
+              } else if (removeIdx === state.currentIndex) {
+                newCurrentIndex = Math.min(newCurrentIndex, Math.max(0, newQueue.length - 1));
+              }
+            }
+            return {
+              playlists: updatedPlaylists,
+              originalQueue: newOriginalQueue,
+              queue: newQueue,
+              currentIndex: newCurrentIndex,
+            };
+          }
+
+          return { playlists: updatedPlaylists };
+        });
       },
 
       reorderPlaylistTracks: (playlistId, fromIdx, toIdx) => {

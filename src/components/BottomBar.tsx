@@ -19,13 +19,43 @@ import {
   Repeat,
   Repeat1,
   Info,
-  Radio,
   ListPlus,
-  FolderPlus,
+  ListEnd,
+  PlusCircle,
   Speaker,
+  Check,
+  Plus,
+  ChevronRight,
 } from 'lucide-react';
+import { Track } from '../types/player';
 import { SleepTimerModal } from './SleepTimerModal';
 import { AudioDeviceModal } from './AudioDeviceModal';
+
+const handleTrackDragStart = (e: React.DragEvent, track: Track) => {
+  if (!track || !track.id) return;
+  e.dataTransfer.setData(
+    'text/plain',
+    JSON.stringify({ type: 'tracks', ids: [track.id] })
+  );
+  e.dataTransfer.effectAllowed = 'copy';
+
+  const ghost = document.createElement('div');
+  ghost.style.position = 'absolute';
+  ghost.style.top = '-9999px';
+  ghost.style.left = '-9999px';
+  ghost.className =
+    'glass-panel text-white text-xs font-semibold px-3 py-1.5 rounded-xl shadow-2xl z-50 flex items-center gap-2 border border-white/20';
+  ghost.style.background = 'rgba(20, 20, 24, 0.95)';
+  ghost.innerHTML = `<span>🎵</span> <span style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${track.title || 'Song'}</span>`;
+
+  document.body.appendChild(ghost);
+  e.dataTransfer.setDragImage(ghost, 20, 15);
+  setTimeout(() => {
+    if (document.body.contains(ghost)) {
+      document.body.removeChild(ghost);
+    }
+  }, 0);
+};
 
 export const BottomBar: React.FC = () => {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
@@ -62,6 +92,7 @@ export const BottomBar: React.FC = () => {
 
   const playlists = usePlayerStore((s) => s.playlists);
   const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
+  const createPlaylist = usePlayerStore((s) => s.createPlaylist);
   const addToQueue = usePlayerStore((s) => s.addToQueue);
   const playNext = usePlayerStore((s) => s.playNext);
   const setInfoModalTrack = usePlayerStore((s) => s.setInfoModalTrack);
@@ -165,7 +196,12 @@ export const BottomBar: React.FC = () => {
 
         {currentTrack ? (
           <>
-            <div className="relative w-14 h-14 rounded-xl overflow-hidden shadow-md shrink-0 group border border-white/10 bg-zinc-900 cursor-context-menu">
+            <div
+              draggable={Boolean(currentTrack)}
+              onDragStart={(e) => currentTrack && handleTrackDragStart(e, currentTrack)}
+              className="relative w-14 h-14 rounded-xl overflow-hidden shadow-md shrink-0 group border border-white/10 bg-zinc-900 cursor-grab active:cursor-grabbing select-none"
+              title="Drag song to playlist or right-click for options"
+            >
               {trackArt ? (
                 <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover pointer-events-none" />
               ) : (
@@ -216,77 +252,232 @@ export const BottomBar: React.FC = () => {
             {/* Context Menu Dropdown */}
             {showContextMenu && (
               <div
-                className="absolute left-0 bottom-full mb-3 w-48 glass-panel border border-white/10 rounded-xl shadow-2xl py-1 z-50 flex flex-col animate-fade-in"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 8%, #141416)',
+                  borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, rgba(255, 255, 255, 0.12))',
+                  boxShadow:
+                    '0 12px 36px -4px rgba(0, 0, 0, 0.7), 0 0 16px color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent)',
+                  backdropFilter: 'blur(24px)',
+                }}
+                className="absolute left-0 bottom-full mb-3 w-52 border rounded-xl p-1.5 z-50 flex flex-col gap-0.5 text-xs text-zinc-300 animate-in fade-in zoom-in-95 duration-100"
                 onMouseLeave={() => {
                   setShowContextMenu(false);
                   setShowPlaylistSub(false);
                 }}
               >
-                <button
-                  onClick={() => {
-                    setInfoModalTrack(currentTrack);
-                    setShowContextMenu(false);
+                <div
+                  className="px-2.5 py-1 text-[11px] font-semibold text-zinc-400 border-b truncate"
+                  style={{
+                    borderColor:
+                      'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
                   }}
-                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left"
                 >
-                  <Info className="w-3.5 h-3.5 text-blue-400" />
-                  Song Info / Details
-                </button>
+                  {currentTrack.title}
+                </div>
+
                 <button
+                  type="button"
                   onClick={() => {
                     playNext(currentTrack);
                     setShowContextMenu(false);
                   }}
-                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor =
+                      'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '';
+                  }}
+                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
                 >
-                  <Radio className="w-3.5 h-3.5 text-indigo-400" />
-                  Play Next
+                  <ListPlus className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                  <span>Play Next</span>
                 </button>
+
                 <button
+                  type="button"
                   onClick={() => {
                     addToQueue(currentTrack);
                     setShowContextMenu(false);
                   }}
-                  className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor =
+                      'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '';
+                  }}
+                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
                 >
-                  <ListPlus className="w-3.5 h-3.5 text-emerald-400" />
-                  Add to Queue
+                  <ListEnd className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                  <span>Add to Queue</span>
                 </button>
                 
                 {/* Add to Playlist submenu */}
-                <div className="relative">
+                <div
+                  className="relative"
+                  onMouseEnter={() => setShowPlaylistSub(true)}
+                  onMouseLeave={() => setShowPlaylistSub(false)}
+                >
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setShowPlaylistSub(!showPlaylistSub);
+                      setShowPlaylistSub((s) => !s);
                     }}
-                    className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left w-full"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor =
+                        'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '';
+                    }}
+                    className="flex items-center justify-between w-full px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
                   >
-                    <FolderPlus className="w-3.5 h-3.5 text-purple-400" />
-                    Add to Playlist
+                    <div className="flex items-center gap-2.5">
+                      <PlusCircle className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                      <span>Add to Playlist</span>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-zinc-400" />
                   </button>
+
                   {showPlaylistSub && (
-                    <div className="absolute left-full top-0 w-44 glass-panel border border-white/10 rounded-xl shadow-2xl py-1 z-50 flex flex-col ml-1">
+                    <div
+                      style={{
+                        backgroundColor:
+                          'color-mix(in srgb, var(--color-stop-1, #6366f1) 10%, #141416)',
+                        borderColor:
+                          'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, rgba(255, 255, 255, 0.12))',
+                        boxShadow:
+                          '0 12px 36px -4px rgba(0, 0, 0, 0.7), 0 0 16px color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent)',
+                        backdropFilter: 'blur(24px)',
+                      }}
+                      className="absolute left-full bottom-0 w-48 border rounded-xl p-1.5 z-50 flex flex-col gap-0.5 ml-1.5 max-h-60 overflow-y-auto custom-scrollbar shadow-2xl animate-in fade-in zoom-in-95 duration-100"
+                    >
+                      <div
+                        className="px-2 py-1 text-[10px] font-semibold text-zinc-400 border-b uppercase tracking-wider"
+                        style={{
+                          borderColor:
+                            'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
+                        }}
+                      >
+                        Your Playlists
+                      </div>
                       {playlists.length === 0 ? (
-                        <span className="px-3 py-2 text-xs text-zinc-500 italic">No playlists yet</span>
+                        <div className="px-2 py-2 text-zinc-500 italic text-[11px]">No playlists yet</div>
                       ) : (
-                        playlists.map((pl) => (
-                          <button
-                            key={pl.id}
-                            onClick={() => {
-                              addTrackToPlaylist(pl.id, currentTrack.id);
-                              setShowContextMenu(false);
-                              setShowPlaylistSub(false);
-                            }}
-                            className="px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/10 text-left truncate"
-                          >
-                            {pl.name}
-                          </button>
-                        ))
+                        playlists.map((pl) => {
+                          const inPlaylist = pl.trackIds.includes(currentTrack.id);
+                          return (
+                            <button
+                              key={pl.id}
+                              type="button"
+                              onClick={() => {
+                                addTrackToPlaylist(pl.id, currentTrack.id);
+                                setShowContextMenu(false);
+                                setShowPlaylistSub(false);
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor =
+                                  'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '';
+                              }}
+                              className="flex items-center justify-between w-full px-2 py-1.5 rounded-lg text-left transition-colors cursor-pointer text-zinc-200 hover:text-white"
+                            >
+                              <span className="truncate pr-2">{pl.name}</span>
+                              {inPlaylist && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                            </button>
+                          );
+                        })
                       )}
+
+                      <div
+                        className="border-t my-0.5"
+                        style={{
+                          borderColor:
+                            'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
+                        }}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const name = window.prompt('Enter new playlist name:');
+                          if (name && name.trim()) {
+                            const trimmed = name.trim();
+                            createPlaylist(trimmed);
+                            setTimeout(() => {
+                              const latest = usePlayerStore.getState().playlists;
+                              const created = latest.find((p) => p.name === trimmed);
+                              if (created) {
+                                addTrackToPlaylist(created.id, currentTrack.id);
+                              }
+                            }, 50);
+                            setShowContextMenu(false);
+                            setShowPlaylistSub(false);
+                          }
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor =
+                            'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = '';
+                        }}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors cursor-pointer font-medium"
+                        style={{ color: 'var(--color-stop-1, #6366f1)' }}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>New Playlist...</span>
+                      </button>
                     </div>
                   )}
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleLikeTrack(currentTrack.id);
+                    setShowContextMenu(false);
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor =
+                      'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '';
+                  }}
+                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+                >
+                  <Heart
+                    className={`w-4 h-4 ${
+                      isLiked ? 'fill-pink-500 text-pink-500' : 'text-zinc-400'
+                    }`}
+                    style={!isLiked ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
+                  />
+                  <span>{isLiked ? 'Unlike' : 'Like'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInfoModalTrack(currentTrack);
+                    setShowContextMenu(false);
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor =
+                      'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '';
+                  }}
+                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+                >
+                  <Info className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                  <span>Song Details & Specs</span>
+                </button>
               </div>
             )}
           </>

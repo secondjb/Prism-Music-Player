@@ -17,6 +17,7 @@ export const ALL_COLUMN_IDS: TrackColumnId[] = [
   'favorite',
   'playNext',
   'addToQueue',
+  'addToPlaylist',
   'actions',
 ];
 
@@ -32,6 +33,7 @@ export const DEFAULT_COLUMN_ORDER: TrackColumnId[] = [
   'favorite',
   'playNext',
   'addToQueue',
+  'addToPlaylist',
   'actions',
 ];
 
@@ -47,6 +49,7 @@ export const DEFAULT_VISIBLE_COLUMNS: TrackColumnId[] = [
   'favorite',
   'playNext',
   'addToQueue',
+  'addToPlaylist',
   'actions',
 ];
 
@@ -62,6 +65,7 @@ export const COLUMN_LABELS: Record<TrackColumnId, string> = {
   favorite: 'Favorite',
   playNext: 'Play Next',
   addToQueue: 'Add to Queue',
+  addToPlaylist: 'Add to Playlist',
   actions: 'Actions',
 };
 
@@ -77,6 +81,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<TrackColumnId, number> = {
   favorite: 36,
   playNext: 36,
   addToQueue: 36,
+  addToPlaylist: 36,
   actions: 36,
 };
 
@@ -92,6 +97,7 @@ export const MIN_COLUMN_WIDTHS: Record<TrackColumnId, number> = {
   favorite: 36,
   playNext: 36,
   addToQueue: 36,
+  addToPlaylist: 36,
   actions: 36,
 };
 
@@ -173,6 +179,7 @@ export const FIXED_WIDTH_COLUMNS: TrackColumnId[] = [
   'favorite',
   'playNext',
   'addToQueue',
+  'addToPlaylist',
   'actions',
 ];
 
@@ -201,7 +208,7 @@ export function calculateColumnWidths(
     } else if (colId === 'art') {
       widths.art = artWidth;
       fixedTotal += artWidth;
-    } else if (['favorite', 'playNext', 'addToQueue', 'actions'].includes(colId)) {
+    } else if (['favorite', 'playNext', 'addToQueue', 'addToPlaylist', 'actions'].includes(colId)) {
       widths[colId] = actionWidth;
       fixedTotal += actionWidth;
     } else if (colId === 'duration') {

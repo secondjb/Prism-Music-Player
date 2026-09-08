@@ -17,6 +17,7 @@ export type TrackColumnId =
   | 'favorite'
   | 'playNext'
   | 'addToQueue'
+  | 'addToPlaylist'
   | 'actions';
 
 export type TrackGridDensity = 'compact' | 'normal' | 'large' | 'extra-large' | 'huge' | 'massive';
@@ -300,6 +301,7 @@ export const usePlayerStore = create<PlayerState>()(
         'favorite',
         'playNext',
         'addToQueue',
+        'addToPlaylist',
         'actions',
       ],
       trackGridDensity: 'normal',
@@ -327,6 +329,7 @@ export const usePlayerStore = create<PlayerState>()(
         'favorite',
         'playNext',
         'addToQueue',
+        'addToPlaylist',
         'actions',
       ],
       setColumnOrder: (order) => set({ columnOrder: order }),

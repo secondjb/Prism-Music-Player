@@ -173,11 +173,25 @@ export const Sidebar: React.FC = () => {
                       onClick={() => {
                         setActiveTab('liked');
                       }}
-                      className={`flex items-center gap-2 text-left text-xs py-1.5 px-3 rounded-lg truncate transition-colors ${
+                      style={
+                        dragOverPlaylistId === 'liked'
+                          ? {
+                              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+                              color: '#fff',
+                              boxShadow: '0 0 12px color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+                            }
+                          : activeTab === 'liked'
+                          ? {
+                              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                              color: 'var(--color-stop-1, #6366f1)',
+                            }
+                          : undefined
+                      }
+                      className={`flex items-center gap-2 text-left text-xs py-1.5 px-3 rounded-lg truncate transition-colors border border-transparent ${
                         activeTab === 'liked'
-                          ? 'bg-indigo-500/20 text-indigo-300 font-medium'
+                          ? 'font-medium'
                           : dragOverPlaylistId === 'liked'
-                          ? 'bg-indigo-500/40 text-white'
+                          ? ''
                           : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
                       }`}
                     >
@@ -240,11 +254,25 @@ export const Sidebar: React.FC = () => {
                           setActiveTab('playlists');
                           setActivePlaylistId(pl.id);
                         }}
-                        className={`text-left text-xs py-1.5 px-3 rounded-lg truncate transition-colors ${
+                        style={
+                          dragOverPlaylistId === pl.id
+                            ? {
+                                backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+                                color: '#fff',
+                                boxShadow: '0 0 12px color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+                              }
+                            : activeTab === 'playlists' && activePlaylistId === pl.id
+                            ? {
+                                backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                                color: 'var(--color-stop-1, #6366f1)',
+                              }
+                            : undefined
+                        }
+                        className={`text-left text-xs py-1.5 px-3 rounded-lg truncate transition-colors border border-transparent ${
                           activeTab === 'playlists' && activePlaylistId === pl.id
-                            ? 'bg-indigo-500/20 text-indigo-300 font-medium'
+                            ? 'font-medium'
                             : dragOverPlaylistId === pl.id
-                            ? 'bg-indigo-500/40 text-white'
+                            ? ''
                             : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
                         }`}
                       >
@@ -263,7 +291,9 @@ export const Sidebar: React.FC = () => {
       <div className="px-3 py-3 glass-card rounded-xl border border-white/5">
         <div className="flex items-center justify-between text-xs text-zinc-400">
           <span>Library</span>
-          <span className="font-mono text-indigo-400 font-semibold">{tracks.length} tracks</span>
+          <span className="font-mono font-semibold" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
+            {tracks.length} tracks
+          </span>
         </div>
       </div>
 
@@ -284,6 +314,12 @@ export const Sidebar: React.FC = () => {
               transformOrigin: 'top left',
             };
 
+        const handleItemHover = (e: React.MouseEvent<HTMLElement>, isHover: boolean) => {
+          e.currentTarget.style.backgroundColor = isHover
+            ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)'
+            : '';
+        };
+
         return (
           <div
             className="fixed inset-0 z-50 pointer-events-auto"
@@ -294,34 +330,54 @@ export const Sidebar: React.FC = () => {
             }}
           >
             <div
-              style={posStyle}
-              className="fixed z-50 w-56 glass-panel border border-white/10 rounded-xl shadow-2xl p-1.5 flex flex-col gap-1 text-xs text-zinc-300 animate-in fade-in zoom-in-95 duration-100 bg-[#181818]/95"
+              style={{
+                ...posStyle,
+                backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 8%, #141416)',
+                borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, rgba(255, 255, 255, 0.12))',
+                boxShadow:
+                  '0 12px 36px -4px rgba(0, 0, 0, 0.7), 0 0 16px color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent)',
+                backdropFilter: 'blur(24px)',
+              }}
+              className="fixed z-50 w-56 border rounded-xl p-1.5 flex flex-col gap-1 text-xs text-zinc-300 animate-in fade-in zoom-in-95 duration-100"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="px-2.5 py-1 text-[11px] font-semibold text-zinc-400 border-b border-white/10 truncate">
+              <div
+                className="px-2.5 py-1 text-[11px] font-semibold text-zinc-400 border-b truncate"
+                style={{
+                  borderColor:
+                    'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
+                }}
+              >
                 {contextMenu.name}
               </div>
               <button
+                type="button"
                 onClick={() => {
                   playPlaylistNext(contextMenu.playlistId);
                   setContextMenu(null);
                 }}
-                className="flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors text-left font-medium cursor-pointer"
+                onMouseEnter={(e) => handleItemHover(e, true)}
+                onMouseLeave={(e) => handleItemHover(e, false)}
+                className="flex items-center gap-2 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
               >
-                <ListPlus className="w-4 h-4 text-indigo-400 group-hover:text-white" />
+                <ListPlus className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                 <span>Play Next (After Song)</span>
               </button>
               <button
+                type="button"
                 onClick={() => {
                   addPlaylistToQueue(contextMenu.playlistId);
                   setContextMenu(null);
                 }}
-                className="flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-white/10 hover:text-white transition-colors text-left font-medium cursor-pointer"
+                onMouseEnter={(e) => handleItemHover(e, true)}
+                onMouseLeave={(e) => handleItemHover(e, false)}
+                className="flex items-center gap-2 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
               >
                 <ListVideo className="w-4 h-4 text-zinc-400" />
                 <span>Add Playlist to Queue</span>
               </button>
               <button
+                type="button"
                 onClick={() => {
                   const store = usePlayerStore.getState();
                   let targetTracks: Track[] = [];
@@ -338,9 +394,11 @@ export const Sidebar: React.FC = () => {
                   }
                   setContextMenu(null);
                 }}
-                className="flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-white/10 hover:text-white transition-colors text-left font-medium cursor-pointer"
+                onMouseEnter={(e) => handleItemHover(e, true)}
+                onMouseLeave={(e) => handleItemHover(e, false)}
+                className="flex items-center gap-2 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
               >
-                <Play className="w-4 h-4 text-zinc-400" />
+                <Play className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                 <span>Play Now</span>
               </button>
             </div>

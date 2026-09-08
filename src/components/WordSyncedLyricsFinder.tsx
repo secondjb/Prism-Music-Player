@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { Track } from '../types/player';
-import { searchWordSyncedLyrics, isWordSyncedLrc } from '../utils/lrclibFetcher';
+import { searchEnhancedLyrics, isWordSyncedLrc, hasLrcTimestamps } from '../utils/lrclibFetcher';
 import { parseRichLyrics, ParsedLyricLine, hasTranslationInLyrics } from '../utils/lyricsParser';
 import { createRomanizer } from 'lyric-romanizer';
 import { useTrackArt } from '../utils/useTrackArt';
@@ -37,12 +37,15 @@ export interface WordSyncCandidate {
   status: 'found' | 'embedding' | 'embedded' | 'failed';
   hasWordSync?: boolean;
   hasTranslation?: boolean;
+  isSynced?: boolean;
+  source?: 'Lyrics+' | 'LRCLIB';
 }
 
 export function getCandidateFeatures(c: WordSyncCandidate) {
   const hasWordSync = c.hasWordSync !== undefined ? c.hasWordSync : isWordSyncedLrc(c.lyrics);
   const hasTranslation = c.hasTranslation !== undefined ? c.hasTranslation : hasTranslationInLyrics(c.lyrics);
-  return { hasWordSync, hasTranslation };
+  const isSynced = c.isSynced !== undefined ? c.isSynced : hasLrcTimestamps(c.lyrics);
+  return { hasWordSync, hasTranslation, isSynced, source: c.source || (hasWordSync ? 'Lyrics+' : 'LRCLIB') };
 }
 
 function formatTime(secs: number): string {
@@ -87,7 +90,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
   const translationMode = usePlayerStore((s) => s.translationMode);
 
   const [onlyMissingWordSync, setOnlyMissingWordSync] = useState(true);
-  const [scanConcurrency, setScanConcurrency] = useState<number>(10);
+  const [scanConcurrency, setScanConcurrency] = useState<number>(4);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<{
     current: number;
@@ -111,7 +114,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
   });
 
   const [activeCandidateIdx, setActiveCandidateIdx] = useState<number>(0);
-  const [candidateFilter, setCandidateFilter] = useState<'all' | 'wordsync' | 'translation' | 'pending' | 'embedded'>('all');
+  const [candidateFilter, setCandidateFilter] = useState<'all' | 'wordsync' | 'translation' | 'synced' | 'pending' | 'embedded'>('all');
   const [showCandidateList, setShowCandidateList] = useState<boolean>(false);
   const [isBatchEmbedding, setIsBatchEmbedding] = useState(false);
   const [batchEmbedProgress, setBatchEmbedProgress] = useState<{ current: number; total: number } | null>(null);
@@ -138,6 +141,10 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     () => candidates.filter((c) => (c.hasTranslation !== undefined ? c.hasTranslation : hasTranslationInLyrics(c.lyrics))).length,
     [candidates]
   );
+  const syncedCount = useMemo(
+    () => candidates.filter((c) => (c.isSynced !== undefined ? c.isSynced : hasLrcTimestamps(c.lyrics))).length,
+    [candidates]
+  );
   const embeddedCount = useMemo(
     () => candidates.filter((c) => c.status === 'embedded').length,
     [candidates]
@@ -154,6 +161,8 @@ export const WordSyncedLyricsFinder: React.FC = () => {
         return candidates.filter((c) => (c.hasWordSync !== undefined ? c.hasWordSync : isWordSyncedLrc(c.lyrics)));
       case 'translation':
         return candidates.filter((c) => (c.hasTranslation !== undefined ? c.hasTranslation : hasTranslationInLyrics(c.lyrics)));
+      case 'synced':
+        return candidates.filter((c) => (c.isSynced !== undefined ? c.isSynced : hasLrcTimestamps(c.lyrics)));
       case 'pending':
         return candidates.filter((c) => c.status !== 'embedded');
       case 'embedded':
@@ -168,7 +177,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     filteredCandidates[activeCandidateIdx] || filteredCandidates[0];
 
   const activeFeatures = useMemo(
-    () => (activeCandidate ? getCandidateFeatures(activeCandidate) : { hasWordSync: false, hasTranslation: false }),
+    () => (activeCandidate ? getCandidateFeatures(activeCandidate) : { hasWordSync: false, hasTranslation: false, isSynced: false, source: 'Lyrics+' }),
     [activeCandidate]
   );
 
@@ -421,13 +430,13 @@ export const WordSyncedLyricsFinder: React.FC = () => {
       const existingIds = new Set(candidates.map((c) => c.track.id));
       targetTracks = tracks.filter((t) => !existingIds.has(t.id));
       if (onlyMissingWordSync) {
-        targetTracks = targetTracks.filter((t) => !isWordSyncedLrc(t.unsynced_lyrics));
+        targetTracks = targetTracks.filter((t) => !isWordSyncedLrc(t.unsynced_lyrics) || !hasTranslationInLyrics(t.unsynced_lyrics));
       }
       initialCandidates = [...candidates];
     } else {
       // mode === 'all': scan all
       targetTracks = onlyMissingWordSync
-        ? tracks.filter((t) => !isWordSyncedLrc(t.unsynced_lyrics))
+        ? tracks.filter((t) => !isWordSyncedLrc(t.unsynced_lyrics) || !hasTranslationInLyrics(t.unsynced_lyrics))
         : [...tracks];
       initialCandidates = [];
       setCandidates([]);
@@ -460,7 +469,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
         const track = targetTracks[i];
 
         try {
-          const foundWordLrc = await searchWordSyncedLyrics(
+          const discovered = await searchEnhancedLyrics(
             track.title,
             track.artist,
             track.album,
@@ -468,18 +477,29 @@ export const WordSyncedLyricsFinder: React.FC = () => {
             controller.signal
           );
 
-          if (foundWordLrc && (isWordSyncedLrc(foundWordLrc) || hasTranslationInLyrics(foundWordLrc))) {
-            const hasWordSync = isWordSyncedLrc(foundWordLrc);
-            const hasTranslation = hasTranslationInLyrics(foundWordLrc);
-            const candidate: WordSyncCandidate = {
-              track,
-              lyrics: foundWordLrc,
-              status: 'found',
-              hasWordSync,
-              hasTranslation,
-            };
-            currentCandidates.push(candidate);
-            setCandidates([...currentCandidates]);
+          if (discovered && discovered.lyrics?.trim()) {
+            const trackHasSynced = hasLrcTimestamps(track.unsynced_lyrics);
+            const trackHasWordSync = isWordSyncedLrc(track.unsynced_lyrics);
+            const trackHasTranslation = hasTranslationInLyrics(track.unsynced_lyrics);
+
+            const isUpgrade =
+              (discovered.hasWordSync && !trackHasWordSync) ||
+              (discovered.hasTranslation && !trackHasTranslation) ||
+              (discovered.isSynced && !trackHasSynced);
+
+            if (isUpgrade || !onlyMissingWordSync) {
+              const candidate: WordSyncCandidate = {
+                track,
+                lyrics: discovered.lyrics,
+                status: 'found',
+                hasWordSync: discovered.hasWordSync,
+                hasTranslation: discovered.hasTranslation,
+                isSynced: discovered.isSynced,
+                source: discovered.source,
+              };
+              currentCandidates.push(candidate);
+              setCandidates([...currentCandidates]);
+            }
           }
         } catch (e) {
           // Skip track on network error
@@ -494,6 +514,9 @@ export const WordSyncedLyricsFinder: React.FC = () => {
             });
           }
         }
+
+        // Brief 60ms delay per worker between songs to respect rate limits and keep socket healthy
+        await new Promise((r) => setTimeout(r, 60));
       }
     });
 
@@ -618,9 +641,9 @@ export const WordSyncedLyricsFinder: React.FC = () => {
         <div className="flex items-center gap-3">
           <Sparkles className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
           <div className="flex flex-col">
-            <span className="text-xs font-semibold text-white">Only scan tracks missing word-synced lyrics</span>
+            <span className="text-xs font-semibold text-white">Only scan tracks missing enhancements</span>
             <span className="text-[11px] text-zinc-400">
-              Skips songs that already have word-level syllable timestamps embedded in their audio tags
+              Scans tracks with missing lyrics, lacking word-by-word timestamps, or missing bilingual translations
             </span>
           </div>
         </div>
@@ -646,22 +669,22 @@ export const WordSyncedLyricsFinder: React.FC = () => {
           <div className="flex flex-col">
             <span className="text-xs font-semibold text-white">Parallel Concurrency Speed</span>
             <span className="text-[11px] text-zinc-400">
-              Run multiple requests simultaneously to scan large libraries in seconds
+              Balanced speeds ensure comprehensive coverage across 1,000+ tracks without rate-limiting
             </span>
           </div>
         </div>
         <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10 shrink-0 self-start sm:self-auto">
           {[
-            { count: 4, label: '4x' },
-            { count: 8, label: '8x' },
-            { count: 12, label: '12x Turbo' },
-            { count: 16, label: '16x Max' },
+            { count: 2, label: '2x Gentle' },
+            { count: 4, label: '4x Balanced' },
+            { count: 6, label: '6x Fast' },
+            { count: 8, label: '8x Turbo' },
           ].map((opt) => (
             <button
               key={opt.count}
               disabled={isScanning}
               onClick={() => setScanConcurrency(opt.count)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 scanConcurrency === opt.count
                   ? 'text-white shadow-md font-semibold'
                   : 'text-zinc-400 hover:text-zinc-200'
@@ -743,6 +766,11 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                   <span className="flex items-center gap-1 font-semibold text-emerald-400">
                     <Globe className="w-3 h-3" />
                     {translationCount} Translated
+                  </span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1 font-semibold text-sky-400">
+                    <Music className="w-3 h-3" />
+                    {syncedCount} Synced
                   </span>
                   <span>•</span>
                   <span className="text-zinc-300">
@@ -835,6 +863,21 @@ export const WordSyncedLyricsFinder: React.FC = () => {
 
               <button
                 onClick={() => {
+                  setCandidateFilter('synced');
+                  setActiveCandidateIdx(0);
+                }}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  candidateFilter === 'synced'
+                    ? 'bg-sky-500/30 text-sky-200 border border-sky-500/40 shadow-sm'
+                    : 'bg-white/5 text-zinc-400 hover:text-sky-300 hover:bg-sky-500/10'
+                }`}
+              >
+                <Music className="w-3 h-3 text-sky-400" />
+                Synced ({syncedCount})
+              </button>
+
+              <button
+                onClick={() => {
                   setCandidateFilter('pending');
                   setActiveCandidateIdx(0);
                 }}
@@ -911,9 +954,14 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                             <Zap className="w-2.5 h-2.5" />
                             Word
                           </span>
+                        ) : feats.isSynced ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30 flex items-center gap-0.5">
+                            <Music className="w-2.5 h-2.5" />
+                            Synced
+                          </span>
                         ) : (
                           <span className="px-1.5 py-0.5 rounded text-[10px] text-zinc-500 bg-white/5 border border-white/5">
-                            Line
+                            Plain
                           </span>
                         )}
 
@@ -987,21 +1035,29 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                   <Zap className="w-3 h-3 text-indigo-400" />
                   Word-by-Word Sync
                 </span>
+              ) : activeFeatures.isSynced ? (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-sky-500/20 text-sky-300 border border-sky-500/30 flex items-center gap-1">
+                  <Music className="w-3 h-3 text-sky-400" />
+                  Line-Synced
+                </span>
               ) : (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-800 text-zinc-400 border border-white/10 flex items-center gap-1">
-                  Line-Synced
+                  Plain Lyrics
                 </span>
               )}
 
               {/* Translation Badge */}
-              {activeFeatures.hasTranslation ? (
+              {activeFeatures.hasTranslation && (
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 shadow-sm">
                   <Globe className="w-3 h-3 text-emerald-400" />
                   Bilingual Translation
                 </span>
-              ) : (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-800/80 text-zinc-500 border border-white/5">
-                  No Translation
+              )}
+
+              {/* Source Badge */}
+              {activeCandidate.source && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/10 text-zinc-300 border border-white/10">
+                  {activeCandidate.source}
                 </span>
               )}
             </div>
@@ -1048,19 +1104,25 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                         <Zap className="w-2.5 h-2.5 text-indigo-400" /> Word-Synced
                       </span>
+                    ) : activeFeatures.isSynced ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                        <Music className="w-2.5 h-2.5 text-sky-400" /> Line-Synced
+                      </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-400 border border-white/10">
-                        Line-Synced
+                        Plain Lyrics
                       </span>
                     )}
 
-                    {activeFeatures.hasTranslation ? (
+                    {activeFeatures.hasTranslation && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                         <Globe className="w-2.5 h-2.5 text-emerald-400" /> Bilingual LRC
                       </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-800/60 text-zinc-500 border border-white/5">
-                        No Translation
+                    )}
+
+                    {activeCandidate.source && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-white/10 text-zinc-300 border border-white/10">
+                        {activeCandidate.source}
                       </span>
                     )}
                   </div>

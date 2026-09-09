@@ -4,7 +4,7 @@ import { usePlayerStore, sanitizeTrackForStorage } from '../store/usePlayerStore
 import { Track } from '../types/player';
 import { searchEnhancedLyrics, isWordSyncedLrc, hasLrcTimestamps } from '../utils/lrclibFetcher';
 import { parseRichLyrics, ParsedLyricLine, hasTranslationInLyrics } from '../utils/lyricsParser';
-import { createRomanizer } from 'lyric-romanizer';
+import { createRomanizer, detectScript } from 'lyric-romanizer';
 import { useTrackArt } from '../utils/useTrackArt';
 import { invoke } from '@tauri-apps/api/core';
 import {
@@ -29,7 +29,7 @@ import {
   List,
 } from 'lucide-react';
 
-const romanizer = createRomanizer();
+const romanizer = createRomanizer({ japaneseDictPath: '/dict' });
 
 export interface WordSyncCandidate {
   track: Track;
@@ -258,16 +258,31 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     async function enrich() {
       let res = formatted;
       if (isRomanizationEnabled) {
+        const allContents = res.map((l) => l.content);
+        const trackScript = detectScript(allContents);
+
         res = await Promise.all(
           res.map(async (line) => {
             try {
-              const rom = await romanizer.romanizeLine(line.content);
+              const lineScript = detectScript([line.content]);
+              const effectiveScript =
+                trackScript === 'japanese' && lineScript === 'chinese'
+                  ? 'japanese'
+                  : lineScript === 'other' && trackScript !== 'other' && trackScript !== 'latin'
+                  ? trackScript
+                  : lineScript;
+              const romOptions =
+                effectiveScript && effectiveScript !== 'latin' && effectiveScript !== 'other'
+                  ? { script: effectiveScript }
+                  : undefined;
+
+              const rom = await romanizer.romanizeLine(line.content, romOptions);
               const romSyllables =
                 line.syllables.length > 0
                   ? await Promise.all(
                       line.syllables.map(async (syl) => {
                         try {
-                          const r = await romanizer.romanizeLine(syl.text);
+                          const r = await romanizer.romanizeLine(syl.text, romOptions);
                           return { ...syl, romanizedText: r !== syl.text ? r : undefined };
                         } catch {
                           return syl;
@@ -1590,50 +1605,85 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                         {/* Main Syllables with Word-by-Word active highlight */}
                         {line.hasSyllables && isLineActive ? (
                           <div className="w-full flex flex-wrap justify-center items-baseline">
-                            {line.syllables.map((syl, sIdx) => {
-                              const sylStart = syl.timeMs;
-                              const sylEnd = syl.timeMs + syl.durationMs;
-                              const isSylActive =
-                                isCandidatePlayingThis &&
-                                activeTimeMs >= sylStart &&
-                                activeTimeMs < sylEnd;
-                              const isSylPast =
-                                isCandidatePlayingThis && activeTimeMs >= sylEnd;
+                            {(() => {
+                              if (isTranslationEnabled && translationMode === 'replace' && line.translation) {
+                                const transWords = line.translation.trim().split(/\s+/).filter(Boolean);
+                                const wordDur = line.durationMs / Math.max(1, transWords.length);
+                                return transWords.map((word, wIdx) => {
+                                  const sylStart = line.timeMs + (wIdx * wordDur);
+                                  const sylEnd = sylStart + wordDur;
+                                  const isSylActive =
+                                    isCandidatePlayingThis &&
+                                    activeTimeMs >= sylStart &&
+                                    activeTimeMs < sylEnd;
+                                  const isSylPast =
+                                    isCandidatePlayingThis && activeTimeMs >= sylEnd;
 
-                              const sylDisplay =
-                                isTranslationEnabled && translationMode === 'replace' && syl.translatedText
-                                  ? syl.translatedText
-                                  : isRomanizationEnabled && romanizationMode === 'replace' && syl.romanizedText
-                                  ? syl.romanizedText
-                                  : syl.text;
+                                  return (
+                                    <span
+                                      key={`trans-syl-${wIdx}`}
+                                      className="inline-block transition-all duration-150 mr-[0.3em]"
+                                      style={{
+                                        color: isSylActive
+                                          ? '#ffffff'
+                                          : isSylPast
+                                          ? 'rgba(255, 255, 255, 0.95)'
+                                          : 'rgba(255, 255, 255, 0.45)',
+                                        transform: isSylActive ? 'scale(1.12) translateY(-2px)' : 'scale(1)',
+                                        textShadow: isSylActive
+                                          ? '0 0 14px rgba(255, 255, 255, 0.6), 0 0 24px var(--color-stop-1, #6366f1)'
+                                          : undefined,
+                                      }}
+                                    >
+                                      {word}
+                                    </span>
+                                  );
+                                });
+                              }
 
-                              return (
-                                <span
-                                  key={`syl-${sIdx}`}
-                                  className={`inline-block transition-all duration-150 ${
-                                    syl.hasTrailingSpace ? 'mr-[0.3em]' : ''
-                                  }`}
-                                  style={{
-                                    color: isSylActive
-                                      ? 'var(--color-stop-1, #6366f1)'
-                                      : isSylPast
-                                      ? '#ffffff'
-                                      : 'rgba(255, 255, 255, 0.45)',
-                                    transform: isSylActive ? 'scale(1.12) translateY(-2px)' : 'scale(1)',
-                                    textShadow: isSylActive
-                                      ? '0 0 14px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #8b5cf6)'
-                                      : undefined,
-                                  }}
-                                >
-                                  {sylDisplay}
-                                </span>
-                              );
-                            })}
+                              return line.syllables.map((syl, sIdx) => {
+                                const sylStart = syl.timeMs;
+                                const sylEnd = syl.timeMs + syl.durationMs;
+                                const isSylActive =
+                                  isCandidatePlayingThis &&
+                                  activeTimeMs >= sylStart &&
+                                  activeTimeMs < sylEnd;
+                                const isSylPast =
+                                  isCandidatePlayingThis && activeTimeMs >= sylEnd;
+
+                                const sylDisplay =
+                                  isRomanizationEnabled && romanizationMode === 'replace' && syl.romanizedText
+                                    ? syl.romanizedText
+                                    : syl.text;
+
+                                return (
+                                  <span
+                                    key={`syl-${sIdx}`}
+                                    className={`inline-block transition-all duration-150 ${
+                                      syl.hasTrailingSpace ? 'mr-[0.3em]' : ''
+                                    }`}
+                                    style={{
+                                      color: isSylActive
+                                        ? '#ffffff'
+                                        : isSylPast
+                                        ? 'rgba(255, 255, 255, 0.95)'
+                                        : 'rgba(255, 255, 255, 0.45)',
+                                      transform: isSylActive ? 'scale(1.12) translateY(-2px)' : 'scale(1)',
+                                      textShadow: isSylActive
+                                        ? '0 0 14px rgba(255, 255, 255, 0.6), 0 0 24px var(--color-stop-1, #6366f1)'
+                                        : undefined,
+                                    }}
+                                  >
+                                    {sylDisplay}
+                                  </span>
+                                );
+                              });
+                            })()}
                           </div>
                         ) : (
                           <span
                             className="text-sm font-medium"
-                            style={isLineActive ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
+                            style={isLineActive ? { color: '#ffffff' } : undefined}
                           >
                             {mainText}
                           </span>
@@ -1643,9 +1693,6 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                         {subRom && (
                           line.hasSyllables && isLineActive ? (
                             <div className="w-full flex flex-wrap justify-center items-center gap-1 font-mono mt-1.5 select-none">
-                              <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-400 border border-sky-500/20 mr-1 shrink-0">
-                                Rom
-                              </span>
                               {line.syllables.map((syl, sIdx) => {
                                 const sylStart = syl.timeMs;
                                 const sylEnd = syl.timeMs + syl.durationMs;
@@ -1663,14 +1710,14 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                                     style={{
                                       fontSize: '11px',
                                       color: isSylActive
-                                        ? 'var(--color-stop-1, #6366f1)'
+                                        ? '#ffffff'
                                         : isSylPast
-                                        ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 85%, white)'
+                                        ? 'rgba(255, 255, 255, 0.85)'
                                         : 'rgba(255, 255, 255, 0.45)',
                                       fontWeight: isSylActive ? 700 : 400,
-                                      transform: isSylActive ? 'scale(1.08) translateY(-1px)' : 'scale(1)',
+                                      transform: isSylActive ? 'scale(1.06) translateY(-1px)' : 'scale(1)',
                                       textShadow: isSylActive
-                                        ? '0 0 10px var(--color-stop-1, #6366f1)'
+                                        ? '0 0 10px rgba(255, 255, 255, 0.6), 0 0 18px var(--color-stop-1, #6366f1)'
                                         : undefined,
                                     }}
                                   >
@@ -1681,14 +1728,11 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                             </div>
                           ) : (
                             <div
-                              className="w-full flex items-center justify-center gap-1.5 font-mono font-normal mt-1.5 text-xs select-none"
+                              className="w-full flex items-center justify-center font-mono font-normal mt-1.5 text-xs select-none"
                               style={{
-                                color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 75%, white)',
+                                color: 'rgba(255, 255, 255, 0.6)',
                               }}
                             >
-                              <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-400 border border-sky-500/20 shrink-0">
-                                Rom
-                              </span>
                               <span>{subRom}</span>
                             </div>
                           )
@@ -1698,52 +1742,47 @@ export const WordSyncedLyricsFinder: React.FC = () => {
                         {subTrans && (
                           line.hasSyllables && isLineActive ? (
                             <div className="w-full flex flex-wrap justify-center items-center gap-1 font-sans mt-1.5 select-none">
-                              <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 mr-1 shrink-0">
-                                Trans
-                              </span>
-                              {line.syllables.map((syl, sIdx) => {
-                                const sylStart = syl.timeMs;
-                                const sylEnd = syl.timeMs + syl.durationMs;
-                                const isSylActive =
-                                  isCandidatePlayingThis && activeTimeMs >= sylStart && activeTimeMs < sylEnd;
-                                const isSylPast = isCandidatePlayingThis && activeTimeMs >= sylEnd;
-                                const transText = syl.translatedText || syl.text;
+                              {(() => {
+                                const transWords = subTrans.trim().split(/\s+/).filter(Boolean);
+                                const wordDur = line.durationMs / Math.max(1, transWords.length);
+                                return transWords.map((word, wIdx) => {
+                                  const sylStart = line.timeMs + (wIdx * wordDur);
+                                  const sylEnd = sylStart + wordDur;
+                                  const isSylActive =
+                                    isCandidatePlayingThis && activeTimeMs >= sylStart && activeTimeMs < sylEnd;
+                                  const isSylPast = isCandidatePlayingThis && activeTimeMs >= sylEnd;
 
-                                return (
-                                  <span
-                                    key={`syl-trans-${sIdx}`}
-                                    className={`inline-block transition-all duration-150 ${
-                                      syl.hasTrailingSpace ? 'mr-[0.28em]' : ''
-                                    }`}
-                                    style={{
-                                      fontSize: '11px',
-                                      color: isSylActive
-                                        ? 'var(--color-stop-2, #8b5cf6)'
-                                        : isSylPast
-                                        ? 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 85%, white)'
-                                        : 'rgba(255, 255, 255, 0.45)',
-                                      fontWeight: isSylActive ? 700 : 400,
-                                      transform: isSylActive ? 'scale(1.08) translateY(-1px)' : 'scale(1)',
-                                      textShadow: isSylActive
-                                        ? '0 0 10px var(--color-stop-2, #8b5cf6)'
-                                        : undefined,
-                                    }}
-                                  >
-                                    {transText}
-                                  </span>
-                                );
-                              })}
+                                  return (
+                                    <span
+                                      key={`syl-trans-${wIdx}`}
+                                      className="inline-block transition-all duration-150 mr-[0.28em]"
+                                      style={{
+                                        fontSize: '11px',
+                                        color: isSylActive
+                                          ? '#ffffff'
+                                          : isSylPast
+                                          ? 'rgba(255, 255, 255, 0.85)'
+                                          : 'rgba(255, 255, 255, 0.45)',
+                                        fontWeight: isSylActive ? 700 : 400,
+                                        transform: isSylActive ? 'scale(1.06) translateY(-1px)' : 'scale(1)',
+                                        textShadow: isSylActive
+                                          ? '0 0 10px rgba(255, 255, 255, 0.6), 0 0 18px var(--color-stop-1, #6366f1)'
+                                          : undefined,
+                                      }}
+                                    >
+                                      {word}
+                                    </span>
+                                  );
+                                });
+                              })()}
                             </div>
                           ) : (
                             <div
-                              className="w-full flex items-center justify-center gap-1.5 font-sans font-normal mt-1.5 text-xs select-none"
+                              className="w-full flex items-center justify-center font-sans font-normal mt-1.5 text-xs select-none"
                               style={{
-                                color: 'color-mix(in srgb, var(--color-stop-2, #8b5cf6) 75%, white)',
+                                color: 'rgba(255, 255, 255, 0.6)',
                               }}
                             >
-                              <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
-                                Trans
-                              </span>
                               <span>{subTrans}</span>
                             </div>
                           )

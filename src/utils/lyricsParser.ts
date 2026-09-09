@@ -92,6 +92,7 @@ export function parseRichLyrics(
   interface RawExtractedLine {
     timeMs: number;
     text: string;
+    translation?: string;
     explicitSyllables: LyricSyllable[];
   }
 
@@ -116,8 +117,20 @@ export function parseRichLyrics(
     // Strip out leading [mm:ss.xx] tags to get remaining line body
     const body = trimmed.replace(TIMESTAMP_REGEX, '').trim();
 
-    // Check if body has inline syllable timestamps: e.g. <00:12.34> word <00:12.80> word
-    const inlineMatches = Array.from(body.matchAll(INLINE_TAG_REGEX));
+    // Split out any inline translation before parsing syllables so translation doesn't leak into the last syllable!
+    let primaryBody = body;
+    let inlineTrans: string | undefined = undefined;
+    const inlineSepMatch = body.match(/^(.*?)(?:\s*\/\/\s*|\s+[\/\|]\s+)(.+)$/);
+    if (inlineSepMatch) {
+      primaryBody = inlineSepMatch[1].trim();
+      const rawTrans = inlineSepMatch[2].replace(INLINE_TAG_REGEX, '').replace(TIMESTAMP_REGEX, '').trim();
+      if (rawTrans) {
+        inlineTrans = rawTrans;
+      }
+    }
+
+    // Check if primaryBody has inline syllable timestamps: e.g. <00:12.34> word <00:12.80> word
+    const inlineMatches = Array.from(primaryBody.matchAll(INLINE_TAG_REGEX));
     let explicitSyllables: LyricSyllable[] = [];
 
     if (inlineMatches.length > 0) {
@@ -131,8 +144,8 @@ export function parseRichLyrics(
           : sylTime + 600;
 
         const startIndex = (match.index ?? 0) + match[0].length;
-        const endIndex = nextMatch ? (nextMatch.index ?? body.length) : body.length;
-        const sylText = body.slice(startIndex, endIndex);
+        const endIndex = nextMatch ? (nextMatch.index ?? primaryBody.length) : primaryBody.length;
+        const sylText = primaryBody.slice(startIndex, endIndex);
 
         if (sylText.trim()) {
           explicitSyllables.push({
@@ -146,7 +159,7 @@ export function parseRichLyrics(
     }
 
     // Clean display text without <tags>
-    const cleanText = body.replace(INLINE_TAG_REGEX, '').trim();
+    const cleanText = primaryBody.replace(INLINE_TAG_REGEX, '').trim();
     if (!cleanText && explicitSyllables.length === 0) continue;
 
     for (const match of lineTimeMatches) {
@@ -154,6 +167,7 @@ export function parseRichLyrics(
       extracted.push({
         timeMs: Math.max(0, lineTime),
         text: cleanText,
+        translation: inlineTrans,
         explicitSyllables,
       });
     }
@@ -168,13 +182,21 @@ export function parseRichLyrics(
     rawLines.forEach((line, idx) => {
       const t = line.trim();
       if (t) {
+        let content = t;
+        let translation: string | undefined = undefined;
+        const sepMatch = t.match(/^(.*?)(?:\s*\/\/\s*|\s+[\/\|]\s+)(.+)$/);
+        if (sepMatch) {
+          content = sepMatch[1].trim();
+          translation = sepMatch[2].replace(INLINE_TAG_REGEX, '').replace(TIMESTAMP_REGEX, '').trim();
+        }
         unsynced.push({
           id: `unsynced-${idx}`,
           timeMs: -1,
           startSecs: -1,
           durationMs: 0,
           durationSecs: 0,
-          content: t,
+          content,
+          translation,
           syllables: [],
           hasSyllables: false,
           hasExplicitSyllables: false,
@@ -191,33 +213,28 @@ export function parseRichLyrics(
     const cur = extracted[i];
     let next = extracted[i + 1];
     let content = cur.text;
-    let translation: string | undefined = undefined;
+    let translation: string | undefined = cur.translation;
 
     const hasNonLatin = (str: string) =>
       /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\u0400-\u04ff\uac00-\ud7af]/.test(str);
 
     // Only treat next line as translation if it's explicitly bilingual (e.g. CJK original + Latin translation)
     // and neither line is an explicit vocal marker like "(Singer)" or "[Chorus]"
-    const isBilingualTranslationPair =
-      next &&
-      Math.abs(next.timeMs - cur.timeMs) <= 150 &&
-      next.text.trim() &&
-      next.text.trim() !== cur.text.trim() &&
-      hasNonLatin(cur.text) &&
-      !hasNonLatin(next.text) &&
-      !next.text.trim().startsWith('(') &&
-      !cur.text.trim().startsWith('(');
+    if (!translation) {
+      const isBilingualTranslationPair =
+        next &&
+        Math.abs(next.timeMs - cur.timeMs) <= 150 &&
+        next.text.trim() &&
+        next.text.trim() !== cur.text.trim() &&
+        hasNonLatin(cur.text) &&
+        !hasNonLatin(next.text) &&
+        !next.text.trim().startsWith('(') &&
+        !cur.text.trim().startsWith('(');
 
-    if (isBilingualTranslationPair && next) {
-      translation = next.text.trim();
-      i++; // consume translated line
-      next = extracted[i + 1];
-    } else {
-      // Check for inline separator (e.g. "Original // Translation" or "Original / Translation" or "Original | Translation")
-      const sepMatch = content.split(/\s+\/\/\s+|\s+\/\s+|\s+\|\s+/);
-      if (sepMatch.length === 2 && sepMatch[0].trim() && sepMatch[1].trim()) {
-        content = sepMatch[0].trim();
-        translation = sepMatch[1].trim();
+      if (isBilingualTranslationPair && next) {
+        translation = next.text.trim();
+        i++; // consume translated line
+        next = extracted[i + 1];
       }
     }
 
@@ -238,7 +255,7 @@ export function parseRichLyrics(
       durationMs =
         rawDur < 1500 && wordsCount > 2
           ? Math.min(8000, estimatedSingMs)
-          : Math.min(9000, Math.max(1500, rawDur));
+          : Math.max(1200, rawDur);
     }
 
     let syllables: LyricSyllable[] = [];
@@ -250,28 +267,6 @@ export function parseRichLyrics(
     } else if (options?.inferWordSync && content.trim()) {
       syllables = inferLineSyllables(content, cur.timeMs, durationMs);
       hasSyllables = syllables.length > 0;
-    }
-
-    // Align official/fan translation words to syllables if present
-    if (translation && syllables.length > 0) {
-      const transWords = translation.trim().split(/\s+/).filter(Boolean);
-      if (transWords.length > 0) {
-        syllables = syllables.map((syl, sIdx) => {
-          const transWordIdx = Math.min(
-            transWords.length - 1,
-            Math.floor((sIdx / syllables.length) * transWords.length)
-          );
-          const prevTransIdx =
-            sIdx > 0
-              ? Math.floor(((sIdx - 1) / syllables.length) * transWords.length)
-              : -1;
-          const wordText = transWordIdx !== prevTransIdx ? transWords[transWordIdx] : '';
-          return {
-            ...syl,
-            translatedText: wordText || undefined,
-          };
-        });
-      }
     }
 
     result.push({

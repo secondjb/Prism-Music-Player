@@ -1372,19 +1372,66 @@ export const LyricsView: React.FC = () => {
   const isProgrammaticScrollRef = useRef(false);
   const userInteractingRef = useRef(false);
   const userInteractionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const programmaticScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Tracking refs to ensure single, smooth monotonic forward movement during playback
+  const lastScrolledMaxLineRef = useRef<number>(-1);
+  const lastScrolledInterludeRef = useRef<string | null>(null);
+  const lastScrollTargetRef = useRef<number>(0);
+  const lastCurrentTimeRef = useRef<number>(currentTime);
+
+  // Detect manual seeks or skips (time jumping backwards or skipping > 2.5s) and reset monotonic scroll clamp
+  useEffect(() => {
+    const dt = currentTime - lastCurrentTimeRef.current;
+    if (dt < -0.5 || dt > 2.5) {
+      lastScrolledMaxLineRef.current = -1;
+      lastScrollTargetRef.current = 0;
+      lastScrolledInterludeRef.current = null;
+    }
+    lastCurrentTimeRef.current = currentTime;
+  }, [currentTime]);
+
+  // When lines change or reload, reset scroll tracking
+  useEffect(() => {
+    lastScrolledMaxLineRef.current = -1;
+    lastScrollTargetRef.current = 0;
+    lastScrolledInterludeRef.current = null;
+  }, [lines]);
 
   // Stable key representing currently active lines
   const activeLinesKey = Array.from(activeLineIndices).sort((a, b) => a - b).join(',');
 
-  // Smart centering target calculation: centers multi-line active groups while prioritizing current line
-  const getSmartScrollTarget = useCallback(() => {
+  // The furthest active line index in forward playback
+  const maxActiveLine = activeLineIndices.size > 0
+    ? Math.max(...Array.from(activeLineIndices))
+    : activeIndex;
+
+  // Unified seek handler that resets scroll tracking and sync state
+  const handleSeek = useCallback((secs: number) => {
+    lastScrolledMaxLineRef.current = -1;
+    lastScrollTargetRef.current = 0;
+    lastScrolledInterludeRef.current = null;
+    seek(secs);
+    setIsUserScrolled(false);
+  }, [seek]);
+
+  // Smart centering target calculation: centers multi-line active groups while prioritizing current line.
+  // Enforces monotonic forward scrolling during normal playback so it never bounces backwards.
+  const getSmartScrollTarget = useCallback((force: boolean = false, readOnly: boolean = false) => {
     const containerEl = containerRef.current;
     if (!containerEl) return null;
 
     if (activeInterlude) {
       const targetEl = document.getElementById(activeInterlude.key);
       if (targetEl) {
-        return Math.max(0, targetEl.offsetTop - containerEl.clientHeight / 2 + targetEl.clientHeight / 2);
+        const target = Math.max(0, targetEl.offsetTop - containerEl.clientHeight / 2 + targetEl.clientHeight / 2);
+        if (!force && target < lastScrollTargetRef.current) {
+          return lastScrollTargetRef.current;
+        }
+        if (!readOnly) {
+          lastScrollTargetRef.current = target;
+        }
+        return target;
       }
       return null;
     }
@@ -1405,38 +1452,53 @@ export const LyricsView: React.FC = () => {
       .map((i) => document.getElementById(`lyric-line-${i}`))
       .filter((el): el is HTMLElement => el !== null);
 
-    if (activeEls.length <= 1) {
-      return Math.max(0, primaryIdealScrollTop);
+    let idealTop = primaryIdealScrollTop;
+
+    if (activeEls.length > 1) {
+      const groupTop = Math.min(...activeEls.map((el) => el.offsetTop));
+      const groupBottom = Math.max(...activeEls.map((el) => el.offsetTop + el.clientHeight));
+      const groupHeight = groupBottom - groupTop;
+      const groupCenter = groupTop + groupHeight / 2;
+      const idealGroupScrollTop = groupCenter - containerEl.clientHeight / 2;
+
+      // Prioritize the current line: allow group centering while keeping current line comfortably near center
+      const maxDisplacement = Math.min(containerEl.clientHeight * 0.18, 120);
+      const delta = idealGroupScrollTop - primaryIdealScrollTop;
+      const clampedDelta = Math.max(-maxDisplacement, Math.min(maxDisplacement, delta));
+
+      idealTop = primaryIdealScrollTop + clampedDelta;
     }
 
-    const groupTop = Math.min(...activeEls.map((el) => el.offsetTop));
-    const groupBottom = Math.max(...activeEls.map((el) => el.offsetTop + el.clientHeight));
-    const groupHeight = groupBottom - groupTop;
-    const groupCenter = groupTop + groupHeight / 2;
-    const idealGroupScrollTop = groupCenter - containerEl.clientHeight / 2;
+    const target = Math.max(0, idealTop);
 
-    // Prioritize the current line: allow group centering while keeping current line comfortably near center
-    const maxDisplacement = Math.min(containerEl.clientHeight * 0.18, 120);
-    const delta = idealGroupScrollTop - primaryIdealScrollTop;
-    const clampedDelta = Math.max(-maxDisplacement, Math.min(maxDisplacement, delta));
+    // During forward playback, enforce monotonic downward scrolling to eliminate any upward bouncing
+    if (!force && target < lastScrollTargetRef.current) {
+      return lastScrollTargetRef.current;
+    }
 
-    return Math.max(0, primaryIdealScrollTop + clampedDelta);
+    if (!readOnly) {
+      lastScrollTargetRef.current = target;
+    }
+    return target;
   }, [activeIndex, activeInterlude?.key, activeLinesKey]);
 
   // 4. Smooth scroll active line or balanced multi-line group to center
-  const scrollToActive = useCallback(() => {
+  const scrollToActive = useCallback((force: boolean = false) => {
     const containerEl = containerRef.current;
     if (!containerEl) return;
 
-    const targetTop = getSmartScrollTarget();
+    const targetTop = getSmartScrollTarget(force);
     if (targetTop !== null) {
+      if (programmaticScrollTimerRef.current) {
+        clearTimeout(programmaticScrollTimerRef.current);
+      }
       isProgrammaticScrollRef.current = true;
       setIsScrollbarVisible(false);
       containerEl.scrollTo({
         top: targetTop,
         behavior: 'smooth',
       });
-      setTimeout(() => {
+      programmaticScrollTimerRef.current = setTimeout(() => {
         isProgrammaticScrollRef.current = false;
       }, 800);
     }
@@ -1446,32 +1508,35 @@ export const LyricsView: React.FC = () => {
   useEffect(() => {
     setIsUserScrolled(false);
     setIsScrollbarVisible(false);
+    lastScrolledMaxLineRef.current = -1;
+    lastScrollTargetRef.current = 0;
+    lastScrolledInterludeRef.current = null;
     if (containerRef.current) {
+      if (programmaticScrollTimerRef.current) clearTimeout(programmaticScrollTimerRef.current);
       isProgrammaticScrollRef.current = true;
       containerRef.current.scrollTo({
         top: 0,
         behavior: 'smooth',
       });
-      const timer = setTimeout(() => {
+      programmaticScrollTimerRef.current = setTimeout(() => {
         isProgrammaticScrollRef.current = false;
       }, 800);
-      return () => clearTimeout(timer);
     }
   }, [currentTrack?.id]);
 
   // Keep at top if lyrics load and song is at intro (activeIndex === -1 and no interlude)
   useEffect(() => {
     if (activeIndex === -1 && !activeInterlude && !isUserScrolled && containerRef.current) {
+      if (programmaticScrollTimerRef.current) clearTimeout(programmaticScrollTimerRef.current);
       isProgrammaticScrollRef.current = true;
       setIsScrollbarVisible(false);
       containerRef.current.scrollTo({
         top: 0,
         behavior: 'smooth',
       });
-      const timer = setTimeout(() => {
+      programmaticScrollTimerRef.current = setTimeout(() => {
         isProgrammaticScrollRef.current = false;
       }, 600);
-      return () => clearTimeout(timer);
     }
   }, [lines, activeIndex, activeInterlude?.key, isUserScrolled]);
 
@@ -1502,7 +1567,7 @@ export const LyricsView: React.FC = () => {
 
       // Only unsync if it's NOT a programmatic scroll, user is actively scrolling, and scrolled away from active line/interlude
       if (!isProgrammaticScrollRef.current && userInteractingRef.current) {
-        const targetTop = getSmartScrollTarget();
+        const targetTop = getSmartScrollTarget(true, true);
         if (targetTop !== null) {
           const distance = Math.abs(el.scrollTop - targetTop);
           // Require at least 100px displacement from the centered active item to consider it an unsync scroll
@@ -1525,14 +1590,36 @@ export const LyricsView: React.FC = () => {
       el.removeEventListener('pointerdown', markUserInteracting);
       if (scrollbarTimerRef.current) clearTimeout(scrollbarTimerRef.current);
       if (userInteractionTimeoutRef.current) clearTimeout(userInteractionTimeoutRef.current);
+      if (programmaticScrollTimerRef.current) clearTimeout(programmaticScrollTimerRef.current);
     };
   }, [getSmartScrollTarget]);
 
+  // Auto-scroll effect: ONLY fires when advancing forward to a new line index or new interlude.
+  // When an older/concurrent line finishes singing, maxActiveLine does not advance, so ZERO scroll is triggered.
   useEffect(() => {
-    if (!isUserScrolled && (activeInterlude || activeIndex !== -1 || activeLineIndices.size > 0)) {
+    if (isUserScrolled) return;
+
+    // Case 1: Interlude active
+    if (activeInterlude) {
+      if (lastScrolledInterludeRef.current !== activeInterlude.key) {
+        lastScrolledInterludeRef.current = activeInterlude.key;
+        scrollToActive();
+      }
+      return;
+    }
+
+    // Interlude ended
+    if (lastScrolledInterludeRef.current !== null) {
+      lastScrolledInterludeRef.current = null;
+    }
+
+    // Case 2: Lyric lines active
+    // Advance ONLY when a new line is reached (maxActiveLine > lastScrolledMaxLineRef.current)
+    if (maxActiveLine !== -1 && maxActiveLine > lastScrolledMaxLineRef.current) {
+      lastScrolledMaxLineRef.current = maxActiveLine;
       scrollToActive();
     }
-  }, [activeIndex, activeLinesKey, activeInterlude?.key, isUserScrolled, scrollToActive]);
+  }, [maxActiveLine, activeInterlude?.key, isUserScrolled, scrollToActive]);
 
   const handleClose = async () => {
     setShowLyricsFullscreen(false);
@@ -2098,8 +2185,11 @@ export const LyricsView: React.FC = () => {
         {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
           <button
             onClick={() => {
+              lastScrolledMaxLineRef.current = -1;
+              lastScrollTargetRef.current = 0;
+              lastScrolledInterludeRef.current = null;
               setIsUserScrolled(false);
-              scrollToActive();
+              scrollToActive(true);
             }}
             style={{
               background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #818cf8))',
@@ -2167,10 +2257,7 @@ export const LyricsView: React.FC = () => {
                     }
                     lyricsFontSizePreset={lyricsFontSizePreset}
                     activeFontSize={activeFontSize}
-                    onSeek={(secs) => {
-                      seek(secs);
-                      setIsUserScrolled(false);
-                    }}
+                    onSeek={handleSeek}
                   />
                 )}
                 <LyricLineRow
@@ -2190,10 +2277,7 @@ export const LyricsView: React.FC = () => {
                   inactiveFontSize={inactiveFontSize}
                   currentTimeMs={currentTimeMs}
                   activeLineRef={activeLineRef}
-                  onSeek={(secs) => {
-                    seek(secs);
-                    setIsUserScrolled(false);
-                  }}
+                  onSeek={handleSeek}
                 />
               </React.Fragment>
             );
@@ -2340,7 +2424,7 @@ export const LyricsView: React.FC = () => {
                 min={0}
                 max={duration || 100}
                 step={0.1}
-                onChange={(val) => seek(val)}
+                onChange={handleSeek}
                 size="md"
                 className="flex-1"
                 formatTooltip={(val) => formatTime(val)}
@@ -2352,7 +2436,7 @@ export const LyricsView: React.FC = () => {
                 min={0}
                 max={duration || 100}
                 step={0.1}
-                onChange={(val) => seek(val)}
+                onChange={handleSeek}
                 size="md"
                 className="flex-1"
                 formatTooltip={(val) => formatTime(val)}

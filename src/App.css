@@ -371,7 +371,7 @@ revo-grid revogr-viewport-scroll.colPinEnd::-webkit-scrollbar {
   height: 0 !important;
 }
 
-/* 2. Song Grid: Exactly ONE vertical scrollbar, themed according to the current song */
+/* 2. Song Grid: Exactly ONE vertical scrollbar, themed according to the current song, stretching to the bottom */
 revo-grid revogr-scroll-virtual,
 revo-grid revogr-scroll-virtual.vertical,
 revo-grid revogr-scroll-virtual[dimension="rgRow"],
@@ -381,9 +381,9 @@ revogr-scroll-virtual[dimension="rgRow"] {
   position: absolute !important;
   top: 48px !important;
   right: 2px !important;
-  bottom: 104px !important;
+  bottom: 4px !important;
   height: auto !important;
-  max-height: calc(100% - 48px - 104px) !important;
+  max-height: calc(100% - 48px - 4px) !important;
   width: 8px !important;
   min-width: 8px !important;
   max-width: 8px !important;
@@ -395,6 +395,20 @@ revogr-scroll-virtual[dimension="rgRow"] {
   z-index: 50 !important;
   scrollbar-width: thin !important;
   scrollbar-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 60%, rgba(255, 255, 255, 0.3)) transparent !important;
+}
+
+/* 2b. Auto-height Tables (Albums, Artists): No internal scrollbars; all songs are displayed in full and the outer page scrolls */
+.auto-height-grid revogr-scroll-virtual,
+.auto-height-grid revogr-scroll-virtual.vertical,
+.auto-height-grid revogr-scroll-virtual[dimension="rgRow"],
+.auto-height-grid revogr-viewport-scroll,
+.auto-height-grid revogr-viewport-scroll.vertical {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 revo-grid:hover revogr-scroll-virtual.vertical,

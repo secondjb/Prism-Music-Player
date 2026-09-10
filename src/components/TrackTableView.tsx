@@ -1426,7 +1426,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         ref={containerRef}
         tabIndex={0}
         onKeyDown={onKeyDown}
-        className={autoHeight ? 'w-full relative outline-none' : 'flex-1 w-full relative outline-none overflow-hidden'}
+        className={autoHeight ? 'w-full relative outline-none auto-height-grid' : 'flex-1 w-full relative outline-none overflow-hidden'}
         style={autoHeight ? { height: `${calculatedHeight}px`, minHeight: `${calculatedHeight}px` } : { minHeight: 0 }}
       >
         <RevoGrid

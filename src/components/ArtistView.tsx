@@ -91,7 +91,7 @@ export const ArtistView: React.FC = () => {
   const sortedAlbums = Object.keys(albumsMap).sort();
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto pr-2 pb-12">
+    <div className="flex flex-col h-full overflow-y-auto pr-2 pb-28 custom-scrollbar">
       <div className="flex items-center gap-4 mb-6 sticky top-0 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl px-6 py-3.5 z-10 shadow-lg my-2">
         <button 
           onClick={() => setActiveTab('artists')}

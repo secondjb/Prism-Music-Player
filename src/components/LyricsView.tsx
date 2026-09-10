@@ -270,14 +270,14 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
       return groups;
     }, [line.syllables]);
 
-    const lineMaxWidthClass =
-      lyricsFontSizePreset === 'maximum'
-        ? 'max-w-[min(1100px,92vw)]'
+    const lineMaxWidth =
+      lyricsFontSizePreset === 'balanced'
+        ? 'min(1750px, 95vw)'
+        : lyricsFontSizePreset === 'maximum'
+        ? 'min(1400px, 94vw)'
         : lyricsFontSizePreset === 'large'
-        ? 'max-w-[min(920px,90vw)]'
-        : lyricsFontSizePreset === 'balanced'
-        ? 'max-w-[min(1400px,90vw)]'
-        : 'max-w-[min(820px,86vw)]';
+        ? 'min(1100px, 90vw)'
+        : 'min(900px, 86vw)';
 
     return (
       <motion.div
@@ -295,7 +295,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
           damping: lyricsAnimationStyle === 'karaoke_pulse' ? 16 : 22,
           stiffness: lyricsAnimationStyle === 'karaoke_pulse' ? 140 : 170,
         }}
-        className={`text-center cursor-pointer ${lineMaxWidthClass} w-full px-6 py-3 rounded-2xl flex flex-col items-center justify-center transition-all duration-200 break-words [text-wrap:balance] ${
+        className={`text-center cursor-pointer w-full px-6 py-3 rounded-2xl flex flex-col items-center justify-center transition-all duration-200 break-words [text-wrap:balance] ${
           isActive && !isUnsynced
             ? 'font-extrabold'
             : isUnsynced
@@ -303,6 +303,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
             : 'text-zinc-400 hover:text-zinc-200 font-medium'
         }`}
         style={{
+          maxWidth: lineMaxWidth,
           fontSize: isActive && !isUnsynced ? `${activeFontSize}px` : `${inactiveFontSize}px`,
           lineHeight: 1.35,
           ...(isCardPopActive
@@ -327,7 +328,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
         }}
       >
         {/* Granular Syllable / Word rendering with Jumping text */}
-        {line.hasSyllables && isActive && !isUnsynced ? (
+        {line.hasSyllables && !isUnsynced ? (
           <div className="inline-flex flex-wrap justify-center items-baseline text-center max-w-full">
             {(() => {
               if (showTrans && translationMode === 'replace' && line.translation) {
@@ -336,8 +337,8 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                 return transWords.map((word, wIdx) => {
                   const sylStart = line.timeMs + (wIdx * wordDur);
                   const sylEnd = sylStart + wordDur;
-                  const isSylActive = currentTimeMs >= sylStart && currentTimeMs < sylEnd;
-                  const isSylPast = currentTimeMs >= sylEnd;
+                  const isSylActive = isActive && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
+                  const isSylPast = isPast || (isActive && currentTimeMs >= sylEnd);
 
                   let sylLift = 0;
                   let sylScale = 1;
@@ -420,8 +421,8 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                   {group.syllables.map(({ syl, sIdx }) => {
                     const sylStart = syl.timeMs;
                     const sylEnd = syl.timeMs + syl.durationMs;
-                    const isSylActive = currentTimeMs >= sylStart && currentTimeMs < sylEnd;
-                    const isSylPast = currentTimeMs >= sylEnd;
+                    const isSylActive = isActive && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
+                    const isSylPast = isPast || (isActive && currentTimeMs >= sylEnd);
 
                     let sylLift = 0;
                     let sylScale = 1;
@@ -522,7 +523,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
 
         {/* Word-by-Word Romanization Underneath */}
         {subRom && (
-          line.hasSyllables && isActive && !isUnsynced ? (
+          line.hasSyllables && !isUnsynced ? (
             <div className="w-full flex flex-wrap justify-center items-center gap-1 font-mono mt-1.5 select-none text-center">
               {wordGroups.map((group) => (
                 <span
@@ -534,8 +535,8 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                   {group.syllables.map(({ syl, sIdx }) => {
                     const sylStart = syl.timeMs;
                     const sylEnd = syl.timeMs + syl.durationMs;
-                    const isSylActive = currentTimeMs >= sylStart && currentTimeMs < sylEnd;
-                    const isSylPast = currentTimeMs >= sylEnd;
+                    const isSylActive = isActive && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
+                    const isSylPast = isPast || (isActive && currentTimeMs >= sylEnd);
                     const romText = syl.romanizedText || syl.text;
 
                     return (
@@ -578,7 +579,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
 
         {/* Word-by-Word Translation Underneath */}
         {subTrans && (
-          line.hasSyllables && isActive && !isUnsynced ? (
+          line.hasSyllables && !isUnsynced ? (
             <div className="w-full flex flex-wrap justify-center items-center gap-1 font-sans mt-1.5 select-none text-center">
               {(() => {
                 const transWords = subTrans.trim().split(/\s+/).filter(Boolean);
@@ -586,8 +587,8 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                 return transWords.map((word, wIdx) => {
                   const sylStart = line.timeMs + (wIdx * wordDur);
                   const sylEnd = sylStart + wordDur;
-                  const isSylActive = currentTimeMs >= sylStart && currentTimeMs < sylEnd;
-                  const isSylPast = currentTimeMs >= sylEnd;
+                  const isSylActive = isActive && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
+                  const isSylPast = isPast || (isActive && currentTimeMs >= sylEnd);
 
                   return (
                     <span
@@ -1104,12 +1105,12 @@ export const LyricsView: React.FC = () => {
     const repNormWidth = normWidths[Math.min(normWidths.length - 1, Math.floor(normWidths.length * 0.90))];
     const medianNormWidth = normWidths[Math.floor(normWidths.length * 0.5)];
 
-    // Majority of window horizontal space (90vw, capped at 1400px), minus padding (48px)
-    const availWidth = Math.max(300, Math.min(windowWidth * 0.90, 1400) - 48);
+    // Majority of window horizontal space (95vw, up to 1750px), minus padding (48px)
+    const availWidth = Math.max(320, Math.min(windowWidth * 0.95, 1750) - 48);
 
     // Target vertical height budget for 3 lines (active line + 2 inactive lines + gaps + padding)
-    // We target ~58% of window height (leaving comfortable space for header controls and bottom seekbar)
-    const targetHeight = Math.max(260, Math.min(windowHeight * 0.58, windowHeight - 200));
+    // Lyrics view centers 3 lines on screen; we budget up to 72% of window height (leaving plenty of room for header and seekbar)
+    const targetHeight = Math.max(340, Math.min(windowHeight * 0.72, windowHeight - 160));
 
     // Has sub-text (translation / romanization) rendered below active line?
     const hasTrans = isTranslationEnabled && translationMode === 'below' && validLines.some((l) => l.translation && !isIdenticalLyricText(l.content, l.translation));
@@ -1117,17 +1118,17 @@ export const LyricsView: React.FC = () => {
     const subLineCount = (hasTrans ? 1 : 0) + (hasRom ? 1 : 0);
 
     // Search from largest desired font size down to minimum comfortable size
-    const maxCandidate = Math.min(64, Math.round(windowHeight * 0.075));
+    const maxCandidate = Math.min(76, Math.round(windowHeight * 0.085));
     const minCandidate = 30;
 
     let bestSize = minCandidate;
     for (let candidateF = maxCandidate; candidateF >= minCandidate; candidateF--) {
       const activeWrappedLines = Math.max(1, Math.ceil((repNormWidth * candidateF) / availWidth));
-      const inactiveF = Math.max(16, candidateF * 0.65);
-      const inactiveWrappedLines = Math.max(1, Math.ceil((medianNormWidth * inactiveF) / availWidth));
+      // In balanced mode, inactive lines have uniform font size
+      const inactiveWrappedLines = Math.max(1, Math.ceil((medianNormWidth * candidateF) / availWidth));
 
-      const activeHeight = activeWrappedLines * (candidateF * 1.35) + 24 + subLineCount * (Math.max(12, inactiveF * 0.65) * 1.3 + 8);
-      const inactiveHeight = 2 * (inactiveWrappedLines * (inactiveF * 1.35) + 24);
+      const activeHeight = activeWrappedLines * (candidateF * 1.35) + 24 + subLineCount * (Math.max(12, candidateF * 0.45) * 1.3 + 8);
+      const inactiveHeight = 2 * (inactiveWrappedLines * (candidateF * 1.35) + 24);
       const gapsHeight = 48; // two 24px gaps between the 3 lines
 
       const totalRequiredHeight = activeHeight + inactiveHeight + gapsHeight;
@@ -1143,10 +1144,9 @@ export const LyricsView: React.FC = () => {
     if (bestSize === minCandidate) {
       for (let candidateF = maxCandidate; candidateF >= minCandidate; candidateF--) {
         const activeWrappedLines = Math.max(1, Math.ceil((repNormWidth * candidateF) / availWidth));
-        const inactiveF = Math.max(16, candidateF * 0.65);
-        const inactiveWrappedLines = Math.max(1, Math.ceil((medianNormWidth * inactiveF) / availWidth));
+        const inactiveWrappedLines = Math.max(1, Math.ceil((medianNormWidth * candidateF) / availWidth));
         const activeHeight = activeWrappedLines * (candidateF * 1.35) + 24;
-        const inactiveHeight = 2 * (inactiveWrappedLines * (inactiveF * 1.35) + 24);
+        const inactiveHeight = 2 * (inactiveWrappedLines * (candidateF * 1.35) + 24);
         if (activeHeight + inactiveHeight + 48 <= targetHeight) {
           bestSize = candidateF;
           break;
@@ -1169,7 +1169,10 @@ export const LyricsView: React.FC = () => {
     // Fill the screen so exactly 3 lines are shown, but cap it so it doesn't wrap excessively
     activeFontSize = Math.max(42, Math.min(windowHeight * 0.15, windowWidth * 0.07));
   }
-  const inactiveFontSize = Math.max(16, activeFontSize * 0.65);
+  const inactiveFontSize =
+    lyricsFontSizePreset === 'balanced'
+      ? activeFontSize
+      : Math.max(16, activeFontSize * 0.65);
 
   // Auto-hide controls logic on mouse idle
   useEffect(() => {

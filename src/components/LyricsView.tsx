@@ -6,7 +6,7 @@ import { AudioSlider } from './AudioSlider';
 import { WavyAudioSlider } from './WavyAudioSlider';
 import { M3Selector } from './M3Selector';
 import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
-import { parseRichLyrics, ParsedLyricLine, LyricSyllable, hasExplicitWordSync } from '../utils/lyricsParser';
+import { parseRichLyrics, ParsedLyricLine, LyricSyllable, hasExplicitWordSync, isIdenticalLyricText } from '../utils/lyricsParser';
 import { createRomanizer, detectScript } from 'lyric-romanizer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
@@ -128,7 +128,10 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
     }
 
     const showRom = isRomanizationEnabled && Boolean(line.romanized);
-    const showTrans = isTranslationEnabled && Boolean(line.translation);
+    const showTrans =
+      isTranslationEnabled &&
+      Boolean(line.translation) &&
+      !isIdenticalLyricText(line.content, line.translation);
 
     let mainText = line.content;
     if (showTrans && translationMode === 'replace' && line.translation) {
@@ -385,20 +388,21 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                         stiffness: 220,
                       }}
                       className={`inline-block whitespace-nowrap transition-colors mr-[0.28em] ${
-                        isSylActive
-                          ? 'text-white drop-shadow-md'
-                          : isSylPast
-                          ? 'text-white/95'
-                          : 'text-white/45'
+                        isSylActive ? 'drop-shadow-md' : ''
                       }`}
-                      style={
-                        isSylActive && lyricsAnimationStyle === 'lossless_glow'
+                      style={{
+                        color: isSylActive
+                          ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, #ffffff)'
+                          : isSylPast
+                          ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, rgba(255, 255, 255, 0.92))'
+                          : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 14%, rgba(255, 255, 255, 0.45))',
+                        ...(isSylActive && lyricsAnimationStyle === 'lossless_glow'
                           ? {
                               textShadow:
                                 '0 0 12px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #818cf8)',
                             }
-                          : undefined
-                      }
+                          : undefined),
+                      }}
                     >
                       {word}
                     </motion.span>
@@ -497,7 +501,21 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
             })()}
           </div>
         ) : (
-          <div className={`break-words [text-wrap:balance] ${isActive ? 'text-white' : undefined}`} style={lineGlowStyle}>
+          <div
+            className={`break-words [text-wrap:balance] ${
+              isActive && !(showTrans && translationMode === 'replace') ? 'text-white' : undefined
+            }`}
+            style={{
+              ...lineGlowStyle,
+              ...(showTrans && translationMode === 'replace'
+                ? {
+                    color: isActive
+                      ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, #ffffff)'
+                      : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.5))',
+                  }
+                : {}),
+            }}
+          >
             {mainText}
           </div>
         )}
@@ -578,10 +596,10 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                       style={{
                         fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
                         color: isSylActive
-                          ? '#ffffff'
+                          ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, #ffffff)'
                           : isSylPast
-                          ? 'rgba(255, 255, 255, 0.85)'
-                          : 'rgba(255, 255, 255, 0.45)',
+                          ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, rgba(255, 255, 255, 0.85))'
+                          : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.45))',
                         fontWeight: isSylActive ? 700 : 400,
                         transform: isSylActive ? 'scale(1.06) translateY(-1px)' : 'scale(1)',
                         textShadow: isSylActive
@@ -600,7 +618,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
               className="w-full flex items-center justify-center font-sans font-normal mt-1.5 select-none break-words [text-wrap:balance] text-center"
               style={{
                 fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
-                color: 'rgba(255, 255, 255, 0.6)',
+                color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, rgba(255, 255, 255, 0.7))',
               }}
             >
               <span>{subTrans}</span>

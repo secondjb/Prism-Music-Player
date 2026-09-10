@@ -26,6 +26,12 @@ const TIMESTAMP_REGEX = /\[(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?\]/g;
 const INLINE_TAG_REGEX = /<(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?>/g;
 const OFFSET_REGEX = /\[offset:\s*([+-]?\d+)\s*\]/i;
 
+export function isIdenticalLyricText(a: string, b?: string | null): boolean {
+  if (!b) return false;
+  const clean = (s: string) => s.trim().toLowerCase().replace(/[\s\p{P}]+/gu, '');
+  return clean(a) === clean(b);
+}
+
 function parseTimestampMs(minStr: string, secStr: string, fracStr?: string): number {
   const min = parseInt(minStr, 10) || 0;
   const sec = parseInt(secStr, 10) || 0;
@@ -124,7 +130,7 @@ export function parseRichLyrics(
     if (inlineSepMatch) {
       primaryBody = inlineSepMatch[1].trim();
       const rawTrans = inlineSepMatch[2].replace(INLINE_TAG_REGEX, '').replace(TIMESTAMP_REGEX, '').trim();
-      if (rawTrans) {
+      if (rawTrans && !isIdenticalLyricText(primaryBody.replace(INLINE_TAG_REGEX, '').trim(), rawTrans)) {
         inlineTrans = rawTrans;
       }
     }
@@ -187,7 +193,10 @@ export function parseRichLyrics(
         const sepMatch = t.match(/^(.*?)(?:\s*\/\/\s*|\s+[\/\|]\s+)(.+)$/);
         if (sepMatch) {
           content = sepMatch[1].trim();
-          translation = sepMatch[2].replace(INLINE_TAG_REGEX, '').replace(TIMESTAMP_REGEX, '').trim();
+          const rawTrans = sepMatch[2].replace(INLINE_TAG_REGEX, '').replace(TIMESTAMP_REGEX, '').trim();
+          if (rawTrans && !isIdenticalLyricText(content, rawTrans)) {
+            translation = rawTrans;
+          }
         }
         unsynced.push({
           id: `unsynced-${idx}`,
@@ -199,7 +208,6 @@ export function parseRichLyrics(
           translation,
           syllables: [],
           hasSyllables: false,
-          hasExplicitSyllables: false,
         });
       }
     });
@@ -236,6 +244,10 @@ export function parseRichLyrics(
         i++; // consume translated line
         next = extracted[i + 1];
       }
+    }
+
+    if (translation && isIdenticalLyricText(content, translation)) {
+      translation = undefined;
     }
 
     const hasExplicit = cur.explicitSyllables.length > 0;

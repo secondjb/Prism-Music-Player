@@ -64,7 +64,7 @@ const AlbumSection: React.FC<{ albumName: string; tracks: Track[]; artistName: s
           <p className="text-zinc-400 text-sm mt-1">{artistName} • {tracks.length} songs</p>
         </div>
       </div>
-      <TrackList tracks={tracks} hideControls={true} />
+      <TrackList tracks={tracks} hideControls={true} autoHeight={true} />
     </div>
   );
 };

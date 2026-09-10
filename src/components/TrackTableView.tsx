@@ -41,6 +41,7 @@ interface TrackTableViewProps {
   playlistId?: string;
   onRemoveFromPlaylist?: (trackId: string) => void;
   hideControls?: boolean;
+  autoHeight?: boolean;
 }
 
 const formatDuration = (secs: number) => {
@@ -793,6 +794,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   playlistId,
   onRemoveFromPlaylist,
   hideControls = false,
+  autoHeight = false,
 }) => {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const playTrack = usePlayerStore((s) => s.playTrack);
@@ -1231,6 +1233,10 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       rowClass: `group/row select-none ${currentTrack?.id === track.id ? 'is-current-playing' : ''}`,
     }));
 
+    if (autoHeight) {
+      return baseSource;
+    }
+
     // Add 2 padding spacer rows at the bottom so the last track is never cut off
     // and user can scroll 1-2 row heights deeper than there are songs
     const spacerRows = [
@@ -1263,7 +1269,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     ];
 
     return [...baseSource, ...spacerRows];
-  }, [tracks, currentTrack?.id]);
+  }, [tracks, currentTrack?.id, autoHeight]);
 
   // Handle column resizing with strict "brick wall" right boundary constraint
   const onAfterColumnResize = useCallback(
@@ -1369,9 +1375,10 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   }
 
   const currentDensityHeight = DENSITY_ROW_HEIGHTS[trackGridDensity] || 56;
+  const calculatedHeight = autoHeight ? 48 + tracks.length * currentDensityHeight : undefined;
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden relative select-none">
+    <div className={`w-full ${autoHeight ? '' : 'h-full flex-1'} flex flex-col overflow-hidden relative select-none`}>
       {/* Table Header Bar / Controls */}
       {!hideControls && (
         <div className="flex items-center justify-between px-4 py-2 bg-transparent shrink-0 border-b border-white/5 z-40">
@@ -1419,8 +1426,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         ref={containerRef}
         tabIndex={0}
         onKeyDown={onKeyDown}
-        className="flex-1 w-full relative outline-none overflow-hidden"
-        style={{ minHeight: 0 }}
+        className={autoHeight ? 'w-full relative outline-none' : 'flex-1 w-full relative outline-none overflow-hidden'}
+        style={autoHeight ? { height: `${calculatedHeight}px`, minHeight: `${calculatedHeight}px` } : { minHeight: 0 }}
       >
         <RevoGrid
           ref={gridRef}

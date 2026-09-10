@@ -5,9 +5,10 @@ import { TrackTableView } from './TrackTableView';
 interface TrackListProps {
   tracks: Track[];
   hideControls?: boolean;
+  autoHeight?: boolean;
 }
 
-export const TrackList: React.FC<TrackListProps> = ({ tracks, hideControls }) => {
-  return <TrackTableView tracks={tracks} hideControls={hideControls} />;
+export const TrackList: React.FC<TrackListProps> = ({ tracks, hideControls, autoHeight }) => {
+  return <TrackTableView tracks={tracks} hideControls={hideControls} autoHeight={autoHeight} />;
 };
 

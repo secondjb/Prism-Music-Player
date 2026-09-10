@@ -541,9 +541,8 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
           style={{
             left: `${tooltipX}px`,
             backgroundColor: 'var(--color-stop-1, #6366f1)',
-            borderColor: 'var(--color-stop-2, #818cf8)',
           }}
-          className="absolute -top-7 transform -translate-x-1/2 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold text-white shadow-lg pointer-events-none z-30 whitespace-nowrap border"
+          className="absolute -top-7 transform -translate-x-1/2 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold text-white shadow-lg pointer-events-none z-30 whitespace-nowrap"
         >
           <span ref={tooltipTextRef}>{initialTooltipText}</span>
         </div>

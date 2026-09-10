@@ -26,7 +26,7 @@ export const AlbumView: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto pr-2 pb-12">
+    <div className="flex flex-col h-full overflow-y-auto pr-2 pb-28">
       <div className="flex items-center gap-4 mb-6 sticky top-0 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl px-6 py-3.5 z-10 shadow-lg my-2">
         <button 
           onClick={() => setActiveTab('albums')}
@@ -71,8 +71,8 @@ export const AlbumView: React.FC = () => {
         </div>
       </div>
       
-      <div className="bg-white/5 rounded-2xl border border-white/10 p-4">
-        <TrackList tracks={albumTracks} hideControls={true} />
+      <div className="bg-white/5 rounded-2xl border border-white/10 px-5 pt-4 pb-12 mb-10 shadow-xl">
+        <TrackList tracks={albumTracks} hideControls={true} autoHeight={true} />
       </div>
     </div>
   );

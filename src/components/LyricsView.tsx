@@ -276,7 +276,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
         : lyricsFontSizePreset === 'large'
         ? 'max-w-[min(920px,90vw)]'
         : lyricsFontSizePreset === 'balanced'
-        ? 'max-w-[min(860px,88vw)]'
+        ? 'max-w-[min(1400px,90vw)]'
         : 'max-w-[min(820px,86vw)]';
 
     return (
@@ -1061,12 +1061,108 @@ export const LyricsView: React.FC = () => {
     }
   }
 
+  // Dynamic font size calculation for 'balanced' preset:
+  // Dynamically calculates the optimal font size based on the current song's line lengths and wrapping,
+  // allowing lines to take up the majority of the window's horizontal space while ensuring
+  // 3 lines (previous, active, next) fit on the screen as large as possible without rapid zooming or jitter.
+  const balancedFontSize = useMemo(() => {
+    const validLines = lines.filter((l) => l.content && l.content.trim().length > 0);
+    if (validLines.length === 0) {
+      return Math.max(32, Math.min(52, Math.round(windowHeight * 0.052)));
+    }
+
+    const getEffectiveText = (l: ParsedLyricLine) => {
+      if (isTranslationEnabled && translationMode === 'replace' && l.translation && !isIdenticalLyricText(l.content, l.translation)) {
+        return l.translation.trim();
+      }
+      if (isRomanizationEnabled && romanizationMode === 'replace' && l.romanized) {
+        return l.romanized.trim();
+      }
+      return l.content.trim();
+    };
+
+    // Measure normalized visual character widths (accounting for CJK vs Latin)
+    const normWidths = validLines.map((l) => {
+      const text = getEffectiveText(l);
+      let w = 0;
+      for (let i = 0; i < text.length; i++) {
+        const code = text.charCodeAt(i);
+        if (
+          (code >= 0x4e00 && code <= 0x9fff) ||
+          (code >= 0x3040 && code <= 0x30ff) ||
+          (code >= 0xac00 && code <= 0xd7af)
+        ) {
+          w += 0.95;
+        } else {
+          w += 0.54;
+        }
+      }
+      return Math.max(1, w);
+    }).sort((a, b) => a - b);
+
+    // 90th percentile represents the longest typical line of the song without being distorted by rare outliers
+    const repNormWidth = normWidths[Math.min(normWidths.length - 1, Math.floor(normWidths.length * 0.90))];
+    const medianNormWidth = normWidths[Math.floor(normWidths.length * 0.5)];
+
+    // Majority of window horizontal space (90vw, capped at 1400px), minus padding (48px)
+    const availWidth = Math.max(300, Math.min(windowWidth * 0.90, 1400) - 48);
+
+    // Target vertical height budget for 3 lines (active line + 2 inactive lines + gaps + padding)
+    // We target ~58% of window height (leaving comfortable space for header controls and bottom seekbar)
+    const targetHeight = Math.max(260, Math.min(windowHeight * 0.58, windowHeight - 200));
+
+    // Has sub-text (translation / romanization) rendered below active line?
+    const hasTrans = isTranslationEnabled && translationMode === 'below' && validLines.some((l) => l.translation && !isIdenticalLyricText(l.content, l.translation));
+    const hasRom = isRomanizationEnabled && romanizationMode === 'below' && validLines.some((l) => l.romanized);
+    const subLineCount = (hasTrans ? 1 : 0) + (hasRom ? 1 : 0);
+
+    // Search from largest desired font size down to minimum comfortable size
+    const maxCandidate = Math.min(64, Math.round(windowHeight * 0.075));
+    const minCandidate = 30;
+
+    let bestSize = minCandidate;
+    for (let candidateF = maxCandidate; candidateF >= minCandidate; candidateF--) {
+      const activeWrappedLines = Math.max(1, Math.ceil((repNormWidth * candidateF) / availWidth));
+      const inactiveF = Math.max(16, candidateF * 0.65);
+      const inactiveWrappedLines = Math.max(1, Math.ceil((medianNormWidth * inactiveF) / availWidth));
+
+      const activeHeight = activeWrappedLines * (candidateF * 1.35) + 24 + subLineCount * (Math.max(12, inactiveF * 0.65) * 1.3 + 8);
+      const inactiveHeight = 2 * (inactiveWrappedLines * (inactiveF * 1.35) + 24);
+      const gapsHeight = 48; // two 24px gaps between the 3 lines
+
+      const totalRequiredHeight = activeHeight + inactiveHeight + gapsHeight;
+
+      // Ensure 3 lines fit comfortably on screen, and the representative line doesn't wrap more than 2 visual lines
+      if (totalRequiredHeight <= targetHeight && activeWrappedLines <= 2) {
+        bestSize = candidateF;
+        break;
+      }
+    }
+
+    // Fallback if even at minCandidate activeWrappedLines > 2 due to narrow window or long lines
+    if (bestSize === minCandidate) {
+      for (let candidateF = maxCandidate; candidateF >= minCandidate; candidateF--) {
+        const activeWrappedLines = Math.max(1, Math.ceil((repNormWidth * candidateF) / availWidth));
+        const inactiveF = Math.max(16, candidateF * 0.65);
+        const inactiveWrappedLines = Math.max(1, Math.ceil((medianNormWidth * inactiveF) / availWidth));
+        const activeHeight = activeWrappedLines * (candidateF * 1.35) + 24;
+        const inactiveHeight = 2 * (inactiveWrappedLines * (inactiveF * 1.35) + 24);
+        if (activeHeight + inactiveHeight + 48 <= targetHeight) {
+          bestSize = candidateF;
+          break;
+        }
+      }
+    }
+
+    return bestSize;
+  }, [lines, windowWidth, windowHeight, isTranslationEnabled, translationMode, isRomanizationEnabled, romanizationMode]);
+
   // Compute dynamic font sizes based on preset & manual slider
   let activeFontSize = lyricsFontSize;
   if (lyricsFontSizePreset === 'normal') {
     activeFontSize = Math.max(26, Math.min(38, windowHeight * 0.04));
   } else if (lyricsFontSizePreset === 'balanced') {
-    activeFontSize = Math.max(30, Math.min(46, windowHeight * 0.048));
+    activeFontSize = balancedFontSize;
   } else if (lyricsFontSizePreset === 'large') {
     activeFontSize = Math.max(34, Math.min(52, windowHeight * 0.058));
   } else if (lyricsFontSizePreset === 'maximum') {

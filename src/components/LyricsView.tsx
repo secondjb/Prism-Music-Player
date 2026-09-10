@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
@@ -6,7 +6,7 @@ import { AudioSlider } from './AudioSlider';
 import { WavyAudioSlider } from './WavyAudioSlider';
 import { M3Selector } from './M3Selector';
 import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
-import { parseRichLyrics, ParsedLyricLine, hasExplicitWordSync } from '../utils/lyricsParser';
+import { parseRichLyrics, ParsedLyricLine, LyricSyllable, hasExplicitWordSync } from '../utils/lyricsParser';
 import { createRomanizer, detectScript } from 'lyric-romanizer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
@@ -90,6 +90,17 @@ interface LyricLineRowProps {
   currentTimeMs: number;
   activeLineRef: React.Ref<HTMLDivElement> | null;
   onSeek: (secs: number) => void;
+}
+
+interface SyllableItem {
+  syl: LyricSyllable;
+  sIdx: number;
+}
+
+interface WordGroup {
+  wordIndex: number;
+  syllables: SyllableItem[];
+  hasTrailingSpace: boolean;
 }
 
 const LyricLineRow = React.memo<LyricLineRowProps>(
@@ -221,6 +232,50 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
       }
     }
 
+    const wordGroups: WordGroup[] = useMemo(() => {
+      if (!line.syllables || line.syllables.length === 0) return [];
+      const groups: WordGroup[] = [];
+      let currentGroup: SyllableItem[] = [];
+
+      for (let i = 0; i < line.syllables.length; i++) {
+        const syl = line.syllables[i];
+        currentGroup.push({ syl, sIdx: i });
+
+        const isBoundary =
+          Boolean(syl.hasTrailingSpace) ||
+          /\s+$/.test(syl.text) ||
+          i === line.syllables.length - 1;
+
+        if (isBoundary) {
+          groups.push({
+            wordIndex: groups.length,
+            syllables: currentGroup,
+            hasTrailingSpace: Boolean(syl.hasTrailingSpace) || /\s+$/.test(syl.text),
+          });
+          currentGroup = [];
+        }
+      }
+
+      if (currentGroup.length > 0) {
+        groups.push({
+          wordIndex: groups.length,
+          syllables: currentGroup,
+          hasTrailingSpace: false,
+        });
+      }
+
+      return groups;
+    }, [line.syllables]);
+
+    const lineMaxWidthClass =
+      lyricsFontSizePreset === 'maximum'
+        ? 'max-w-[min(1100px,92vw)]'
+        : lyricsFontSizePreset === 'large'
+        ? 'max-w-[min(920px,90vw)]'
+        : lyricsFontSizePreset === 'balanced'
+        ? 'max-w-[min(860px,88vw)]'
+        : 'max-w-[min(820px,86vw)]';
+
     return (
       <motion.div
         id={`lyric-line-${idx}`}
@@ -237,7 +292,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
           damping: lyricsAnimationStyle === 'karaoke_pulse' ? 16 : 22,
           stiffness: lyricsAnimationStyle === 'karaoke_pulse' ? 140 : 170,
         }}
-        className={`text-center cursor-pointer max-w-[90vw] w-full px-8 py-3 rounded-2xl flex flex-col items-center justify-center transition-all duration-200 ${
+        className={`text-center cursor-pointer ${lineMaxWidthClass} w-full px-6 py-3 rounded-2xl flex flex-col items-center justify-center transition-all duration-200 break-words [text-wrap:balance] ${
           isActive && !isUnsynced
             ? 'font-extrabold'
             : isUnsynced
@@ -270,7 +325,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
       >
         {/* Granular Syllable / Word rendering with Jumping text */}
         {line.hasSyllables && isActive && !isUnsynced ? (
-          <div className="inline-flex flex-wrap justify-center items-baseline">
+          <div className="inline-flex flex-wrap justify-center items-baseline text-center max-w-full">
             {(() => {
               if (showTrans && translationMode === 'replace' && line.translation) {
                 const transWords = line.translation.trim().split(/\s+/).filter(Boolean);
@@ -329,7 +384,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                         damping: 14,
                         stiffness: 220,
                       }}
-                      className={`inline-block transition-colors mr-[0.28em] ${
+                      className={`inline-block whitespace-nowrap transition-colors mr-[0.28em] ${
                         isSylActive
                           ? 'text-white drop-shadow-md'
                           : isSylPast
@@ -351,91 +406,98 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                 });
               }
 
-              return line.syllables.map((syl, sIdx) => {
-                const sylStart = syl.timeMs;
-                const sylEnd = syl.timeMs + syl.durationMs;
-                const isSylActive = currentTimeMs >= sylStart && currentTimeMs < sylEnd;
-                const isSylPast = currentTimeMs >= sylEnd;
+              return wordGroups.map((group) => (
+                <span
+                  key={`${line.id}-word-${group.wordIndex}`}
+                  className={`inline-flex items-baseline whitespace-nowrap ${
+                    group.hasTrailingSpace ? 'mr-[0.28em]' : ''
+                  }`}
+                >
+                  {group.syllables.map(({ syl, sIdx }) => {
+                    const sylStart = syl.timeMs;
+                    const sylEnd = syl.timeMs + syl.durationMs;
+                    const isSylActive = currentTimeMs >= sylStart && currentTimeMs < sylEnd;
+                    const isSylPast = currentTimeMs >= sylEnd;
 
-                let sylLift = 0;
-                let sylScale = 1;
+                    let sylLift = 0;
+                    let sylScale = 1;
 
-                if (isSylActive) {
-                  switch (lyricsAnimationStyle) {
-                    case 'karaoke_pulse':
-                      sylLift = -4;
-                      sylScale = 1.15;
-                      break;
-                    case 'card_pop':
-                    case 'apple_zoom':
-                      sylLift = -3.5;
-                      sylScale = 1.12;
-                      break;
-                    case 'apple_fluid':
-                    case 'lossless_glow':
-                      sylLift = -2.5;
-                      sylScale = 1.09;
-                      break;
-                    case 'kinetic_slide':
-                      sylLift = -2;
-                      sylScale = 1.07;
-                      break;
-                    case 'cinematic_blur':
-                      sylLift = -1.5;
-                      sylScale = 1.05;
-                      break;
-                    case 'minimal_wave':
-                    default:
-                      sylLift = 0;
-                      sylScale = 1.02;
-                      break;
-                  }
-                }
-
-                const sylDisplayText =
-                  isRomanizationEnabled && romanizationMode === 'replace' && syl.romanizedText
-                    ? syl.romanizedText
-                    : syl.text;
-
-                return (
-                  <motion.span
-                    key={`${line.id}-syl-${sIdx}`}
-                    animate={{
-                      y: sylLift,
-                      scale: sylScale,
-                      opacity: isSylActive ? 1 : isSylPast ? 0.95 : 0.45,
-                    }}
-                    transition={{
-                      type: 'spring',
-                      damping: 14,
-                      stiffness: 220,
-                    }}
-                    className={`inline-block transition-colors ${
-                      syl.hasTrailingSpace ? 'mr-[0.28em]' : ''
-                    } ${
-                      isSylActive
-                        ? 'text-white drop-shadow-md'
-                        : isSylPast
-                        ? 'text-white/95'
-                        : 'text-white/45'
-                    }`}
-                    style={
-                      isSylActive && lyricsAnimationStyle === 'lossless_glow'
-                        ? {
-                            textShadow:
-                              '0 0 12px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #818cf8)',
-                          }
-                        : undefined
+                    if (isSylActive) {
+                      switch (lyricsAnimationStyle) {
+                        case 'karaoke_pulse':
+                          sylLift = -4;
+                          sylScale = 1.15;
+                          break;
+                        case 'card_pop':
+                        case 'apple_zoom':
+                          sylLift = -3.5;
+                          sylScale = 1.12;
+                          break;
+                        case 'apple_fluid':
+                        case 'lossless_glow':
+                          sylLift = -2.5;
+                          sylScale = 1.09;
+                          break;
+                        case 'kinetic_slide':
+                          sylLift = -2;
+                          sylScale = 1.07;
+                          break;
+                        case 'cinematic_blur':
+                          sylLift = -1.5;
+                          sylScale = 1.05;
+                          break;
+                        case 'minimal_wave':
+                        default:
+                          sylLift = 0;
+                          sylScale = 1.02;
+                          break;
+                      }
                     }
-                  >
-                    {sylDisplayText}
-                  </motion.span>
-                );
-              });
+
+                    const sylDisplayText =
+                      isRomanizationEnabled && romanizationMode === 'replace' && syl.romanizedText
+                        ? syl.romanizedText
+                        : syl.text;
+
+                    return (
+                      <motion.span
+                        key={`${line.id}-syl-${sIdx}`}
+                        animate={{
+                          y: sylLift,
+                          scale: sylScale,
+                          opacity: isSylActive ? 1 : isSylPast ? 0.95 : 0.45,
+                        }}
+                        transition={{
+                          type: 'spring',
+                          damping: 14,
+                          stiffness: 220,
+                        }}
+                        className={`inline-block transition-colors ${
+                          isSylActive
+                            ? 'text-white drop-shadow-md'
+                            : isSylPast
+                            ? 'text-white/95'
+                            : 'text-white/45'
+                        }`}
+                        style={
+                          isSylActive && lyricsAnimationStyle === 'lossless_glow'
+                            ? {
+                                textShadow:
+                                  '0 0 12px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #818cf8)',
+                              }
+                            : undefined
+                        }
+                      >
+                        {sylDisplayText}
+                      </motion.span>
+                    );
+                  })}
+                </span>
+              ));
             })()}
           </div>
         ) : (
-          <div className={isActive ? 'text-white' : undefined} style={lineGlowStyle}>
+          <div className={`break-words [text-wrap:balance] ${isActive ? 'text-white' : undefined}`} style={lineGlowStyle}>
             {mainText}
           </div>
         )}
@@ -443,42 +505,49 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
         {/* Word-by-Word Romanization Underneath */}
         {subRom && (
           line.hasSyllables && isActive && !isUnsynced ? (
-            <div className="w-full flex flex-wrap justify-center items-center gap-1 font-mono mt-1.5 select-none">
-              {line.syllables.map((syl, sIdx) => {
-                const sylStart = syl.timeMs;
-                const sylEnd = syl.timeMs + syl.durationMs;
-                const isSylActive = currentTimeMs >= sylStart && currentTimeMs < sylEnd;
-                const isSylPast = currentTimeMs >= sylEnd;
-                const romText = syl.romanizedText || syl.text;
+            <div className="w-full flex flex-wrap justify-center items-center gap-1 font-mono mt-1.5 select-none text-center">
+              {wordGroups.map((group) => (
+                <span
+                  key={`${line.id}-rom-word-${group.wordIndex}`}
+                  className={`inline-flex items-baseline whitespace-nowrap ${
+                    group.hasTrailingSpace ? 'mr-[0.28em]' : ''
+                  }`}
+                >
+                  {group.syllables.map(({ syl, sIdx }) => {
+                    const sylStart = syl.timeMs;
+                    const sylEnd = syl.timeMs + syl.durationMs;
+                    const isSylActive = currentTimeMs >= sylStart && currentTimeMs < sylEnd;
+                    const isSylPast = currentTimeMs >= sylEnd;
+                    const romText = syl.romanizedText || syl.text;
 
-                return (
-                  <span
-                    key={`${line.id}-rom-${sIdx}`}
-                    className={`inline-block transition-all duration-150 ${
-                      syl.hasTrailingSpace ? 'mr-[0.28em]' : ''
-                    }`}
-                    style={{
-                      fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
-                      color: isSylActive
-                        ? '#ffffff'
-                        : isSylPast
-                        ? 'rgba(255, 255, 255, 0.85)'
-                        : 'rgba(255, 255, 255, 0.45)',
-                      fontWeight: isSylActive ? 700 : 400,
-                      transform: isSylActive ? 'scale(1.06) translateY(-1px)' : 'scale(1)',
-                      textShadow: isSylActive
-                        ? '0 0 10px rgba(255, 255, 255, 0.6), 0 0 18px var(--color-stop-1, #6366f1)'
-                        : undefined,
-                    }}
-                  >
-                    {romText}
-                  </span>
-                );
-              })}
+                    return (
+                      <span
+                        key={`${line.id}-rom-${sIdx}`}
+                        className="inline-block transition-all duration-150"
+                        style={{
+                          fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
+                          color: isSylActive
+                            ? '#ffffff'
+                            : isSylPast
+                            ? 'rgba(255, 255, 255, 0.85)'
+                            : 'rgba(255, 255, 255, 0.45)',
+                          fontWeight: isSylActive ? 700 : 400,
+                          transform: isSylActive ? 'scale(1.06) translateY(-1px)' : 'scale(1)',
+                          textShadow: isSylActive
+                            ? '0 0 10px rgba(255, 255, 255, 0.6), 0 0 18px var(--color-stop-1, #6366f1)'
+                            : undefined,
+                        }}
+                      >
+                        {romText}
+                      </span>
+                    );
+                  })}
+                </span>
+              ))}
             </div>
           ) : (
             <div
-              className="w-full flex items-center justify-center font-mono font-normal mt-1.5 select-none"
+              className="w-full flex items-center justify-center font-mono font-normal mt-1.5 select-none break-words [text-wrap:balance] text-center"
               style={{
                 fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
                 color: 'rgba(255, 255, 255, 0.6)',
@@ -492,7 +561,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
         {/* Word-by-Word Translation Underneath */}
         {subTrans && (
           line.hasSyllables && isActive && !isUnsynced ? (
-            <div className="w-full flex flex-wrap justify-center items-center gap-1 font-sans mt-1.5 select-none">
+            <div className="w-full flex flex-wrap justify-center items-center gap-1 font-sans mt-1.5 select-none text-center">
               {(() => {
                 const transWords = subTrans.trim().split(/\s+/).filter(Boolean);
                 const wordDur = line.durationMs / Math.max(1, transWords.length);
@@ -505,7 +574,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                   return (
                     <span
                       key={`${line.id}-trans-${wIdx}`}
-                      className="inline-block transition-all duration-150 mr-[0.28em]"
+                      className="inline-block whitespace-nowrap transition-all duration-150 mr-[0.28em]"
                       style={{
                         fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
                         color: isSylActive
@@ -528,7 +597,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
             </div>
           ) : (
             <div
-              className="w-full flex items-center justify-center font-sans font-normal mt-1.5 select-none"
+              className="w-full flex items-center justify-center font-sans font-normal mt-1.5 select-none break-words [text-wrap:balance] text-center"
               style={{
                 fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
                 color: 'rgba(255, 255, 255, 0.6)',
@@ -979,14 +1048,7 @@ export const LyricsView: React.FC = () => {
   if (lyricsFontSizePreset === 'normal') {
     activeFontSize = Math.max(26, Math.min(38, windowHeight * 0.04));
   } else if (lyricsFontSizePreset === 'balanced') {
-    const defaultBalanced = Math.max(32, windowHeight * 0.07);
-    if (activeIndex >= 0 && lines[activeIndex]) {
-      const lineLen = lines[activeIndex].content.length;
-      const maxFontSizeByLine = (0.9 * windowWidth) / (Math.max(1, lineLen) * 0.6);
-      activeFontSize = Math.min(defaultBalanced, Math.max(20, maxFontSizeByLine));
-    } else {
-      activeFontSize = defaultBalanced;
-    }
+    activeFontSize = Math.max(30, Math.min(46, windowHeight * 0.048));
   } else if (lyricsFontSizePreset === 'large') {
     activeFontSize = Math.max(34, Math.min(52, windowHeight * 0.058));
   } else if (lyricsFontSizePreset === 'maximum') {
@@ -1194,31 +1256,74 @@ export const LyricsView: React.FC = () => {
   const userInteractingRef = useRef(false);
   const userInteractionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 4. Smooth scroll active line or active interlude to center
-  const scrollToActive = () => {
-    if (!containerRef.current) return;
+  // Stable key representing currently active lines
+  const activeLinesKey = Array.from(activeLineIndices).sort((a, b) => a - b).join(',');
+
+  // Smart centering target calculation: centers multi-line active groups while prioritizing current line
+  const getSmartScrollTarget = useCallback(() => {
     const containerEl = containerRef.current;
-    let targetEl: HTMLElement | null = null;
+    if (!containerEl) return null;
 
     if (activeInterlude) {
-      targetEl = document.getElementById(activeInterlude.key);
-    } else if (activeIndex !== -1) {
-      targetEl = document.getElementById(`lyric-line-${activeIndex}`);
+      const targetEl = document.getElementById(activeInterlude.key);
+      if (targetEl) {
+        return Math.max(0, targetEl.offsetTop - containerEl.clientHeight / 2 + targetEl.clientHeight / 2);
+      }
+      return null;
     }
 
-    if (targetEl) {
-      const targetTop = targetEl.offsetTop - containerEl.clientHeight / 2 + targetEl.clientHeight / 2;
+    const currentPrimaryIdx = activeLineIndices.size > 0
+      ? Math.max(...Array.from(activeLineIndices))
+      : activeIndex;
+
+    if (currentPrimaryIdx === -1) return null;
+
+    const primaryEl = document.getElementById(`lyric-line-${currentPrimaryIdx}`);
+    if (!primaryEl) return null;
+
+    const primaryIdealScrollTop = primaryEl.offsetTop - containerEl.clientHeight / 2 + primaryEl.clientHeight / 2;
+
+    const activeIndices = Array.from(activeLineIndices);
+    const activeEls = activeIndices
+      .map((i) => document.getElementById(`lyric-line-${i}`))
+      .filter((el): el is HTMLElement => el !== null);
+
+    if (activeEls.length <= 1) {
+      return Math.max(0, primaryIdealScrollTop);
+    }
+
+    const groupTop = Math.min(...activeEls.map((el) => el.offsetTop));
+    const groupBottom = Math.max(...activeEls.map((el) => el.offsetTop + el.clientHeight));
+    const groupHeight = groupBottom - groupTop;
+    const groupCenter = groupTop + groupHeight / 2;
+    const idealGroupScrollTop = groupCenter - containerEl.clientHeight / 2;
+
+    // Prioritize the current line: allow group centering while keeping current line comfortably near center
+    const maxDisplacement = Math.min(containerEl.clientHeight * 0.18, 120);
+    const delta = idealGroupScrollTop - primaryIdealScrollTop;
+    const clampedDelta = Math.max(-maxDisplacement, Math.min(maxDisplacement, delta));
+
+    return Math.max(0, primaryIdealScrollTop + clampedDelta);
+  }, [activeIndex, activeInterlude?.key, activeLinesKey]);
+
+  // 4. Smooth scroll active line or balanced multi-line group to center
+  const scrollToActive = useCallback(() => {
+    const containerEl = containerRef.current;
+    if (!containerEl) return;
+
+    const targetTop = getSmartScrollTarget();
+    if (targetTop !== null) {
       isProgrammaticScrollRef.current = true;
       setIsScrollbarVisible(false);
       containerEl.scrollTo({
-        top: Math.max(0, targetTop),
+        top: targetTop,
         behavior: 'smooth',
       });
       setTimeout(() => {
         isProgrammaticScrollRef.current = false;
       }, 800);
     }
-  };
+  }, [getSmartScrollTarget]);
 
   // Scroll to top when track changes / skips
   useEffect(() => {
@@ -1280,13 +1385,8 @@ export const LyricsView: React.FC = () => {
 
       // Only unsync if it's NOT a programmatic scroll, user is actively scrolling, and scrolled away from active line/interlude
       if (!isProgrammaticScrollRef.current && userInteractingRef.current) {
-        const targetEl = activeInterlude
-          ? document.getElementById(activeInterlude.key)
-          : activeIndex !== -1
-          ? document.getElementById(`lyric-line-${activeIndex}`)
-          : null;
-        if (targetEl) {
-          const targetTop = targetEl.offsetTop - el.clientHeight / 2 + targetEl.clientHeight / 2;
+        const targetTop = getSmartScrollTarget();
+        if (targetTop !== null) {
           const distance = Math.abs(el.scrollTop - targetTop);
           // Require at least 100px displacement from the centered active item to consider it an unsync scroll
           if (distance > 100) {
@@ -1309,13 +1409,13 @@ export const LyricsView: React.FC = () => {
       if (scrollbarTimerRef.current) clearTimeout(scrollbarTimerRef.current);
       if (userInteractionTimeoutRef.current) clearTimeout(userInteractionTimeoutRef.current);
     };
-  }, [activeIndex, activeInterlude?.key]);
+  }, [getSmartScrollTarget]);
 
   useEffect(() => {
-    if (!isUserScrolled && (activeInterlude || activeIndex !== -1)) {
+    if (!isUserScrolled && (activeInterlude || activeIndex !== -1 || activeLineIndices.size > 0)) {
       scrollToActive();
     }
-  }, [activeIndex, activeInterlude?.key, isUserScrolled]);
+  }, [activeIndex, activeLinesKey, activeInterlude?.key, isUserScrolled, scrollToActive]);
 
   const handleClose = async () => {
     setShowLyricsFullscreen(false);

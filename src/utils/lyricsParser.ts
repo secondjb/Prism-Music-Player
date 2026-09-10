@@ -28,7 +28,7 @@ const OFFSET_REGEX = /\[offset:\s*([+-]?\d+)\s*\]/i;
 
 export function isIdenticalLyricText(a: string, b?: string | null): boolean {
   if (!b) return false;
-  const clean = (s: string) => s.trim().toLowerCase().replace(/[\s\p{P}]+/gu, '');
+  const clean = (s: string) => s.normalize('NFKC').trim().toLowerCase().replace(/[\s\p{P}]+/gu, '');
   return clean(a) === clean(b);
 }
 
@@ -91,8 +91,8 @@ export function parseRichLyrics(
   options?: { inferWordSync?: boolean }
 ): ParsedLyricLine[] {
   if (!rawLrc || !rawLrc.trim()) return [];
-
-  const rawLines = rawLrc.split(/\r?\n/);
+  const normalizedLrc = rawLrc.normalize('NFKC');
+  const rawLines = normalizedLrc.split(/\r?\n/);
   let offsetMs = 0;
 
   interface RawExtractedLine {

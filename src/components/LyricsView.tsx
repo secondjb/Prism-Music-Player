@@ -8,6 +8,7 @@ import { M3Selector } from './M3Selector';
 import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
 import { parseRichLyrics, ParsedLyricLine, LyricSyllable, hasExplicitWordSync, isIdenticalLyricText } from '../utils/lyricsParser';
 import { createRomanizer, detectScript } from 'lyric-romanizer';
+import { enrichLineWithRomanization } from '../utils/japaneseRomanizer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -1312,46 +1313,7 @@ export const LyricsView: React.FC = () => {
         const trackScript = detectScript(allContents);
 
         processed = await Promise.all(
-          processed.map(async (line) => {
-            try {
-              const lineScript = detectScript([line.content]);
-              const effectiveScript =
-                trackScript === 'japanese' && lineScript === 'chinese'
-                  ? 'japanese'
-                  : lineScript === 'other' && trackScript !== 'other' && trackScript !== 'latin'
-                  ? trackScript
-                  : lineScript;
-              const romOptions =
-                effectiveScript && effectiveScript !== 'latin' && effectiveScript !== 'other'
-                  ? { script: effectiveScript }
-                  : undefined;
-
-              const rom = await romanizer.romanizeLine(line.content, romOptions);
-              const romSyllables = line.syllables.length > 0
-                ? await Promise.all(
-                    line.syllables.map(async (syl) => {
-                      try {
-                        const r = await romanizer.romanizeLine(syl.text, romOptions);
-                        return {
-                          ...syl,
-                          romanizedText: r !== syl.text ? r : undefined,
-                        };
-                      } catch {
-                        return syl;
-                      }
-                    })
-                  )
-                : line.syllables;
-
-              return {
-                ...line,
-                romanized: rom !== line.content ? rom : undefined,
-                syllables: romSyllables,
-              };
-            } catch {
-              return line;
-            }
-          })
+          processed.map((line) => enrichLineWithRomanization(line, trackScript, romanizer))
         );
       }
  

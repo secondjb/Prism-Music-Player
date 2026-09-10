@@ -29,6 +29,8 @@ import {
   List,
 } from 'lucide-react';
 
+import { enrichLineWithRomanization } from '../utils/japaneseRomanizer';
+
 const romanizer = createRomanizer({ japaneseDictPath: '/dict' });
 
 export interface WordSyncCandidate {
@@ -262,39 +264,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
         const trackScript = detectScript(allContents);
 
         res = await Promise.all(
-          res.map(async (line) => {
-            try {
-              const lineScript = detectScript([line.content]);
-              const effectiveScript =
-                trackScript === 'japanese' && lineScript === 'chinese'
-                  ? 'japanese'
-                  : lineScript === 'other' && trackScript !== 'other' && trackScript !== 'latin'
-                  ? trackScript
-                  : lineScript;
-              const romOptions =
-                effectiveScript && effectiveScript !== 'latin' && effectiveScript !== 'other'
-                  ? { script: effectiveScript }
-                  : undefined;
-
-              const rom = await romanizer.romanizeLine(line.content, romOptions);
-              const romSyllables =
-                line.syllables.length > 0
-                  ? await Promise.all(
-                      line.syllables.map(async (syl) => {
-                        try {
-                          const r = await romanizer.romanizeLine(syl.text, romOptions);
-                          return { ...syl, romanizedText: r !== syl.text ? r : undefined };
-                        } catch {
-                          return syl;
-                        }
-                      })
-                    )
-                  : line.syllables;
-              return { ...line, romanized: rom !== line.content ? rom : undefined, syllables: romSyllables };
-            } catch {
-              return line;
-            }
-          })
+          res.map((line) => enrichLineWithRomanization(line, trackScript, romanizer))
         );
       }
       if (isMounted) {

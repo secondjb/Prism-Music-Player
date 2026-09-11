@@ -127,13 +127,8 @@ export const InterludeIndicator: React.FC<InterludeIndicatorProps> = React.memo(
           transform: `translate3d(0, ${y.toFixed(2)}px, 0) scale(${scale.toFixed(2)})`,
           opacity,
           background: isJumping || hasCompleted
-            ? 'linear-gradient(135deg, #ffffff 0%, var(--color-stop-1, #6366f1) 100%)'
+            ? 'linear-gradient(135deg, #ffffff 10%, var(--color-stop-1, #6366f1) 90%)'
             : 'rgba(255, 255, 255, 0.35)',
-          boxShadow: isJumping
-            ? '0 0 16px var(--color-stop-1, #6366f1), 0 0 28px color-mix(in srgb, var(--color-stop-2, #818cf8) 60%, transparent)'
-            : hasCompleted
-            ? '0 0 8px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)'
-            : 'none',
           willChange: 'transform',
         }}
       />
@@ -168,10 +163,10 @@ export const InterludeIndicator: React.FC<InterludeIndicatorProps> = React.memo(
       <div className="relative w-full h-[64px] flex items-center justify-center">
         {/* Phase 1: PixelPlayer-Style Ambient Dancing Notes & Bubbles (Enlarged, no glow) */}
         <div
-          className="absolute inset-0 flex items-center justify-center gap-8 select-none pointer-events-none transition-all duration-500 ease-out"
+          className="absolute inset-0 flex items-center justify-center gap-8 select-none pointer-events-none transition-all duration-200 ease-out"
           style={{
             opacity: isAmbient ? 1 : 0,
-            transform: isAmbient ? 'scale(1)' : 'scale(0.8)',
+            transform: isAmbient ? 'scale(1)' : 'scale(0.65)',
             pointerEvents: 'none',
           }}
         >
@@ -236,10 +231,10 @@ export const InterludeIndicator: React.FC<InterludeIndicatorProps> = React.memo(
 
         {/* Phase 2: Synced 3-2-1 Lead-in Countdown Jumping Balls */}
         <div
-          className="absolute inset-0 flex items-center justify-center gap-5 select-none pointer-events-none transition-all duration-400 ease-out"
+          className="absolute inset-0 flex items-center justify-center gap-5 select-none pointer-events-none transition-all duration-200 ease-out"
           style={{
             opacity: isCountdown ? 1 : 0,
-            transform: isCountdown ? 'scale(1)' : 'scale(1.15)',
+            transform: isCountdown ? 'scale(1)' : 'scale(1.1)',
             pointerEvents: 'none',
           }}
         >

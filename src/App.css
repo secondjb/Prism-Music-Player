@@ -352,6 +352,15 @@ revo-grid .scroll-horizontal {
 /* 1. Disable all scrollbars on outer RevoGrid containers so the table takes 100% width with no duplicate scrollbars */
 revo-grid,
 revo-grid .main-viewport,
+revo-grid .viewports,
+revo-grid revogr-viewport-scroll.rgCol {
+  width: 100% !important;
+  flex: 1 1 100% !important;
+  min-width: 0 !important;
+}
+
+revo-grid,
+revo-grid .main-viewport,
 revo-grid .inner-cropper,
 revo-grid .content-wrapper,
 revo-grid .inner-content-table,

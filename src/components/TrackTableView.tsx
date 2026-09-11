@@ -22,6 +22,7 @@ import {
 import { Track } from '../types/player';
 import { usePlayerStore, TrackColumnId } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   useTrackTableState,
   calculateColumnWidths,
@@ -991,7 +992,12 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<any>(null);
   const lastScrollYRef = useRef<number>(0);
-  const [containerWidth, setContainerWidth] = useState<number>(() => window.innerWidth);
+  const [containerWidth, setContainerWidth] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      return Math.max(400, window.innerWidth - 320);
+    }
+    return 1200;
+  });
   const [sortState, setSortState] = useState<{ prop: string; order: 'asc' | 'desc' } | null>(null);
 
   const gridKey = useMemo(() => {
@@ -1053,45 +1059,61 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     }
   }, [gridKey]);
 
-  // ResizeObserver and window resize listener to track container width and dynamically recalculate fractional columns
+  // Track container width via ResizeObserver, window resize, and Tauri window events
   useEffect(() => {
+    const measure = () => {
+      const el = containerRef.current;
+      if (el && el.clientWidth > 0) {
+        const w = Math.round(el.clientWidth);
+        setContainerWidth((prev) => (Math.abs(prev - w) > 2 ? w : prev));
+      } else if (typeof window !== 'undefined') {
+        const fallback = Math.max(400, window.innerWidth - 320);
+        setContainerWidth((prev) => (Math.abs(prev - fallback) > 2 ? fallback : prev));
+      }
+    };
+
+    measure();
+
     const el = containerRef.current;
-    if (!el) return;
-
-    let debounceTimer: any = null;
-    const updateWidth = (rawW: number) => {
-      if (rawW > 0) {
-        const rounded = Math.round(rawW);
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          setContainerWidth((prev) => (prev !== rounded ? rounded : prev));
-        }, 50);
-      }
-    };
-
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.contentRect.width > 0) {
-          updateWidth(entry.contentRect.width);
+    let ro: ResizeObserver | null = null;
+    if (el) {
+      ro = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const w = entry.contentRect.width;
+          if (w > 0) {
+            const rounded = Math.round(w);
+            setContainerWidth((prev) => (Math.abs(prev - rounded) > 2 ? rounded : prev));
+          }
         }
-      }
-    });
-    ro.observe(el);
-    setContainerWidth(el.clientWidth || window.innerWidth);
+      });
+      ro.observe(el);
+    }
 
-    const handleWindowResize = () => {
-      if (el.clientWidth > 0) {
-        updateWidth(el.clientWidth);
-      }
+    const handleResize = () => {
+      measure();
+      requestAnimationFrame(measure);
     };
-    window.addEventListener('resize', handleWindowResize);
+
+    window.addEventListener('resize', handleResize);
+
+    let unlistenTauri: (() => void) | undefined;
+    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+      getCurrentWindow()
+        .onResized(() => {
+          handleResize();
+        })
+        .then((unlisten) => {
+          unlistenTauri = unlisten;
+        })
+        .catch(() => {});
+    }
 
     return () => {
-      clearTimeout(debounceTimer);
-      ro.disconnect();
-      window.removeEventListener('resize', handleWindowResize);
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', handleResize);
+      if (unlistenTauri) unlistenTauri();
     };
-  }, []);
+  }, [tracks.length === 0]);
 
   // Listen to custom events bubbled up from RevoGrid cell templates
   useEffect(() => {
@@ -1443,6 +1465,13 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     actionsCellTemplate,
   ]);
 
+  // Explicitly update grid instance columns when column sizing/structure changes
+  useEffect(() => {
+    if (gridRef.current?.updateColumns && columns.length > 0) {
+      gridRef.current.updateColumns(columns);
+    }
+  }, [columns]);
+
   // Data source for RevoGrid with current-playing row classes and bottom padding spacer rows
   const source = useMemo(() => {
     if (tracks.length === 0) return [];
@@ -1581,33 +1610,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   );
 
   const isLikedView = activeTab === 'liked' || playlistId === '__liked__';
-
-  if (tracks.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center gap-3 glass-card rounded-2xl border border-dashed border-white/10 my-4 select-none">
-        <div className="w-14 h-14 rounded-full bg-zinc-800/80 flex items-center justify-center text-zinc-500">
-          {isLikedView ? (
-            <Heart className="w-8 h-8 fill-pink-500/20" style={{ color: 'var(--color-stop-1, #ec4899)' }} />
-          ) : (
-            <Music className="w-8 h-8" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-          )}
-        </div>
-        <div>
-          <h3 className="text-base font-semibold text-white">
-            {isLikedView ? 'No liked songs yet' : 'No tracks available'}
-          </h3>
-          <p className="text-xs text-zinc-400 mt-1 max-w-sm">
-            {isLikedView
-              ? 'Songs you mark as favorite will appear here.'
-              : 'There are no songs to display in this list.'}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   const currentDensityHeight = DENSITY_ROW_HEIGHTS[trackGridDensity] || 56;
-  const calculatedHeight = autoHeight ? 48 + tracks.length * currentDensityHeight : undefined;
+  const calculatedHeight = autoHeight && tracks.length > 0 ? 48 + tracks.length * currentDensityHeight : undefined;
 
   return (
     <div className={`w-full ${autoHeight ? '' : 'h-full flex-1'} flex flex-col overflow-hidden relative select-none`}>
@@ -1659,27 +1663,49 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         tabIndex={0}
         onKeyDown={onKeyDown}
         className={autoHeight ? 'w-full relative outline-none auto-height-grid' : 'flex-1 w-full relative outline-none overflow-hidden'}
-        style={autoHeight ? { height: `${calculatedHeight}px`, minHeight: `${calculatedHeight}px` } : { minHeight: 0 }}
+        style={calculatedHeight ? { height: `${calculatedHeight}px`, minHeight: `${calculatedHeight}px` } : { minHeight: 0 }}
       >
-        <RevoGrid
-          key={gridKey}
-          ref={gridRef}
-          theme="darkMaterial"
-          source={source}
-          columns={columns}
-          rowSize={currentDensityHeight}
-          readonly={true}
-          editors={{}}
-          resize={true}
-          canFocus={true}
-          accessible={true}
-          filter={false}
-          autoSizeColumn={false}
-          range={false}
-          canMoveColumns={true}
-          rowClass="rowClass"
-          onAftercolumnresize={onAfterColumnResize}
-        />
+        {tracks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center gap-3 glass-card rounded-2xl border border-dashed border-white/10 my-4 select-none">
+            <div className="w-14 h-14 rounded-full bg-zinc-800/80 flex items-center justify-center text-zinc-500">
+              {isLikedView ? (
+                <Heart className="w-8 h-8 fill-pink-500/20" style={{ color: 'var(--color-stop-1, #ec4899)' }} />
+              ) : (
+                <Music className="w-8 h-8" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              )}
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-white">
+                {isLikedView ? 'No liked songs yet' : 'No tracks available'}
+              </h3>
+              <p className="text-xs text-zinc-400 mt-1 max-w-sm">
+                {isLikedView
+                  ? 'Songs you mark as favorite will appear here.'
+                  : 'There are no songs to display in this list.'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <RevoGrid
+            key={gridKey}
+            ref={gridRef}
+            theme="darkMaterial"
+            source={source}
+            columns={columns}
+            rowSize={currentDensityHeight}
+            readonly={true}
+            editors={{}}
+            resize={true}
+            canFocus={true}
+            accessible={true}
+            filter={false}
+            autoSizeColumn={false}
+            range={false}
+            canMoveColumns={true}
+            rowClass="rowClass"
+            onAftercolumnresize={onAfterColumnResize}
+          />
+        )}
       </div>
 
       {/* Context Menu Overlay */}

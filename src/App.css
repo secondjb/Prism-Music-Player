@@ -566,43 +566,27 @@ body {
   background: #e0e7ff;
 }
 
-/* PixelPlayer-Style 2-Phase Interlude Keyframes */
-@keyframes ambientDriftUp {
+/* PixelPlayer-Inspired Dancing Bubbles & Notes */
+@keyframes pixelPlayerDance {
   0% {
-    transform: translate3d(0, 20px, 0) scale(0.65);
-    opacity: 0;
-  }
-  20% {
-    opacity: var(--particle-opacity, 0.65);
-  }
-  75% {
-    opacity: var(--particle-opacity, 0.45);
-  }
-  100% {
-    transform: translate3d(var(--drift-x, 0px), -28px, 0) scale(1.1);
-    opacity: 0;
-  }
-}
-
-@keyframes interludeCountdownBeat {
-  0% {
-    transform: translateY(0) scale(0.92);
-    opacity: 0.4;
-  }
-  28% {
-    transform: translateY(-16px) scale(1.28);
-    opacity: 1;
-  }
-  55% {
-    transform: translateY(-2px) scale(1.06);
-    opacity: 0.85;
-  }
-  85% {
-    transform: translateY(0) scale(0.94);
+    transform: translate3d(0, 0, 0) scale(0.92);
     opacity: 0.45;
   }
-  100% {
-    transform: translateY(0) scale(0.92);
+  25% {
+    transform: translate3d(4px, -12px, 0) scale(1.35);
+    opacity: 1;
+    filter: drop-shadow(0 0 12px color-mix(in srgb, var(--color-stop-1, #6366f1) 80%, transparent));
+  }
+  50% {
+    transform: translate3d(0, 0, 0) scale(0.95);
+    opacity: 0.5;
+  }
+  75% {
+    transform: translate3d(-4px, 8px, 0) scale(0.85);
     opacity: 0.35;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(0.92);
+    opacity: 0.45;
   }
 }

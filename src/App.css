@@ -573,16 +573,15 @@ body {
     opacity: 0.45;
   }
   25% {
-    transform: translate3d(4px, -12px, 0) scale(1.35);
+    transform: translate3d(4px, -14px, 0) scale(1.2);
     opacity: 1;
-    filter: drop-shadow(0 0 12px color-mix(in srgb, var(--color-stop-1, #6366f1) 80%, transparent));
   }
   50% {
     transform: translate3d(0, 0, 0) scale(0.95);
     opacity: 0.5;
   }
   75% {
-    transform: translate3d(-4px, 8px, 0) scale(0.85);
+    transform: translate3d(-4px, 10px, 0) scale(0.85);
     opacity: 0.35;
   }
   100% {

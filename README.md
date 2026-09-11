@@ -8,9 +8,9 @@
 [![TypeScript](https://img.shields.io/badge/typescript-5.8-3178c6.svg?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Platform Support](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg?style=flat-square)](#system-requirements)
 
-**An ultra-high-fidelity local music player and audio workstation engine engineered with Tauri v2, Rust, and React 19.**
+**A fast, local music player and audio workstation built with Tauri v2, Rust, and React 19.**
 
-*Bit-Perfect Direct Hardware Output • Real-Time DSP Audio Analysis • Synced LRC & Multi-Language Romanization • Virtualized Performance Engine*
+*Bit-Perfect Direct Hardware Output • Real-Time DSP Audio Analysis • Syllable-Synced Lyrics & Batch Finder • Dynamic Wavy Seekbar • Virtualized Performance Engine*
 
 </div>
 
@@ -24,7 +24,7 @@
   - [Native Audio Engine (WASAPI & CPAL)](#1-native-audio-engine-wasapi--cpal)
   - [DSP Audio Analysis Engine (BPM & Key Detection)](#2-dsp-audio-analysis-engine-bpm--key-detection)
   - [Metadata Extraction & Storage Optimization](#3-metadata-extraction--storage-optimization)
-  - [Lyrics Engine & Multi-Script Romanization](#4-lyrics-engine--multi-script-romanization)
+  - [Lyrics Engine, Syllable Sync & Romanization](#4-lyrics-engine-syllable-sync--romanization)
   - [Local Telemetry & Listening Analytics](#5-local-telemetry--listening-analytics)
 - [Core Features](#core-features)
 - [Audio & DSP Technical Specifications](#audio--dsp-technical-specifications)
@@ -37,61 +37,62 @@
   - [Windows Standalone Production Executable](#windows-standalone-production-executable)
   - [Cross-Platform Tauri Bundles](#cross-platform-tauri-bundles)
 - [Configuration & Keybindings](#configuration--keybindings)
+- [Changelog & Releases](#changelog--releases)
 
 ---
 
 ## Overview
 
-**Prism Music Player** is a desktop audio workstation and library management system designed for audiophiles, producers, and local music collectors. Modern web-based audio players often suffer from high memory footprints, OS mixer resampling artifacts, sluggish UI rendering with large libraries, and lack of deep audio DSP inspection.
+**Prism Music Player** is a local desktop audio player and library manager built with a **Rust audio engine** and a **React 19 interface** powered by Tauri v2:
 
-Prism solves these challenges by combining a **bare-metal Rust audio pipeline** with a **hardware-accelerated React 19 / Vite interface** powered by Tauri v2:
-
-1. **Bit-Perfect Direct Hardware Streaming:** Bypasses lossy system sample-rate converters by negotiating matching native sample rates and bit depths directly with output DACs and audio endpoints.
-2. **On-the-Fly Audio Waveform DSP:** Analyzes raw decoded PCM waveforms across all CPU cores to compute musical key signatures and tempo (BPM). This feature is built for future automated dynamic playlist generation (leveraging AI and advanced harmonic/tempo filtering). While waveform DSP estimation is not 100% perfectly accurate for complex polyrhythmic or acoustically irregular music, it is very close for the vast majority of tracks.
-3. **Tens-of-Thousands Track Scalability:** Employs an ultra-fast virtualized DOM data grid coupled with parallel multi-threaded directory indexing that loads and searches 50,000+ tracks in milliseconds.
-4. **Adaptive Dynamic Theming:** Samples multi-stop color gamuts from embedded album artwork in real-time, driving an ambient UI glow and custom hardware visualizers.
+1. **Bit-Perfect Audio Output:** Matches source track sample rates and bit depths directly with output DACs up to 192 kHz, avoiding OS mixer resampling.
+2. **Waveform DSP Analysis:** Analyzes raw audio across CPU cores using `stratum-dsp`, `rustfft`, and `rubato` resampling to estimate musical keys and tempo (BPM).
+3. **Word- and Syllable-Synced Lyrics:** Highlights lyrics with 8 animation options, shows instrumental interlude indicators (notes and countdown), supports live translations, and includes a batch lyrics finder in Settings.
+4. **Wavy Seekbar:** Optional animated sine-wave seekbar with hover time previews.
+5. **Large Library Support:** Virtualized data table (`@revolist/react-datagrid`) that handles 50,000+ tracks smoothly.
+6. **Dynamic Theming & Discography Views:** Generates UI color accents from album art, with dedicated Album and Artist discography pages.
 
 ---
 
 ## Interface Showcase & Screenshots
 
 ### 1. Main Music Library View
-*High-density virtualized data table rendering thousands of lossless tracks with sub-millisecond responsiveness, real-time bit-perfect audio spec badges (`FLAC 44.1kHz / 16bit`), and dynamic atmospheric color extraction sampled directly from album artwork.*
+*Virtualized data table showing audio format badges (`FLAC 44.1kHz / 16bit`) and color accents sampled from album artwork.*
 
 ![Main Music Library](docs/screenshots/music-library.jpg)
 
 ---
 
 ### 2. Table & Grid Customization
-*Deep UI customization modal empowering users to tailor the virtualized table to their workflow: **drag-and-drop column reordering**, **draggable header divider borders** to freely resize column widths, **row density slider** spanning 6 granular presets (Compact 36px up to Massive 120px with scaling album art thumbnails), **smart artist-under-title cell merging**, and individual column visibility toggles.*
+*Customize your layout: drag to reorder columns, drag borders to adjust column widths, select from 6 row height presets (36px to 120px), and toggle column visibility.*
 
 ![Table Customization](docs/screenshots/grid-customization.png)
 
 ---
 
 ### 3. Advanced Parametric Search & Filter
-*Multi-parameter library exploration engine filtering across keywords, artist names, genre dropdowns, and musical keys. Features decade quick-selectors (1970s–2020s), DAC sample rate filters (44.1 kHz to 192 kHz), and range sliders for Release Year, Bitrate (kbps), and BPM. Includes one-click **"Play All"** and **"Save as New Playlist"** to instantly convert any active filter query into a persistent playlist.*
+*Filter your library by keyword, artist, genre, musical key, decade, sample rate, release year, bitrate, and BPM. Includes one-click options to play all matches or save them as a playlist.*
 
 ![Advanced Filter](docs/screenshots/advanced-filter.png)
 
 ---
 
 ### 4. Fullscreen Synchronized Karaoke Lyrics
-*Immersive LRC synchronized lyrics viewer featuring smooth scroll-interpolation and radiant glowing active vocal lines. Supports **click-any-line seeking** to instantly jump playback to that timestamp, real-time stream bitrate/sample rate indicators (`3056 kb/s • 96.0 kHz`), phonetic romanization for Japanese, Korean, and Chinese lyrics, customizable font scaling presets, and LRCLIB cloud fetching.*
+*Fullscreen lyrics viewer with syllable-level highlighting, 8 animation styles, dynamic font scaling, 2-phase instrumental interludes (notes and countdown), live translations, and pronunciation guides for Japanese, Korean, and Chinese.*
 
 ![Synchronized Lyrics](docs/screenshots/synced-lyrics.png)
 
 ---
 
 ### 5. Local Listening Statistics & Analytics Dashboard
-*Private, offline analytics powered by an embedded SQLite database. Graphs total listening time, 24-hour circadian listening activity distributions, and day/week/month trends. Automatically ranks Top Songs, Top Artists, and Top Genres. Includes privacy anonymization and showcase demo data modes for sharing clean screenshots.*
+*Local analytics stored in SQLite. Graphs listening time, daily activity patterns, and top songs, artists, and genres. Includes an anonymization toggle to hide names when sharing screenshots.*
 
 ![Listening Stats Dashboard](docs/screenshots/listening-stats.png)
 
 ---
 
 ### 6. Playback & Lyrics Preferences
-*Comprehensive configuration center for tuning the audio experience: automatic lyric cloud fetching, phonetic romanization display modes (replace script vs. add below original), audio format badge visibility in the player bar and library columns, automated demo playlist generator, and local database maintenance tools.*
+*Settings for batch lyrics search and tag embedding, font choices, romanization and translation display modes, wavy seekbar toggle, and audio format badges.*
 
 ![Playback Preferences](docs/screenshots/playback-preferences.png)
 
@@ -149,24 +150,25 @@ Audio playback does **not** use browser `<audio>` elements or Web Audio API. Ins
 - **Dedicated Streaming Thread:** The playback loop executes on an isolated OS thread (`run_audio_thread`), completely decoupled from UI rendering cycles and garbage collection pauses.
 - **Universal Codec Decoding via Symphonia:** Pure-Rust format demuxers and decoders handle FLAC, MP3, AAC, ALAC, Vorbis, Opus, WAV, and AIFF files without external DLL dependencies.
 - **Bit-Perfect Hardware Negotiation:** 
-  1. Inspects the source file's native sample rate (e.g., 44.1 kHz, 96 kHz, 192 kHz) and bit depth.
+  1. Inspects the source file's native sample rate (e.g., 44.1 kHz, 88.2 kHz, 96 kHz, 176.4 kHz, 192 kHz) and bit depth.
   2. Queries the selected audio device's supported stream configurations through `cpal`.
   3. If the audio device natively supports the source track's sample rate, Prism initializes a bit-exact stream directly at that frequency, bypassing OS mixer resampling.
   4. If the hardware requires a fixed clock (e.g., 48 kHz), an internal linear interpolation resampler transparently adapts the PCM stream with zero phase distortion.
 - **Lock-Free Bounded Ring Buffer:** Audio samples pass from the decoder into the output stream using `crossbeam-channel::bounded` with instant stall detection.
 - **Dynamic Stream Migration & Hot-Plugging:** Prism constantly monitors the active audio endpoint. If a user unplugs headphones, switches default devices, or selects a new output in the UI, the engine migrates the WASAPI stream on-the-fly without losing playback position.
+- **Output Device Inspector:** An audio endpoint modal shows channels, format, and supported sample rates, with cached device switching.
 - **Real-Time ReplayGain Scaling:** Reads embedded `REPLAYGAIN_TRACK_GAIN` and `REPLAYGAIN_TRACK_PEAK` Vorbis comments and ID3 tags, scaling linear gain via $10^{\frac{\text{dB}}{20}} \times \text{Volume}$ with hard clipping limits $[-1.0, 1.0]$.
 
 ### 2. DSP Audio Analysis Engine (BPM & Key Detection)
 
 Located in `src-tauri/src/audio_analysis.rs`, Prism features a dedicated musical analysis engine:
 
-- **Purpose & Future Dynamic Playlists:** The primary purpose of Key and BPM detection is to facilitate future automated dynamic playlist generation—allowing intelligent harmonic mixing (Camelot wheel transitions) and tempo-matched queue sequencing, potentially integrated with AI or multi-criteria filtering techniques.
-- **Accuracy Profile:** Musical key and BPM estimation directly from raw audio is heuristic-based. While not 100% perfectly accurate on complex acoustic passages, ambient soundscapes, or meter shifts, it is very close and reliable for the vast majority of tracks.
+- **Purpose & Future Dynamic Playlists:** Key and BPM detection facilitates future dynamic playlist generation and harmonic mixing. While waveform DSP estimation is heuristic and not 100% accurate on complex acoustic passages, it is reliable for the vast majority of tracks.
 - **Turbo Drop Sampling:** Skips the initial 45 seconds of a track to bypass atmospheric intros, extracting a high-energy 15-second mono PCM slice.
 - **Anti-Aliased Sinc Resampling (Rubato):** High-sample-rate audio (>48 kHz) is downsampled to 44.1 kHz via `rubato::SincFixedIn` using a 128-sample Blackman-Harris window and 256 oversampling factor to eliminate Nyquist aliasing.
 - **Fast Fourier Transform & Harmonic Analysis:** Analyzes the waveform using `stratum-dsp` and `rustfft` to compute rhythmic onset periodicity (BPM) and tonal chromagram centroids (Musical Key).
-- **Rayon Multicore Batching:** Scans large libraries using all CPU cores in parallel (`rayon::par_iter()`), emitting real-time percentage progress events back to the UI.
+- **Parallel CPU Batching:** Scans tracks in parallel across CPU cores using Rayon with live progress updates.
+- **Incremental Library Refresh:** Detects new and modified files during scans while retaining missing songs for 24 hours to prevent accidental playlist removal during storage disconnects.
 
 ### 3. Metadata Extraction & Storage Optimization
 
@@ -176,16 +178,22 @@ Located in `src-tauri/src/metadata.rs`:
 - **Lightweight Library Serialization:** Embedded artwork is intentionally omitted from the persistent `library.json` database. This ensures that even a 50,000-track library stays under a few megabytes on disk and parses instantly on startup.
 - **On-Demand Cover Art IPC:** Album art is read from file tags or local directory assets (`cover.jpg`, `folder.png`, etc.) on-demand and cached in the browser's memory.
 - **Direct-to-Disk Lyrics Embedding:** Users can edit or fetch synchronized LRC lyrics and write them directly into the audio file's Vorbis comments block (`SYNCEDLYRICS`) with atomic file flushes.
+- **Storage Optimization:** Large objects are excluded from persistent state to avoid hitting localStorage storage limits.
 
-### 4. Lyrics Engine & Multi-Script Romanization
+### 4. Lyrics Engine, Syllable Sync & Romanization
 
-- **LRC Synchronized Scrolling:** Parses standard timestamped LRC strings using `clrc` with millisecond precision and smooth scroll-interpolation.
+Located in `src/components/LyricsView.tsx` and `src/components/WordSyncedLyricsFinder.tsx`:
+
+- **Word & Syllable Synchronization:** Highlights words and syllables as they are sung using timestamped LRC files.
+- **8 Animation Styles:** Choose from multiple motion styles: `Apple Fluid` (spring physics), `Karaoke Pulse` (rhythmic pop), `Kinetic Slide` (sliding motion), `Cinematic Focus` (background blur), `Lossless Glow` (subtle accent glow), `Glass Elevation` (card lift), `Dynamic Focus Zoom` (magnification), and `Minimal Clean` (simple fade).
+- **2-Phase Interlude Indicators:** Shows animated music notes during instrumental breaks, followed by a 3-2-1 countdown ball animation before the next vocal line begins.
+- **Word-Synced Lyrics Finder:** Batch search tool in Settings to fetch word-synced lyrics from LRCLIB and LyricsPlus, with side-by-side preview and direct tag saving.
+- **Live Translations:** Displays translated lyrics underneath original lines or replaces original text, with automatic bracket and metadata tag cleaning.
 - **Multi-Script Romanization:**
-  - **Japanese (Romaji):** Heuristic Kana decomposition covering digraphs, palatalized sounds, and sokuon.
+  - **Japanese (Romaji):** Heuristic Kana decomposition with NFKC Kangxi radical normalization, contextual Furigana syllable mapping, and CJK fallback.
   - **Korean (Hangul to Romaja):** Algorithmic syllabic decomposition into Choseong (initial consonant), Jungseong (vowel), and Jongseong (final consonant).
   - **Chinese (Pinyin):** Powered by `pinyin-pro` tone normalization.
-- **Dual Display Modes:** Displays romanized pronunciation directly underneath original characters or replaces the script entirely.
-- **Cloud Lyrics Fetching:** Integrated with the [LRCLIB](https://lrclib.net/) REST API with automatic track title and artist search fallback.
+- **Typography & Scroll Stability:** Dynamic font scaling to avoid awkward line wrapping, custom fonts, and smooth scrolling locked to line advances.
 
 ### 5. Local Telemetry & Listening Analytics
 
@@ -194,7 +202,8 @@ Located in `src-tauri/src/stats.rs`:
 - **Embedded SQLite Engine:** Stores historical play events inside an encrypted/isolated SQLite database (`listening_stats.db`) using `rusqlite`.
 - **Zero Cloud Tracking:** All statistics remain strictly on the user's local machine.
 - **Aggregation & Charting:** Aggregates top artists, top songs, listening hours, and genre distributions across Day, Week, and Month timeframes using `Chart.js` and `react-chartjs-2`.
-- **Demo & Screenshot Mode:** Built-in setting to populate realistic simulated analytics data and demo playlists for testing and showcase screenshots.
+- **Privacy Mode:** `Anonymize Stats Names` setting masks song, artist, and genre names with generic placeholders for clean screenshots or streaming.
+- **Demo Mode:** Built-in setting to populate realistic simulated analytics data and demo playlists for testing.
 
 ---
 
@@ -203,17 +212,22 @@ Located in `src-tauri/src/stats.rs`:
 | Feature Area | Capabilities |
 | :--- | :--- |
 | **High-Resolution Audio** | Bit-perfect hardware streaming up to 192 kHz / 32-bit float; accurate seeking; volume normalizer with ReplayGain peak limiting. |
-| **Output Device Inspector** | Real-time audio endpoint modal showing device format, channel topology, sample rate clock sync, and device hot-switching. |
-| **High-Scale Virtualized Table** | Custom data grid powered by `@revolist/react-datagrid` supporting density switches (compact to massive), custom column order, sorting, and inline playback. |
+| **Output Device Inspector** | Modal showing connected device format, channels, supported sample rates, and cached device switching. |
+| **High-Scale Virtualized Table** | Custom data grid powered by `@revolist/react-datagrid` with 6 density presets (36px to 120px), draggable column reordering, adjustable column widths, and inline playback. |
+| **Dedicated Album & Artist Views** | Dedicated discography and album detail pages with formatted album durations and universal click routing. |
+| **Dynamic Wavy Seekbar** | Optional animated sine-wave canvas seekbar (`WavyAudioSlider`) with hover timestamp preview. |
+| **Word & Syllable Karaoke** | Word- and syllable-level lyric highlighting with 8 animation styles, dynamic font scaling, and line-based auto-scrolling. |
+| **Word-Synced Lyrics Finder** | Batch library scanner to find word-synced lyrics from LRCLIB and LyricsPlus, with side-by-side preview and direct tag saving. |
+| **Instrumental Interludes** | Displays animated music notes during instrumental breaks, followed by a 3-2-1 countdown ball animation before vocals resume. |
+| **Translations & Romanization** | Dual-line translations, tag cleaning, and phonetic romanization for Japanese (Romaji), Korean (Hangul), and Chinese (Pinyin). |
+| **Themed Playlists & Drag-and-Drop**| Playlist creation dialogs, context menus with search filter, active checkmarks, and drag-and-drop organization. |
 | **Intelligent Multi-Tier Queue** | Distinguishes between album/playlist context queue and user-prioritized queue ("Play Next" and "Add to Queue") with drag-and-drop reordering. |
 | **BPM & Key Detection** | Integrated waveform DSP engine detecting tempo and harmonic key for future dynamic playlists (using AI/filtering). Highly close for most tracks. |
 | **Multifaceted Filtering** | Multithreaded search by Artist, Album, Genre, Decades (70s-2020s), Year Range, Bitrate, Sample Rate, BPM, and Musical Key. |
-| **Synchronized Lyrics** | Live auto-scrolling LRC view, click-line-to-seek, font size presets, direct tag embedding, and LRCLIB cloud fetching. |
-| **Asian Script Romanization** | Real-time phonetic romanization for Japanese (Romaji), Korean (Hangul), and Chinese (Pinyin). |
-| **Ambient Color Extraction** | Canvas-based multi-point image sampling generating 6 smooth, dark-mode-optimized palette stops dynamically derived from album art. |
+| **Ambient Color Extraction** | Canvas-based multi-point image sampling generating 6 smooth palette stops dynamically derived from album art. |
 | **System Integration** | Windows System Media Transport Controls (SMTC), hardware media keys (Play/Pause, Next, Previous), and Web MediaSession integration. |
 | **Sleep Timer** | Timed auto-stop (minutes countdown) or track-count auto-stop with smooth playback cessation. |
-| **Listening Insights** | Built-in analytics dashboard graphing listening duration, peak hours, and top artists over time with optional demo mode. |
+| **Listening Insights & Privacy** | Private SQLite analytics dashboard graphing duration, daily peak hours, and top artists, plus `Anonymize Stats Names` mode for private screenshots. |
 
 ---
 
@@ -252,7 +266,7 @@ Digital Signal Processing:
 - **Virtualized Grid:** [@revolist/react-datagrid](https://github.com/revolist/revogrid)
 - **Motion & UI:** [Framer Motion](https://www.framer.com/motion/), [Lucide React Icons](https://lucide.dev/), Material UI primitives
 - **Data Visualization:** [Chart.js 4](https://www.chartjs.org/) + [react-chartjs-2](https://react-chartjs-2.js.org/)
-- **LRC & Romanization:** `clrc`, `lyric-romanizer`, `pinyin-pro`
+- **LRC & Romanization:** `clrc`, `lyric-romanizer`, `pinyin-pro`, `kuroshiro`, `kuroshiro-analyzer-kuromoji`, `react-lrc`
 
 ### Backend (Tauri / Rust)
 - **App Runtime:** [Tauri v2](https://tauri.app/)
@@ -280,20 +294,27 @@ Prism Music Player/
 │   │   ├── AudioSlider.tsx            # Custom scrubbing & volume sliders
 │   │   ├── BottomBar.tsx              # Persistent player control bar
 │   │   ├── ColumnConfigModal.tsx      # Table column visibility & ordering
+│   │   ├── CreatePlaylistModal.tsx    # Themed custom playlist creation modal
 │   │   ├── FilterView.tsx             # Multi-parameter faceted filter view
-│   │   ├── LyricsView.tsx             # Fullscreen synchronized LRC lyrics
+│   │   ├── Header.tsx                 # Top navigation header with search & status
+│   │   ├── InterludeIndicator.tsx     # 2-phase dancing notes & 3-2-1 countdown
+│   │   ├── LyricsView.tsx             # Fullscreen synchronized & syllable lyrics
+│   │   ├── M3Selector.tsx             # Material Design 3 segmented pill selector
 │   │   ├── PlaylistView.tsx           # User playlists and track management
 │   │   ├── QueueDrawer.tsx            # Dual-tier contextual & priority queue
 │   │   ├── SettingsView.tsx           # Library paths, DSP tools, toggles
+│   │   ├── Sidebar.tsx                # Collapsible navigation sidebar & playlists
 │   │   ├── SleepTimerModal.tsx        # Time & track count sleep timer
 │   │   ├── SongInfoModal.tsx          # Deep audio metadata inspector
 │   │   ├── StatsView.tsx              # Listening habits & analytics charts
 │   │   ├── TrackList.tsx              # Library track listing wrapper
-│   │   └── TrackTableView.tsx         # High-performance virtualized data table
+│   │   ├── TrackTableView.tsx         # High-performance virtualized data table
+│   │   ├── WavyAudioSlider.tsx        # Dynamic 3-layer continuous sine-wave seekbar
+│   │   └── WordSyncedLyricsFinder.tsx # Batch syllable-synced lyrics scraper & embedder
 │   ├── hooks/                         # Custom React hooks (table state, etc.)
 │   ├── store/                         # Zustand global state (usePlayerStore)
 │   ├── types/                         # TypeScript interfaces (Track, Playlist)
-│   ├── utils/                         # Client utilities (color, stats, romanizer)
+│   ├── utils/                         # Client utilities (color, stats, updateChecker)
 │   ├── App.tsx                        # Root application layout
 │   └── main.tsx                       # Frontend entry point
 ├── src-tauri/                         # Rust Native Core
@@ -398,4 +419,14 @@ npm run tauri build -- --target universal-apple-darwin
 | <kbd>Media Next</kbd> | Hardware Key / SMTC | Skip to Next Track |
 | <kbd>Media Previous</kbd> | Hardware Key / SMTC | Return to Previous Track / Restart |
 | <kbd>Click</kbd> on Lyric Line | Lyrics View | Seek playback to timestamp of clicked line |
+| <kbd>Click / Drag</kbd> | Wavy Seekbar | Interactive continuous seeking with live time tooltip |
+| <kbd>Drag & Drop</kbd> | Track Table | Drag songs directly into custom playlists or the queue |
 | <kbd>Drag & Drop</kbd> | Queue Drawer | Reorder upcoming tracks dynamically |
+| <kbd>Drag Dividers</kbd> | Table Headers | Resize column widths with interactive guideline handle |
+
+---
+
+## Changelog & Releases
+
+See the [CHANGELOG.md](CHANGELOG.md) for detailed version history, migration notes, and patch breakdowns across every release.
+

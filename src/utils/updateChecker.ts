@@ -1,6 +1,6 @@
 import { openUrl } from '@tauri-apps/plugin-opener';
 
-export const CURRENT_APP_VERSION = 'v0.1.0';
+export const CURRENT_APP_VERSION = 'v0.2.0';
 export const GITHUB_REPO = 'secondjb/Prism-Music-Player';
 export const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
 

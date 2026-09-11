@@ -377,23 +377,15 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                     }
                   }
 
-                  return (
-                    <motion.span
-                      key={`${line.id}-trans-syl-${wIdx}`}
-                      animate={{
-                        y: sylLift,
-                        scale: sylScale,
-                        opacity: isSylActive ? 1 : isSylPast ? 0.95 : 0.45,
-                      }}
-                      transition={{
-                        type: 'spring',
-                        damping: 14,
-                        stiffness: 220,
-                      }}
-                      className={`inline-block whitespace-nowrap transition-colors mr-[0.28em] ${
-                        isSylActive ? 'drop-shadow-md' : ''
-                      }`}
-                      style={{
+                    return (
+                      <span
+                        key={`${line.id}-trans-syl-${wIdx}`}
+                        className={`inline-block whitespace-nowrap transition-all duration-200 ease-out mr-[0.28em] ${
+                          isSylActive ? 'drop-shadow-md' : ''
+                        }`}
+                        style={{
+                          transform: `translateY(${sylLift}px) scale(${sylScale})`,
+                          opacity: isSylActive ? 1 : isSylPast ? 0.95 : 0.45,
                         color: isSylActive
                           ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, #ffffff)'
                           : isSylPast
@@ -408,7 +400,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                       }}
                     >
                       {word}
-                    </motion.span>
+                    </span>
                   );
                 });
               }
@@ -467,36 +459,28 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                         : syl.text;
 
                     return (
-                      <motion.span
+                      <span
                         key={`${line.id}-syl-${sIdx}`}
-                        animate={{
-                          y: sylLift,
-                          scale: sylScale,
-                          opacity: isSylActive ? 1 : isSylPast ? 0.95 : 0.45,
-                        }}
-                        transition={{
-                          type: 'spring',
-                          damping: 14,
-                          stiffness: 220,
-                        }}
-                        className={`inline-block transition-colors ${
+                        className={`inline-block transition-all duration-200 ease-out ${
                           isSylActive
                             ? 'text-white drop-shadow-md'
                             : isSylPast
                             ? 'text-white/95'
                             : 'text-white/45'
                         }`}
-                        style={
-                          isSylActive && lyricsAnimationStyle === 'lossless_glow'
+                        style={{
+                          transform: `translateY(${sylLift}px) scale(${sylScale})`,
+                          opacity: isSylActive ? 1 : isSylPast ? 0.95 : 0.45,
+                          ...(isSylActive && lyricsAnimationStyle === 'lossless_glow'
                             ? {
                                 textShadow:
                                   '0 0 12px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #818cf8)',
                               }
-                            : undefined
-                        }
+                            : undefined)
+                        }}
                       >
                         {sylDisplayText}
-                      </motion.span>
+                      </span>
                     );
                   })}
                 </span>

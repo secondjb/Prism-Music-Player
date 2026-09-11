@@ -57,3 +57,17 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Upload Standalone Portable Binary (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXE_PATH="src-tauri/target/release/Prism Music Player.exe"
+          if [ -f "$EXE_PATH" ]; then
+            gh release upload "${{ github.ref_name }}" "$EXE_PATH#Prism.Music.Player.exe" --clobber
+          else
+            echo "Standalone binary not found at $EXE_PATH"
+          fi
+

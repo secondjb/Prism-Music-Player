@@ -481,7 +481,12 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
         isLoopRunning = false;
         return;
       }
-      render(now);
+      
+      // CRITICAL OPTIMIZATION: Do not perform canvas rendering if minimized/hidden
+      if (!document.hidden) {
+        render(now);
+      }
+      
       if (isPlayingRef.current || isDraggingRef.current) {
         animationFrameId = requestAnimationFrame(loop);
       } else {

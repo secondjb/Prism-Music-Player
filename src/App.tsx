@@ -57,10 +57,15 @@ export const App: React.FC = () => {
         if (typeof pos === 'number' && !isNaN(pos) && pos >= 0) {
           const state = usePlayerStore.getState();
           const effectiveDur = durFromRust > 0 ? durFromRust : (state.currentTrack?.duration_secs || state.duration || 0);
-          usePlayerStore.setState({
-            currentTime: pos,
-            ...(effectiveDur > 0 ? { duration: effectiveDur } : {})
-          });
+          
+          // CRITICAL OPTIMIZATION: Skip expensive React renders when app is minimized/hidden
+          if (!document.hidden) {
+            usePlayerStore.setState({
+              currentTime: pos,
+              ...(effectiveDur > 0 ? { duration: effectiveDur } : {})
+            });
+          }
+          
           const dur = effectiveDur;
           const rm = state.repeatMode;
           if (dur > 2 && pos > 0.5 && pos >= dur - 0.5) {

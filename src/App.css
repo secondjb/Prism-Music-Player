@@ -557,22 +557,43 @@ body {
   background: #e0e7ff;
 }
 
-/* Interlude / Intro Lyrics 3-Dots Smooth Apple Music / Beautiful Lyrics Wave */
-@keyframes appleMusicDotWave {
+/* PixelPlayer-Style 2-Phase Interlude Keyframes */
+@keyframes ambientDriftUp {
   0% {
-    transform: translateY(0) scale(0.95);
-    opacity: 0.35;
+    transform: translate3d(0, 20px, 0) scale(0.65);
+    opacity: 0;
   }
-  35% {
-    transform: translateY(-11px) scale(1.18);
-    opacity: 1;
+  20% {
+    opacity: var(--particle-opacity, 0.65);
   }
-  70% {
-    transform: translateY(0) scale(0.95);
-    opacity: 0.35;
+  75% {
+    opacity: var(--particle-opacity, 0.45);
   }
   100% {
-    transform: translateY(0) scale(0.95);
+    transform: translate3d(var(--drift-x, 0px), -28px, 0) scale(1.1);
+    opacity: 0;
+  }
+}
+
+@keyframes interludeCountdownBeat {
+  0% {
+    transform: translateY(0) scale(0.92);
+    opacity: 0.4;
+  }
+  28% {
+    transform: translateY(-16px) scale(1.28);
+    opacity: 1;
+  }
+  55% {
+    transform: translateY(-2px) scale(1.06);
+    opacity: 0.85;
+  }
+  85% {
+    transform: translateY(0) scale(0.94);
+    opacity: 0.45;
+  }
+  100% {
+    transform: translateY(0) scale(0.92);
     opacity: 0.35;
   }
 }

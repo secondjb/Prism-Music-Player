@@ -6,6 +6,7 @@ import { AudioSlider } from './AudioSlider';
 import { WavyAudioSlider } from './WavyAudioSlider';
 import { M3Selector } from './M3Selector';
 import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
+import { InterludeIndicator } from './InterludeIndicator';
 import { parseRichLyrics, ParsedLyricLine, LyricSyllable, hasExplicitWordSync, isIdenticalLyricText } from '../utils/lyricsParser';
 import { createRomanizer, detectScript } from 'lyric-romanizer';
 import { enrichLineWithRomanization } from '../utils/japaneseRomanizer';
@@ -684,89 +685,7 @@ const getLineEndSecs = (line: ParsedLyricLine): number => {
   return line.startSecs + estimatedSecs;
 };
 
-interface LyricInterludeRowProps {
-  id: string;
-  startSecs: number;
-  endSecs: number;
-  currentTime: number;
-  isPlaying: boolean;
-  isActive: boolean;
-  isPast: boolean;
-  distance: number;
-  lyricsFontSizePreset: string;
-  activeFontSize: number;
-  onSeek: (secs: number) => void;
-}
-
-const LyricInterludeRow: React.FC<LyricInterludeRowProps> = React.memo(({
-  id,
-  startSecs,
-  endSecs,
-  currentTime: _currentTime,
-  isPlaying,
-  isActive,
-  isPast,
-  distance,
-  lyricsFontSizePreset,
-  activeFontSize,
-  onSeek,
-}) => {
-  if (lyricsFontSizePreset === 'maximum' && distance > 1) {
-    return null;
-  }
-
-  const dotSize = Math.max(12, Math.min(18, activeFontSize * 0.35));
-
-  const renderDot = (dotIndex: 1 | 2 | 3) => {
-    const delay = (dotIndex - 1) * 0.24;
-    const animStyle: React.CSSProperties = isActive
-      ? {
-          animation: 'appleMusicDotWave 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite',
-          animationDelay: `${delay}s`,
-          animationPlayState: isPlaying ? 'running' : 'paused',
-          willChange: 'transform, opacity',
-        }
-      : {
-          transform: 'translateY(0) scale(0.95)',
-          opacity: isPast ? 0.25 : 0.4,
-        };
-
-    return (
-      <div
-        key={dotIndex}
-        className="rounded-full"
-        style={{
-          width: `${dotSize}px`,
-          height: `${dotSize}px`,
-          background: isActive
-            ? 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #818cf8))'
-            : 'rgba(255, 255, 255, 0.4)',
-          boxShadow: isActive
-            ? '0 0 16px var(--color-stop-1, #6366f1), 0 0 24px color-mix(in srgb, var(--color-stop-2, #818cf8) 50%, transparent)'
-            : 'none',
-          transition: 'background 0.3s ease, box-shadow 0.3s ease',
-          ...animStyle,
-        }}
-      />
-    );
-  };
-
-  return (
-    <div
-      id={id}
-      onClick={() => onSeek(startSecs)}
-      className="text-center cursor-pointer max-w-[90vw] w-full py-6 flex items-center justify-center gap-4 transition-all duration-300"
-      style={{
-        opacity: isActive ? 1 : isPast ? 0.3 : 0.45,
-      }}
-      title={`Interlude (${(endSecs - startSecs).toFixed(1)}s)`}
-    >
-      {renderDot(1)}
-      {renderDot(2)}
-      {renderDot(3)}
-    </div>
-  );
-});
+const LyricInterludeRow = InterludeIndicator;
 
 export const LyricsView: React.FC = () => {
   const {

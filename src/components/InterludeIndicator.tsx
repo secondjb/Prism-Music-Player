@@ -50,7 +50,9 @@ export const InterludeIndicator: React.FC<InterludeIndicatorProps> = React.memo(
     let rafId: number;
     const loop = () => {
       const elapsedSecs = (performance.now() - syncRef.current.perf) / 1000;
-      setAnimTime(syncRef.current.time + elapsedSecs);
+      if (!document.hidden) {
+        setAnimTime(syncRef.current.time + elapsedSecs);
+      }
       rafId = requestAnimationFrame(loop);
     };
     rafId = requestAnimationFrame(loop);
@@ -170,7 +172,7 @@ export const InterludeIndicator: React.FC<InterludeIndicatorProps> = React.memo(
             pointerEvents: 'none',
           }}
         >
-          {/* Element 1: Clean Bubble Dot (~2x size, no glow) */}
+          {/* Element 1: Single Musical Note ♪ (~2x size, crisp, no glow) */}
           <div
             className="flex items-center justify-center"
             style={{
@@ -180,12 +182,14 @@ export const InterludeIndicator: React.FC<InterludeIndicatorProps> = React.memo(
               willChange: 'transform, opacity',
             }}
           >
-            <div
-              className="w-6 h-6 rounded-full"
+            <span
+              className="text-3xl font-extrabold leading-none select-none"
               style={{
-                background: 'linear-gradient(135deg, #ffffff 15%, var(--color-stop-1, #6366f1) 85%)',
+                color: 'var(--color-stop-1, #a5b4fc)',
               }}
-            />
+            >
+              ♪
+            </span>
           </div>
 
           {/* Element 2: Beamed Musical Notes ♫ (~2x size, crisp, no glow) */}

@@ -85,6 +85,9 @@ const PROP_TO_COL_ID: Record<string, TrackColumnId> = {
   year: 'date',
   genre: 'genre',
   duration_secs: 'duration',
+  bit_rate_kbps: 'bitrate',
+  sample_rate: 'sampleRate',
+  bit_depth: 'bitDepth',
   favorite: 'favorite',
   playNext: 'playNext',
   addToQueue: 'addToQueue',
@@ -217,7 +220,10 @@ const OrderCell: React.FC<any> = ({ model, rowIndex }) => {
             <span className={`group-hover/row:hidden text-zinc-400 font-medium ${config.textClass}`}>
               {model?.order ?? ((rowIndex ?? 0) + 1)}
             </span>
-            <Play className={`${config.iconClass} hidden group-hover/row:block fill-white text-white ml-0.5`} />
+            <Play 
+              className={`${config.iconClass} hidden group-hover/row:block fill-current ml-0.5`} 
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+            />
           </>
         )}
       </button>
@@ -647,6 +653,129 @@ const DurationCell: React.FC<any> = ({ model }) => {
   );
 };
 
+const BitrateCell: React.FC<any> = ({ model }) => {
+  const track = (model || {}) as Track;
+  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
+  if (!track.id) return null;
+
+  return (
+    <div
+      draggable={Boolean(track.id)}
+      onDragStart={(e) => handleTrackDragStart(e, track)}
+      className="flex items-center h-full w-full min-w-0 cursor-grab active:cursor-grabbing"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        const evt = new CustomEvent('prism-open-context-menu', {
+          bubbles: true,
+          detail: { x: e.clientX, y: e.clientY, track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+      onDoubleClick={() => {
+        const evt = new CustomEvent('prism-play-track', {
+          bubbles: true,
+          detail: { track },
+        });
+        window.dispatchEvent(evt);
+      }}
+    >
+      <span
+        className={`font-mono text-zinc-400 truncate ${
+          trackGridDensity === 'massive'
+            ? 'text-base'
+            : trackGridDensity === 'huge'
+            ? 'text-sm'
+            : 'text-xs'
+        }`}
+      >
+        {track.bit_rate_kbps ? `${track.bit_rate_kbps} kbps` : '—'}
+      </span>
+    </div>
+  );
+};
+
+const SampleRateCell: React.FC<any> = ({ model }) => {
+  const track = (model || {}) as Track;
+  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
+  if (!track.id) return null;
+
+  return (
+    <div
+      draggable={Boolean(track.id)}
+      onDragStart={(e) => handleTrackDragStart(e, track)}
+      className="flex items-center h-full w-full min-w-0 cursor-grab active:cursor-grabbing"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        const evt = new CustomEvent('prism-open-context-menu', {
+          bubbles: true,
+          detail: { x: e.clientX, y: e.clientY, track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+      onDoubleClick={() => {
+        const evt = new CustomEvent('prism-play-track', {
+          bubbles: true,
+          detail: { track },
+        });
+        window.dispatchEvent(evt);
+      }}
+    >
+      <span
+        className={`font-mono text-zinc-400 truncate ${
+          trackGridDensity === 'massive'
+            ? 'text-base'
+            : trackGridDensity === 'huge'
+            ? 'text-sm'
+            : 'text-xs'
+        }`}
+      >
+        {track.sample_rate ? `${(track.sample_rate / 1000).toFixed(1)} kHz` : '—'}
+      </span>
+    </div>
+  );
+};
+
+const BitDepthCell: React.FC<any> = ({ model }) => {
+  const track = (model || {}) as Track;
+  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
+  if (!track.id) return null;
+
+  return (
+    <div
+      draggable={Boolean(track.id)}
+      onDragStart={(e) => handleTrackDragStart(e, track)}
+      className="flex items-center h-full w-full min-w-0 cursor-grab active:cursor-grabbing"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        const evt = new CustomEvent('prism-open-context-menu', {
+          bubbles: true,
+          detail: { x: e.clientX, y: e.clientY, track },
+        });
+        e.currentTarget.dispatchEvent(evt);
+      }}
+      onDoubleClick={() => {
+        const evt = new CustomEvent('prism-play-track', {
+          bubbles: true,
+          detail: { track },
+        });
+        window.dispatchEvent(evt);
+      }}
+    >
+      <span
+        className={`font-mono text-zinc-400 truncate ${
+          trackGridDensity === 'massive'
+            ? 'text-base'
+            : trackGridDensity === 'huge'
+            ? 'text-sm'
+            : 'text-xs'
+        }`}
+      >
+        {track.bit_depth ? `${track.bit_depth}-bit` : '—'}
+      </span>
+    </div>
+  );
+};
+
 const FavoriteCell: React.FC<any> = ({ model }) => {
   const track = (model || {}) as Track;
   const isLiked = usePlayerStore((s) => s.likedTrackIds.includes(track?.id));
@@ -807,6 +936,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const playlists = usePlayerStore((s) => s.playlists);
   const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
   const createPlaylist = usePlayerStore((s) => s.createPlaylist);
+  const activeTab = usePlayerStore((s) => s.activeTab);
 
   const {
     visibleTrackColumns,
@@ -973,6 +1103,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const dateCellTemplate = useMemo(() => Template(DateCell), []);
   const genreCellTemplate = useMemo(() => Template(GenreCell), []);
   const durationCellTemplate = useMemo(() => Template(DurationCell), []);
+  const bitrateCellTemplate = useMemo(() => Template(BitrateCell), []);
+  const sampleRateCellTemplate = useMemo(() => Template(SampleRateCell), []);
+  const bitDepthCellTemplate = useMemo(() => Template(BitDepthCell), []);
   const columnHeaderTemplate = useMemo(() => Template(ColumnHeader), [sortState]);
   const favoriteCellTemplate = useMemo(() => Template(FavoriteCell), []);
   const playNextCellTemplate = useMemo(() => Template(PlayNextCell), []);
@@ -998,6 +1131,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       'date',
       'genre',
       'duration',
+      'bitrate',
+      'sampleRate',
+      'bitDepth',
       'favorite',
       'playNext',
       'addToQueue',
@@ -1145,6 +1281,45 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         columnTemplate: columnHeaderTemplate,
         cellTemplate: durationCellTemplate,
         cellCompare: createSpacerAwareCompare('duration_secs'),
+      },
+      bitrate: {
+        prop: 'bit_rate_kbps',
+        name: 'Bitrate',
+        readonly: true,
+        size: widths.bitrate,
+        minSize: MIN_COLUMN_WIDTHS.bitrate,
+        sortable: true,
+        order: sortState?.prop === 'bit_rate_kbps' ? sortState.order : undefined,
+        filter: false,
+        columnTemplate: columnHeaderTemplate,
+        cellTemplate: bitrateCellTemplate,
+        cellCompare: createSpacerAwareCompare('bit_rate_kbps'),
+      },
+      sampleRate: {
+        prop: 'sample_rate',
+        name: 'Sample Rate',
+        readonly: true,
+        size: widths.sampleRate,
+        minSize: MIN_COLUMN_WIDTHS.sampleRate,
+        sortable: true,
+        order: sortState?.prop === 'sample_rate' ? sortState.order : undefined,
+        filter: false,
+        columnTemplate: columnHeaderTemplate,
+        cellTemplate: sampleRateCellTemplate,
+        cellCompare: createSpacerAwareCompare('sample_rate'),
+      },
+      bitDepth: {
+        prop: 'bit_depth',
+        name: 'Bit Depth',
+        readonly: true,
+        size: widths.bitDepth,
+        minSize: MIN_COLUMN_WIDTHS.bitDepth,
+        sortable: true,
+        order: sortState?.prop === 'bit_depth' ? sortState.order : undefined,
+        filter: false,
+        columnTemplate: columnHeaderTemplate,
+        cellTemplate: bitDepthCellTemplate,
+        cellCompare: createSpacerAwareCompare('bit_depth'),
       },
       favorite: {
         prop: 'favorite',
@@ -1360,15 +1535,27 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     [currentTrack, togglePlay, playTrack, tracks]
   );
 
+  const isLikedView = activeTab === 'liked' || playlistId === '__liked__';
+
   if (tracks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center gap-3 glass-card rounded-2xl border border-dashed border-white/10 my-4 select-none">
         <div className="w-14 h-14 rounded-full bg-zinc-800/80 flex items-center justify-center text-zinc-500">
-          <Music className="w-8 h-8 text-indigo-400" />
+          {isLikedView ? (
+            <Heart className="w-8 h-8 fill-pink-500/20" style={{ color: 'var(--color-stop-1, #ec4899)' }} />
+          ) : (
+            <Music className="w-8 h-8" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+          )}
         </div>
         <div>
-          <h3 className="text-base font-semibold text-white">No tracks available</h3>
-          <p className="text-xs text-zinc-400 mt-1 max-w-sm">There are no songs to display in this list.</p>
+          <h3 className="text-base font-semibold text-white">
+            {isLikedView ? 'No liked songs yet' : 'No tracks available'}
+          </h3>
+          <p className="text-xs text-zinc-400 mt-1 max-w-sm">
+            {isLikedView
+              ? 'Songs you mark as favorite will appear here.'
+              : 'There are no songs to display in this list.'}
+          </p>
         </div>
       </div>
     );

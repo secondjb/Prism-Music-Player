@@ -17,6 +17,8 @@ import {
   Search,
   X,
   PlusCircle,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 
 export const PlaylistView: React.FC = () => {
@@ -44,8 +46,34 @@ export const PlaylistView: React.FC = () => {
   const [addSongsQuery, setAddSongsQuery] = useState('');
   const [dragOverCardId, setDragOverCardId] = useState<string | null>(null);
 
+  const [playlistViewMode, setPlaylistViewMode] = useState<'grid' | 'list'>(() => {
+    return (localStorage.getItem('prism_playlist_view_mode') as 'grid' | 'list') || 'grid';
+  });
+
+  const handleTogglePlaylistViewMode = (mode: 'grid' | 'list') => {
+    setPlaylistViewMode(mode);
+    localStorage.setItem('prism_playlist_view_mode', mode);
+  };
+
   // "Liked Songs" virtual playlist
   const likedTracks = tracks.filter((t) => likedTrackIds.includes(t.id));
+
+  const handlePlayLiked = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (likedTracks.length > 0) {
+      playTrack(likedTracks[0], likedTracks);
+    }
+  };
+
+  const handlePlayPlaylistCard = (pl: Playlist, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const plTracks = pl.trackIds
+      .map((tid) => tracks.find((t) => t.id === tid))
+      .filter((t): t is Track => Boolean(t));
+    if (plTracks.length > 0) {
+      playTrack(plTracks[0], plTracks);
+    }
+  };
 
   // If viewing a specific playlist
   const activePlaylist = activePlaylistId === '__liked__'
@@ -291,196 +319,434 @@ export const PlaylistView: React.FC = () => {
   return (
     <div className="w-full h-full flex flex-col gap-6 overflow-y-auto custom-scrollbar pb-12 pr-2">
 
-      {/* Header with create button */}
+      {/* Header with create button and view mode switcher */}
       <div className="flex items-center justify-between shrink-0">
         <div>
           <h2 className="text-xl font-bold text-white">Your Playlists</h2>
           <p className="text-xs text-zinc-400 mt-0.5">Create and manage your music collections</p>
         </div>
-        <button
-          onClick={() => {
-            setNewPlaylistName('');
-            setShowCreateModal(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold hover:brightness-110 transition-all shadow-md cursor-pointer"
-          style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-        >
-          <Plus className="w-4 h-4" />
-          New Playlist
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+            <button
+              onClick={() => handleTogglePlaylistViewMode('grid')}
+              title="Grid View"
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                playlistViewMode === 'grid'
+                  ? 'bg-white/15 text-white shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleTogglePlaylistViewMode('list')}
+              title="List View"
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                playlistViewMode === 'list'
+                  ? 'bg-white/15 text-white shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+
+          <button
+            onClick={() => {
+              setNewPlaylistName('');
+              setShowCreateModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold hover:brightness-110 transition-all shadow-md cursor-pointer"
+            style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+          >
+            <Plus className="w-4 h-4" />
+            New Playlist
+          </button>
+        </div>
       </div>
 
-      {/* Playlist Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {/* Liked Songs (always first, special card) */}
-        <div
-          onClick={() => setActivePlaylistId('__liked__')}
-          onDragEnter={(e) => e.preventDefault()}
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'copy';
-            setDragOverCardId('__liked__');
-          }}
-          onDragLeave={() => setDragOverCardId(null)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragOverCardId(null);
-            try {
-              const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-              if (data.type === 'tracks' && Array.isArray(data.ids)) {
-                data.ids.forEach((id: string) => {
-                  if (!likedTrackIds.includes(id)) {
-                    toggleLikeTrack(id);
-                  }
-                });
-              }
-            } catch (err) {}
-          }}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setContextMenu({
-              x: e.clientX,
-              y: e.clientY,
-              playlistId: '__liked__',
-              name: 'Liked Songs',
-            });
-          }}
-          style={
-            dragOverCardId === '__liked__'
-              ? {
-                  borderColor: 'var(--color-stop-1, #6366f1)',
-                  boxShadow:
-                    '0 0 24px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
-                  backgroundColor:
-                    'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
+      {playlistViewMode === 'grid' ? (
+        /* Playlist Grid */
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {/* Liked Songs (always first, special card) */}
+          <div
+            onClick={() => setActivePlaylistId('__liked__')}
+            onDragEnter={(e) => e.preventDefault()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'copy';
+              setDragOverCardId('__liked__');
+            }}
+            onDragLeave={() => setDragOverCardId(null)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOverCardId(null);
+              try {
+                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                if (data.type === 'tracks' && Array.isArray(data.ids)) {
+                  data.ids.forEach((id: string) => {
+                    if (!likedTrackIds.includes(id)) {
+                      toggleLikeTrack(id);
+                    }
+                  });
                 }
-              : undefined
-          }
-          className="group glass-card rounded-2xl border border-white/10 p-5 cursor-pointer hover:border-pink-500/40 hover:bg-pink-500/5 transition-all flex flex-col gap-3"
-        >
-          <div className="w-full aspect-square rounded-xl bg-gradient-to-br from-pink-600 to-purple-700 flex items-center justify-center shadow-lg pointer-events-none">
-            <Heart className="w-12 h-12 text-white fill-white/50" />
+              } catch (err) {}
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setContextMenu({
+                x: e.clientX,
+                y: e.clientY,
+                playlistId: '__liked__',
+                name: 'Liked Songs',
+              });
+            }}
+            style={
+              dragOverCardId === '__liked__'
+                ? {
+                    borderColor: 'var(--color-stop-1, #6366f1)',
+                    boxShadow:
+                      '0 0 24px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                    backgroundColor:
+                      'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
+                  }
+                : undefined
+            }
+            className="group glass-card rounded-2xl border border-white/10 p-5 cursor-pointer hover:border-pink-500/40 hover:bg-pink-500/5 transition-all flex flex-col gap-3 relative"
+          >
+            <div className="w-full aspect-square rounded-xl bg-gradient-to-br from-pink-600 to-purple-700 flex items-center justify-center shadow-lg relative overflow-hidden">
+              <Heart className="w-12 h-12 text-white fill-white/50" />
+              {likedTracks.length > 0 && (
+                <div 
+                  className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                  onClick={handlePlayLiked}
+                >
+                  <div 
+                    className="w-12 h-12 rounded-full text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"
+                    style={{
+                      backgroundColor: 'var(--color-stop-1, #ec4899)',
+                      boxShadow: '0 8px 24px color-mix(in srgb, var(--color-stop-1, #ec4899) 40%, transparent)',
+                    }}
+                  >
+                    <Play className="w-6 h-6 fill-white ml-1" />
+                  </div>
+                </div>
+              )}
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white truncate">Liked Songs</h3>
+              <p className="text-xs text-zinc-400">{likedTracks.length} tracks</p>
+            </div>
           </div>
-          <div className="pointer-events-none">
-            <h3 className="text-sm font-bold text-white truncate">Liked Songs</h3>
-            <p className="text-xs text-zinc-400">{likedTracks.length} tracks</p>
+
+          {/* User playlists */}
+          {playlists.map((pl) => {
+            const plTracks = pl.trackIds
+              .slice(0, 4)
+              .map((tid) => tracks.find((t) => t.id === tid))
+              .filter((t): t is Track => Boolean(t));
+
+            const isDragOver = dragOverCardId === pl.id;
+
+            return (
+              <div
+                key={pl.id}
+                onClick={() => setActivePlaylistId(pl.id)}
+                onDragEnter={(e) => e.preventDefault()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'copy';
+                  setDragOverCardId(pl.id);
+                }}
+                onDragLeave={() => setDragOverCardId(null)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOverCardId(null);
+                  try {
+                    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                    if (data.type === 'tracks' && Array.isArray(data.ids)) {
+                      const existingSet = new Set(pl.trackIds);
+                      const duplicates = data.ids.filter((id: string) => existingSet.has(id));
+
+                      if (duplicates.length > 0) {
+                        const addDuplicates = window.confirm(
+                          `${duplicates.length} of the ${data.ids.length} selected song(s) are already in "${pl.name}".\n\nClick OK to add duplicates anyway, or Cancel to skip duplicates.`
+                        );
+
+                        if (addDuplicates) {
+                          data.ids.forEach((id: string) => addTrackToPlaylist(pl.id, id));
+                        } else {
+                          const uniqueIds = data.ids.filter((id: string) => !existingSet.has(id));
+                          uniqueIds.forEach((id: string) => addTrackToPlaylist(pl.id, id));
+                        }
+                      } else {
+                        data.ids.forEach((id: string) => addTrackToPlaylist(pl.id, id));
+                      }
+                    }
+                  } catch (err) {}
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setContextMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    playlistId: pl.id,
+                    name: pl.name,
+                  });
+                }}
+                style={
+                  isDragOver
+                    ? {
+                        borderColor: 'var(--color-stop-1, #6366f1)',
+                        boxShadow:
+                          '0 0 24px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                        backgroundColor:
+                          'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
+                      }
+                    : undefined
+                }
+                className="group glass-card rounded-2xl border border-white/10 p-5 cursor-pointer hover:border-white/30 transition-all flex flex-col gap-3 relative"
+              >
+                {/* Playlist cover art grid */}
+                <div className="w-full aspect-square rounded-xl overflow-hidden bg-zinc-800/80 grid grid-cols-2 grid-rows-2 gap-0.5 relative">
+                  {[0, 1, 2, 3].map((i) => {
+                    const t = plTracks[i];
+                    return (
+                      <PlaylistCoverCell key={i} track={t || null} />
+                    );
+                  })}
+                  {pl.trackIds.length > 0 && (
+                    <div 
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                      onClick={(e) => handlePlayPlaylistCard(pl, e)}
+                    >
+                      <div 
+                        className="w-12 h-12 rounded-full text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"
+                        style={{
+                          backgroundColor: 'var(--color-stop-1, #6366f1)',
+                          boxShadow: '0 8px 24px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                        }}
+                      >
+                        <Play className="w-6 h-6 fill-white ml-1" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-bold text-white truncate">{pl.name}</h3>
+                    <p className="text-xs text-zinc-400">{pl.trackIds.length} tracks</p>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deletePlaylist(pl.id);
+                    }}
+                    className="p-1.5 text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-white/10 cursor-pointer"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Create New Playlist Card */}
+          <div
+            onClick={() => {
+              setNewPlaylistName('');
+              setShowCreateModal(true);
+            }}
+            className="glass-card rounded-2xl border border-dashed border-white/10 p-5 cursor-pointer hover:border-white/30 hover:bg-white/5 transition-all flex flex-col items-center justify-center gap-3 min-h-[200px]"
+          >
+            <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-zinc-500">
+              <Plus className="w-6 h-6" />
+            </div>
+            <span className="text-xs font-medium text-zinc-400">Create Playlist</span>
           </div>
         </div>
-
-        {/* User playlists */}
-        {playlists.map((pl) => {
-          const plTracks = pl.trackIds
-            .slice(0, 4)
-            .map((tid) => tracks.find((t) => t.id === tid))
-            .filter((t): t is Track => Boolean(t));
-
-          const isDragOver = dragOverCardId === pl.id;
-
-          return (
-            <div
-              key={pl.id}
-              onClick={() => setActivePlaylistId(pl.id)}
-              onDragEnter={(e) => e.preventDefault()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'copy';
-                setDragOverCardId(pl.id);
-              }}
-              onDragLeave={() => setDragOverCardId(null)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOverCardId(null);
-                try {
-                  const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-                  if (data.type === 'tracks' && Array.isArray(data.ids)) {
-                    const existingSet = new Set(pl.trackIds);
-                    const duplicates = data.ids.filter((id: string) => existingSet.has(id));
-
-                    if (duplicates.length > 0) {
-                      const addDuplicates = window.confirm(
-                        `${duplicates.length} of the ${data.ids.length} selected song(s) are already in "${pl.name}".\n\nClick OK to add duplicates anyway, or Cancel to skip duplicates.`
-                      );
-
-                      if (addDuplicates) {
-                        data.ids.forEach((id: string) => addTrackToPlaylist(pl.id, id));
-                      } else {
-                        const uniqueIds = data.ids.filter((id: string) => !existingSet.has(id));
-                        uniqueIds.forEach((id: string) => addTrackToPlaylist(pl.id, id));
-                      }
-                    } else {
-                      data.ids.forEach((id: string) => addTrackToPlaylist(pl.id, id));
+      ) : (
+        /* Playlist List View */
+        <div className="flex flex-col gap-1.5">
+          {/* Liked Songs row */}
+          <div
+            onClick={() => setActivePlaylistId('__liked__')}
+            onDragEnter={(e) => e.preventDefault()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'copy';
+              setDragOverCardId('__liked__');
+            }}
+            onDragLeave={() => setDragOverCardId(null)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOverCardId(null);
+              try {
+                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                if (data.type === 'tracks' && Array.isArray(data.ids)) {
+                  data.ids.forEach((id: string) => {
+                    if (!likedTrackIds.includes(id)) {
+                      toggleLikeTrack(id);
                     }
+                  });
+                }
+              } catch (err) {}
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setContextMenu({
+                x: e.clientX,
+                y: e.clientY,
+                playlistId: '__liked__',
+                name: 'Liked Songs',
+              });
+            }}
+            style={
+              dragOverCardId === '__liked__'
+                ? {
+                    borderColor: 'var(--color-stop-1, #6366f1)',
+                    backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
                   }
-                } catch (err) {}
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setContextMenu({
-                  x: e.clientX,
-                  y: e.clientY,
-                  playlistId: pl.id,
-                  name: pl.name,
-                });
-              }}
-              style={
-                isDragOver
-                  ? {
-                      borderColor: 'var(--color-stop-1, #6366f1)',
-                      boxShadow:
-                        '0 0 24px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
-                      backgroundColor:
-                        'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
-                    }
-                  : undefined
-              }
-              className="group glass-card rounded-2xl border border-white/10 p-5 cursor-pointer hover:border-white/30 transition-all flex flex-col gap-3 relative"
-            >
-              {/* Playlist cover art grid */}
-              <div className="w-full aspect-square rounded-xl overflow-hidden bg-zinc-800/80 grid grid-cols-2 grid-rows-2 gap-0.5 pointer-events-none">
-                {[0, 1, 2, 3].map((i) => {
-                  const t = plTracks[i];
-                  return (
-                    <PlaylistCoverCell key={i} track={t || null} />
-                  );
-                })}
+                : undefined
+            }
+            className="group flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer hover:bg-white/10 border border-transparent hover:border-white/5"
+          >
+            <div className="flex items-center gap-3.5 min-w-0 flex-1">
+              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-pink-600 to-purple-700 flex items-center justify-center shadow-md shrink-0 relative overflow-hidden">
+                <Heart className="w-6 h-6 text-white fill-white/50" />
+                {likedTracks.length > 0 && (
+                  <div 
+                    className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                    onClick={handlePlayLiked}
+                  >
+                    <div 
+                      className="w-8 h-8 rounded-full text-white flex items-center justify-center shadow-md group-hover:scale-110 transition-transform"
+                      style={{
+                        backgroundColor: 'var(--color-stop-1, #ec4899)',
+                      }}
+                    >
+                      <Play className="w-4 h-4 fill-white ml-0.5" />
+                    </div>
+                  </div>
+                )}
               </div>
-
-              <div className="flex items-center justify-between pointer-events-none">
-                <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-white truncate">{pl.name}</h3>
-                  <p className="text-xs text-zinc-400">{pl.trackIds.length} tracks</p>
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deletePlaylist(pl.id);
-                  }}
-                  className="p-1.5 text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-white/10 pointer-events-auto cursor-pointer"
-                  title="Delete"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="font-semibold text-sm truncate text-white group-hover:underline">Liked Songs</span>
+                <span className="text-xs text-zinc-400">Special Collection</span>
               </div>
             </div>
-          );
-        })}
-
-        {/* Create New Playlist Card */}
-        <div
-          onClick={() => {
-            setNewPlaylistName('');
-            setShowCreateModal(true);
-          }}
-          className="glass-card rounded-2xl border border-dashed border-white/10 p-5 cursor-pointer hover:border-white/30 hover:bg-white/5 transition-all flex flex-col items-center justify-center gap-3 min-h-[200px]"
-        >
-          <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-zinc-500">
-            <Plus className="w-6 h-6" />
+            <div className="flex items-center gap-6 text-xs text-zinc-400 font-mono shrink-0">
+              <span>{likedTracks.length} track{likedTracks.length > 1 ? 's' : ''}</span>
+            </div>
           </div>
-          <span className="text-xs font-medium text-zinc-400">Create Playlist</span>
+
+          {/* User Playlist rows */}
+          {playlists.map((pl) => {
+            const plTracks = pl.trackIds
+              .slice(0, 4)
+              .map((tid) => tracks.find((t) => t.id === tid))
+              .filter((t): t is Track => Boolean(t));
+
+            const isDragOver = dragOverCardId === pl.id;
+
+            return (
+              <div
+                key={pl.id}
+                onClick={() => setActivePlaylistId(pl.id)}
+                onDragEnter={(e) => e.preventDefault()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'copy';
+                  setDragOverCardId(pl.id);
+                }}
+                onDragLeave={() => setDragOverCardId(null)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOverCardId(null);
+                  try {
+                    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                    if (data.type === 'tracks' && Array.isArray(data.ids)) {
+                      const existingSet = new Set(pl.trackIds);
+                      data.ids.forEach((id: string) => {
+                        if (!existingSet.has(id)) {
+                          addTrackToPlaylist(pl.id, id);
+                        }
+                      });
+                    }
+                  } catch (err) {}
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setContextMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    playlistId: pl.id,
+                    name: pl.name,
+                  });
+                }}
+                style={
+                  isDragOver
+                    ? {
+                        borderColor: 'var(--color-stop-1, #6366f1)',
+                        backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
+                      }
+                    : undefined
+                }
+                className="group flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer hover:bg-white/10 border border-transparent hover:border-white/5"
+              >
+                <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                  <div className="w-12 h-12 rounded-lg overflow-hidden bg-zinc-800/80 grid grid-cols-2 grid-rows-2 gap-0.5 shrink-0 relative">
+                    {[0, 1, 2, 3].map((i) => {
+                      const t = plTracks[i];
+                      return (
+                        <PlaylistCoverCell key={i} track={t || null} />
+                      );
+                    })}
+                    {pl.trackIds.length > 0 && (
+                      <div 
+                        className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                        onClick={(e) => handlePlayPlaylistCard(pl, e)}
+                      >
+                        <div 
+                          className="w-8 h-8 rounded-full text-white flex items-center justify-center shadow-md group-hover:scale-110 transition-transform"
+                          style={{
+                            backgroundColor: 'var(--color-stop-1, #6366f1)',
+                          }}
+                        >
+                          <Play className="w-4 h-4 fill-white ml-0.5" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="font-semibold text-sm truncate text-white group-hover:underline">{pl.name}</span>
+                    <span className="text-xs text-zinc-400">Playlist</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-6 text-xs text-zinc-400 font-mono shrink-0">
+                  <span>{pl.trackIds.length} track{pl.trackIds.length > 1 ? 's' : ''}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deletePlaylist(pl.id);
+                    }}
+                    className="p-1.5 text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-white/10 cursor-pointer"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      )}
 
       {/* Create Playlist Modal */}
       {showCreateModal && (

@@ -262,6 +262,8 @@ pub struct FilterParams {
     pub min_bpm: Option<u32>,
     pub max_bpm: Option<u32>,
     pub query: Option<String>,
+    pub lyrics_types: Option<Vec<String>>,
+    pub lyrics_match_mode: Option<String>,
 }
 
 #[tauri::command]
@@ -385,6 +387,42 @@ fn filter_tracks(app_handle: AppHandle, params: FilterParams) -> Result<Vec<Stri
                 let in_genre = t.genre.as_ref().map(|g| g.to_lowercase().contains(tq)).unwrap_or(false);
                 if !in_title && !in_artist && !in_album && !in_genre {
                     return false;
+                }
+            }
+
+            if let Some(ref types) = params.lyrics_types {
+                if !types.is_empty() {
+                    let lyrics = t.unsynced_lyrics.as_deref().unwrap_or("");
+                    let has_synced = lyrics.contains('[') && lyrics.lines().any(|l| {
+                        let trimmed = l.trim_start();
+                        trimmed.starts_with('[') && trimmed.chars().skip(1).take(2).all(|c| c.is_ascii_digit())
+                    });
+                    let has_word_sync = lyrics.contains('<') && lyrics.lines().any(|l| {
+                        l.contains('<') && l.contains('>')
+                    });
+                    let has_translation = lyrics.contains(" // ") || lyrics.contains(" / ") || lyrics.contains(" | ");
+                    let has_unsynced = !lyrics.trim().is_empty() && !has_synced;
+
+                    let is_match = |typ: &str| -> bool {
+                        match typ {
+                            "translation" => has_translation,
+                            "wordSynced" => has_word_sync,
+                            "synced" => has_synced,
+                            "unsynced" => has_unsynced,
+                            _ => true,
+                        }
+                    };
+
+                    let match_all = params.lyrics_match_mode.as_deref().unwrap_or("all") == "all";
+                    let satisfies = if match_all {
+                        types.iter().all(|typ| is_match(typ))
+                    } else {
+                        types.iter().any(|typ| is_match(typ))
+                    };
+
+                    if !satisfies {
+                        return false;
+                    }
                 }
             }
 

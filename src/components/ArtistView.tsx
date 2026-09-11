@@ -49,7 +49,13 @@ const AlbumSection: React.FC<{ albumName: string; tracks: Track[]; artistName: s
             className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
             onClick={(e) => { e.stopPropagation(); playAlbum(); }}
           >
-            <div className="w-10 h-10 rounded-full bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-600/40 group-hover:scale-110 transition-transform">
+            <div 
+              className="w-10 h-10 rounded-full text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"
+              style={{
+                backgroundColor: 'var(--color-stop-1, #6366f1)',
+                boxShadow: '0 8px 24px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+              }}
+            >
               <Play className="w-5 h-5 fill-white ml-1" />
             </div>
           </div>

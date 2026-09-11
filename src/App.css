@@ -400,13 +400,24 @@ revogr-scroll-virtual[dimension="rgRow"] {
 /* 2b. Auto-height Tables (Albums, Artists): No internal scrollbars; all songs are displayed in full and the outer page scrolls */
 .auto-height-grid revogr-scroll-virtual,
 .auto-height-grid revogr-scroll-virtual.vertical,
-.auto-height-grid revogr-scroll-virtual[dimension="rgRow"],
-.auto-height-grid revogr-viewport-scroll,
-.auto-height-grid revogr-viewport-scroll.vertical {
+.auto-height-grid revogr-scroll-virtual[dimension="rgRow"] {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.auto-height-grid revogr-viewport-scroll,
+.auto-height-grid revogr-viewport-scroll.vertical {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.auto-height-grid revogr-viewport-scroll::-webkit-scrollbar,
+.auto-height-grid revogr-viewport-scroll.vertical::-webkit-scrollbar {
+  display: none !important;
   width: 0 !important;
   height: 0 !important;
 }
@@ -541,4 +552,25 @@ body {
 .slider-m3:active::-webkit-slider-thumb {
   transform: scale(1.5);
   background: #e0e7ff;
+}
+
+/* Interlude / Intro Lyrics 3-Dots Smooth GPU Keyframes */
+@keyframes interludeDotBounce1 {
+  0% { transform: translateY(0) scale(1); opacity: 0.5; }
+  16.6% { transform: translateY(-18px) scale(1.25); opacity: 1; }
+  33.3% { transform: translateY(0) scale(1); opacity: 0.5; }
+  100% { transform: translateY(0) scale(1); opacity: 0.5; }
+}
+
+@keyframes interludeDotBounce2 {
+  0%, 33.3% { transform: translateY(0) scale(1); opacity: 0.5; }
+  50% { transform: translateY(-18px) scale(1.25); opacity: 1; }
+  66.6% { transform: translateY(0) scale(1); opacity: 0.5; }
+  100% { transform: translateY(0) scale(1); opacity: 0.5; }
+}
+
+@keyframes interludeDotBounce3 {
+  0%, 66.6% { transform: translateY(0) scale(1); opacity: 0.5; }
+  83.3% { transform: translateY(-18px) scale(1.25); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 0.5; }
 }

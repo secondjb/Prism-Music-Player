@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { Track } from '../types/player';
-import { Disc, Play } from 'lucide-react';
+import { Disc, Play, LayoutGrid, List } from 'lucide-react';
 
 interface AlbumGridProps {
   tracks: Track[];
@@ -85,7 +85,13 @@ const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () 
           className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
           onClick={(e) => { e.stopPropagation(); onPlay(); }}
         >
-          <div className="w-12 h-12 rounded-full bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-600/40 group-hover:scale-110 transition-transform">
+          <div 
+            className="w-12 h-12 rounded-full text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"
+            style={{
+              backgroundColor: 'var(--color-stop-1, #6366f1)',
+              boxShadow: '0 8px 24px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+            }}
+          >
             <Play className="w-6 h-6 fill-white ml-1" />
           </div>
         </div>
@@ -113,10 +119,113 @@ const AlbumCard: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () 
   );
 });
 
+const AlbumListRow: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: () => void; onNavigate: () => void; artist: string }> = React.memo(({
+  albumName,
+  albumTracks,
+  onPlay,
+  onNavigate,
+  artist,
+}) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    return observeElement(ref.current, (isIntersecting) => {
+      if (isIntersecting) {
+        setIsVisible(true);
+      }
+    });
+  }, []);
+
+  const firstTrack = albumTracks[0];
+  const art = useTrackArt(isVisible ? firstTrack : null, { thumbnail: true, maxSize: 128 });
+  const navigateToArtist = usePlayerStore((s) => s.navigateToArtist);
+
+  const totalDuration = useMemo(() => {
+    return albumTracks.reduce((acc, t) => acc + (t.duration_secs || 0), 0);
+  }, [albumTracks]);
+
+  const year = firstTrack?.year;
+
+  return (
+    <div
+      ref={ref}
+      onClick={onNavigate}
+      className="group flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer hover:bg-white/10 border border-transparent hover:border-white/5"
+    >
+      <div className="flex items-center gap-3.5 min-w-0 flex-1">
+        {/* Thumbnail art */}
+        <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-zinc-800 border border-white/10 relative group/thumb">
+          {art ? (
+            <img src={art} alt={albumName} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-indigo-900/80 to-purple-950/80 flex items-center justify-center">
+              <Disc className="w-5 h-5 text-indigo-300/60" />
+            </div>
+          )}
+          <div
+            className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPlay();
+            }}
+          >
+            <div
+              className="w-8 h-8 rounded-full text-white flex items-center justify-center shadow-md group-hover/thumb:scale-110 transition-transform"
+              style={{
+                backgroundColor: 'var(--color-stop-1, #6366f1)',
+              }}
+            >
+              <Play className="w-4 h-4 fill-white ml-0.5" />
+            </div>
+          </div>
+        </div>
+
+        {/* Album & Artist */}
+        <div className="flex flex-col min-w-0 flex-1">
+          <span className="font-semibold text-sm truncate text-white group-hover:underline">{albumName}</span>
+          <span
+            className="text-xs text-zinc-400 truncate hover:underline hover:text-indigo-400 cursor-pointer"
+            onClick={(e) => {
+              if (artist !== 'Unknown Artist') {
+                e.stopPropagation();
+                navigateToArtist(artist);
+              }
+            }}
+          >
+            {artist}
+          </span>
+        </div>
+      </div>
+
+      {/* Meta info */}
+      <div className="flex items-center gap-6 text-xs text-zinc-400 font-mono shrink-0">
+        {year && <span className="text-zinc-500">{year}</span>}
+        <span>{albumTracks.length} track{albumTracks.length > 1 ? 's' : ''}</span>
+        {totalDuration > 0 && (
+          <span className="w-14 text-right text-zinc-500">
+            {Math.floor(totalDuration / 60)}:{(totalDuration % 60).toString().padStart(2, '0')}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export const AlbumGrid: React.FC<AlbumGridProps> = ({ tracks }) => {
   const setQueue = usePlayerStore((s) => s.setQueue);
   const playIndex = usePlayerStore((s) => s.playIndex);
   const navigateToAlbum = usePlayerStore((s) => s.navigateToAlbum);
+
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    return (localStorage.getItem('prism_album_view_mode') as 'grid' | 'list') || 'grid';
+  });
+
+  const handleToggleViewMode = (mode: 'grid' | 'list') => {
+    setViewMode(mode);
+    localStorage.setItem('prism_album_view_mode', mode);
+  };
 
   // Group and sort tracks by album name efficiently with useMemo
   const albumList = useMemo(() => {
@@ -168,24 +277,73 @@ export const AlbumGrid: React.FC<AlbumGridProps> = ({ tracks }) => {
   const visibleAlbums = albumList.slice(0, renderCount);
 
   return (
-    <div className="overflow-y-auto custom-scrollbar h-full pb-12 pr-2">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 pb-8" style={{ alignContent: 'start' }}>
-        {visibleAlbums.map(([albumName, albumTracks]) => (
-          <AlbumCard
-            key={albumName}
-            albumName={albumName}
-            albumTracks={albumTracks}
-            artist={albumTracks[0]?.artist || 'Unknown Artist'}
-            onPlay={() => handlePlayAlbum(albumTracks)}
-            onNavigate={() => navigateToAlbum(albumName)}
-          />
-        ))}
-      </div>
-      {renderCount < albumList.length && (
-        <div ref={sentinelRef} className="w-full h-12 flex items-center justify-center text-zinc-500 text-xs py-2">
-          Loading more albums...
+    <div className="flex flex-col h-full overflow-hidden pb-12 pr-2">
+      {/* Header toolbar with count and view mode toggle */}
+      <div className="flex items-center justify-between pb-4 shrink-0">
+        <span className="text-xs text-zinc-400 font-medium">
+          {albumList.length} album{albumList.length !== 1 ? 's' : ''}
+        </span>
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+          <button
+            onClick={() => handleToggleViewMode('grid')}
+            title="Grid View"
+            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+              viewMode === 'grid'
+                ? 'bg-white/15 text-white shadow-sm'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => handleToggleViewMode('list')}
+            title="List View"
+            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+              viewMode === 'list'
+                ? 'bg-white/15 text-white shadow-sm'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <List className="w-4 h-4" />
+          </button>
         </div>
-      )}
+      </div>
+
+      <div className="overflow-y-auto custom-scrollbar flex-1">
+        {viewMode === 'grid' ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 pb-8" style={{ alignContent: 'start' }}>
+            {visibleAlbums.map(([albumName, albumTracks]) => (
+              <AlbumCard
+                key={albumName}
+                albumName={albumName}
+                albumTracks={albumTracks}
+                artist={albumTracks[0]?.artist || 'Unknown Artist'}
+                onPlay={() => handlePlayAlbum(albumTracks)}
+                onNavigate={() => navigateToAlbum(albumName)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1 pb-8">
+            {visibleAlbums.map(([albumName, albumTracks]) => (
+              <AlbumListRow
+                key={albumName}
+                albumName={albumName}
+                albumTracks={albumTracks}
+                artist={albumTracks[0]?.artist || 'Unknown Artist'}
+                onPlay={() => handlePlayAlbum(albumTracks)}
+                onNavigate={() => navigateToAlbum(albumName)}
+              />
+            ))}
+          </div>
+        )}
+
+        {renderCount < albumList.length && (
+          <div ref={sentinelRef} className="w-full h-12 flex items-center justify-center text-zinc-500 text-xs py-2">
+            Loading more albums...
+          </div>
+        )}
+      </div>
     </div>
   );
 };

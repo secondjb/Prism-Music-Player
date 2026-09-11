@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore, sanitizeTrackForStorage } from '../store/usePlayerStore';
 import { Track } from '../types/player';
-import { searchEnhancedLyrics, isWordSyncedLrc, hasLrcTimestamps } from '../utils/lrclibFetcher';
+import { searchEnhancedLyrics, isWordSyncedLrc, hasLrcTimestamps, isLyricsPlusServiceAvailable, resetLyricsPlusCircuitBreaker } from '../utils/lrclibFetcher';
 import { parseRichLyrics, ParsedLyricLine, hasTranslationInLyrics } from '../utils/lyricsParser';
 import { createRomanizer, detectScript } from 'lyric-romanizer';
 import { useTrackArt } from '../utils/useTrackArt';
@@ -92,6 +92,9 @@ export const WordSyncedLyricsFinder: React.FC = () => {
   const translationMode = usePlayerStore((s) => s.translationMode);
 
   const [onlyMissingWordSync, setOnlyMissingWordSync] = useState(true);
+  const [onlyMissingTranslation, setOnlyMissingTranslation] = useState(false);
+  const [strictWordSyncOnly, setStrictWordSyncOnly] = useState(false);
+  const [lyricsPlusAvailable, setLyricsPlusAvailable] = useState(() => isLyricsPlusServiceAvailable());
   const [scanConcurrency, setScanConcurrency] = useState<number>(4);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<{
@@ -181,6 +184,22 @@ export const WordSyncedLyricsFinder: React.FC = () => {
     }
   }, [candidates]);
 
+  const isEligibleTrack = useCallback(
+    (t: Track) => {
+      if (onlyMissingWordSync && onlyMissingTranslation) {
+        return !isWordSyncedLrc(t.unsynced_lyrics) || !hasTranslationInLyrics(t.unsynced_lyrics);
+      }
+      if (onlyMissingWordSync) {
+        return !isWordSyncedLrc(t.unsynced_lyrics);
+      }
+      if (onlyMissingTranslation) {
+        return !hasTranslationInLyrics(t.unsynced_lyrics);
+      }
+      return true;
+    },
+    [onlyMissingWordSync, onlyMissingTranslation]
+  );
+
   // Unscanned remaining tracks count (for "Continue Search")
   const unscannedRemainingCount = useMemo(() => {
     const candidateIds = new Set(candidates.map((c) => c.track.id));
@@ -188,12 +207,9 @@ export const WordSyncedLyricsFinder: React.FC = () => {
       if (candidateIds.has(t.id)) return false;
       if (scannedTrackIds.has(t.id)) return false;
       if (rejectedTrackIds.has(t.id)) return false;
-      if (onlyMissingWordSync) {
-        return !isWordSyncedLrc(t.unsynced_lyrics) || !hasTranslationInLyrics(t.unsynced_lyrics);
-      }
-      return true;
+      return isEligibleTrack(t);
     }).length;
-  }, [tracks, scannedTrackIds, candidates, rejectedTrackIds, onlyMissingWordSync]);
+  }, [tracks, scannedTrackIds, candidates, rejectedTrackIds, isEligibleTrack]);
 
   // Counts for each category
   const wordSyncCount = useMemo(
@@ -556,8 +572,12 @@ export const WordSyncedLyricsFinder: React.FC = () => {
             track.artist,
             track.album,
             track.duration_secs,
-            abortControllerRef.current?.signal
+            abortControllerRef.current?.signal,
+            strictWordSyncOnly
           );
+
+          // Update service availability state
+          setLyricsPlusAvailable(isLyricsPlusServiceAvailable());
 
           // Mark track as scanned
           scannedTrackIdsRef.current.add(track.id);
@@ -651,19 +671,14 @@ export const WordSyncedLyricsFinder: React.FC = () => {
 
       setCandidates([]);
       setActiveCandidateIdx(0);
-      targetTracks = onlyMissingWordSync
-        ? tracks.filter((t) => !isWordSyncedLrc(t.unsynced_lyrics) || !hasTranslationInLyrics(t.unsynced_lyrics))
-        : [...tracks];
+      targetTracks = tracks.filter((t) => isEligibleTrack(t));
     } else {
       // mode === 'continue': keep existing candidates and scan remaining tracks
       targetTracks = tracks.filter((t) => {
         if (candidateIds.has(t.id)) return false;
         if (scannedTrackIdsRef.current.has(t.id)) return false;
         if (rejectedTrackIdsRef.current.has(t.id)) return false;
-        if (onlyMissingWordSync) {
-          return !isWordSyncedLrc(t.unsynced_lyrics) || !hasTranslationInLyrics(t.unsynced_lyrics);
-        }
-        return true;
+        return isEligibleTrack(t);
       });
     }
 
@@ -843,30 +858,103 @@ export const WordSyncedLyricsFinder: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter Options */}
-      <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
-        <div className="flex items-center gap-3">
-          <Sparkles className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-          <div className="flex flex-col">
-            <span className="text-xs font-semibold text-white">Only scan tracks missing enhancements</span>
-            <span className="text-[11px] text-zinc-400">
-              Scans tracks with missing lyrics, lacking word-by-word timestamps, or missing bilingual translations
+      {/* Server Status Warning / Circuit Breaker Banner */}
+      {!lyricsPlusAvailable && (
+        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-xs text-amber-200 animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <span className="text-base">⚠️</span>
+            <span>
+              <strong>Lyrics+ Server Offline / Unreachable:</strong> Word-by-word lyrics server is currently not responding. Searches will fall back to LRCLIB (line-synced lyrics), or you can enable <em>Strict Mode</em> below to pause/retry later.
             </span>
           </div>
+          <button
+            onClick={() => {
+              resetLyricsPlusCircuitBreaker();
+              setLyricsPlusAvailable(true);
+            }}
+            className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] font-bold text-amber-100 shrink-0 cursor-pointer"
+          >
+            Retry Connection
+          </button>
         </div>
-        <Checkbox
-          checked={onlyMissingWordSync}
-          onChange={(e) => setOnlyMissingWordSync(e.target.checked)}
-          disabled={isScanning}
-          size="small"
-          sx={{
-            color: 'var(--color-stop-1, #6366f1)',
-            '&.Mui-checked': {
+      )}
+
+      {/* Filter Options */}
+      <div className="flex flex-col gap-2 p-3.5 rounded-xl bg-white/5 border border-white/5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Sparkles className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+            <div className="flex flex-col">
+              <span className="text-xs font-semibold text-white">Only scan tracks missing Word-by-Word sync</span>
+              <span className="text-[11px] text-zinc-400">
+                Skips songs that already have word-by-word syllable timestamps (&lt;mm:ss.xx&gt;)
+              </span>
+            </div>
+          </div>
+          <Checkbox
+            checked={onlyMissingWordSync}
+            onChange={(e) => setOnlyMissingWordSync(e.target.checked)}
+            disabled={isScanning}
+            size="small"
+            sx={{
               color: 'var(--color-stop-1, #6366f1)',
-            },
-            p: 0.5,
-          }}
-        />
+              '&.Mui-checked': {
+                color: 'var(--color-stop-1, #6366f1)',
+              },
+              p: 0.5,
+            }}
+          />
+        </div>
+
+        <div className="border-t border-white/5 pt-2 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Globe className="w-4 h-4 text-emerald-400" />
+            <div className="flex flex-col">
+              <span className="text-xs font-semibold text-white">Also scan tracks missing Translations</span>
+              <span className="text-[11px] text-zinc-400">
+                Include songs missing dual-language translations (uncheck if your songs already have word sync and don't need translations)
+              </span>
+            </div>
+          </div>
+          <Checkbox
+            checked={onlyMissingTranslation}
+            onChange={(e) => setOnlyMissingTranslation(e.target.checked)}
+            disabled={isScanning}
+            size="small"
+            sx={{
+              color: 'var(--color-stop-1, #6366f1)',
+              '&.Mui-checked': {
+                color: 'var(--color-stop-1, #6366f1)',
+              },
+              p: 0.5,
+            }}
+          />
+        </div>
+
+        <div className="border-t border-white/5 pt-2 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Zap className="w-4 h-4 text-amber-400" />
+            <div className="flex flex-col">
+              <span className="text-xs font-semibold text-white">Strict Mode: Word-by-Word only</span>
+              <span className="text-[11px] text-zinc-400">
+                Never accept basic line-synced lyrics from LRCLIB; only import if rich word-sync lyrics are found
+              </span>
+            </div>
+          </div>
+          <Checkbox
+            checked={strictWordSyncOnly}
+            onChange={(e) => setStrictWordSyncOnly(e.target.checked)}
+            disabled={isScanning}
+            size="small"
+            sx={{
+              color: 'var(--color-stop-1, #6366f1)',
+              '&.Mui-checked': {
+                color: 'var(--color-stop-1, #6366f1)',
+              },
+              p: 0.5,
+            }}
+          />
+        </div>
       </div>
 
       {/* Parallel Worker Agents Selector */}

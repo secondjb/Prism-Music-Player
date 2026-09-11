@@ -95,8 +95,6 @@ export const SettingsView: React.FC = () => {
   const setTranslationMode = usePlayerStore((s) => s.setTranslationMode);
   const showAudioSpecs = usePlayerStore((s) => s.showAudioSpecs);
   const toggleShowAudioSpecs = usePlayerStore((s) => s.toggleShowAudioSpecs);
-  const showAudioSpecsInLibrary = usePlayerStore((s) => s.showAudioSpecsInLibrary);
-  const toggleShowAudioSpecsInLibrary = usePlayerStore((s) => s.toggleShowAudioSpecsInLibrary);
   const autoHideLyricsControls = usePlayerStore((s) => s.autoHideLyricsControls);
   const toggleAutoHideLyricsControls = usePlayerStore((s) => s.toggleAutoHideLyricsControls);
   const preferOnlineLyrics = usePlayerStore((s) => s.preferOnlineLyrics);
@@ -1033,27 +1031,6 @@ export const SettingsView: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
-            <div className="flex items-center gap-3">
-              <Sparkles className="w-4 h-4" style={{ color: 'var(--color-stop-2, #8b5cf6)' }} />
-              <div className="flex flex-col">
-                <span className="text-xs font-semibold text-white">Show Audio Format in Library</span>
-                <span className="text-[11px] text-zinc-400">Display sample rate / bit depth column in track list</span>
-              </div>
-            </div>
-            <Checkbox
-              checked={showAudioSpecsInLibrary}
-              onChange={() => toggleShowAudioSpecsInLibrary()}
-              size="small"
-              sx={{
-                color: 'var(--color-stop-1, #6366f1)',
-                '&.Mui-checked': {
-                  color: 'var(--color-stop-1, #6366f1)',
-                },
-                p: 0.5,
-              }}
-            />
-          </div>
 
 
 

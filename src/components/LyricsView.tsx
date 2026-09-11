@@ -715,93 +715,39 @@ const LyricInterludeRow: React.FC<LyricInterludeRowProps> = React.memo(({
     return null;
   }
 
-  // Smooth local time tracking with RAF for fluid 60/120fps interpolation
-  const [animTime, setAnimTime] = useState(currentTime);
-  const syncRef = useRef({ time: currentTime, perf: performance.now() });
-
-  useEffect(() => {
-    syncRef.current = { time: currentTime, perf: performance.now() };
-    setAnimTime(currentTime);
-  }, [currentTime]);
-
-  useEffect(() => {
-    if (!isActive || !isPlaying) {
-      setAnimTime(currentTime);
-      return;
-    }
-
-    let rafId: number;
-    const loop = () => {
-      const elapsedSecs = (performance.now() - syncRef.current.perf) / 1000;
-      const interpolated = syncRef.current.time + elapsedSecs;
-      setAnimTime(interpolated);
-      rafId = requestAnimationFrame(loop);
-    };
-    rafId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(rafId);
-  }, [isActive, isPlaying, currentTime]);
-
-  // Calculate 3-phase interpolation across the full gap:
-  // Phase 1 (first third): Dot 1 rises up and lands back down
-  // Phase 2 (middle third): Dot 2 rises up and lands back down
-  // Phase 3 (final third): Dot 3 rises up and lands all the way back down right as next lyric begins
+  // Pure GPU-accelerated CSS animation: 0 JS re-render loops, 0 RAM overhead, buttery smooth compositor frames
   const totalGap = Math.max(0.1, endSecs - startSecs);
-  const clampedTime = Math.max(startSecs, Math.min(endSecs, animTime));
-  const progress = Math.max(0, Math.min(1, (clampedTime - startSecs) / totalGap));
-
-  // Jump height scaled with font size
-  const jumpHeight = Math.max(14, Math.min(26, activeFontSize * 0.45));
-
-  // Phase 1: progress in [0, 1/3)
-  let y1 = 0;
-  let p1 = 0;
-  if (progress >= 0 && progress < 1 / 3) {
-    p1 = progress * 3;
-    y1 = -Math.sin(p1 * Math.PI) * jumpHeight;
-  }
-
-  // Phase 2: progress in [1/3, 2/3)
-  let y2 = 0;
-  let p2 = 0;
-  if (progress >= 1 / 3 && progress < 2 / 3) {
-    p2 = (progress - 1 / 3) * 3;
-    y2 = -Math.sin(p2 * Math.PI) * jumpHeight;
-  }
-
-  // Phase 3: progress in [2/3, 1]
-  let y3 = 0;
-  let p3 = 0;
-  if (progress >= 2 / 3 && progress <= 1) {
-    p3 = (progress - 2 / 3) * 3;
-    y3 = -Math.sin(p3 * Math.PI) * jumpHeight;
-  }
-
+  const elapsed = Math.max(0, Math.min(totalGap, currentTime - startSecs));
   const dotSize = Math.max(12, Math.min(18, activeFontSize * 0.35));
 
-  const dot1Active = p1 > 0 && p1 < 1;
-  const dot2Active = p2 > 0 && p2 < 1;
-  const dot3Active = p3 > 0 && p3 < 1;
-
-  const renderDot = (y: number, isDotJumping: boolean, key: number) => {
-    const scale = isDotJumping ? 1.25 : isActive ? 1.05 : 0.95;
-    const opacity = isDotJumping ? 1 : isActive ? 0.7 : isPast ? 0.25 : 0.4;
+  const renderDot = (dotIndex: 1 | 2 | 3) => {
+    const animName = `interludeDotBounce${dotIndex}`;
+    const animStyle: React.CSSProperties = isActive
+      ? {
+          animation: `${animName} ${totalGap}s cubic-bezier(0.25, 1, 0.5, 1) forwards`,
+          animationDelay: `-${elapsed.toFixed(3)}s`,
+          animationPlayState: isPlaying ? 'running' : 'paused',
+          willChange: 'transform, opacity',
+        }
+      : {
+          transform: 'translateY(0) scale(0.95)',
+          opacity: isPast ? 0.25 : 0.4,
+        };
 
     return (
       <div
-        key={key}
-        className="rounded-full transition-shadow duration-150"
+        key={dotIndex}
+        className="rounded-full transition-all duration-300"
         style={{
           width: `${dotSize}px`,
           height: `${dotSize}px`,
-          transform: `translateY(${y.toFixed(2)}px) scale(${scale.toFixed(2)})`,
-          opacity,
-          background: isDotJumping || isActive
+          background: isActive
             ? 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #818cf8))'
             : 'rgba(255, 255, 255, 0.4)',
-          boxShadow: isDotJumping
-            ? '0 0 16px var(--color-stop-1, #6366f1), 0 0 28px color-mix(in srgb, var(--color-stop-2, #818cf8) 60%, transparent)'
+          boxShadow: isActive
+            ? '0 0 16px var(--color-stop-1, #6366f1), 0 0 24px color-mix(in srgb, var(--color-stop-2, #818cf8) 50%, transparent)'
             : 'none',
-          willChange: 'transform',
+          ...animStyle,
         }}
       />
     );
@@ -817,9 +763,9 @@ const LyricInterludeRow: React.FC<LyricInterludeRowProps> = React.memo(({
       }}
       title={`Interlude (${(endSecs - startSecs).toFixed(1)}s)`}
     >
-      {renderDot(y1, dot1Active, 1)}
-      {renderDot(y2, dot2Active, 2)}
-      {renderDot(y3, dot3Active, 3)}
+      {renderDot(1)}
+      {renderDot(2)}
+      {renderDot(3)}
     </div>
   );
 });

@@ -49,7 +49,13 @@ export const AlbumView: React.FC = () => {
             className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
             onClick={playAlbum}
           >
-            <div className="w-16 h-16 rounded-full bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-600/40 group-hover:scale-110 transition-transform">
+            <div 
+              className="w-16 h-16 rounded-full text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"
+              style={{
+                backgroundColor: 'var(--color-stop-1, #6366f1)',
+                boxShadow: '0 8px 24px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+              }}
+            >
               <Play className="w-8 h-8 fill-white ml-2" />
             </div>
           </div>
@@ -58,7 +64,8 @@ export const AlbumView: React.FC = () => {
         <div className="flex-1 pb-2">
           <h2 className="text-4xl font-bold text-white tracking-tight">{selectedAlbum}</h2>
           <p 
-            className="text-indigo-400 text-lg mt-2 font-medium cursor-pointer hover:underline"
+            className="text-lg mt-2 font-medium cursor-pointer hover:underline"
+            style={{ color: 'var(--color-stop-1, #818cf8)' }}
             onClick={() => {
               if (artistName !== 'Unknown Artist') {
                 navigateToArtist(artistName);

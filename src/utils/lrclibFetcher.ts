@@ -51,6 +51,18 @@ export function hasLrcTimestamps(lyrics: string | null | undefined): boolean {
 
 // Shared rate limit coordinator to avoid hammering LyricsPlus when 429 is encountered
 let lyricsPlusRateLimitUntil = 0;
+// Circuit breaker to avoid hanging on a dead or unreachable server
+let lyricsPlusCircuitBrokenUntil = 0;
+let lyricsPlusConsecutiveFailures = 0;
+
+export function isLyricsPlusServiceAvailable(): boolean {
+  return Date.now() >= lyricsPlusCircuitBrokenUntil;
+}
+
+export function resetLyricsPlusCircuitBreaker(): void {
+  lyricsPlusCircuitBrokenUntil = 0;
+  lyricsPlusConsecutiveFailures = 0;
+}
 
 /**
  * Attempt to fetch rich word-by-word / syllable lyrics from LyricsPlus API (LastWave-native source)
@@ -63,103 +75,108 @@ async function fetchLyricsPlus(
   durationSecs?: number,
   signal?: AbortSignal
 ): Promise<string | null> {
+  // If circuit is broken (server dead/timed out), bypass immediately
+  if (Date.now() < lyricsPlusCircuitBrokenUntil) {
+    return null;
+  }
+
   const endpoint = 'https://lyricsplus.prjktla.my.id/v2/lyrics/get';
   const cTitle = cleanTitle(trackName);
   const cArtist = cleanArtist(artistName);
 
   if (signal?.aborted) return null;
 
-  for (let attempt = 0; attempt < 4; attempt++) {
+  // Respect active rate limit window across all workers
+  const waitMs = lyricsPlusRateLimitUntil - Date.now();
+  if (waitMs > 0) {
+    await new Promise((r) => setTimeout(r, Math.min(waitMs, 2000)));
     if (signal?.aborted) return null;
-
-    // Respect active rate limit window across all workers
-    const waitMs = lyricsPlusRateLimitUntil - Date.now();
-    if (waitMs > 0) {
-      await new Promise((r) => setTimeout(r, Math.min(waitMs, 4000)));
-      if (signal?.aborted) return null;
-    }
-
-    try {
-      const url = new URL(endpoint);
-      url.searchParams.set('title', cTitle);
-      url.searchParams.set('artist', cArtist);
-      if (albumName) url.searchParams.set('album', albumName);
-      if (durationSecs && durationSecs > 0) url.searchParams.set('duration', Math.round(durationSecs).toString());
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6500);
-      const onParentAbort = () => controller.abort();
-      signal?.addEventListener('abort', onParentAbort);
-
-      let resp: Response;
-      try {
-        resp = await fetch(url.toString(), {
-          headers: {
-            'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
-            Accept: 'application/json',
-          },
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(timeoutId);
-        signal?.removeEventListener('abort', onParentAbort);
-      }
-
-      if (resp.status === 429) {
-        // Progressive backoff: 2.5s, 4s, 6s...
-        const backoff = Math.min(8000, 2500 * Math.pow(1.5, attempt));
-        lyricsPlusRateLimitUntil = Date.now() + backoff;
-        await new Promise((r) => setTimeout(r, backoff));
-        continue;
-      }
-
-      if (!resp.ok) return null;
-      const data = await resp.json();
-      if (!data || !Array.isArray(data.lyrics) || data.lyrics.length === 0) return null;
-
-      // Convert LyricsPlus structure to Enhanced LRC with <mm:ss.xx> inline timestamps and // translations
-      const lrcLines: string[] = [];
-
-      for (const line of data.lyrics) {
-        const lineMs = typeof line.time === 'number' ? line.time : 0;
-        const totalSec = Math.floor(lineMs / 1000);
-        const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
-        const s = (totalSec % 60).toString().padStart(2, '0');
-        const cs = Math.floor((lineMs % 1000) / 10).toString().padStart(2, '0');
-        const tag = `[${m}:${s}.${cs}]`;
-
-        const transText = line.translation?.text?.trim();
-        const translationSuffix = transText && transText !== line.text?.trim() ? ` // ${transText}` : '';
-
-        if (Array.isArray(line.syllabus) && line.syllabus.length > 0) {
-          let inlineBody = '';
-          for (const syl of line.syllabus) {
-            const sylMs = typeof syl.time === 'number' ? syl.time : lineMs;
-            const sylSec = Math.floor(sylMs / 1000);
-            const sm = Math.floor(sylSec / 60).toString().padStart(2, '0');
-            const ss = (sylSec % 60).toString().padStart(2, '0');
-            const scs = Math.floor((sylMs % 1000) / 10).toString().padStart(2, '0');
-            inlineBody += `<${sm}:${ss}.${scs}>${syl.text} `;
-          }
-          lrcLines.push(`${tag} ${inlineBody.trim()}${translationSuffix}`);
-        } else {
-          lrcLines.push(`${tag} ${(line.text || '').trim()}${translationSuffix}`);
-        }
-      }
-
-      if (lrcLines.length > 0) {
-        return lrcLines.join('\n');
-      }
-      return null;
-    } catch {
-      // Timeout or network glitch: pause and retry
-      if (attempt < 3) {
-        await new Promise((r) => setTimeout(r, 800));
-      }
-    }
   }
 
-  return null;
+  try {
+    const url = new URL(endpoint);
+    url.searchParams.set('title', cTitle);
+    url.searchParams.set('artist', cArtist);
+    if (albumName) url.searchParams.set('album', albumName);
+    if (durationSecs && durationSecs > 0) url.searchParams.set('duration', Math.round(durationSecs).toString());
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const onParentAbort = () => controller.abort();
+    signal?.addEventListener('abort', onParentAbort);
+
+    let resp: Response;
+    try {
+      resp = await fetch(url.toString(), {
+        headers: {
+          'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+      signal?.removeEventListener('abort', onParentAbort);
+    }
+
+    if (resp.status === 429) {
+      lyricsPlusRateLimitUntil = Date.now() + 5000;
+      return null;
+    }
+
+    if (!resp.ok) {
+      return null;
+    }
+
+    // Success! Reset failure count
+    lyricsPlusConsecutiveFailures = 0;
+
+    const data = await resp.json();
+    if (!data || !Array.isArray(data.lyrics) || data.lyrics.length === 0) return null;
+
+    // Convert LyricsPlus structure to Enhanced LRC with <mm:ss.xx> inline timestamps and // translations
+    const lrcLines: string[] = [];
+
+    for (const line of data.lyrics) {
+      const lineMs = typeof line.time === 'number' ? line.time : 0;
+      const totalSec = Math.floor(lineMs / 1000);
+      const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
+      const s = (totalSec % 60).toString().padStart(2, '0');
+      const cs = Math.floor((lineMs % 1000) / 10).toString().padStart(2, '0');
+      const tag = `[${m}:${s}.${cs}]`;
+
+      const transText = line.translation?.text?.trim();
+      const translationSuffix = transText && transText !== line.text?.trim() ? ` // ${transText}` : '';
+
+      if (Array.isArray(line.syllabus) && line.syllabus.length > 0) {
+        let inlineBody = '';
+        for (const syl of line.syllabus) {
+          const sylMs = typeof syl.time === 'number' ? syl.time : lineMs;
+          const sylSec = Math.floor(sylMs / 1000);
+          const sm = Math.floor(sylSec / 60).toString().padStart(2, '0');
+          const ss = (sylSec % 60).toString().padStart(2, '0');
+          const scs = Math.floor((sylMs % 1000) / 10).toString().padStart(2, '0');
+          inlineBody += `<${sm}:${ss}.${scs}>${syl.text} `;
+        }
+        lrcLines.push(`${tag} ${inlineBody.trim()}${translationSuffix}`);
+      } else {
+        lrcLines.push(`${tag} ${(line.text || '').trim()}${translationSuffix}`);
+      }
+    }
+
+    if (lrcLines.length > 0) {
+      return lrcLines.join('\n');
+    }
+    return null;
+  } catch {
+    // Network failure / timeout
+    lyricsPlusConsecutiveFailures++;
+    if (lyricsPlusConsecutiveFailures >= 2) {
+      // Break circuit for 5 minutes
+      lyricsPlusCircuitBrokenUntil = Date.now() + 5 * 60 * 1000;
+    }
+    return null;
+  }
 }
 
 async function fetchLrclibDirect(
@@ -309,7 +326,8 @@ export async function searchEnhancedLyrics(
   artistName: string,
   albumName?: string,
   durationSecs?: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  requireWordSync?: boolean
 ): Promise<DiscoveredLyrics | null> {
   if (signal?.aborted) return null;
   if (!trackName || !trackName.trim()) return null;
@@ -329,6 +347,11 @@ export async function searchEnhancedLyrics(
         source: 'Lyrics+',
       };
     }
+  }
+
+  // If user strictly requested word-sync lyrics, don't fall back to line-synced LRCLIB
+  if (requireWordSync) {
+    return null;
   }
 
   // 2. Fallback to LRCLIB

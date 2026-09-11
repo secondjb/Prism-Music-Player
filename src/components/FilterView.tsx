@@ -6,6 +6,8 @@ import { invoke } from '@tauri-apps/api/core';
 import Slider from '@mui/material/Slider';
 import Checkbox from '@mui/material/Checkbox';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
+import { isWordSyncedLrc, hasLrcTimestamps } from '../utils/lrclibFetcher';
+import { hasTranslationInLyrics } from '../utils/lyricsParser';
 import {
   SlidersHorizontal,
   Search,
@@ -21,7 +23,13 @@ import {
   X,
   Tag,
   KeyRound,
+  Languages,
+  Sparkles,
+  Clock,
+  AlignLeft,
 } from 'lucide-react';
+
+type LyricsFilterType = 'translation' | 'wordSynced' | 'synced' | 'unsynced';
 
 // Dark MUI Theme for Sliders
 const muiDarkTheme = createTheme({
@@ -50,9 +58,18 @@ const FilterTrackRow: React.FC<{
       onDoubleClick={onPlay}
       className={`flex items-center justify-between px-4 py-2 rounded-xl transition-all duration-150 group cursor-pointer border ${
         isPlayingCurrent
-          ? 'bg-indigo-500/20 border-indigo-500/40 text-white'
+          ? 'text-white'
           : 'hover:bg-white/10 border-transparent text-zinc-300 hover:text-white'
       }`}
+      style={
+        isPlayingCurrent
+          ? {
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+              boxShadow: '0 0 16px color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+            }
+          : undefined
+      }
     >
       <div className="flex items-center gap-3.5 min-w-0 flex-1">
         {/* Lazy Loaded Art Thumbnail with Hover Play Button */}
@@ -63,12 +80,17 @@ const FilterTrackRow: React.FC<{
           {trackArt ? (
             <img src={trackArt} alt={track.title} className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full bg-indigo-950/40 flex items-center justify-center text-indigo-400">
+            <div className="w-full h-full bg-zinc-800/80 flex items-center justify-center text-zinc-400">
               <Music className="w-4 h-4" />
             </div>
           )}
           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/art:opacity-100 transition-opacity flex items-center justify-center">
-            <Play className="w-4 h-4 fill-white text-white" />
+            <div 
+              className="w-7 h-7 rounded-full flex items-center justify-center shadow-md group-hover/art:scale-110 transition-transform"
+              style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+            >
+              <Play className="w-3.5 h-3.5 fill-white text-white ml-0.5" />
+            </div>
           </div>
         </div>
 
@@ -115,7 +137,13 @@ const FilterTrackRow: React.FC<{
         )}
 
         {track.year && (
-          <span className="hidden sm:inline-block px-2 py-0.5 rounded-md bg-white/5 text-[11px]">
+          <span 
+            className="hidden sm:inline-block px-2 py-0.5 rounded-md text-[11px]"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
+              color: 'var(--color-stop-1, #818cf8)',
+            }}
+          >
             {track.year}
           </span>
         )}
@@ -127,13 +155,25 @@ const FilterTrackRow: React.FC<{
         )}
 
         {track.bpm && (
-          <span className="hidden lg:inline-block px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[11px]">
+          <span 
+            className="hidden lg:inline-block px-2 py-0.5 rounded-md text-[11px]"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-4, #d946ef) 20%, transparent)',
+              color: 'var(--color-stop-4, #e879f9)',
+            }}
+          >
             {track.bpm} BPM
           </span>
         )}
 
         {track.bit_rate_kbps && (
-          <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 text-[11px] font-bold">
+          <span 
+            className="px-2 py-0.5 rounded-md text-[11px] font-bold"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-3, #ec4899) 20%, transparent)',
+              color: 'var(--color-stop-3, #f472b6)',
+            }}
+          >
             {track.bit_rate_kbps} kbps
           </span>
         )}
@@ -181,6 +221,46 @@ export const FilterView: React.FC = () => {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const setInfoModalTrack = usePlayerStore((s) => s.setInfoModalTrack);
 
+  // Dynamic ranges based on library contents
+  const { minLibraryBitrate, maxLibraryBitrate } = useMemo(() => {
+    let min = 128;
+    let max = 6000;
+    for (const t of tracks) {
+      if (t.bit_rate_kbps && t.bit_rate_kbps > 0) {
+        if (t.bit_rate_kbps < min) min = t.bit_rate_kbps;
+        if (t.bit_rate_kbps > max) max = t.bit_rate_kbps;
+      }
+    }
+    const roundedMax = Math.max(6000, Math.ceil(max / 500) * 500);
+    const roundedMin = Math.min(64, Math.floor(min / 32) * 32);
+    return { minLibraryBitrate: roundedMin, maxLibraryBitrate: roundedMax };
+  }, [tracks]);
+
+  const { minLibraryYear, maxLibraryYear } = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    let min = 1950;
+    let max = currentYear;
+    for (const t of tracks) {
+      if (t.year && t.year > 1800 && t.year <= currentYear + 1) {
+        if (t.year < min) min = t.year;
+        if (t.year > max) max = t.year;
+      }
+    }
+    return { minLibraryYear: Math.min(1950, min), maxLibraryYear: Math.max(currentYear, max) };
+  }, [tracks]);
+
+  const { minLibraryBpm, maxLibraryBpm } = useMemo(() => {
+    let min = 60;
+    let max = 220;
+    for (const t of tracks) {
+      if (t.bpm && t.bpm > 0) {
+        if (t.bpm < min) min = t.bpm;
+        if (t.bpm > max) max = t.bpm;
+      }
+    }
+    return { minLibraryBpm: Math.min(40, min), maxLibraryBpm: Math.max(220, Math.ceil(max / 10) * 10) };
+  }, [tracks]);
+
   // Filter States
   const [query, setQuery] = useState('');
   const [artist, setArtist] = useState('');
@@ -188,12 +268,16 @@ export const FilterView: React.FC = () => {
   
   // Multi-select Decades
   const [selectedDecades, setSelectedDecades] = useState<string[]>([]);
+
+  // Material 3 Lyrics Filter States
+  const [selectedLyricsTypes, setSelectedLyricsTypes] = useState<LyricsFilterType[]>([]);
+  const [lyricsMatchMode, setLyricsMatchMode] = useState<'all' | 'any'>('all');
   
   // MUI Range Slider States
   const [yearRange, setYearRange] = useState<[number, number]>([1950, 2026]);
   const [useYearFilter, setUseYearFilter] = useState<boolean>(false);
 
-  const [bitrateRange, setBitrateRange] = useState<[number, number]>([128, 2000]);
+  const [bitrateRange, setBitrateRange] = useState<[number, number]>([128, 6000]);
   const [useBitrateFilter, setUseBitrateFilter] = useState<boolean>(false);
 
   // Multi-select Sample Rates
@@ -201,8 +285,44 @@ export const FilterView: React.FC = () => {
 
   const [keyQuery, setKeyQuery] = useState('');
 
-  const [bpmRange, setBpmRange] = useState<[number, number]>([60, 200]);
+  const [bpmRange, setBpmRange] = useState<[number, number]>([60, 220]);
   const [useBpmFilter, setUseBpmFilter] = useState<boolean>(false);
+
+  // Keep bitrate range in sync if library has high bitrate tracks and filter is inactive
+  useEffect(() => {
+    if (!useBitrateFilter && bitrateRange[1] < maxLibraryBitrate) {
+      setBitrateRange([minLibraryBitrate, maxLibraryBitrate]);
+    }
+  }, [maxLibraryBitrate, minLibraryBitrate, useBitrateFilter]);
+
+  const toggleLyricsType = (type: LyricsFilterType) => {
+    setSelectedLyricsTypes((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+    );
+  };
+
+  const checkTrackLyrics = (t: Track): boolean => {
+    if (selectedLyricsTypes.length === 0) return true;
+
+    const lyrics = t.unsynced_lyrics || '';
+    const hasWordSync = isWordSyncedLrc(lyrics);
+    const hasSynced = hasLrcTimestamps(lyrics);
+    const hasTranslation = hasTranslationInLyrics(lyrics);
+    const hasUnsynced = Boolean(lyrics.trim() && !hasSynced);
+
+    const matches: Record<LyricsFilterType, boolean> = {
+      translation: hasTranslation,
+      wordSynced: hasWordSync,
+      synced: hasSynced,
+      unsynced: hasUnsynced,
+    };
+
+    if (lyricsMatchMode === 'all') {
+      return selectedLyricsTypes.every((type) => matches[type]);
+    } else {
+      return selectedLyricsTypes.some((type) => matches[type]);
+    }
+  };
 
   // Dropdown & Modal Popover visibility
   const [showGenreDropdown, setShowGenreDropdown] = useState(false);
@@ -274,19 +394,28 @@ export const FilterView: React.FC = () => {
     }
   };
 
+  // Quick lookup map for tracks by ID
+  const trackMap = useMemo(() => {
+    const map = new Map<string, Track>();
+    tracks.forEach((t) => map.set(t.id, t));
+    return map;
+  }, [tracks]);
+
   const handleResetFilters = () => {
     setQuery('');
     setArtist('');
     setGenre('');
     setSelectedDecades([]);
+    setSelectedLyricsTypes([]);
+    setLyricsMatchMode('all');
     setUseYearFilter(false);
-    setYearRange([1950, 2026]);
+    setYearRange([minLibraryYear, maxLibraryYear]);
     setUseBitrateFilter(false);
-    setBitrateRange([128, 2000]);
+    setBitrateRange([minLibraryBitrate, maxLibraryBitrate]);
     setSelectedSampleRates([]);
     setKeyQuery('');
     setUseBpmFilter(false);
-    setBpmRange([60, 200]);
+    setBpmRange([minLibraryBpm, maxLibraryBpm]);
   };
 
   // Debounced execution of Rust filter command
@@ -306,15 +435,22 @@ export const FilterView: React.FC = () => {
         min_bpm: useBpmFilter ? bpmRange[0] : undefined,
         max_bpm: useBpmFilter ? bpmRange[1] : undefined,
         query: query.trim() || undefined,
+        lyrics_types: selectedLyricsTypes.length > 0 ? selectedLyricsTypes : undefined,
+        lyrics_match_mode: lyricsMatchMode,
       };
 
       try {
         if (window.__TAURI_INTERNALS__) {
           const matchedIds: string[] = await invoke('filter_tracks', { params });
-          setFilteredTrackIds(matchedIds);
+          const verifiedIds = matchedIds.filter((id) => {
+            const t = trackMap.get(id);
+            return t ? checkTrackLyrics(t) : false;
+          });
+          setFilteredTrackIds(verifiedIds);
         } else {
           // Frontend fallback filtering if running outside Tauri
           const matched = tracks.filter((t) => {
+            if (!checkTrackLyrics(t)) return false;
             if (artist && !t.artist.toLowerCase().includes(artist.toLowerCase())) return false;
             if (genre && (!t.genre || !t.genre.toLowerCase().includes(genre.toLowerCase()))) return false;
             if (selectedDecades.length > 0) {
@@ -359,6 +495,8 @@ export const FilterView: React.FC = () => {
     artist,
     genre,
     selectedDecades,
+    selectedLyricsTypes,
+    lyricsMatchMode,
     useYearFilter,
     yearRange,
     useBitrateFilter,
@@ -368,14 +506,8 @@ export const FilterView: React.FC = () => {
     useBpmFilter,
     bpmRange,
     tracks,
+    trackMap,
   ]);
-
-  // Quick lookup map for tracks by ID
-  const trackMap = useMemo(() => {
-    const map = new Map<string, Track>();
-    tracks.forEach((t) => map.set(t.id, t));
-    return map;
-  }, [tracks]);
 
   // Array of resolved matching Track objects
   const filteredTracks = useMemo(() => {
@@ -811,6 +943,97 @@ export const FilterView: React.FC = () => {
             </div>
           </div>
 
+          {/* Row 2.5: Material 3 Lyrics Filter Chips (Independent Multi-select) */}
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-white/5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mr-1 flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} /> Lyrics Types:
+              </span>
+              
+              <button
+                type="button"
+                onClick={() => setSelectedLyricsTypes([])}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                  selectedLyricsTypes.length === 0
+                    ? 'text-white shadow-md font-bold'
+                    : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
+                }`}
+                style={
+                  selectedLyricsTypes.length === 0
+                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                    : undefined
+                }
+              >
+                All
+              </button>
+
+              {[
+                { type: 'translation' as const, label: 'Embedded Translation', icon: Languages },
+                { type: 'wordSynced' as const, label: 'Word Synced', icon: Sparkles },
+                { type: 'synced' as const, label: 'Synced', icon: Clock },
+                { type: 'unsynced' as const, label: 'Unsynced', icon: AlignLeft },
+              ].map(({ type, label, icon: Icon }) => {
+                const isSelected = selectedLyricsTypes.includes(type);
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => toggleLyricsType(type)}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                      isSelected
+                        ? 'text-white shadow-md font-bold border-transparent'
+                        : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border-white/5'
+                    }`}
+                    style={
+                      isSelected
+                        ? {
+                            backgroundColor: 'var(--color-stop-1, #6366f1)',
+                            boxShadow: '0 2px 10px color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+                          }
+                        : undefined
+                    }
+                  >
+                    {isSelected ? <Check className="w-3.5 h-3.5" /> : <Icon className="w-3.5 h-3.5 opacity-70" />}
+                    <span>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Match All / Match Any toggle when multiple lyrics chips are selected */}
+            {selectedLyricsTypes.length > 1 && (
+              <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2">
+                <span className="text-[11px] text-zinc-400 font-medium">Filter logic:</span>
+                <div className="flex items-center p-0.5 rounded-full bg-white/10 border border-white/10 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setLyricsMatchMode('all')}
+                    className={`px-2.5 py-0.5 rounded-full transition-all cursor-pointer ${
+                      lyricsMatchMode === 'all'
+                        ? 'bg-white/20 text-white font-bold shadow-sm'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                    title="Match tracks that satisfy all selected lyrics filters"
+                  >
+                    Match All (AND)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLyricsMatchMode('any')}
+                    className={`px-2.5 py-0.5 rounded-full transition-all cursor-pointer ${
+                      lyricsMatchMode === 'any'
+                        ? 'bg-white/20 text-white font-bold shadow-sm'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                    title="Match tracks that satisfy any selected lyrics filter"
+                  >
+                    Match Any (OR)
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Row 3: Material UI Range Sliders (@mui/material/Slider) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-3 border-t border-white/5">
             {/* MUI Range Slider: Release Year */}
@@ -822,14 +1045,14 @@ export const FilterView: React.FC = () => {
                     onChange={(e) => handleYearFilterChange(e.target.checked)}
                     size="small"
                     sx={{
-                      color: '#10b981',
+                      color: 'var(--color-stop-1, #6366f1)',
                       p: 0.5,
-                      '&.Mui-checked': { color: '#10b981' },
+                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
                     }}
                   />
                   Release Year Range
                 </span>
-                <span className="font-mono text-emerald-400 font-bold">
+                <span className="font-mono font-bold" style={{ color: 'var(--color-stop-1, #818cf8)' }}>
                   {useYearFilter ? `${yearRange[0]} - ${yearRange[1]}` : 'Any Year'}
                 </span>
               </div>
@@ -844,16 +1067,16 @@ export const FilterView: React.FC = () => {
                     if (!useYearFilter) handleYearFilterChange(true);
                   }}
                   valueLabelDisplay="auto"
-                  min={1950}
-                  max={2026}
+                  min={minLibraryYear}
+                  max={maxLibraryYear}
                   sx={{
-                    color: 'var(--color-stop-1, #10b981)',
+                    color: 'var(--color-stop-1, #6366f1)',
                     opacity: useYearFilter ? 1 : 0.6,
                     '& .MuiSlider-thumb': {
                       width: 16,
                       height: 16,
                       '&:hover, &.Mui-focusVisible': {
-                        boxShadow: '0px 0px 0px 8px color-mix(in srgb, var(--color-stop-1, #10b981) 20%, transparent)',
+                        boxShadow: '0px 0px 0px 8px color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
                       },
                     },
                     '& .MuiSlider-rail': {
@@ -873,14 +1096,14 @@ export const FilterView: React.FC = () => {
                     onChange={(e) => setUseBitrateFilter(e.target.checked)}
                     size="small"
                     sx={{
-                      color: 'var(--color-stop-1, #f59e0b)',
+                      color: 'var(--color-stop-3, #ec4899)',
                       p: 0.5,
-                      '&.Mui-checked': { color: 'var(--color-stop-1, #f59e0b)' },
+                      '&.Mui-checked': { color: 'var(--color-stop-3, #ec4899)' },
                     }}
                   />
                   Bitrate Range (kbps)
                 </span>
-                <span className="font-mono text-amber-400 font-bold">
+                <span className="font-mono font-bold" style={{ color: 'var(--color-stop-3, #f472b6)' }}>
                   {useBitrateFilter ? `${bitrateRange[0]} - ${bitrateRange[1]} kbps` : 'Any Bitrate'}
                 </span>
               </div>
@@ -895,17 +1118,17 @@ export const FilterView: React.FC = () => {
                     if (!useBitrateFilter) setUseBitrateFilter(true);
                   }}
                   valueLabelDisplay="auto"
-                  min={128}
-                  max={2000}
-                  step={32}
+                  min={minLibraryBitrate}
+                  max={maxLibraryBitrate}
+                  step={maxLibraryBitrate > 6000 ? 64 : 32}
                   sx={{
-                    color: 'var(--color-stop-1, #f59e0b)',
+                    color: 'var(--color-stop-3, #ec4899)',
                     opacity: useBitrateFilter ? 1 : 0.6,
                     '& .MuiSlider-thumb': {
                       width: 16,
                       height: 16,
                       '&:hover, &.Mui-focusVisible': {
-                        boxShadow: '0px 0px 0px 8px color-mix(in srgb, var(--color-stop-1, #f59e0b) 20%, transparent)',
+                        boxShadow: '0px 0px 0px 8px color-mix(in srgb, var(--color-stop-3, #ec4899) 20%, transparent)',
                       },
                     },
                     '& .MuiSlider-rail': {
@@ -925,14 +1148,14 @@ export const FilterView: React.FC = () => {
                     onChange={(e) => setUseBpmFilter(e.target.checked)}
                     size="small"
                     sx={{
-                      color: 'var(--color-stop-1, #a855f7)',
+                      color: 'var(--color-stop-4, #d946ef)',
                       p: 0.5,
-                      '&.Mui-checked': { color: 'var(--color-stop-1, #a855f7)' },
+                      '&.Mui-checked': { color: 'var(--color-stop-4, #d946ef)' },
                     }}
                   />
                   BPM Tag Range
                 </span>
-                <span className="font-mono text-purple-400 font-bold">
+                <span className="font-mono font-bold" style={{ color: 'var(--color-stop-4, #e879f9)' }}>
                   {useBpmFilter ? `${bpmRange[0]} - ${bpmRange[1]} BPM` : 'Any BPM'}
                 </span>
               </div>
@@ -947,17 +1170,17 @@ export const FilterView: React.FC = () => {
                     if (!useBpmFilter) setUseBpmFilter(true);
                   }}
                   valueLabelDisplay="auto"
-                  min={40}
-                  max={220}
+                  min={minLibraryBpm}
+                  max={maxLibraryBpm}
                   step={5}
                   sx={{
-                    color: 'var(--color-stop-1, #a855f7)',
+                    color: 'var(--color-stop-4, #d946ef)',
                     opacity: useBpmFilter ? 1 : 0.6,
                     '& .MuiSlider-thumb': {
                       width: 16,
                       height: 16,
                       '&:hover, &.Mui-focusVisible': {
-                        boxShadow: '0px 0px 0px 8px color-mix(in srgb, var(--color-stop-1, #a855f7) 20%, transparent)',
+                        boxShadow: '0px 0px 0px 8px color-mix(in srgb, var(--color-stop-4, #d946ef) 20%, transparent)',
                       },
                     },
                     '& .MuiSlider-rail': {

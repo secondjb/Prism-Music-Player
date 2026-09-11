@@ -752,23 +752,25 @@ export const WordSyncedLyricsFinder: React.FC = () => {
   return (
     <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-5">
       {/* Header & Description */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center border shrink-0"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
-              color: 'var(--color-stop-1, #6366f1)',
-              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
-            }}
-          >
-            <Mic2 className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <span>Word-Synced Lyrics & Translation Finder</span>
+      <div className="flex flex-col gap-3 border-b border-white/10 pb-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center border shrink-0"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                color: 'var(--color-stop-1, #6366f1)',
+                borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+              }}
+            >
+              <Mic2 className="w-5 h-5" />
+            </div>
+            <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+              <h3 className="text-base font-bold text-white whitespace-nowrap">
+                Word-Synced Lyrics & Translation Finder
+              </h3>
               <span
-                className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border"
+                className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border shrink-0"
                 style={{
                   backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
                   borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
@@ -777,85 +779,87 @@ export const WordSyncedLyricsFinder: React.FC = () => {
               >
                 LRCLIB & LyricsPlus
               </span>
-            </h3>
-            <p className="text-xs text-zinc-400">
-              Scan your music library for word-by-word syllable timestamps and dual-language translations. Audition tracks with real-time synchronized karaoke and embed directly into audio tags.
-            </p>
+            </div>
+          </div>
+
+          {/* Scan Actions: Continue Search, Pause Search, Rescan All, Clear Results */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {isScanning ? (
+              <button
+                onClick={handlePauseSearch}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-amber-300 border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-all cursor-pointer shadow-sm"
+              >
+                <Pause className="w-4 h-4" />
+                <span>Pause Search</span>
+              </button>
+            ) : (
+              <>
+                {/* Continue / Start Search */}
+                <button
+                  onClick={() => handleStartSearch('continue')}
+                  disabled={tracks.length === 0}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all shadow-md hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #8b5cf6))',
+                  }}
+                  title={
+                    candidates.length > 0
+                      ? `Keep existing ${candidates.length} candidates and search ${unscannedRemainingCount} remaining tracks`
+                      : 'Start scanning library tracks'
+                  }
+                >
+                  <Search className="w-4 h-4" />
+                  <span>
+                    {candidates.length > 0
+                      ? unscannedRemainingCount > 0
+                        ? `Continue Search (${unscannedRemainingCount} left)`
+                        : 'Scan New Tracks'
+                      : `Start Search (${unscannedRemainingCount} tracks)`}
+                  </span>
+                </button>
+
+                {/* Rescan All Songs from Scratch */}
+                <button
+                  onClick={() => handleStartSearch('all')}
+                  disabled={tracks.length === 0}
+                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                  title="Rescan entire library from scratch (re-checks all tracks)"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Rescan All</span>
+                </button>
+
+                {/* Reset Rejected */}
+                {rejectedTrackIds.size > 0 && (
+                  <button
+                    onClick={handleResetRejected}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-200 bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer"
+                    title="Clear rejected songs list so previously dismissed tracks can be discovered again"
+                  >
+                    <span>Reset Rejected ({rejectedTrackIds.size})</span>
+                  </button>
+                )}
+
+                {/* Clear Results */}
+                {candidates.length > 0 && (
+                  <button
+                    onClick={handleClearResults}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all cursor-pointer"
+                    title="Delete saved candidate results and reset scanned progress"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear List</span>
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </div>
 
-        {/* Scan Actions: Continue Search, Pause Search, Rescan All, Clear Results */}
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {isScanning ? (
-            <button
-              onClick={handlePauseSearch}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-amber-300 border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-all cursor-pointer shadow-sm"
-            >
-              <Pause className="w-4 h-4" />
-              <span>Pause Search</span>
-            </button>
-          ) : (
-            <>
-              {/* Continue / Start Search */}
-              <button
-                onClick={() => handleStartSearch('continue')}
-                disabled={tracks.length === 0}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all shadow-md hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
-                style={{
-                  background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #8b5cf6))',
-                }}
-                title={
-                  candidates.length > 0
-                    ? `Keep existing ${candidates.length} candidates and search ${unscannedRemainingCount} remaining tracks`
-                    : 'Start scanning library tracks'
-                }
-              >
-                <Search className="w-4 h-4" />
-                <span>
-                  {candidates.length > 0
-                    ? unscannedRemainingCount > 0
-                      ? `Continue Search (${unscannedRemainingCount} left)`
-                      : 'Scan New Tracks'
-                    : `Start Search (${unscannedRemainingCount} tracks)`}
-                </span>
-              </button>
-
-              {/* Rescan All Songs from Scratch */}
-              <button
-                onClick={() => handleStartSearch('all')}
-                disabled={tracks.length === 0}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
-                title="Rescan entire library from scratch (re-checks all tracks)"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Rescan All</span>
-              </button>
-
-              {/* Reset Rejected */}
-              {rejectedTrackIds.size > 0 && (
-                <button
-                  onClick={handleResetRejected}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-200 bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer"
-                  title="Clear rejected songs list so previously dismissed tracks can be discovered again"
-                >
-                  <span>Reset Rejected ({rejectedTrackIds.size})</span>
-                </button>
-              )}
-
-              {/* Clear Results */}
-              {candidates.length > 0 && (
-                <button
-                  onClick={handleClearResults}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all cursor-pointer"
-                  title="Delete saved candidate results and reset scanned progress"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Clear List</span>
-                </button>
-              )}
-            </>
-          )}
-        </div>
+        {/* Description underneath */}
+        <p className="text-xs text-zinc-400 pl-0 md:pl-[52px] max-w-3xl leading-relaxed">
+          Scan your music library for word-by-word syllable timestamps and dual-language translations. Audition tracks with real-time synchronized karaoke and embed directly into audio tags.
+        </p>
       </div>
 
       {/* Server Status Warning / Circuit Breaker Banner */}

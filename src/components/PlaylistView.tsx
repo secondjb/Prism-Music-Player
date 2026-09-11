@@ -614,7 +614,7 @@ export const PlaylistView: React.FC = () => {
                   }
                 : undefined
             }
-            className="group flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer hover:bg-white/10 border border-transparent hover:border-white/5"
+            className="group flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer bg-white/[0.025] hover:bg-white/[0.08] border border-white/[0.05] hover:border-white/10"
           >
             <div className="flex items-center gap-3.5 min-w-0 flex-1">
               <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-pink-600 to-purple-700 flex items-center justify-center shadow-md shrink-0 relative overflow-hidden">
@@ -642,6 +642,9 @@ export const PlaylistView: React.FC = () => {
             </div>
             <div className="flex items-center gap-6 text-xs text-zinc-400 font-mono shrink-0">
               <span>{likedTracks.length} track{likedTracks.length > 1 ? 's' : ''}</span>
+              <div className="p-1.5 opacity-0 pointer-events-none shrink-0" aria-hidden="true">
+                <div className="w-3.5 h-3.5" />
+              </div>
             </div>
           </div>
 
@@ -698,7 +701,7 @@ export const PlaylistView: React.FC = () => {
                       }
                     : undefined
                 }
-                className="group flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer hover:bg-white/10 border border-transparent hover:border-white/5"
+                className="group flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer bg-white/[0.025] hover:bg-white/[0.08] border border-white/[0.05] hover:border-white/10"
               >
                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
                   <div className="w-12 h-12 rounded-lg overflow-hidden bg-zinc-800/80 grid grid-cols-2 grid-rows-2 gap-0.5 shrink-0 relative">

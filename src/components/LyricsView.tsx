@@ -702,7 +702,7 @@ const LyricInterludeRow: React.FC<LyricInterludeRowProps> = React.memo(({
   id,
   startSecs,
   endSecs,
-  currentTime,
+  currentTime: _currentTime,
   isPlaying,
   isActive,
   isPast,
@@ -715,17 +715,14 @@ const LyricInterludeRow: React.FC<LyricInterludeRowProps> = React.memo(({
     return null;
   }
 
-  // Pure GPU-accelerated CSS animation: 0 JS re-render loops, 0 RAM overhead, buttery smooth compositor frames
-  const totalGap = Math.max(0.1, endSecs - startSecs);
-  const elapsed = Math.max(0, Math.min(totalGap, currentTime - startSecs));
   const dotSize = Math.max(12, Math.min(18, activeFontSize * 0.35));
 
   const renderDot = (dotIndex: 1 | 2 | 3) => {
-    const animName = `interludeDotBounce${dotIndex}`;
+    const delay = (dotIndex - 1) * 0.24;
     const animStyle: React.CSSProperties = isActive
       ? {
-          animation: `${animName} ${totalGap}s cubic-bezier(0.25, 1, 0.5, 1) forwards`,
-          animationDelay: `-${elapsed.toFixed(3)}s`,
+          animation: 'appleMusicDotWave 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+          animationDelay: `${delay}s`,
           animationPlayState: isPlaying ? 'running' : 'paused',
           willChange: 'transform, opacity',
         }
@@ -737,7 +734,7 @@ const LyricInterludeRow: React.FC<LyricInterludeRowProps> = React.memo(({
     return (
       <div
         key={dotIndex}
-        className="rounded-full transition-all duration-300"
+        className="rounded-full"
         style={{
           width: `${dotSize}px`,
           height: `${dotSize}px`,
@@ -747,6 +744,7 @@ const LyricInterludeRow: React.FC<LyricInterludeRowProps> = React.memo(({
           boxShadow: isActive
             ? '0 0 16px var(--color-stop-1, #6366f1), 0 0 24px color-mix(in srgb, var(--color-stop-2, #818cf8) 50%, transparent)'
             : 'none',
+          transition: 'background 0.3s ease, box-shadow 0.3s ease',
           ...animStyle,
         }}
       />

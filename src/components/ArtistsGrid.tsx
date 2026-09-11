@@ -140,7 +140,7 @@ const ArtistListRow: React.FC<{ artistName: string; artistTracks: Track[]; onPla
     <div
       ref={ref}
       onClick={onNavigate}
-      className="group flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer hover:bg-white/10 border border-transparent hover:border-white/5"
+      className="group flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer bg-white/[0.025] hover:bg-white/[0.08] border border-white/[0.05] hover:border-white/10"
     >
       <div className="flex items-center gap-3.5 min-w-0 flex-1">
         {/* Avatar art */}

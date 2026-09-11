@@ -152,7 +152,7 @@ const AlbumListRow: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: 
     <div
       ref={ref}
       onClick={onNavigate}
-      className="group flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer hover:bg-white/10 border border-transparent hover:border-white/5"
+      className="group flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-150 cursor-pointer bg-white/[0.025] hover:bg-white/[0.08] border border-white/[0.05] hover:border-white/10"
     >
       <div className="flex items-center gap-3.5 min-w-0 flex-1">
         {/* Thumbnail art */}
@@ -203,11 +203,16 @@ const AlbumListRow: React.FC<{ albumName: string; albumTracks: Track[]; onPlay: 
       <div className="flex items-center gap-6 text-xs text-zinc-400 font-mono shrink-0">
         {year && <span className="text-zinc-500">{year}</span>}
         <span>{albumTracks.length} track{albumTracks.length > 1 ? 's' : ''}</span>
-        {totalDuration > 0 && (
-          <span className="w-14 text-right text-zinc-500">
-            {Math.floor(totalDuration / 60)}:{(totalDuration % 60).toString().padStart(2, '0')}
-          </span>
-        )}
+        {totalDuration > 0 && (() => {
+          const totalSecs = Math.round(totalDuration);
+          const mins = Math.floor(totalSecs / 60);
+          const secs = totalSecs % 60;
+          return (
+            <span className="w-14 text-right text-zinc-500">
+              {mins}:{secs.toString().padStart(2, '0')}
+            </span>
+          );
+        })()}
       </div>
     </div>
   );

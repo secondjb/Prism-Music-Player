@@ -59,7 +59,7 @@ const FilterTrackRow: React.FC<{
       className={`flex items-center justify-between px-4 py-2 rounded-xl transition-all duration-150 group cursor-pointer border ${
         isPlayingCurrent
           ? 'text-white'
-          : 'hover:bg-white/10 border-transparent text-zinc-300 hover:text-white'
+          : 'bg-white/[0.02] hover:bg-white/[0.08] border-white/[0.04] hover:border-white/10 text-zinc-300 hover:text-white'
       }`}
       style={
         isPlayingCurrent

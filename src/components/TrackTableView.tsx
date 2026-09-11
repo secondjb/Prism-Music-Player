@@ -990,8 +990,13 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<any>(null);
+  const lastScrollYRef = useRef<number>(0);
   const [containerWidth, setContainerWidth] = useState<number>(() => window.innerWidth);
   const [sortState, setSortState] = useState<{ prop: string; order: 'asc' | 'desc' } | null>(null);
+
+  const gridKey = useMemo(() => {
+    return `rg-${containerWidth}-${trackGridDensity}-${visibleTrackColumns.length}-${columnOrder.join(',')}`;
+  }, [containerWidth, trackGridDensity, visibleTrackColumns.length, columnOrder]);
 
   // Synchronize RevoGrid sorting lifecycle with React state to maintain and toggle sort orders correctly
   useEffect(() => {
@@ -1022,30 +1027,70 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       setSortState(null);
     };
 
+    const handleViewportScroll = (e: any) => {
+      if (e?.detail?.dimension === 'rgRow' && typeof e.detail.coordinate === 'number') {
+        lastScrollYRef.current = e.detail.coordinate;
+      }
+    };
+
     gridEl.addEventListener('beforesorting', handleBeforeSorting);
     gridEl.addEventListener('aftersortingapply', handleAfterSortingApply);
+    gridEl.addEventListener('viewportscroll', handleViewportScroll);
     return () => {
       gridEl.removeEventListener('beforesorting', handleBeforeSorting);
       gridEl.removeEventListener('aftersortingapply', handleAfterSortingApply);
+      gridEl.removeEventListener('viewportscroll', handleViewportScroll);
     };
-  }, []);
+  }, [gridKey]);
 
-  // ResizeObserver to track container width and dynamically recalculate fractional columns
+  // Restore vertical scroll position after grid remounts on window/container resize
+  useEffect(() => {
+    if (lastScrollYRef.current > 0 && gridRef.current) {
+      const timer = setTimeout(() => {
+        gridRef.current?.scrollToCoordinate?.({ y: lastScrollYRef.current });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [gridKey]);
+
+  // ResizeObserver and window resize listener to track container width and dynamically recalculate fractional columns
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
+    let debounceTimer: any = null;
+    const updateWidth = (rawW: number) => {
+      if (rawW > 0) {
+        const rounded = Math.round(rawW);
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          setContainerWidth((prev) => (prev !== rounded ? rounded : prev));
+        }, 50);
+      }
+    };
+
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
         if (entry.contentRect.width > 0) {
-          setContainerWidth(entry.contentRect.width);
+          updateWidth(entry.contentRect.width);
         }
       }
     });
     ro.observe(el);
     setContainerWidth(el.clientWidth || window.innerWidth);
 
-    return () => ro.disconnect();
+    const handleWindowResize = () => {
+      if (el.clientWidth > 0) {
+        updateWidth(el.clientWidth);
+      }
+    };
+    window.addEventListener('resize', handleWindowResize);
+
+    return () => {
+      clearTimeout(debounceTimer);
+      ro.disconnect();
+      window.removeEventListener('resize', handleWindowResize);
+    };
   }, []);
 
   // Listen to custom events bubbled up from RevoGrid cell templates
@@ -1518,7 +1563,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     return () => {
       gridEl.removeEventListener('columndragend', handleColumnDragEnd);
     };
-  }, [columnOrder, setColumnOrder]);
+  }, [gridKey, columnOrder, setColumnOrder]);
 
   // Keyboard navigation: Enter to toggle or play
   const onKeyDown = useCallback(
@@ -1617,6 +1662,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         style={autoHeight ? { height: `${calculatedHeight}px`, minHeight: `${calculatedHeight}px` } : { minHeight: 0 }}
       >
         <RevoGrid
+          key={gridKey}
           ref={gridRef}
           theme="darkMaterial"
           source={source}

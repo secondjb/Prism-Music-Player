@@ -669,6 +669,7 @@ export const usePlayerStore = create<PlayerState>()(
             await invoke('play_audio', {
               path: track.path,
               replayGainDb: getEffectiveReplayGain(track, get().replayGainMode),
+              crossfadeSecs: get().crossfadeDuration > 0 ? get().crossfadeDuration : null,
             });
           }
         } catch (e) {
@@ -693,6 +694,7 @@ export const usePlayerStore = create<PlayerState>()(
               await invoke('play_audio', {
                 path: track.path,
                 replayGainDb: getEffectiveReplayGain(track, get().replayGainMode),
+                crossfadeSecs: get().crossfadeDuration > 0 ? get().crossfadeDuration : null,
               });
             }
           } catch (e) {
@@ -809,6 +811,7 @@ export const usePlayerStore = create<PlayerState>()(
             await invoke('play_audio', {
               path: nextUserTrack.path,
               replayGainDb: getEffectiveReplayGain(nextUserTrack, get().replayGainMode),
+              crossfadeSecs: get().crossfadeDuration > 0 ? get().crossfadeDuration : null,
             });
           } catch (e) {
             console.warn('Rust play_audio error:', e);

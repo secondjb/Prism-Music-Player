@@ -385,9 +385,11 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                         }`}
                         style={{
                           transform: `translateY(${sylLift}px) scale(${sylScale})`,
-                          opacity: isSylActive ? 1 : isSylPast ? 0.95 : 0.45,
+                          opacity: isSylActive ? 1 : isPast ? 0.45 : isSylPast ? 0.9 : 0.45,
                         color: isSylActive
                           ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, #ffffff)'
+                          : isPast
+                          ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 14%, rgba(255, 255, 255, 0.45))'
                           : isSylPast
                           ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, rgba(255, 255, 255, 0.92))'
                           : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 14%, rgba(255, 255, 255, 0.45))',
@@ -464,13 +466,15 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                         className={`inline-block transition-all duration-200 ease-out ${
                           isSylActive
                             ? 'text-white drop-shadow-md'
+                            : isPast
+                            ? 'text-white/45'
                             : isSylPast
-                            ? 'text-white/95'
+                            ? 'text-white/90'
                             : 'text-white/45'
                         }`}
                         style={{
                           transform: `translateY(${sylLift}px) scale(${sylScale})`,
-                          opacity: isSylActive ? 1 : isSylPast ? 0.95 : 0.45,
+                          opacity: isSylActive ? 1 : isPast ? 0.45 : isSylPast ? 0.9 : 0.45,
                           ...(isSylActive && lyricsAnimationStyle === 'lossless_glow'
                             ? {
                                 textShadow:
@@ -490,7 +494,11 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
         ) : (
           <div
             className={`break-words [text-wrap:balance] ${
-              isActive && !(showTrans && translationMode === 'replace') ? 'text-white' : undefined
+              isActive && !(showTrans && translationMode === 'replace')
+                ? 'text-white'
+                : isPast
+                ? 'text-white/45'
+                : 'text-white/60'
             }`}
             style={{
               ...lineGlowStyle,
@@ -498,7 +506,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                 ? {
                     color: isActive
                       ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, #ffffff)'
-                      : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.5))',
+                      : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.45))',
                   }
                 : {}),
             }}
@@ -533,6 +541,8 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                           fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
                           color: isSylActive
                             ? '#ffffff'
+                            : isPast
+                            ? 'rgba(255, 255, 255, 0.45)'
                             : isSylPast
                             ? 'rgba(255, 255, 255, 0.85)'
                             : 'rgba(255, 255, 255, 0.45)',
@@ -2047,7 +2057,7 @@ export const LyricsView: React.FC = () => {
               ? 0
               : activeInterlude
               ? idx < activeInterlude.insertIndex
-                ? activeInterlude.insertIndex - idx
+                ? 999 // All lines preceding an active instrumental interlude are strictly past (no proximity glow)
                 : idx - activeInterlude.insertIndex + 1
               : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0));
 

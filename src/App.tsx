@@ -45,6 +45,12 @@ export const App: React.FC = () => {
     updateLogoGradientFromImage(trackArt || ambientArt);
   }, [trackArt, ambientArt]);
 
+  const isTransitioningRef = useRef(false);
+
+  useEffect(() => {
+    isTransitioningRef.current = false;
+  }, [currentTrack?.id]);
+
   // Continuous audio engine position polling & auto-advance (runs globally regardless of page/tab)
   useEffect(() => {
     if (!isPlaying || !window.__TAURI_INTERNALS__) return;
@@ -74,7 +80,8 @@ export const App: React.FC = () => {
               ? pos >= dur - crossfade
               : dur > 0 && pos >= dur - 0.05;
 
-          if (dur > 1 && pos > 0.5 && isTransition) {
+          if (dur > 1 && pos > 0.5 && isTransition && !isTransitioningRef.current) {
+            isTransitioningRef.current = true;
             if (rm === 'one') {
               usePlayerStore.getState().seek(0);
             } else {

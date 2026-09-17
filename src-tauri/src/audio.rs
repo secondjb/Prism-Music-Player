@@ -45,6 +45,9 @@ pub struct AudioPlayerState {
     pub current_position_secs: Arc<Mutex<f64>>,
     pub current_duration_secs: Arc<Mutex<f64>>,
     pub stop_signal: Arc<AtomicBool>,
+    pub fade_out_signal: Arc<AtomicBool>,
+    pub fade_out_duration_secs: Arc<Mutex<Option<f32>>>,
+    pub fade_out_start: Arc<Mutex<Option<std::time::Instant>>>,
     pub selected_device_name: Arc<Mutex<Option<String>>>,
     pub active_device_name: Arc<Mutex<String>>,
     pub active_sample_rate: Arc<Mutex<u32>>,
@@ -65,6 +68,9 @@ impl AudioPlayerState {
             current_position_secs: Arc::new(Mutex::new(0.0)),
             current_duration_secs: Arc::new(Mutex::new(0.0)),
             stop_signal: Arc::new(AtomicBool::new(false)),
+            fade_out_signal: Arc::new(AtomicBool::new(false)),
+            fade_out_duration_secs: Arc::new(Mutex::new(None)),
+            fade_out_start: Arc::new(Mutex::new(None)),
             selected_device_name: Arc::new(Mutex::new(None)),
             active_device_name: Arc::new(Mutex::new(String::new())),
             active_sample_rate: Arc::new(Mutex::new(0)),
@@ -99,18 +105,28 @@ impl GlobalAudioEngine {
         file_path: String,
         replay_gain_db: f32,
         start_position_secs: Option<f64>,
+        crossfade_secs: Option<f32>,
     ) -> Result<(), String> {
         let state_guard = self.state.lock();
+        let fade_secs = crossfade_secs.unwrap_or(0.0);
 
-        // Signal existing thread to stop
-        state_guard.stop_signal.store(true, Ordering::SeqCst);
-
-        // Join existing thread to release WASAPI audio output device cleanly
-        if let Some(handle) = self.thread_handle.lock().take() {
-            let _ = handle.join();
+        if fade_secs > 0.0 {
+            // Signal current playing track to fade out smoothly over the crossfade duration
+            state_guard.fade_out_signal.store(true, Ordering::SeqCst);
+            *state_guard.fade_out_duration_secs.lock() = Some(fade_secs);
+            *state_guard.fade_out_start.lock() = Some(std::time::Instant::now());
+        } else {
+            // Instant stop on previous stream
+            state_guard.stop_signal.store(true, Ordering::SeqCst);
+            if let Some(handle) = self.thread_handle.lock().take() {
+                let _ = handle.join();
+            }
         }
 
         let stop_signal = Arc::new(AtomicBool::new(false));
+        let fade_out_signal = Arc::new(AtomicBool::new(false));
+        let fade_out_duration_secs = Arc::new(Mutex::new(None));
+        let fade_out_start = Arc::new(Mutex::new(None));
         let is_playing = Arc::new(AtomicBool::new(true));
         let volume = Arc::clone(&state_guard.volume);
         let replay_gain = Arc::new(Mutex::new(replay_gain_db));
@@ -132,6 +148,9 @@ impl GlobalAudioEngine {
 
         let path_clone = file_path.clone();
         let stop_signal_clone = Arc::clone(&stop_signal);
+        let fade_out_signal_clone = Arc::clone(&fade_out_signal);
+        let fade_out_duration_clone = Arc::clone(&fade_out_duration_secs);
+        let fade_out_start_clone = Arc::clone(&fade_out_start);
         let is_playing_clone = Arc::clone(&is_playing);
         let volume_clone = Arc::clone(&volume);
         let replay_gain_clone = Arc::clone(&replay_gain);
@@ -143,6 +162,9 @@ impl GlobalAudioEngine {
         {
             let mut state_write = self.state.lock();
             state_write.stop_signal = stop_signal;
+            state_write.fade_out_signal = fade_out_signal;
+            state_write.fade_out_duration_secs = fade_out_duration_secs;
+            state_write.fade_out_start = fade_out_start;
             state_write.is_playing = is_playing;
             state_write.seek_secs = seek_secs;
             state_write.replay_gain_db = replay_gain;
@@ -152,6 +174,10 @@ impl GlobalAudioEngine {
             if let Err(e) = run_audio_thread(
                 &path_clone,
                 stop_signal_clone,
+                fade_out_signal_clone,
+                fade_out_duration_clone,
+                fade_out_start_clone,
+                fade_secs,
                 is_playing_clone,
                 volume_clone,
                 replay_gain_clone,
@@ -405,6 +431,10 @@ impl GlobalAudioEngine {
 fn run_audio_thread(
     path_str: &str,
     stop_signal: Arc<AtomicBool>,
+    fade_out_signal: Arc<AtomicBool>,
+    fade_out_duration_secs: Arc<Mutex<Option<f32>>>,
+    fade_out_start: Arc<Mutex<Option<std::time::Instant>>>,
+    fade_in_duration_secs: f32,
     is_playing: Arc<AtomicBool>,
     volume: Arc<Mutex<f32>>,
     replay_gain_db: Arc<Mutex<f32>>,
@@ -418,6 +448,7 @@ fn run_audio_thread(
     active_format_out: Arc<Mutex<String>>,
     device_switch_requested: Arc<AtomicBool>,
 ) -> Result<(), String> {
+    let fade_in_start = std::time::Instant::now();
     let file = File::open(Path::new(path_str))
         .map_err(|e| format!("Failed to open file '{}': {}", path_str, e))?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
@@ -685,7 +716,30 @@ fn run_audio_thread(
             Ok(decoded) => {
                 let gain_db = *replay_gain_db.lock();
                 let vol = *volume.lock();
-                let linear_gain = 10.0f32.powf(gain_db / 20.0) * vol;
+
+                let mut crossfade_mult: f32 = 1.0;
+                if fade_in_duration_secs > 0.0 {
+                    let elapsed = fade_in_start.elapsed().as_secs_f32();
+                    if elapsed < fade_in_duration_secs {
+                        crossfade_mult *= (elapsed / fade_in_duration_secs).clamp(0.0, 1.0);
+                    }
+                }
+
+                if fade_out_signal.load(Ordering::SeqCst) {
+                    if let Some(fade_dur) = *fade_out_duration_secs.lock() {
+                        if let Some(start) = *fade_out_start.lock() {
+                            let elapsed = start.elapsed().as_secs_f32();
+                            if elapsed >= fade_dur {
+                                stop_signal.store(true, Ordering::SeqCst);
+                                break;
+                            } else {
+                                crossfade_mult *= (1.0 - (elapsed / fade_dur)).clamp(0.0, 1.0);
+                            }
+                        }
+                    }
+                }
+
+                let linear_gain = 10.0f32.powf(gain_db / 20.0) * vol * crossfade_mult;
 
                 if sample_buf.is_none() {
                     let spec = *decoded.spec();

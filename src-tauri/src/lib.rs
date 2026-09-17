@@ -133,9 +133,10 @@ fn play_audio(
     path: String,
     replay_gain_db: Option<f32>,
     start_position_secs: Option<f64>,
+    crossfade_secs: Option<f32>,
 ) -> Result<(), String> {
     let gain = replay_gain_db.unwrap_or(0.0);
-    audio_engine.play(path, gain, start_position_secs)?;
+    audio_engine.play(path, gain, start_position_secs, crossfade_secs)?;
     if let Ok(mut guard) = controls_state.0.lock() {
         if let Some(controls) = guard.as_mut() {
             let _ = controls.set_playback(MediaPlayback::Playing { progress: None });

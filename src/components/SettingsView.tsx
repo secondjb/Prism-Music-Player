@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Checkbox from '@mui/material/Checkbox';
 import Slider from '@mui/material/Slider';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { open } from '@tauri-apps/plugin-dialog';
 import {
@@ -37,6 +38,96 @@ import {
 } from '../utils/updateChecker';
 import { M3Selector } from './M3Selector';
 import { WordSyncedLyricsFinder } from './WordSyncedLyricsFinder';
+
+// Dark MUI Theme with custom theme-reactive Discrete Slider & Checkbox styling
+const muiDarkTheme = createTheme({
+  palette: {
+    mode: 'dark',
+    primary: {
+      main: '#6366f1',
+    },
+  },
+  components: {
+    MuiSlider: {
+      styleOverrides: {
+        root: {
+          color: 'var(--color-stop-1, #6366f1)',
+          height: 6,
+        },
+        thumb: {
+          height: 18,
+          width: 18,
+          backgroundColor: '#ffffff',
+          border: '2px solid var(--color-stop-1, #6366f1)',
+          '&:focus, &:hover, &.Mui-active, &.Mui-focusVisible': {
+            boxShadow: '0 0 0 8px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+          },
+        },
+        valueLabel: {
+          lineHeight: 1.2,
+          fontSize: 12,
+          fontWeight: 700,
+          background: 'unset',
+          padding: 0,
+          width: 32,
+          height: 32,
+          borderRadius: '50% 50% 50% 0',
+          backgroundColor: 'var(--color-stop-1, #6366f1)',
+          transformOrigin: 'bottom left',
+          transform: 'translate(50%, -100%) rotate(-45deg) scale(0)',
+          '&:before': { display: 'none' },
+          '&.MuiSlider-valueLabelOpen': {
+            transform: 'translate(50%, -100%) rotate(-45deg) scale(1)',
+          },
+          '& > *': {
+            transform: 'rotate(45deg)',
+          },
+        },
+        track: {
+          height: 6,
+          borderRadius: 3,
+          backgroundColor: 'var(--color-stop-1, #6366f1)',
+          border: 'none',
+        },
+        rail: {
+          height: 6,
+          borderRadius: 3,
+          opacity: 0.25,
+          backgroundColor: 'rgba(255, 255, 255, 0.4)',
+        },
+        mark: {
+          backgroundColor: 'rgba(255, 255, 255, 0.35)',
+          height: 4,
+          width: 4,
+          borderRadius: '50%',
+          '&.MuiSlider-markActive': {
+            opacity: 1,
+            backgroundColor: '#ffffff',
+          },
+        },
+        markLabel: {
+          color: 'rgba(255, 255, 255, 0.45)',
+          fontSize: '0.72rem',
+          fontWeight: 600,
+          fontFamily: 'monospace',
+          '&.MuiSlider-markLabelActive': {
+            color: 'rgba(255, 255, 255, 0.85)',
+          },
+        },
+      },
+    },
+    MuiCheckbox: {
+      styleOverrides: {
+        root: {
+          color: 'rgba(255, 255, 255, 0.3)',
+          '&.Mui-checked': {
+            color: 'var(--color-stop-1, #6366f1)',
+          },
+        },
+      },
+    },
+  },
+});
 
 const REPLAY_GAIN_OPTIONS = [
   { id: 'track', name: 'Track Gain (Recommended)', desc: 'Normalizes each track individually to standard loudness' },
@@ -258,7 +349,8 @@ export const SettingsView: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto flex flex-col gap-8 pb-36 overflow-y-auto custom-scrollbar pr-2 h-full">
+    <ThemeProvider theme={muiDarkTheme}>
+      <div className="w-full max-w-4xl mx-auto flex flex-col gap-8 pb-36 overflow-y-auto custom-scrollbar pr-2 h-full">
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-white/10 pb-5 text-center sm:text-left">
@@ -727,8 +819,9 @@ export const SettingsView: React.FC = () => {
                 {crossfadeDuration === 0 ? 'Off (0.0s)' : `${crossfadeDuration.toFixed(1)}s`}
               </span>
             </div>
-            <div className="px-3 pt-2 pb-1">
+            <div className="px-3 pt-3 pb-2">
               <Slider
+                aria-label="Crossfade Duration"
                 value={crossfadeDuration}
                 onChange={(_, val) => setCrossfadeDuration(val as number)}
                 min={0}
@@ -737,33 +830,6 @@ export const SettingsView: React.FC = () => {
                 marks={CROSSFADE_MARKS}
                 valueLabelDisplay="auto"
                 valueLabelFormat={(v) => (v === 0 ? 'Off' : `${v}s`)}
-                sx={{
-                  color: 'var(--color-stop-1, #6366f1)',
-                  '& .MuiSlider-thumb': {
-                    width: 16,
-                    height: 16,
-                    '&:hover, &.Mui-focusVisible': {
-                      boxShadow: '0px 0px 0px 8px color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
-                    },
-                  },
-                  '& .MuiSlider-mark': {
-                    backgroundColor: 'rgba(255,255,255,0.3)',
-                    height: 4,
-                    width: 4,
-                    borderRadius: 2,
-                  },
-                  '& .MuiSlider-markLabel': {
-                    color: 'rgba(255,255,255,0.4)',
-                    fontSize: '0.7rem',
-                    fontFamily: 'monospace',
-                  },
-                  '& .MuiSlider-markActive': {
-                    backgroundColor: '#fff',
-                  },
-                  '& .MuiSlider-rail': {
-                    opacity: 0.2,
-                  },
-                }}
               />
             </div>
           </div>
@@ -1600,7 +1666,7 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
       )}
-
-    </div>
+      </div>
+    </ThemeProvider>
   );
 };

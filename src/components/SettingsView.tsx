@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Checkbox from '@mui/material/Checkbox';
+import Slider from '@mui/material/Slider';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { open } from '@tauri-apps/plugin-dialog';
 import {
@@ -25,6 +26,9 @@ import {
   Activity,
   Type as TypeIcon,
   Globe,
+  Volume2,
+  Radio,
+  FastForward,
 } from 'lucide-react';
 import {
   CURRENT_APP_VERSION,
@@ -33,6 +37,22 @@ import {
 } from '../utils/updateChecker';
 import { M3Selector } from './M3Selector';
 import { WordSyncedLyricsFinder } from './WordSyncedLyricsFinder';
+
+const REPLAY_GAIN_OPTIONS = [
+  { id: 'track', name: 'Track Gain (Recommended)', desc: 'Normalizes each track individually to standard loudness' },
+  { id: 'album', name: 'Album Gain', desc: 'Preserves dynamic volume balance across album tracks' },
+  { id: 'off', name: 'Disabled', desc: 'Play raw unadjusted source volume' },
+] as const;
+
+const CROSSFADE_MARKS = [
+  { value: 0, label: 'Off' },
+  { value: 1, label: '1s' },
+  { value: 2, label: '2s' },
+  { value: 3, label: '3s' },
+  { value: 5, label: '5s' },
+  { value: 7, label: '7s' },
+  { value: 10, label: '10s' },
+];
 
 const ROMANIZATION_OPTIONS = [
   { id: 'below', name: 'Add Below Original', desc: 'Display romanization underneath original script' },
@@ -120,6 +140,13 @@ export const SettingsView: React.FC = () => {
   const togglePreferWordSyncedLyrics = usePlayerStore((s) => s.togglePreferWordSyncedLyrics);
   const inferWordSyncedLyrics = usePlayerStore((s) => s.inferWordSyncedLyrics);
   const toggleInferWordSyncedLyrics = usePlayerStore((s) => s.toggleInferWordSyncedLyrics);
+
+  const crossfadeDuration = usePlayerStore((s) => s.crossfadeDuration);
+  const setCrossfadeDuration = usePlayerStore((s) => s.setCrossfadeDuration);
+  const isGaplessEnabled = usePlayerStore((s) => s.isGaplessEnabled);
+  const toggleGaplessEnabled = usePlayerStore((s) => s.toggleGaplessEnabled);
+  const replayGainMode = usePlayerStore((s) => s.replayGainMode);
+  const setReplayGainMode = usePlayerStore((s) => s.setReplayGainMode);
 
   const autoCheckUpdates = usePlayerStore((s) => s.autoCheckUpdates);
   const toggleAutoCheckUpdates = usePlayerStore((s) => s.toggleAutoCheckUpdates);
@@ -666,12 +693,135 @@ export const SettingsView: React.FC = () => {
         )}
       </div>
 
-      {/* 3. Audio Specs & Lyrics Preferences */}
+      {/* 3. Audio Engine & Playback Options */}
+      <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-5">
+        <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
+          <Volume2 className="w-5 h-5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+          <div>
+            <h3 className="text-base font-bold text-white">Audio Engine & Playback</h3>
+            <p className="text-xs text-zinc-400">Configure crossfading, gapless transitions, and ReplayGain volume normalization.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Crossfade Duration Slider */}
+          <div className="flex flex-col gap-2 p-4 rounded-xl bg-white/5 border border-white/5 col-span-1 md:col-span-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FastForward className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-white">Crossfade & Mix Transition Duration</span>
+                  <span className="text-[11px] text-zinc-400">
+                    Seamlessly mix and fade out outgoing tracks into incoming tracks
+                  </span>
+                </div>
+              </div>
+              <span
+                className="font-mono text-xs font-bold px-2.5 py-1 rounded-lg border"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
+                  color: 'var(--color-stop-1, #6366f1)',
+                }}
+              >
+                {crossfadeDuration === 0 ? 'Off (0.0s)' : `${crossfadeDuration.toFixed(1)}s`}
+              </span>
+            </div>
+            <div className="px-3 pt-2 pb-1">
+              <Slider
+                value={crossfadeDuration}
+                onChange={(_, val) => setCrossfadeDuration(val as number)}
+                min={0}
+                max={10}
+                step={0.5}
+                marks={CROSSFADE_MARKS}
+                valueLabelDisplay="auto"
+                valueLabelFormat={(v) => (v === 0 ? 'Off' : `${v}s`)}
+                sx={{
+                  color: 'var(--color-stop-1, #6366f1)',
+                  '& .MuiSlider-thumb': {
+                    width: 16,
+                    height: 16,
+                    '&:hover, &.Mui-focusVisible': {
+                      boxShadow: '0px 0px 0px 8px color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                    },
+                  },
+                  '& .MuiSlider-mark': {
+                    backgroundColor: 'rgba(255,255,255,0.3)',
+                    height: 4,
+                    width: 4,
+                    borderRadius: 2,
+                  },
+                  '& .MuiSlider-markLabel': {
+                    color: 'rgba(255,255,255,0.4)',
+                    fontSize: '0.7rem',
+                    fontFamily: 'monospace',
+                  },
+                  '& .MuiSlider-markActive': {
+                    backgroundColor: '#fff',
+                  },
+                  '& .MuiSlider-rail': {
+                    opacity: 0.2,
+                  },
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Gapless Playback Toggle */}
+          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+            <div className="flex items-center gap-3">
+              <Radio className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Gapless Audio Playback</span>
+                <span className="text-[11px] text-zinc-400">
+                  Preloads upcoming tracks to eliminate silent pauses between tracks
+                </span>
+              </div>
+            </div>
+            <Checkbox
+              checked={isGaplessEnabled}
+              onChange={toggleGaplessEnabled}
+              size="small"
+              sx={{
+                color: 'var(--color-stop-1, #6366f1)',
+                '&.Mui-checked': {
+                  color: 'var(--color-stop-1, #6366f1)',
+                },
+                p: 0.5,
+              }}
+            />
+          </div>
+
+          {/* ReplayGain Mode Selector */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
+            <div className="flex items-center gap-3">
+              <Volume2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">ReplayGain Loudness Mode</span>
+                <span className="text-[11px] text-zinc-400">
+                  Automatic volume normalization based on track/album embedded ReplayGain tags
+                </span>
+              </div>
+            </div>
+            <div className="w-full sm:w-80">
+              <M3Selector
+                value={replayGainMode}
+                onChange={(val) => setReplayGainMode(val as any)}
+                options={REPLAY_GAIN_OPTIONS}
+                size="sm"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Lyrics & Display Preferences */}
       <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-5">
         <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
           <Sliders className="w-5 h-5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
           <div>
-            <h3 className="text-base font-bold text-white">Playback & Lyrics Preferences</h3>
+            <h3 className="text-base font-bold text-white">Lyrics & Display Preferences</h3>
             <p className="text-xs text-zinc-400">Configure online lyrics auto-fetch and display options.</p>
           </div>
         </div>

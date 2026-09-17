@@ -560,7 +560,7 @@ export const FilterView: React.FC = () => {
 
   return (
     <ThemeProvider theme={muiDarkTheme}>
-      <div className="w-full h-full flex flex-col gap-4 overflow-hidden text-zinc-100 select-none pb-4">
+      <div className="w-full h-full flex flex-col gap-4 overflow-y-auto custom-scrollbar text-zinc-100 select-none pb-32 pr-2">
         {/* Header Bar */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0 bg-white/5 border border-white/10 rounded-2xl p-4 glass">
           <div className="flex items-center gap-3">
@@ -684,60 +684,137 @@ export const FilterView: React.FC = () => {
             {/* Keyword Search */}
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Search className="w-3.5 h-3.5 text-indigo-400" /> Search Keyword
+                <Search className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} /> Search Keyword
               </label>
-              <input
-                type="text"
-                placeholder="Title, Artist, or Album..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="w-full bg-zinc-900/90 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
-              />
+              <div className="relative w-full">
+                <input
+                  type="text"
+                  placeholder="Title, Artist, or Album..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="w-full bg-zinc-900/90 border rounded-xl pl-3 pr-8 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none transition-colors"
+                  style={{
+                    borderColor: query.trim()
+                      ? 'var(--color-stop-1, #6366f1)'
+                      : 'rgba(255, 255, 255, 0.1)',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-stop-1, #6366f1)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = query.trim()
+                      ? 'var(--color-stop-1, #6366f1)'
+                      : 'rgba(255, 255, 255, 0.1)';
+                  }}
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white p-0.5 rounded-full hover:bg-white/10 cursor-pointer"
+                    title="Clear keyword"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Artist Filter */}
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Music className="w-3.5 h-3.5 text-purple-400" /> Artist
+                <Music className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-2, #8b5cf6)' }} /> Artist
               </label>
-              <input
-                type="text"
-                placeholder="Artist name..."
-                value={artist}
-                onChange={(e) => setArtist(e.target.value)}
-                className="w-full bg-zinc-900/90 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
-              />
+              <div className="relative w-full">
+                <input
+                  type="text"
+                  placeholder="Artist name..."
+                  value={artist}
+                  onChange={(e) => setArtist(e.target.value)}
+                  className="w-full bg-zinc-900/90 border rounded-xl pl-3 pr-8 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none transition-colors"
+                  style={{
+                    borderColor: artist.trim()
+                      ? 'var(--color-stop-2, #8b5cf6)'
+                      : 'rgba(255, 255, 255, 0.1)',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-stop-2, #8b5cf6)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = artist.trim()
+                      ? 'var(--color-stop-2, #8b5cf6)'
+                      : 'rgba(255, 255, 255, 0.1)';
+                  }}
+                />
+                {artist && (
+                  <button
+                    type="button"
+                    onClick={() => setArtist('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white p-0.5 rounded-full hover:bg-white/10 cursor-pointer"
+                    title="Clear artist"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Genre Modern Styled Custom Dropdown */}
             <div className="flex flex-col gap-1 relative">
               <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-pink-400" /> Genre Filter
+                <Tag className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-3, #ec4899)' }} /> Genre Filter
               </label>
               <button
                 onClick={() => {
                   setShowGenreDropdown(!showGenreDropdown);
                   setShowKeyDropdown(false);
                 }}
-                className="w-full bg-zinc-900/90 border border-white/10 rounded-xl px-3 py-2 text-xs text-white flex items-center justify-between hover:border-indigo-500/50 transition-colors"
+                className="w-full bg-zinc-900/90 border border-white/10 rounded-xl px-3 py-2 text-xs text-white flex items-center justify-between transition-colors"
+                style={{
+                  borderColor: genre
+                    ? 'var(--color-stop-3, #ec4899)'
+                    : 'rgba(255, 255, 255, 0.1)',
+                }}
               >
-                <span className={genre ? 'text-indigo-300 font-semibold truncate' : 'text-zinc-400'}>
+                <span
+                  className={genre ? 'font-semibold truncate' : 'text-zinc-400'}
+                  style={{
+                    color: genre ? 'var(--color-stop-3, #ec4899)' : undefined,
+                  }}
+                >
                   {genre || 'Select or search genre...'}
                 </span>
                 <ChevronDown className="w-4 h-4 text-zinc-400" />
               </button>
 
-              {/* Genre Dropdown Popover (Visual Fix) */}
+              {/* Genre Dropdown Popover */}
               {showGenreDropdown && (
                 <div className="absolute left-0 top-16 z-50 w-72 bg-zinc-900 border border-white/20 rounded-2xl p-3 shadow-2xl flex flex-col gap-2 animate-in fade-in slide-in-from-top-1">
-                  <input
-                    type="text"
-                    placeholder="Search available genres..."
-                    value={genreSearch}
-                    onChange={(e) => setGenreSearch(e.target.value)}
-                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
-                    autoFocus
-                  />
+                  <div className="relative w-full">
+                    <input
+                      type="text"
+                      placeholder="Search available genres..."
+                      value={genreSearch}
+                      onChange={(e) => setGenreSearch(e.target.value)}
+                      className="w-full bg-zinc-950 border border-white/10 rounded-xl pl-3 pr-8 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none"
+                      style={{
+                        borderColor: genreSearch.trim()
+                          ? 'var(--color-stop-3, #ec4899)'
+                          : 'rgba(255, 255, 255, 0.1)',
+                      }}
+                      autoFocus
+                    />
+                    {genreSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setGenreSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white p-0.5 rounded-full hover:bg-white/10 cursor-pointer"
+                        title="Clear genre search"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                   <div className="max-h-52 overflow-y-auto custom-scrollbar flex flex-col gap-1 pr-1">
                     <button
                       onClick={() => {
@@ -745,8 +822,13 @@ export const FilterView: React.FC = () => {
                         setShowGenreDropdown(false);
                       }}
                       className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-colors ${
-                        !genre ? 'bg-indigo-600 text-white font-bold' : 'text-zinc-300 hover:text-white hover:bg-white/10'
+                        !genre ? 'text-white font-bold' : 'text-zinc-300 hover:text-white hover:bg-white/10'
                       }`}
+                      style={
+                        !genre
+                          ? { backgroundColor: 'var(--color-stop-3, #ec4899)' }
+                          : undefined
+                      }
                     >
                       <span>All Genres</span>
                       {!genre && <Check className="w-4 h-4" />}
@@ -764,9 +846,14 @@ export const FilterView: React.FC = () => {
                             }}
                             className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between truncate transition-colors ${
                               isSelected
-                                ? 'bg-indigo-600 text-white font-bold'
+                                ? 'text-white font-bold'
                                 : 'text-zinc-200 hover:text-white hover:bg-white/10'
                             }`}
+                            style={
+                              isSelected
+                                ? { backgroundColor: 'var(--color-stop-3, #ec4899)' }
+                                : undefined
+                            }
                           >
                             <span className="truncate">{g}</span>
                             {isSelected && <Check className="w-4 h-4 shrink-0 ml-2" />}
@@ -781,32 +868,59 @@ export const FilterView: React.FC = () => {
             {/* Key Modern Styled Custom Dropdown */}
             <div className="flex flex-col gap-1 relative">
               <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <KeyRound className="w-3.5 h-3.5 text-amber-400" /> Musical Key Tag
+                <KeyRound className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} /> Musical Key Tag
               </label>
               <button
                 onClick={() => {
                   setShowKeyDropdown(!showKeyDropdown);
                   setShowGenreDropdown(false);
                 }}
-                className="w-full bg-zinc-900/90 border border-white/10 rounded-xl px-3 py-2 text-xs text-white flex items-center justify-between hover:border-indigo-500/50 transition-colors"
+                className="w-full bg-zinc-900/90 border border-white/10 rounded-xl px-3 py-2 text-xs text-white flex items-center justify-between transition-colors"
+                style={{
+                  borderColor: keyQuery
+                    ? 'var(--color-stop-1, #6366f1)'
+                    : 'rgba(255, 255, 255, 0.1)',
+                }}
               >
-                <span className={keyQuery ? 'text-amber-300 font-semibold truncate' : 'text-zinc-400'}>
+                <span
+                  className={keyQuery ? 'font-semibold truncate' : 'text-zinc-400'}
+                  style={{
+                    color: keyQuery ? 'var(--color-stop-1, #6366f1)' : undefined,
+                  }}
+                >
                   {keyQuery || 'Select key tag...'}
                 </span>
                 <ChevronDown className="w-4 h-4 text-zinc-400" />
               </button>
 
-              {/* Key Dropdown Popover (Visual Fix) */}
+              {/* Key Dropdown Popover */}
               {showKeyDropdown && (
                 <div className="absolute left-0 top-16 z-50 w-64 bg-zinc-900 border border-white/20 rounded-2xl p-3 shadow-2xl flex flex-col gap-2 animate-in fade-in slide-in-from-top-1">
-                  <input
-                    type="text"
-                    placeholder="Search key..."
-                    value={keySearch}
-                    onChange={(e) => setKeySearch(e.target.value)}
-                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
-                    autoFocus
-                  />
+                  <div className="relative w-full">
+                    <input
+                      type="text"
+                      placeholder="Search key..."
+                      value={keySearch}
+                      onChange={(e) => setKeySearch(e.target.value)}
+                      className="w-full bg-zinc-950 border border-white/10 rounded-xl pl-3 pr-8 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none"
+                      style={{
+                        borderColor: keySearch.trim()
+                          ? 'var(--color-stop-1, #6366f1)'
+                          : 'rgba(255, 255, 255, 0.1)',
+                      }}
+                      autoFocus
+                    />
+                    {keySearch && (
+                      <button
+                        type="button"
+                        onClick={() => setKeySearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white p-0.5 rounded-full hover:bg-white/10 cursor-pointer"
+                        title="Clear key search"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                   <div className="max-h-48 overflow-y-auto custom-scrollbar grid grid-cols-3 gap-1.5 pt-1 pr-1">
                     <button
                       onClick={() => {
@@ -814,8 +928,13 @@ export const FilterView: React.FC = () => {
                         setShowKeyDropdown(false);
                       }}
                       className={`col-span-3 text-center px-2 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                        !keyQuery ? 'bg-indigo-600 text-white font-bold' : 'text-zinc-400 hover:text-white hover:bg-white/10'
+                        !keyQuery ? 'text-white font-bold' : 'text-zinc-400 hover:text-white hover:bg-white/10'
                       }`}
+                      style={
+                        !keyQuery
+                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                          : undefined
+                      }
                     >
                       All Keys
                     </button>
@@ -832,11 +951,16 @@ export const FilterView: React.FC = () => {
                             }}
                             className={`text-center px-2 py-1.5 rounded-xl text-xs font-mono transition-colors ${
                               isSelected
-                                ? 'bg-amber-500 text-zinc-950 font-bold'
-                                : 'text-zinc-200 hover:text-white hover:bg-white/10 border border-white/5'
+                                ? 'text-white font-bold shadow-md'
+                                : 'text-zinc-200 hover:text-white hover:bg-white/10'
                             }`}
+                            style={
+                              isSelected
+                                ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                                : undefined
+                            }
                           >
-                            {k}
+                            <span>{k}</span>
                           </button>
                         );
                       })}
@@ -1205,10 +1329,10 @@ export const FilterView: React.FC = () => {
           </span>
         </div>
 
-        {/* Virtualized Results List with Lazy Loaded Artwork */}
+        {/* Results List with Lazy Loaded Artwork */}
         <div
           ref={parentRef}
-          className="flex-1 overflow-y-auto custom-scrollbar border border-white/10 rounded-2xl glass p-2 relative"
+          className="border border-white/10 rounded-2xl glass p-2 relative"
         >
           {filteredTracks.length === 0 ? (
             <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-zinc-500 py-16">

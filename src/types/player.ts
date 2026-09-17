@@ -11,6 +11,8 @@ export interface Track {
   bit_rate_kbps?: number | null;
   replay_gain_db?: number | null;
   replay_gain_peak?: number | null;
+  replay_gain_album_db?: number | null;
+  replay_gain_album_peak?: number | null;
   embedded_art_base64?: string | null;
   unsynced_lyrics?: string | null;
   genre?: string | null;

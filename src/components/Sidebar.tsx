@@ -353,19 +353,6 @@ export const Sidebar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  playPlaylistNext(contextMenu.playlistId);
-                  setContextMenu(null);
-                }}
-                onMouseEnter={(e) => handleItemHover(e, true)}
-                onMouseLeave={(e) => handleItemHover(e, false)}
-                className="flex items-center gap-2 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
-              >
-                <ListPlus className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                <span>Play Next (After Song)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
                   addPlaylistToQueue(contextMenu.playlistId);
                   setContextMenu(null);
                 }}
@@ -375,6 +362,19 @@ export const Sidebar: React.FC = () => {
               >
                 <ListVideo className="w-4 h-4 text-zinc-400" />
                 <span>Add Playlist to Queue</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  playPlaylistNext(contextMenu.playlistId);
+                  setContextMenu(null);
+                }}
+                onMouseEnter={(e) => handleItemHover(e, true)}
+                onMouseLeave={(e) => handleItemHover(e, false)}
+                className="flex items-center gap-2 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+              >
+                <ListPlus className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                <span>Play Next (After Song)</span>
               </button>
               <button
                 type="button"

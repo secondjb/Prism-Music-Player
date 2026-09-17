@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { usePlayerStore } from './store/usePlayerStore';
+import { usePlayerStore, getEffectiveReplayGain } from './store/usePlayerStore';
 import { Track } from './types/player';
 import { useTrackArt } from './utils/useTrackArt';
 import { Sidebar } from './components/Sidebar';
@@ -68,7 +68,13 @@ export const App: React.FC = () => {
           
           const dur = effectiveDur;
           const rm = state.repeatMode;
-          if (dur > 2 && pos > 0.5 && pos >= dur - 0.5) {
+          const crossfade = state.crossfadeDuration || 0;
+          const isTransition =
+            crossfade > 0 && dur > crossfade * 2
+              ? pos >= dur - crossfade
+              : dur > 0 && pos >= dur - 0.05;
+
+          if (dur > 1 && pos > 0.5 && isTransition) {
             if (rm === 'one') {
               usePlayerStore.getState().seek(0);
             } else {
@@ -319,7 +325,7 @@ export const App: React.FC = () => {
             // Pre-load track in rust backend and seek to saved time
             await invoke('play_audio', { 
               path: store.currentTrack.path, 
-              replayGainDb: store.currentTrack.replay_gain_db || 0 
+              replayGainDb: getEffectiveReplayGain(store.currentTrack, store.replayGainMode) 
             });
             await invoke('pause_audio');
             if (store.currentTime > 0) {

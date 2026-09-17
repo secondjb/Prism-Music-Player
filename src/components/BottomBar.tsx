@@ -306,25 +306,6 @@ export const BottomBar: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    playNext(currentTrack);
-                    setShowContextMenu(false);
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor =
-                      'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '';
-                  }}
-                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
-                >
-                  <ListPlus className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                  <span>Play Next</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
                     addToQueue(currentTrack);
                     setShowContextMenu(false);
                   }}
@@ -339,6 +320,25 @@ export const BottomBar: React.FC = () => {
                 >
                   <ListEnd className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                   <span>Add to Queue</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    playNext(currentTrack);
+                    setShowContextMenu(false);
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor =
+                      'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '';
+                  }}
+                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+                >
+                  <ListPlus className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                  <span>Play Next</span>
                 </button>
                 
                 {/* Add to Playlist submenu */}

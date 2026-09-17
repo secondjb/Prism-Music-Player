@@ -19,6 +19,8 @@ pub struct TrackMetadata {
     pub bit_rate_kbps: Option<u32>,
     pub replay_gain_db: Option<f32>,
     pub replay_gain_peak: Option<f32>,
+    pub replay_gain_album_db: Option<f32>,
+    pub replay_gain_album_peak: Option<f32>,
     pub embedded_art_base64: Option<String>,
     pub unsynced_lyrics: Option<String>,
     pub genre: Option<String>,
@@ -212,13 +214,14 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
 
     let mut replay_gain_db = None;
     let mut replay_gain_peak = None;
+    let mut replay_gain_album_db = None;
+    let mut replay_gain_album_peak = None;
     let mut unsynced_lyrics = None;
     let mut genre = None;
     let mut year = None;
     let mut date = None;
     let mut key = None;
     let mut bpm = None;
-
 
     if let Some(c) = comments {
         if let Some(gains) = c.get("REPLAYGAIN_TRACK_GAIN") {
@@ -229,6 +232,16 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
         if let Some(peaks) = c.get("REPLAYGAIN_TRACK_PEAK") {
             if let Some(peak_str) = peaks.first() {
                 replay_gain_peak = parse_replay_gain_peak(peak_str);
+            }
+        }
+        if let Some(agains) = c.get("REPLAYGAIN_ALBUM_GAIN") {
+            if let Some(again_str) = agains.first() {
+                replay_gain_album_db = parse_replay_gain_db(again_str);
+            }
+        }
+        if let Some(apeaks) = c.get("REPLAYGAIN_ALBUM_PEAK") {
+            if let Some(apeak_str) = apeaks.first() {
+                replay_gain_album_peak = parse_replay_gain_peak(apeak_str);
             }
         }
 
@@ -455,6 +468,8 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
         bit_rate_kbps,
         replay_gain_db,
         replay_gain_peak,
+        replay_gain_album_db,
+        replay_gain_album_peak,
         embedded_art_base64: None, // On-demand art fetching keeps library tiny and ultra-fast
         unsynced_lyrics,
         genre,
@@ -497,6 +512,10 @@ pub fn parse_audio_file(path: &Path) -> Option<TrackMetadata> {
     let date = None;
     let mut key = None;
     let mut bpm = None;
+    let mut replay_gain_db = None;
+    let mut replay_gain_peak = None;
+    let mut replay_gain_album_db = None;
+    let mut replay_gain_album_peak = None;
     let unsynced_lyrics = None;
 
     for tag in tagged_file.tags() {
@@ -538,20 +557,51 @@ pub fn parse_audio_file(path: &Path) -> Option<TrackMetadata> {
             }
         }
 
+        if replay_gain_db.is_none() {
+            if let Some(g) = tag.get_string(&lofty::tag::ItemKey::ReplayGainTrackGain) {
+                replay_gain_db = parse_replay_gain_db(g);
+            }
+        }
+        if replay_gain_peak.is_none() {
+            if let Some(p) = tag.get_string(&lofty::tag::ItemKey::ReplayGainTrackPeak) {
+                replay_gain_peak = parse_replay_gain_peak(p);
+            }
+        }
+        if replay_gain_album_db.is_none() {
+            if let Some(ag) = tag.get_string(&lofty::tag::ItemKey::ReplayGainAlbumGain) {
+                replay_gain_album_db = parse_replay_gain_db(ag);
+            }
+        }
+        if replay_gain_album_peak.is_none() {
+            if let Some(ap) = tag.get_string(&lofty::tag::ItemKey::ReplayGainAlbumPeak) {
+                replay_gain_album_peak = parse_replay_gain_peak(ap);
+            }
+        }
+
         for item in tag.items() {
             let k_str = format!("{:?}", item.key()).to_uppercase();
-            if key.is_none() && (k_str.contains("INITIALKEY") || k_str.contains("KEY") || k_str.contains("TKEY")) {
-                if let lofty::tag::ItemValue::Text(val) = item.value() {
-                    let cleaned = val.trim();
+            if let lofty::tag::ItemValue::Text(val) = item.value() {
+                let cleaned = val.trim();
+                if key.is_none() && (k_str.contains("INITIALKEY") || k_str.contains("KEY") || k_str.contains("TKEY")) {
                     if !cleaned.is_empty() { key = Some(cleaned.to_string()); }
                 }
-            }
-            if bpm.is_none() && (k_str.contains("BPM") || k_str.contains("TEMPO") || k_str.contains("TBPM")) {
-                if let lofty::tag::ItemValue::Text(val) = item.value() {
-                    let clean = val.to_uppercase().replace("BPM", "").trim().to_string();
+                if bpm.is_none() && (k_str.contains("BPM") || k_str.contains("TEMPO") || k_str.contains("TBPM")) {
+                    let clean = cleaned.to_uppercase().replace("BPM", "").trim().to_string();
                     if let Ok(b_val) = clean.parse::<f32>() {
                         bpm = Some(b_val as u32);
                     }
+                }
+                if replay_gain_db.is_none() && (k_str.contains("REPLAYGAIN_TRACK_GAIN") || k_str.contains("TRACK_GAIN")) {
+                    replay_gain_db = parse_replay_gain_db(cleaned);
+                }
+                if replay_gain_peak.is_none() && (k_str.contains("REPLAYGAIN_TRACK_PEAK") || k_str.contains("TRACK_PEAK")) {
+                    replay_gain_peak = parse_replay_gain_peak(cleaned);
+                }
+                if replay_gain_album_db.is_none() && (k_str.contains("REPLAYGAIN_ALBUM_GAIN") || k_str.contains("ALBUM_GAIN")) {
+                    replay_gain_album_db = parse_replay_gain_db(cleaned);
+                }
+                if replay_gain_album_peak.is_none() && (k_str.contains("REPLAYGAIN_ALBUM_PEAK") || k_str.contains("ALBUM_PEAK")) {
+                    replay_gain_album_peak = parse_replay_gain_peak(cleaned);
                 }
             }
         }
@@ -570,8 +620,10 @@ pub fn parse_audio_file(path: &Path) -> Option<TrackMetadata> {
         bit_depth,
         channels,
         bit_rate_kbps,
-        replay_gain_db: None,
-        replay_gain_peak: None,
+        replay_gain_db,
+        replay_gain_peak,
+        replay_gain_album_db,
+        replay_gain_album_peak,
         embedded_art_base64: None,
         unsynced_lyrics,
         genre,

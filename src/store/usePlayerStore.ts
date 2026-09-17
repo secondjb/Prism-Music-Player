@@ -18,12 +18,24 @@ export type TrackColumnId =
   | 'sampleRate'
   | 'bitDepth'
   | 'favorite'
-  | 'playNext'
   | 'addToQueue'
+  | 'playNext'
   | 'addToPlaylist'
   | 'actions';
 
 export type TrackGridDensity = 'compact' | 'normal' | 'large' | 'extra-large' | 'huge' | 'massive';
+
+export type ReplayGainMode = 'track' | 'album' | 'off';
+
+export function getEffectiveReplayGain(track?: Track | null, mode: ReplayGainMode = 'track'): number {
+  if (!track || mode === 'off') return 0;
+  if (mode === 'album') {
+    if (typeof track.replay_gain_album_db === 'number') return track.replay_gain_album_db;
+    if (typeof track.replay_gain_db === 'number') return track.replay_gain_db;
+    return 0;
+  }
+  return typeof track.replay_gain_db === 'number' ? track.replay_gain_db : 0;
+}
 
 interface PlayerState {
   audioAnalysisProgress: { current: number; total: number } | null;
@@ -38,6 +50,12 @@ interface PlayerState {
   duration: number;
   activeTab: ActiveTab;
   searchQuery: string;
+  crossfadeDuration: number;
+  setCrossfadeDuration: (dur: number) => void;
+  isGaplessEnabled: boolean;
+  toggleGaplessEnabled: () => void;
+  replayGainMode: ReplayGainMode;
+  setReplayGainMode: (mode: ReplayGainMode) => void;
   likedTrackIds: string[];
   sleepTimer: SleepTimer;
   showLyricsFullscreen: boolean;
@@ -336,6 +354,13 @@ export const usePlayerStore = create<PlayerState>()(
       showDemoStats: false,
       anonymizeStats: false,
 
+      crossfadeDuration: 0,
+      setCrossfadeDuration: (dur) => set({ crossfadeDuration: Math.max(0, Math.min(10, dur)) }),
+      isGaplessEnabled: true,
+      toggleGaplessEnabled: () => set((state) => ({ isGaplessEnabled: !state.isGaplessEnabled })),
+      replayGainMode: 'track',
+      setReplayGainMode: (mode) => set({ replayGainMode: mode }),
+
       selectedArtist: null,
       selectedAlbum: null,
       navigateToArtist: (artist) => set({ selectedArtist: artist, activeTab: 'artistView', infoModalTrack: null }),
@@ -350,8 +375,8 @@ export const usePlayerStore = create<PlayerState>()(
         'artist',
         'duration',
         'favorite',
-        'playNext',
         'addToQueue',
+        'playNext',
         'addToPlaylist',
         'actions',
       ],
@@ -378,8 +403,8 @@ export const usePlayerStore = create<PlayerState>()(
         'genre',
         'duration',
         'favorite',
-        'playNext',
         'addToQueue',
+        'playNext',
         'addToPlaylist',
         'actions',
       ],
@@ -641,7 +666,10 @@ export const usePlayerStore = create<PlayerState>()(
         try {
           if (window.__TAURI_INTERNALS__) {
             await invoke('set_volume', { volume: get().volume });
-            await invoke('play_audio', { path: track.path, replayGainDb: track.replay_gain_db || 0 });
+            await invoke('play_audio', {
+              path: track.path,
+              replayGainDb: getEffectiveReplayGain(track, get().replayGainMode),
+            });
           }
         } catch (e) {
           console.warn('Rust play_audio error:', e);
@@ -662,7 +690,10 @@ export const usePlayerStore = create<PlayerState>()(
           try {
             if (window.__TAURI_INTERNALS__) {
               await invoke('set_volume', { volume: get().volume });
-              await invoke('play_audio', { path: track.path, replayGainDb: track.replay_gain_db || 0 });
+              await invoke('play_audio', {
+                path: track.path,
+                replayGainDb: getEffectiveReplayGain(track, get().replayGainMode),
+              });
             }
           } catch (e) {
             console.warn('Rust play_audio call pending:', e);
@@ -686,7 +717,7 @@ export const usePlayerStore = create<PlayerState>()(
               await invoke('set_volume', { volume: get().volume });
               await invoke('play_audio', {
                 path: currentTrack.path,
-                replayGainDb: currentTrack.replay_gain_db || 0,
+                replayGainDb: getEffectiveReplayGain(currentTrack, get().replayGainMode),
                 startPositionSecs: currentTime > 0 ? currentTime : null,
               });
             }
@@ -775,7 +806,10 @@ export const usePlayerStore = create<PlayerState>()(
             isPlaying: true,
           });
           try {
-            await invoke('play_audio', { path: nextUserTrack.path, replayGainDb: nextUserTrack.replay_gain_db || 0 });
+            await invoke('play_audio', {
+              path: nextUserTrack.path,
+              replayGainDb: getEffectiveReplayGain(nextUserTrack, get().replayGainMode),
+            });
           } catch (e) {
             console.warn('Rust play_audio error:', e);
           }

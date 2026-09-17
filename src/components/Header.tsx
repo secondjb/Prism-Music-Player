@@ -3,6 +3,7 @@ import IconButton from '@mui/material/IconButton';
 import SearchIcon from '@mui/icons-material/Search';
 import SettingsIcon from '@mui/icons-material/Settings';
 import Tooltip from '@mui/material/Tooltip';
+import { X } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 
 export const Header: React.FC = () => {
@@ -66,14 +67,40 @@ export const Header: React.FC = () => {
 
       <div className="flex items-center gap-4">
         <div className="relative w-72">
-          <SearchIcon className="w-5 h-5 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <SearchIcon className="w-5 h-5 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={handleChange}
             placeholder="Search tracks, artists, albums..."
-            className="w-full bg-white/5 border border-white/10 focus:border-indigo-500 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none transition-colors"
+            className="w-full bg-white/5 border rounded-xl pl-10 pr-9 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none transition-all"
+            style={{
+              borderColor: searchQuery.trim()
+                ? 'var(--color-stop-1, #6366f1)'
+                : 'rgba(255, 255, 255, 0.1)',
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-stop-1, #6366f1)';
+              e.currentTarget.style.boxShadow =
+                '0 0 12px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)';
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = searchQuery.trim()
+                ? 'var(--color-stop-1, #6366f1)'
+                : 'rgba(255, 255, 255, 0.1)';
+              e.currentTarget.style.boxShadow = '';
+            }}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white p-0.5 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+              title="Clear search"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Settings Button */}

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { usePlayerStore } from '../store/usePlayerStore';
+import { usePlayerStore, getEffectiveReplayGain } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { Track } from '../types/player';
 import { invoke } from '@tauri-apps/api/core';
@@ -56,7 +56,9 @@ const QueueItemRow: React.FC<{
     ghost.style.position = 'absolute';
     ghost.style.top = '-9999px';
     ghost.style.left = '-9999px';
-    ghost.className = 'bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-2xl z-50 border border-indigo-400';
+    ghost.className = 'text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-2xl z-50 border';
+    ghost.style.backgroundColor = 'var(--color-stop-1, #6366f1)';
+    ghost.style.borderColor = 'var(--color-stop-2, #818cf8)';
     ghost.innerHTML = `<span style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;">🎵 ${track.title}</span>`;
 
     document.body.appendChild(ghost);
@@ -91,7 +93,13 @@ const QueueItemRow: React.FC<{
     <div className="relative my-0.5">
       {/* Insertion line indicator */}
       {isDragOver && (
-        <div className="absolute -top-1.5 left-0 right-0 h-1 bg-indigo-400 rounded-full z-20 shadow-lg shadow-indigo-500/50" />
+        <div
+          className="absolute -top-1.5 left-0 right-0 h-1 rounded-full z-20 shadow-lg"
+          style={{
+            backgroundColor: 'var(--color-stop-1, #6366f1)',
+            boxShadow: '0 0 10px var(--color-stop-1, #6366f1)',
+          }}
+        />
       )}
       <div
         ref={rowRef}
@@ -102,18 +110,37 @@ const QueueItemRow: React.FC<{
         onDragEnd={handleDragEnd}
         onClick={onPlay}
         className={`group flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
-          isDragging ? 'opacity-30 border-dashed border-indigo-400' : ''
-        } ${
-          isDragOver ? 'bg-indigo-600/20 border-indigo-400' : ''
+          isDragging ? 'opacity-30 border-dashed' : ''
         } ${
           isPlaying
-            ? 'bg-indigo-600/25 border-indigo-500/40 text-white shadow-md'
+            ? 'text-white shadow-md'
+            : isDragOver
+            ? 'text-white'
             : 'bg-white/5 hover:bg-white/10 border-transparent text-zinc-300'
         }`}
+        style={{
+          borderColor: isDragging
+            ? 'var(--color-stop-1, #6366f1)'
+            : isDragOver
+            ? 'var(--color-stop-1, #6366f1)'
+            : isPlaying
+            ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 45%, transparent)'
+            : undefined,
+          backgroundColor: isPlaying
+            ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)'
+            : isDragOver
+            ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)'
+            : undefined,
+        }}
       >
         <div className="flex items-center gap-3 min-w-0 pointer-events-none">
           {isDraggable && (
-            <span className="text-zinc-500 group-hover:text-indigo-400 shrink-0 p-0.5 transition-colors">
+            <span
+              className="text-zinc-500 shrink-0 p-0.5 transition-colors"
+              style={{
+                color: isDragOver ? 'var(--color-stop-1, #6366f1)' : undefined,
+              }}
+            >
               <GripVertical className="w-4 h-4" />
             </span>
           )}
@@ -122,18 +149,31 @@ const QueueItemRow: React.FC<{
             {art ? (
               <img src={art} alt={track.title} className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full bg-indigo-900/60 flex items-center justify-center">
-                <Play className="w-3.5 h-3.5 text-indigo-300" />
+              <div
+                className="w-full h-full flex items-center justify-center"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
+                }}
+              >
+                <Play className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               </div>
             )}
           </div>
 
           <div className="flex flex-col min-w-0">
-            <span className={`text-xs font-semibold truncate ${isPlaying ? 'text-indigo-400' : 'text-white'}`}>
+            <span
+              className={`text-xs font-semibold truncate ${isPlaying ? 'font-bold' : 'text-white'}`}
+              style={{
+                color: isPlaying ? 'var(--color-stop-1, #6366f1)' : undefined,
+              }}
+            >
               {track.title}
             </span>
             <span 
-              className="text-[11px] text-zinc-400 truncate hover:underline hover:text-indigo-400 cursor-pointer pointer-events-auto"
+              className="text-[11px] text-zinc-400 truncate hover:underline cursor-pointer pointer-events-auto transition-colors"
+              style={{
+                color: isPlaying ? 'var(--color-stop-2, #818cf8)' : undefined,
+              }}
               onClick={(e) => {
                 if (track.artist && track.artist !== 'Unknown Artist') {
                   e.stopPropagation();
@@ -244,7 +284,10 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
         currentTime: 0,
         isPlaying: true,
       });
-      invoke('play_audio', { path: targetTrack.path, replayGainDb: targetTrack.replay_gain_db || 0 });
+      invoke('play_audio', {
+        path: targetTrack.path,
+        replayGainDb: getEffectiveReplayGain(targetTrack, usePlayerStore.getState().replayGainMode),
+      });
     }
   };
 
@@ -263,7 +306,14 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/10 pb-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center border shadow-md"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+              color: 'var(--color-stop-1, #6366f1)',
+            }}
+          >
             <ListMusic className="w-4 h-4" />
           </div>
           <div>
@@ -310,7 +360,10 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
         {userQueue.length > 0 && (
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
+              <h4
+                className="text-xs font-bold uppercase tracking-wider"
+                style={{ color: 'var(--color-stop-1, #6366f1)' }}
+              >
                 Next Up
               </h4>
               <span className="text-xs font-mono font-medium text-zinc-400">
@@ -385,7 +438,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
               className="w-full flex items-center justify-between p-3 text-xs font-semibold text-zinc-300 hover:text-white hover:bg-white/5 transition-colors"
             >
               <div className="flex items-center gap-2">
-                <History className="w-4 h-4 text-indigo-400" />
+                <History className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                 <span>Previous Songs ({previousSongs.length})</span>
               </div>
               {showPreviousSongs ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -404,7 +457,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                       <span className="text-xs font-medium truncate">{track.title}</span>
                     </div>
                     <span 
-                      className="text-[10px] text-zinc-500 truncate ml-2 hover:underline hover:text-indigo-400 cursor-pointer pointer-events-auto"
+                      className="text-[10px] text-zinc-400 truncate ml-2 hover:underline cursor-pointer pointer-events-auto transition-colors"
                       onClick={(e) => {
                         if (track.artist && track.artist !== 'Unknown Artist') {
                           e.stopPropagation();

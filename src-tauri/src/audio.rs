@@ -768,5 +768,10 @@ fn run_audio_thread(
         }
     }
 
+    // When EOF is reached, allow remaining buffered audio samples to play out cleanly to the last millisecond
+    while !stop_signal.load(Ordering::SeqCst) && !tx.is_empty() {
+        thread::sleep(Duration::from_millis(15));
+    }
+
     Ok(())
 }

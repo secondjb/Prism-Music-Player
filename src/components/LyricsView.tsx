@@ -2039,8 +2039,17 @@ export const LyricsView: React.FC = () => {
           lines.map((line, idx) => {
             const isUnsynced = line.startSecs === -1;
             const isActive = isUnsynced || activeLineIndices.has(idx);
-            const isPast = !isActive && activeIndex >= 0 && idx < activeIndex;
-            const distance = isActive ? 0 : Math.abs(idx - activeIndex);
+            const isPast =
+              !isActive &&
+              ((activeInterlude && idx < activeInterlude.insertIndex) ||
+                (!activeInterlude && activeIndex >= 0 && idx < activeIndex));
+            const distance = isActive
+              ? 0
+              : activeInterlude
+              ? idx < activeInterlude.insertIndex
+                ? activeInterlude.insertIndex - idx
+                : idx - activeInterlude.insertIndex + 1
+              : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0));
 
             // Interlude before this line (intro at index 0, or interlude between idx-1 and idx)
             const interludeBefore = !isUnsynced

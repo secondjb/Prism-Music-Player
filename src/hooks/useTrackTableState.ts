@@ -18,8 +18,8 @@ export const ALL_COLUMN_IDS: TrackColumnId[] = [
   'sampleRate',
   'bitDepth',
   'favorite',
-  'playNext',
   'addToQueue',
+  'playNext',
   'addToPlaylist',
   'actions',
 ];
@@ -37,8 +37,8 @@ export const DEFAULT_COLUMN_ORDER: TrackColumnId[] = [
   'sampleRate',
   'bitDepth',
   'favorite',
-  'playNext',
   'addToQueue',
+  'playNext',
   'addToPlaylist',
   'actions',
 ];
@@ -53,8 +53,8 @@ export const DEFAULT_VISIBLE_COLUMNS: TrackColumnId[] = [
   'artist',
   'duration',
   'favorite',
-  'playNext',
   'addToQueue',
+  'playNext',
   'addToPlaylist',
   'actions',
 ];

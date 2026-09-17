@@ -201,11 +201,16 @@ export const SongInfoModal: React.FC = () => {
               </div>
 
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
-                <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">ReplayGain</span>
+                <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">ReplayGain (Track / Album)</span>
                 <span className="text-xl font-mono text-white">
                   {typeof infoModalTrack.replay_gain_db === 'number'
                     ? `${infoModalTrack.replay_gain_db > 0 ? '+' : ''}${infoModalTrack.replay_gain_db.toFixed(2)} dB`
-                    : 'None'}
+                    : (typeof infoModalTrack.replay_gain_album_db === 'number' ? 'None (Track)' : 'None')}
+                  {typeof infoModalTrack.replay_gain_album_db === 'number' && (
+                    <span className="text-sm text-zinc-400 ml-2 font-normal">
+                      [Album: {infoModalTrack.replay_gain_album_db > 0 ? '+' : ''}${infoModalTrack.replay_gain_album_db.toFixed(2)} dB]
+                    </span>
+                  )}
                 </span>
               </div>
             </div>

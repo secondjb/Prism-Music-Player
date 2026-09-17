@@ -5,6 +5,7 @@ description = "Prism Music Player - Ultra-high-quality local music player"
 authors = ["secondjb"]
 license = "MIT"
 edition = "2021"
+default-run = "prism_music_player"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

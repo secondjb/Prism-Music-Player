@@ -660,6 +660,13 @@ pub fn run() {
 
             stats::init_db(&app.handle());
 
+            #[cfg(debug_assertions)]
+            {
+                if let Some(main_window) = app.get_webview_window("main") {
+                    main_window.open_devtools();
+                }
+            }
+
             // Pre-warm audio devices cache asynchronously on startup so device modal opens instantly (<1ms)
             std::thread::spawn(move || {
                 let _ = engine_warm.get_output_details(false);

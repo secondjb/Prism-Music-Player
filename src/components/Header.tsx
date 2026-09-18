@@ -72,7 +72,7 @@ export const Header: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={handleChange}
-            placeholder="Search tracks, artists, albums..."
+            placeholder="Search tracks, artists, albums, lyrics..."
             className="w-full bg-white/5 border rounded-xl pl-10 pr-9 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none transition-all"
             style={{
               borderColor: searchQuery.trim()

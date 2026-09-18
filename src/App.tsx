@@ -37,6 +37,24 @@ export const App: React.FC = () => {
   const sleepTimer = usePlayerStore((s) => s.sleepTimer);
   const tickSleepTimerSecond = usePlayerStore((s) => s.tickSleepTimerSecond);
 
+  const backgroundType = usePlayerStore((s) => s.backgroundType);
+  const customBgPath = usePlayerStore((s) => s.customBgPath);
+  const customBgColor = usePlayerStore((s) => s.customBgColor);
+  const bgBlurAmount = usePlayerStore((s) => s.bgBlurAmount);
+  const bgDimOpacity = usePlayerStore((s) => s.bgDimOpacity);
+
+  const silentAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (silentAudioRef.current) {
+      if (isPlaying) {
+        silentAudioRef.current.play().catch(() => {});
+      } else {
+        silentAudioRef.current.pause();
+      }
+    }
+  }, [isPlaying]);
+
   const trackArt = useTrackArt(currentTrack);
   const ambientArt = useTrackArt(currentTrack, { thumbnail: true, maxSize: 128 });
 
@@ -355,15 +373,20 @@ export const App: React.FC = () => {
     initLoad();
   }, []);
 
-  // Filter tracks based on search query
+  // Filter tracks based on search query (including lyrics)
   const deferredSearchQuery = React.useDeferredValue(searchQuery);
 
   const filteredTracks = tracks.filter((t) => {
+    if (!deferredSearchQuery) {
+      if (activeTab === 'liked') return likedTrackIds.includes(t.id);
+      return true;
+    }
+    const q = deferredSearchQuery.toLowerCase();
     const matchesSearch =
-      !deferredSearchQuery ||
-      t.title.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
-      t.artist.toLowerCase().includes(deferredSearchQuery.toLowerCase()) ||
-      t.album.toLowerCase().includes(deferredSearchQuery.toLowerCase());
+      t.title.toLowerCase().includes(q) ||
+      t.artist.toLowerCase().includes(q) ||
+      t.album.toLowerCase().includes(q) ||
+      Boolean(t.unsynced_lyrics && t.unsynced_lyrics.toLowerCase().includes(q));
 
     if (!matchesSearch) return false;
 
@@ -441,34 +464,103 @@ export const App: React.FC = () => {
 
   const isLyricsActive = showLyricsFullscreen || activeTab === 'lyrics';
 
+  const renderBackground = () => {
+    if (isLyricsActive) return null;
+
+    if (backgroundType === 'amoled_black') {
+      return <div className="absolute inset-0 bg-[#000000] -z-10 pointer-events-none" />;
+    }
+
+    if (backgroundType === 'solid_color') {
+      return (
+        <div
+          className="absolute inset-0 -z-10 pointer-events-none transition-colors duration-500"
+          style={{ backgroundColor: customBgColor || '#0f172a' }}
+        />
+      );
+    }
+
+    if (backgroundType === 'album_art_blur') {
+      const artUrl = trackArt || ambientArt;
+      return (
+        <div className="absolute inset-0 -z-10 pointer-events-none overflow-hidden bg-zinc-950">
+          {artUrl && (
+            <div
+              className="absolute inset-0 bg-cover bg-center transition-all duration-700 scale-110"
+              style={{
+                backgroundImage: `url(${artUrl})`,
+                filter: `blur(${bgBlurAmount}px)`,
+              }}
+            />
+          )}
+          <div
+            className="absolute inset-0 bg-black transition-opacity duration-300"
+            style={{ opacity: bgDimOpacity }}
+          />
+        </div>
+      );
+    }
+
+    if (backgroundType === 'custom_photo') {
+      return (
+        <div className="absolute inset-0 -z-10 pointer-events-none overflow-hidden bg-zinc-950">
+          {customBgPath && (
+            <div
+              className="absolute inset-0 bg-cover bg-center transition-all duration-700 scale-105"
+              style={{
+                backgroundImage: `url(${customBgPath})`,
+                filter: `blur(${bgBlurAmount}px)`,
+              }}
+            />
+          )}
+          <div
+            className="absolute inset-0 bg-black transition-opacity duration-300"
+            style={{ opacity: bgDimOpacity }}
+          />
+        </div>
+      );
+    }
+
+    // Default: dynamic_glow
+    return (
+      <div className="absolute inset-0 pointer-events-none -z-10 overflow-hidden">
+        {(ambientArt || trackArt) ? (
+          <div
+            className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] opacity-20 blur-[140px] transition-all duration-1000 bg-cover bg-center scale-110"
+            style={{ backgroundImage: `url(${ambientArt || trackArt})` }}
+          />
+        ) : (
+          <>
+            <div
+              className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full blur-[140px] opacity-15 pointer-events-none transition-all duration-700"
+              style={{
+                background: 'radial-gradient(circle, var(--color-stop-1, #6366F1), var(--color-stop-3, #EC4899), transparent 70%)',
+              }}
+            />
+            <div
+              className="absolute top-1/3 -right-40 w-[600px] h-[600px] rounded-full blur-[150px] opacity-15 pointer-events-none transition-all duration-700"
+              style={{
+                background: 'radial-gradient(circle, var(--color-stop-4, #D946EF), var(--color-stop-6, #818CF8), transparent 70%)',
+              }}
+            />
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="w-screen h-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden relative selection:bg-indigo-500/30 selection:text-indigo-200">
-      {/* Background Ambient Glassmorphism Glow (only rendered on main views) */}
-      {!isLyricsActive && (
-        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-          {(ambientArt || trackArt) ? (
-            <div
-              className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] opacity-20 blur-[140px] transition-all duration-1000 bg-cover bg-center scale-110"
-              style={{ backgroundImage: `url(${ambientArt || trackArt})` }}
-            />
-          ) : (
-            <>
-              <div 
-                className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full blur-[140px] opacity-15 pointer-events-none transition-all duration-700"
-                style={{
-                  background: 'radial-gradient(circle, var(--color-stop-1, #6366F1), var(--color-stop-3, #EC4899), transparent 70%)'
-                }}
-              />
-              <div 
-                className="absolute top-1/3 -right-40 w-[600px] h-[600px] rounded-full blur-[150px] opacity-15 pointer-events-none transition-all duration-700"
-                style={{
-                  background: 'radial-gradient(circle, var(--color-stop-4, #D946EF), var(--color-stop-6, #818CF8), transparent 70%)'
-                }}
-              />
-            </>
-          )}
-        </div>
-      )}
+      {/* Hidden audio element for Windows Taskbar Thumbnail Toolbar & MediaSession sync */}
+      <audio
+        ref={silentAudioRef}
+        src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"
+        loop
+        style={{ display: 'none' }}
+      />
+
+      {/* Dynamic Background Renderer */}
+      {renderBackground()}
 
       {/* Main App Body Layout (hidden when on dedicated lyrics page) */}
       {!isLyricsActive && (

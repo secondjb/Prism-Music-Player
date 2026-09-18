@@ -4,6 +4,7 @@ import Slider from '@mui/material/Slider';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { open } from '@tauri-apps/plugin-dialog';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import {
   FolderPlus,
   FolderMinus,
@@ -30,6 +31,10 @@ import {
   Volume2,
   Radio,
   FastForward,
+  Image as ImageIcon,
+  Palette,
+  Layers,
+  Columns,
 } from 'lucide-react';
 import {
   CURRENT_APP_VERSION,
@@ -177,6 +182,14 @@ const ANIMATION_OPTIONS = [
   { id: 'minimal_wave', name: 'Minimal Clean', desc: 'Low-latency opacity transitions' },
 ] as const;
 
+const BACKGROUND_OPTIONS = [
+  { id: 'dynamic_glow', name: 'Dynamic Ambient Glow (Default)', desc: 'Vibrant animated gradient matching active album art colors' },
+  { id: 'album_art_blur', name: 'Blurred Album Artwork', desc: 'Full-bleed frosted glass cover art with custom blur & dimming' },
+  { id: 'custom_photo', name: 'Custom Wallpaper / Image', desc: 'Custom local photo background with adjustable blur & opacity' },
+  { id: 'solid_color', name: 'Solid Color Theme', desc: 'Clean single-shade minimalist background' },
+  { id: 'amoled_black', name: 'AMOLED Pure Black (#000000)', desc: 'Zero glow pure black for OLED displays & maximum battery saving' },
+] as const;
+
 export const SettingsView: React.FC = () => {
   const tracks = usePlayerStore((s) => s.tracks);
   const includedDirectories = usePlayerStore((s) => s.includedDirectories);
@@ -193,6 +206,21 @@ export const SettingsView: React.FC = () => {
   const analyzeAndIndexAudio = usePlayerStore((s) => s.analyzeAndIndexAudio);
   const clearAudioAnalysis = usePlayerStore((s) => s.clearAudioAnalysis);
   const wipeDataAndReset = usePlayerStore((s) => s.wipeDataAndReset);
+
+  const backgroundType = usePlayerStore((s) => s.backgroundType);
+  const setBackgroundType = usePlayerStore((s) => s.setBackgroundType);
+  const customBgPath = usePlayerStore((s) => s.customBgPath);
+  const setCustomBgPath = usePlayerStore((s) => s.setCustomBgPath);
+  const customBgColor = usePlayerStore((s) => s.customBgColor);
+  const setCustomBgColor = usePlayerStore((s) => s.setCustomBgColor);
+  const bgBlurAmount = usePlayerStore((s) => s.bgBlurAmount);
+  const setBgBlurAmount = usePlayerStore((s) => s.setBgBlurAmount);
+  const bgDimOpacity = usePlayerStore((s) => s.bgDimOpacity);
+  const setBgDimOpacity = usePlayerStore((s) => s.setBgDimOpacity);
+  const lyricsLayoutMode = usePlayerStore((s) => s.lyricsLayoutMode);
+  const setLyricsLayoutMode = usePlayerStore((s) => s.setLyricsLayoutMode);
+  const lyricsArtSize = usePlayerStore((s) => s.lyricsArtSize);
+  const setLyricsArtSize = usePlayerStore((s) => s.setLyricsArtSize);
 
   const lrclibAutoFetch = usePlayerStore((s) => s.lrclibAutoFetch);
   const setLrclibAutoFetch = usePlayerStore((s) => s.setLrclibAutoFetch);
@@ -882,7 +910,242 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Lyrics & Display Preferences */}
+      {/* 4. Background Themes & Visual Styling */}
+      <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-5">
+        <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
+          <Palette className="w-5 h-5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+          <div>
+            <h3 className="text-base font-bold text-white">Background Themes & Visual Styling</h3>
+            <p className="text-xs text-zinc-400">Customize dynamic ambient glow, full-bleed blurred album art, custom photo wallpapers, or pure AMOLED black.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Background Mode Selector */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
+            <div className="flex items-center gap-3">
+              <Layers className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">App Background Style</span>
+                <span className="text-[11px] text-zinc-400">
+                  Choose background mode across all library views
+                </span>
+              </div>
+            </div>
+            <div className="w-full sm:w-80">
+              <M3Selector
+                value={backgroundType}
+                onChange={(val) => setBackgroundType(val as any)}
+                options={BACKGROUND_OPTIONS}
+                size="sm"
+              />
+            </div>
+          </div>
+
+          {/* Custom Photo Wallpaper controls */}
+          {backgroundType === 'custom_photo' && (
+            <div className="flex flex-col gap-3 p-4 rounded-xl bg-white/5 border border-white/5 col-span-1 md:col-span-2">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <ImageIcon className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-white">Custom Wallpaper Image</span>
+                    <span className="text-[11px] text-zinc-400 truncate max-w-md">
+                      {customBgPath ? customBgPath : 'No custom photo selected yet'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      const selected = await open({
+                        multiple: false,
+                        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'] }],
+                      });
+                      if (selected && typeof selected === 'string') {
+                        const assetUrl = window.__TAURI_INTERNALS__ ? convertFileSrc(selected) : selected;
+                        setCustomBgPath(assetUrl);
+                      }
+                    } catch (e) {
+                      console.warn('Pick background image error:', e);
+                    }
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl text-white text-xs font-semibold shadow-md transition-transform hover:scale-105 cursor-pointer shrink-0"
+                  style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+                >
+                  Choose Wallpaper Photo
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Solid Color Picker & Presets */}
+          {backgroundType === 'solid_color' && (
+            <div className="flex flex-col gap-3 p-4 rounded-xl bg-white/5 border border-white/5 col-span-1 md:col-span-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Palette className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-white">Solid Color Selection</span>
+                    <span className="text-[11px] text-zinc-400">Pick a solid color or choose a dark shade preset</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={customBgColor}
+                    onChange={(e) => setCustomBgColor(e.target.value)}
+                    className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0"
+                  />
+                  <input
+                    type="text"
+                    value={customBgColor}
+                    onChange={(e) => setCustomBgColor(e.target.value)}
+                    className="w-24 px-2 py-1 text-xs font-mono bg-zinc-900 border border-white/10 rounded-lg text-white"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 pt-2 border-t border-white/5 flex-wrap">
+                <span className="text-[11px] text-zinc-400 mr-2">Presets:</span>
+                {['#0f172a', '#18181b', '#000000', '#0a0a0c', '#1e1b4b', '#1e1e2f', '#022c22', '#1f1300', '#3b0764'].map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setCustomBgColor(c)}
+                    className={`w-6 h-6 rounded-full border transition-transform hover:scale-110 ${
+                      customBgColor.toLowerCase() === c.toLowerCase() ? 'border-white scale-110 shadow-lg' : 'border-white/20'
+                    }`}
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Blur & Dimming controls (for blurred album art & custom photo) */}
+          {(backgroundType === 'album_art_blur' || backgroundType === 'custom_photo') && (
+            <>
+              <div className="flex flex-col gap-2 p-3.5 rounded-xl bg-white/5 border border-white/5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-white">Background Blur</span>
+                  <span className="font-mono text-xs text-zinc-300">{bgBlurAmount}px</span>
+                </div>
+                <Slider
+                  value={bgBlurAmount}
+                  min={0}
+                  max={80}
+                  step={2}
+                  onChange={(_, val) => setBgBlurAmount(val as number)}
+                  valueLabelDisplay="auto"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2 p-3.5 rounded-xl bg-white/5 border border-white/5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-white">Dark Dimming Overlay</span>
+                  <span className="font-mono text-xs text-zinc-300">{Math.round(bgDimOpacity * 100)}%</span>
+                </div>
+                <Slider
+                  value={bgDimOpacity}
+                  min={0}
+                  max={0.9}
+                  step={0.05}
+                  onChange={(_, val) => setBgDimOpacity(val as number)}
+                  valueLabelDisplay="auto"
+                  valueLabelFormat={(v) => `${Math.round(v * 100)}%`}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Default Lyrics View Layout */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
+            <div className="flex items-center gap-3">
+              <Columns className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Default Lyrics Screen Layout</span>
+                <span className="text-[11px] text-zinc-400">Choose between Side-by-Side Split and Centered Focus</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10 shrink-0 self-start sm:self-auto">
+              <button
+                onClick={() => setLyricsLayoutMode('centered')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  lyricsLayoutMode === 'centered'
+                    ? 'text-white shadow-md font-semibold'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+                style={
+                  lyricsLayoutMode === 'centered'
+                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                    : undefined
+                }
+              >
+                Centered Focus
+              </button>
+              <button
+                onClick={() => setLyricsLayoutMode('split')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  lyricsLayoutMode === 'split'
+                    ? 'text-white shadow-md font-semibold'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+                style={
+                  lyricsLayoutMode === 'split'
+                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                    : undefined
+                }
+              >
+                Side-by-Side Split
+              </button>
+            </div>
+          </div>
+
+          {/* Default Lyrics Artwork Sizing */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
+            <div className="flex items-center gap-3">
+              <ImageIcon className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <div className="flex flex-col">
+                <span className="text-xs font-semibold text-white">Side-by-Side Artwork Size</span>
+                <span className="text-[11px] text-zinc-400">Choose preferred album art scale in Split Lyrics view</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10 shrink-0 self-start sm:self-auto">
+              <button
+                onClick={() => setLyricsArtSize('compact')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  lyricsArtSize === 'compact'
+                    ? 'text-white shadow-md font-semibold'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+                style={
+                  lyricsArtSize === 'compact'
+                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                    : undefined
+                }
+              >
+                Standard (256px)
+              </button>
+              <button
+                onClick={() => setLyricsArtSize('expanded')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  lyricsArtSize === 'expanded'
+                    ? 'text-white shadow-md font-semibold'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+                style={
+                  lyricsArtSize === 'expanded'
+                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                    : undefined
+                }
+              >
+                Large (384px)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Lyrics & Display Preferences */}
       <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-5">
         <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
           <Sliders className="w-5 h-5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />

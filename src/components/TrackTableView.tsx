@@ -17,6 +17,8 @@ import {
   ChevronDown,
   Check,
   Plus,
+  Link2,
+  Unlink,
 } from 'lucide-react';
 
 import { Track } from '../types/player';
@@ -298,9 +300,14 @@ const TitleCell: React.FC<any> = ({ model }) => {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const showSubArtistUnderTitle = usePlayerStore((s) => s.showSubArtistUnderTitle);
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
+  const linkedTracks = usePlayerStore((s) => s.linkedTracks);
 
   if (!track.title || (model as any)?.__isSpacer) return null;
   const isCurrentPlaying = currentTrack?.id === track.id;
+  const isLinked = Boolean(
+    (linkedTracks[track.id] && linkedTracks[track.id].length > 0) ||
+    Object.values(linkedTracks).some((targets) => targets.includes(track.id))
+  );
 
   const hasSubArtistLink = Boolean(
     showSubArtistUnderTitle && track.artist && track.artist !== 'Unknown Artist'
@@ -353,6 +360,20 @@ const TitleCell: React.FC<any> = ({ model }) => {
         >
           {track.title}
         </span>
+        {isLinked && (
+          <span
+            className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold border shrink-0 leading-tight gap-1"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+              color: 'var(--color-stop-1, #6366f1)',
+            }}
+            title="Linked song pair (queues together in shuffle & transitions gaplessly)"
+          >
+            <Link2 className="w-2.5 h-2.5" />
+            <span>Linked</span>
+          </span>
+        )}
         {track.missing_since && (
           <span
             className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold border shrink-0 leading-tight"
@@ -938,6 +959,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
   const createPlaylist = usePlayerStore((s) => s.createPlaylist);
   const activeTab = usePlayerStore((s) => s.activeTab);
+  const linkTracks = usePlayerStore((s) => s.linkTracks);
+  const unlinkTrack = usePlayerStore((s) => s.unlinkTrack);
 
   const {
     visibleTrackColumns,
@@ -1938,6 +1961,53 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                 />
                 <span>{isLiked ? 'Unlike' : 'Like'}</span>
               </button>
+
+              {/* Song Linking */}
+              {(() => {
+                const isTrackLinked = usePlayerStore.getState().isTrackLinked;
+                const currentIdx = tracks.findIndex((t) => t.id === contextMenu.track.id);
+                const nextTrack = currentIdx >= 0 && currentIdx < tracks.length - 1 ? tracks[currentIdx + 1] : null;
+                const isLinked = isTrackLinked(contextMenu.track.id);
+
+                if (isLinked) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        unlinkTrack(contextMenu.track.id);
+                        setContextMenu(null);
+                      }}
+                      onMouseEnter={(e) => handleItemHover(e, true)}
+                      onMouseLeave={(e) => handleItemHover(e, false)}
+                      className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+                    >
+                      <Unlink className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                      <span>Unlink Song Pair</span>
+                    </button>
+                  );
+                }
+
+                if (nextTrack) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        linkTracks(contextMenu.track.id, nextTrack.id);
+                        setContextMenu(null);
+                      }}
+                      onMouseEnter={(e) => handleItemHover(e, true)}
+                      onMouseLeave={(e) => handleItemHover(e, false)}
+                      className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+                      title={`Link to play seamlessly before "${nextTrack.title}" even when shuffled`}
+                    >
+                      <Link2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                      <span className="truncate">Link to Next Song</span>
+                    </button>
+                  );
+                }
+
+                return null;
+              })()}
 
               <button
                 type="button"

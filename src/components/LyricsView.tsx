@@ -38,6 +38,7 @@ import {
   Activity,
   Waves,
   Globe,
+  Columns,
 } from 'lucide-react';
 
 const romanizer = createRomanizer({ japaneseDictPath: '/dict' });
@@ -732,6 +733,10 @@ export const LyricsView: React.FC = () => {
     togglePreferWordSyncedLyrics,
     inferWordSyncedLyrics,
     toggleInferWordSyncedLyrics,
+    lyricsLayoutMode,
+    setLyricsLayoutMode,
+    lyricsArtSize,
+    setLyricsArtSize,
   } = usePlayerStore();
 
   const trackArt = useTrackArt(currentTrack);
@@ -1633,6 +1638,27 @@ export const LyricsView: React.FC = () => {
             <Globe className="w-5 h-5" />
           </button>
 
+          {/* Layout Mode Toggle (Split vs Centered) */}
+          <button
+            onClick={() => setLyricsLayoutMode(lyricsLayoutMode === 'split' ? 'centered' : 'split')}
+            className={`p-2.5 rounded-xl transition-all border ${
+              lyricsLayoutMode === 'split'
+                ? 'text-white shadow-lg border-transparent'
+                : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
+            }`}
+            style={
+              lyricsLayoutMode === 'split'
+                ? {
+                    backgroundColor: 'var(--color-stop-1, #6366f1)',
+                    borderColor: 'transparent',
+                  }
+                : undefined
+            }
+            title={lyricsLayoutMode === 'split' ? 'Switch to Centered View' : 'Switch to Side-by-Side Split View'}
+          >
+            <Columns className="w-5 h-5" />
+          </button>
+
           {/* Fullscreen Toggle Button */}
           <button
             onClick={toggleFullscreen}
@@ -1988,369 +2014,689 @@ export const LyricsView: React.FC = () => {
                   }}
                 />
               </div>
+
+              {/* Lyrics Layout Mode Setting */}
+              <div className="flex flex-col gap-1.5 pt-1">
+                <span className="text-zinc-300 font-semibold text-xs">Lyrics Screen Layout</span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={() => setLyricsLayoutMode('centered')}
+                    className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold transition-all ${
+                      lyricsLayoutMode === 'centered'
+                        ? 'text-white shadow-md'
+                        : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
+                    }`}
+                    style={
+                      lyricsLayoutMode === 'centered'
+                        ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                        : undefined
+                    }
+                  >
+                    Centered Focus
+                  </button>
+                  <button
+                    onClick={() => setLyricsLayoutMode('split')}
+                    className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold transition-all ${
+                      lyricsLayoutMode === 'split'
+                        ? 'text-white shadow-md'
+                        : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
+                    }`}
+                    style={
+                      lyricsLayoutMode === 'split'
+                        ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                        : undefined
+                    }
+                  >
+                    Side-by-Side Split
+                  </button>
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Main Lyrics Display Area */}
-      <div
-        ref={containerRef}
-        className={`flex-1 overflow-y-auto my-4 px-4 custom-scrollbar ${
-          !isScrollbarVisible ? 'scrollbar-hidden' : ''
-        } flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-10 relative`}
-      >
-
-        {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
-          <button
-            onClick={() => {
-              lastScrolledMaxLineRef.current = -1;
-              lastScrollTargetRef.current = 0;
-              lastScrolledInterludeRef.current = null;
-              setIsUserScrolled(false);
-              scrollToActive(true);
-            }}
-            style={{
-              background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #818cf8))',
-              borderColor: 'color-mix(in srgb, var(--color-stop-2, #818cf8) 60%, white)',
-              boxShadow: '0 8px 24px -4px color-mix(in srgb, var(--color-stop-1, #6366f1) 50%, transparent)',
-            }}
-            className="fixed bottom-28 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-xs font-semibold shadow-xl backdrop-blur-md transition-all border animate-in fade-in slide-in-from-bottom-3 cursor-pointer hover:brightness-110 active:scale-95"
-          >
-            <Target className="w-4 h-4" />
-            <span>Re-sync to music</span>
-          </button>
-        )}
-
-        {isLoading ? (
-          <div className="flex flex-col items-center gap-3 my-auto">
-            <RefreshCw
-              className="w-8 h-8 animate-spin"
-              style={{ color: 'var(--color-stop-1, #6366f1)' }}
-            />
-            <span className="text-sm text-zinc-400 font-medium">Loading synchronized lyrics...</span>
-          </div>
-        ) : lines.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 my-auto text-center max-w-md">
-            <Mic2 className="w-12 h-12 text-zinc-600" />
-            <h4 className="text-lg font-bold text-white">No lyrics found</h4>
-            <p className="text-xs text-zinc-400">
-              No synced lyrics were found for this song. Click refresh to search online.
-            </p>
-            <button
-              onClick={handleManualRefresh}
-              style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-              className="mt-2 px-4 py-2 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110"
-            >
-              Search Online
-            </button>
-          </div>
-        ) : (
-          lines.map((line, idx) => {
-            const isUnsynced = line.startSecs === -1;
-            const isActive = isUnsynced || activeLineIndices.has(idx);
-            const isPast =
-              !isActive &&
-              ((activeInterlude && idx < activeInterlude.insertIndex) ||
-                (!activeInterlude && activeIndex >= 0 && idx < activeIndex));
-            const distance = isActive
-              ? 0
-              : activeInterlude
-              ? idx < activeInterlude.insertIndex
-                ? 999 // All lines preceding an active instrumental interlude are strictly past (no proximity glow)
-                : idx - activeInterlude.insertIndex + 1
-              : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0));
-
-            // Interlude before this line (intro at index 0, or interlude between idx-1 and idx)
-            const interludeBefore = !isUnsynced
-              ? interludeList.find((item) => item.insertIndex === idx)
-              : null;
-
-            return (
-              <React.Fragment key={line.id}>
-                {interludeBefore && (
-                  <LyricInterludeRow
-                    key={interludeBefore.key}
-                    id={interludeBefore.key}
-                    startSecs={interludeBefore.startSecs}
-                    endSecs={interludeBefore.endSecs}
-                    currentTime={currentTime}
-                    isPlaying={isPlaying}
-                    isActive={activeInterlude?.key === interludeBefore.key}
-                    isPast={currentTime >= interludeBefore.endSecs}
-                    distance={
-                      activeInterlude?.key === interludeBefore.key
-                        ? 0
-                        : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0))
-                    }
-                    lyricsFontSizePreset={lyricsFontSizePreset}
-                    activeFontSize={activeFontSize}
-                    onSeek={handleSeek}
-                  />
-                )}
-                <LyricLineRow
-                  line={line}
-                  idx={idx}
-                  isActive={isActive}
-                  isPast={isPast}
-                  distance={distance}
-                  isUnsynced={isUnsynced}
-                  lyricsAnimationStyle={lyricsAnimationStyle}
-                  lyricsFontSizePreset={lyricsFontSizePreset}
-                  isRomanizationEnabled={isRomanizationEnabled}
-                  romanizationMode={romanizationMode}
-                  isTranslationEnabled={isTranslationEnabled}
-                  translationMode={translationMode}
-                  activeFontSize={activeFontSize}
-                  inactiveFontSize={inactiveFontSize}
-                  currentTimeMs={currentTimeMs}
-                  activeLineRef={activeLineRef}
-                  onSeek={handleSeek}
-                />
-              </React.Fragment>
-            );
-          })
-        )}
-      </div>
-
-      {/* Track Info & Expandable Album Art */}
-      {currentTrack && (
-        <div className={`fixed z-40 flex items-end gap-4 pointer-events-auto select-none transition-all duration-300 max-w-[calc(100vw-80px)] md:max-w-[calc(100vw-350px)] ${
-          isCompact ? 'top-16 left-6' : 'bottom-8 left-8'
-        }`}>
-          <div
-            onClick={() => setArtExpanded(!artExpanded)}
-            className={`relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 shrink-0 group cursor-pointer transition-all duration-300 ${
-              artExpanded ? (isCompact ? 'w-48 h-48' : 'w-80 h-80') : (isCompact ? 'w-14 h-14' : 'w-20 h-20')
-            }`}
-          >
-            {trackArt ? (
-              <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
-                <Mic2 className="w-8 h-8" />
-              </div>
-            )}
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-2">
-                {artExpanded ? (
-                  <ChevronLeft className="w-5 h-5 text-white" />
+      {/* RENDER MODE: SIDE-BY-SIDE SPLIT VIEW */}
+      {lyricsLayoutMode === 'split' && !isCompact ? (
+        <div className="flex-1 flex flex-row min-h-0 w-full gap-8 md:gap-14 overflow-hidden z-10 px-6 md:px-12 py-2">
+          {/* Left Column: Big Album Art, Track Info, Seekbar & Controls */}
+          {currentTrack && (
+            <div className="w-[38%] min-w-[320px] max-w-[460px] h-full flex flex-col justify-center items-start shrink-0 my-auto">
+              <div
+                onClick={() => setLyricsArtSize(lyricsArtSize === 'expanded' ? 'compact' : 'expanded')}
+                className={`relative rounded-3xl overflow-hidden shadow-2xl border border-white/15 group cursor-pointer transition-all duration-300 shrink-0 ${
+                  lyricsArtSize === 'expanded' ? 'w-80 h-80 xl:w-96 xl:h-96' : 'w-64 h-64 xl:w-80 xl:h-80'
+                }`}
+                title={lyricsArtSize === 'expanded' ? 'Click to shrink artwork' : 'Click to enlarge artwork'}
+              >
+                {trackArt ? (
+                  <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
                 ) : (
-                  <ChevronRight className="w-5 h-5 text-white" />
+                  <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
+                    <Mic2 className="w-12 h-12" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-2">
+                    {lyricsArtSize === 'expanded' ? (
+                      <ChevronLeft className="w-5 h-5 text-white" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5 text-white" />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col min-w-0 w-full mt-5">
+                <span className="font-extrabold text-white text-2xl xl:text-3xl truncate drop-shadow-md">
+                  {currentTrack.title}
+                </span>
+                <span
+                  className="font-semibold text-zinc-300 text-sm xl:text-base truncate mt-1 cursor-pointer hover:underline hover:text-indigo-400"
+                  onClick={() => {
+                    if (currentTrack.artist && currentTrack.artist !== 'Unknown Artist') {
+                      setShowLyricsFullscreen(false);
+                      usePlayerStore.getState().navigateToArtist(currentTrack.artist);
+                    }
+                  }}
+                >
+                  {currentTrack.artist}
+                </span>
+                {currentTrack.album && (
+                  <span
+                    className="text-xs text-zinc-400 truncate mt-0.5 cursor-pointer hover:underline hover:text-indigo-400"
+                    onClick={() => {
+                      if (currentTrack.album && currentTrack.album !== 'Unknown Album') {
+                        setShowLyricsFullscreen(false);
+                        usePlayerStore.getState().navigateToAlbum(currentTrack.album);
+                      }
+                    }}
+                  >
+                    {currentTrack.album} {currentTrack.year ? `• ${currentTrack.year}` : ''}
+                  </span>
+                )}
+              </div>
+
+              {/* Seekbar */}
+              <div className="w-full flex items-center gap-2.5 text-xs font-mono text-zinc-400 mt-5">
+                <span>{formatTime(currentTime)}</span>
+                <div className="relative flex-1 flex items-center group cursor-pointer min-w-[90px]">
+                  {isWavySeekbarEnabled ? (
+                    <WavyAudioSlider
+                      value={currentTime}
+                      min={0}
+                      max={duration || 100}
+                      step={0.1}
+                      onChange={handleSeek}
+                      size="md"
+                      className="flex-1"
+                      formatTooltip={(val) => formatTime(val)}
+                      active={controlsVisible}
+                    />
+                  ) : (
+                    <AudioSlider
+                      value={currentTime}
+                      min={0}
+                      max={duration || 100}
+                      step={0.1}
+                      onChange={handleSeek}
+                      size="md"
+                      className="flex-1"
+                      formatTooltip={(val) => formatTime(val)}
+                    />
+                  )}
+                </div>
+                <span>{formatTime(duration)}</span>
+              </div>
+
+              {/* Transport Buttons & Volume Slider */}
+              <div className="w-full flex items-center justify-between mt-3 pt-2 border-t border-white/10">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <button
+                    onClick={toggleShuffle}
+                    style={shuffleEnabled ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
+                    className={`p-1.5 rounded-xl transition-colors ${
+                      shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
+                    }`}
+                    title="Shuffle"
+                  >
+                    <Shuffle className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={previousTrack}
+                    className="p-1.5 text-zinc-400 hover:text-white transition-colors"
+                    title="Previous"
+                  >
+                    <SkipBack className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={togglePlay}
+                    style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+                    className="w-10 h-10 rounded-full text-white flex items-center justify-center shadow-lg transition-transform active:scale-95 cursor-pointer shrink-0"
+                    title={isPlaying ? 'Pause' : 'Play'}
+                  >
+                    {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
+                  </button>
+                  <button
+                    onClick={nextTrack}
+                    className="p-1.5 text-zinc-400 hover:text-white transition-colors"
+                    title="Next"
+                  >
+                    <SkipForward className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={cycleRepeatMode}
+                    style={repeatMode !== 'off' ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
+                    className={`p-1.5 rounded-xl transition-colors ${
+                      repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
+                    }`}
+                    title="Repeat"
+                  >
+                    <RepeatIcon className="w-4 h-4" />
+                  </button>
+                </div>
+                <div ref={volRefCallback} className="flex items-center gap-1.5 pl-2">
+                  <button
+                    onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
+                    className="text-zinc-400 hover:text-white transition-colors p-1"
+                    title={volume > 0 ? 'Mute' : 'Unmute'}
+                  >
+                    {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
+                  </button>
+                  <AudioSlider
+                    value={volume}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={(val) => setVolume(val)}
+                    formatTooltip={(val) => `${Math.round(val * 100)}%`}
+                    size="sm"
+                    className="w-16 sm:w-20"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Right Column: Scrolling Lyrics */}
+          <div
+            ref={containerRef}
+            className={`flex-1 min-w-0 h-full overflow-y-auto custom-scrollbar ${
+              !isScrollbarVisible ? 'scrollbar-hidden' : ''
+            } flex flex-col items-start justify-start gap-6 pt-[25vh] pb-[25vh] z-10 relative pl-4`}
+          >
+            {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
+              <button
+                onClick={() => {
+                  lastScrolledMaxLineRef.current = -1;
+                  lastScrollTargetRef.current = 0;
+                  lastScrolledInterludeRef.current = null;
+                  setIsUserScrolled(false);
+                  scrollToActive(true);
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #818cf8))',
+                  borderColor: 'color-mix(in srgb, var(--color-stop-2, #818cf8) 60%, white)',
+                  boxShadow: '0 8px 24px -4px color-mix(in srgb, var(--color-stop-1, #6366f1) 50%, transparent)',
+                }}
+                className="fixed bottom-10 right-16 z-30 flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-xs font-semibold shadow-xl backdrop-blur-md transition-all border animate-in fade-in slide-in-from-bottom-3 cursor-pointer hover:brightness-110 active:scale-95"
+              >
+                <Target className="w-4 h-4" />
+                <span>Re-sync to music</span>
+              </button>
+            )}
+
+            {isLoading ? (
+              <div className="flex flex-col items-center gap-3 my-auto mx-auto">
+                <RefreshCw
+                  className="w-8 h-8 animate-spin"
+                  style={{ color: 'var(--color-stop-1, #6366f1)' }}
+                />
+                <span className="text-sm text-zinc-400 font-medium">Loading synchronized lyrics...</span>
+              </div>
+            ) : lines.length === 0 ? (
+              <div className="flex flex-col items-start gap-3 my-auto max-w-md">
+                <Mic2 className="w-12 h-12 text-zinc-600" />
+                <h4 className="text-lg font-bold text-white">No lyrics found</h4>
+                <p className="text-xs text-zinc-400">
+                  No synced lyrics were found for this song. Click refresh to search online.
+                </p>
+                <button
+                  onClick={handleManualRefresh}
+                  style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+                  className="mt-2 px-4 py-2 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110"
+                >
+                  Search Online
+                </button>
+              </div>
+            ) : (
+              lines.map((line, idx) => {
+                const isUnsynced = line.startSecs === -1;
+                const isActive = isUnsynced || activeLineIndices.has(idx);
+                const isPast =
+                  !isActive &&
+                  ((activeInterlude && idx < activeInterlude.insertIndex) ||
+                    (!activeInterlude && activeIndex >= 0 && idx < activeIndex));
+                const distance = isActive
+                  ? 0
+                  : activeInterlude
+                  ? idx < activeInterlude.insertIndex
+                    ? 999
+                    : idx - activeInterlude.insertIndex + 1
+                  : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0));
+
+                const interludeBefore = !isUnsynced
+                  ? interludeList.find((item) => item.insertIndex === idx)
+                  : null;
+
+                return (
+                  <React.Fragment key={line.id}>
+                    {interludeBefore && (
+                      <LyricInterludeRow
+                        key={interludeBefore.key}
+                        id={interludeBefore.key}
+                        startSecs={interludeBefore.startSecs}
+                        endSecs={interludeBefore.endSecs}
+                        currentTime={currentTime}
+                        isPlaying={isPlaying}
+                        isActive={activeInterlude?.key === interludeBefore.key}
+                        isPast={currentTime >= interludeBefore.endSecs}
+                        distance={
+                          activeInterlude?.key === interludeBefore.key
+                            ? 0
+                            : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0))
+                        }
+                        lyricsFontSizePreset={lyricsFontSizePreset}
+                        activeFontSize={activeFontSize}
+                        onSeek={handleSeek}
+                      />
+                    )}
+                    <LyricLineRow
+                      line={line}
+                      idx={idx}
+                      isActive={isActive}
+                      isPast={isPast}
+                      distance={distance}
+                      isUnsynced={isUnsynced}
+                      lyricsAnimationStyle={lyricsAnimationStyle}
+                      lyricsFontSizePreset={lyricsFontSizePreset}
+                      isRomanizationEnabled={isRomanizationEnabled}
+                      romanizationMode={romanizationMode}
+                      isTranslationEnabled={isTranslationEnabled}
+                      translationMode={translationMode}
+                      activeFontSize={activeFontSize}
+                      inactiveFontSize={inactiveFontSize}
+                      currentTimeMs={currentTimeMs}
+                      activeLineRef={activeLineRef}
+                      onSeek={handleSeek}
+                    />
+                  </React.Fragment>
+                );
+              })
+            )}
+          </div>
+        </div>
+      ) : (
+        /* RENDER MODE: CENTERED FULLSCREEN VIEW */
+        <>
+          {/* Main Lyrics Display Area */}
+          <div
+            ref={containerRef}
+            className={`flex-1 overflow-y-auto my-4 px-4 custom-scrollbar ${
+              !isScrollbarVisible ? 'scrollbar-hidden' : ''
+            } flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-10 relative`}
+          >
+            {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
+              <button
+                onClick={() => {
+                  lastScrolledMaxLineRef.current = -1;
+                  lastScrollTargetRef.current = 0;
+                  lastScrolledInterludeRef.current = null;
+                  setIsUserScrolled(false);
+                  scrollToActive(true);
+                }}
+                style={{
+                  background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #818cf8))',
+                  borderColor: 'color-mix(in srgb, var(--color-stop-2, #818cf8) 60%, white)',
+                  boxShadow: '0 8px 24px -4px color-mix(in srgb, var(--color-stop-1, #6366f1) 50%, transparent)',
+                }}
+                className="fixed bottom-28 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-xs font-semibold shadow-xl backdrop-blur-md transition-all border animate-in fade-in slide-in-from-bottom-3 cursor-pointer hover:brightness-110 active:scale-95"
+              >
+                <Target className="w-4 h-4" />
+                <span>Re-sync to music</span>
+              </button>
+            )}
+
+            {isLoading ? (
+              <div className="flex flex-col items-center gap-3 my-auto">
+                <RefreshCw
+                  className="w-8 h-8 animate-spin"
+                  style={{ color: 'var(--color-stop-1, #6366f1)' }}
+                />
+                <span className="text-sm text-zinc-400 font-medium">Loading synchronized lyrics...</span>
+              </div>
+            ) : lines.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 my-auto text-center max-w-md">
+                <Mic2 className="w-12 h-12 text-zinc-600" />
+                <h4 className="text-lg font-bold text-white">No lyrics found</h4>
+                <p className="text-xs text-zinc-400">
+                  No synced lyrics were found for this song. Click refresh to search online.
+                </p>
+                <button
+                  onClick={handleManualRefresh}
+                  style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+                  className="mt-2 px-4 py-2 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110"
+                >
+                  Search Online
+                </button>
+              </div>
+            ) : (
+              lines.map((line, idx) => {
+                const isUnsynced = line.startSecs === -1;
+                const isActive = isUnsynced || activeLineIndices.has(idx);
+                const isPast =
+                  !isActive &&
+                  ((activeInterlude && idx < activeInterlude.insertIndex) ||
+                    (!activeInterlude && activeIndex >= 0 && idx < activeIndex));
+                const distance = isActive
+                  ? 0
+                  : activeInterlude
+                  ? idx < activeInterlude.insertIndex
+                    ? 999
+                    : idx - activeInterlude.insertIndex + 1
+                  : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0));
+
+                const interludeBefore = !isUnsynced
+                  ? interludeList.find((item) => item.insertIndex === idx)
+                  : null;
+
+                return (
+                  <React.Fragment key={line.id}>
+                    {interludeBefore && (
+                      <LyricInterludeRow
+                        key={interludeBefore.key}
+                        id={interludeBefore.key}
+                        startSecs={interludeBefore.startSecs}
+                        endSecs={interludeBefore.endSecs}
+                        currentTime={currentTime}
+                        isPlaying={isPlaying}
+                        isActive={activeInterlude?.key === interludeBefore.key}
+                        isPast={currentTime >= interludeBefore.endSecs}
+                        distance={
+                          activeInterlude?.key === interludeBefore.key
+                            ? 0
+                            : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0))
+                        }
+                        lyricsFontSizePreset={lyricsFontSizePreset}
+                        activeFontSize={activeFontSize}
+                        onSeek={handleSeek}
+                      />
+                    )}
+                    <LyricLineRow
+                      line={line}
+                      idx={idx}
+                      isActive={isActive}
+                      isPast={isPast}
+                      distance={distance}
+                      isUnsynced={isUnsynced}
+                      lyricsAnimationStyle={lyricsAnimationStyle}
+                      lyricsFontSizePreset={lyricsFontSizePreset}
+                      isRomanizationEnabled={isRomanizationEnabled}
+                      romanizationMode={romanizationMode}
+                      isTranslationEnabled={isTranslationEnabled}
+                      translationMode={translationMode}
+                      activeFontSize={activeFontSize}
+                      inactiveFontSize={inactiveFontSize}
+                      currentTimeMs={currentTimeMs}
+                      activeLineRef={activeLineRef}
+                      onSeek={handleSeek}
+                    />
+                  </React.Fragment>
+                );
+              })
+            )}
+          </div>
+
+          {/* Track Info & Expandable Album Art */}
+          {currentTrack && (
+            <div className={`fixed z-40 flex items-end gap-4 pointer-events-auto select-none transition-all duration-300 max-w-[calc(100vw-80px)] md:max-w-[calc(100vw-350px)] ${
+              isCompact ? 'top-16 left-6' : 'bottom-8 left-8'
+            }`}>
+              <div
+                onClick={() => setArtExpanded(!artExpanded)}
+                className={`relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 shrink-0 group cursor-pointer transition-all duration-300 ${
+                  artExpanded ? (isCompact ? 'w-48 h-48' : 'w-80 h-80') : (isCompact ? 'w-14 h-14' : 'w-20 h-20')
+                }`}
+              >
+                {trackArt ? (
+                  <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
+                    <Mic2 className="w-8 h-8" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-2">
+                    {artExpanded ? (
+                      <ChevronLeft className="w-5 h-5 text-white" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5 text-white" />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col min-w-0 flex-1 mb-1">
+                <span
+                  className={`font-extrabold text-white truncate drop-shadow-lg transition-all ${
+                    artExpanded ? 'text-xl md:text-3xl' : 'text-base md:text-lg'
+                  }`}
+                >
+                  {currentTrack.title}
+                </span>
+                <span
+                  className={`font-medium text-zinc-300 truncate mt-0.5 transition-all cursor-pointer hover:underline hover:text-indigo-400 ${
+                    artExpanded ? 'text-sm md:text-lg' : 'text-xs md:text-sm'
+                  }`}
+                  onClick={(e) => {
+                    if (currentTrack.artist && currentTrack.artist !== 'Unknown Artist') {
+                      e.stopPropagation();
+                      setShowLyricsFullscreen(false);
+                      usePlayerStore.getState().navigateToArtist(currentTrack.artist);
+                    }
+                  }}
+                >
+                  {currentTrack.artist}
+                </span>
+                {currentTrack.album && (
+                  <span
+                    className={`text-zinc-400 truncate mt-0.5 transition-all cursor-pointer hover:underline hover:text-indigo-400 ${
+                      artExpanded ? 'text-xs md:text-sm' : 'text-[11px]'
+                    }`}
+                    onClick={(e) => {
+                      if (currentTrack.album && currentTrack.album !== 'Unknown Album') {
+                        e.stopPropagation();
+                        setShowLyricsFullscreen(false);
+                        usePlayerStore.getState().navigateToAlbum(currentTrack.album);
+                      }
+                    }}
+                  >
+                    {currentTrack.album}
+                  </span>
                 )}
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="flex flex-col min-w-0 flex-1 mb-1">
-            <span
-              className={`font-extrabold text-white truncate drop-shadow-lg transition-all ${
-                artExpanded ? 'text-xl md:text-3xl' : 'text-base md:text-lg'
+          {/* Floating Glass Transport Controls (Bottom-Center, Responsive) */}
+          <motion.div
+            animate={{
+              opacity: controlsVisible ? 1 : 0,
+              y: controlsVisible ? 0 : 20,
+            }}
+            transition={{ duration: 0.3 }}
+            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-40 glass-panel border border-white/10 rounded-full px-5 py-2.5 shadow-2xl flex items-center gap-4 md:gap-6 ${
+              controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+            } ${isCompact ? 'max-w-[92vw] overflow-x-auto custom-scrollbar' : ''}`}
+          >
+            <button
+              onClick={toggleShuffle}
+              style={shuffleEnabled ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
+              className={`p-1.5 rounded-xl transition-colors ${
+                shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
               }`}
+              title="Shuffle"
             >
-              {currentTrack.title}
-            </span>
-            <span
-              className={`font-medium text-zinc-300 truncate mt-0.5 transition-all cursor-pointer hover:underline hover:text-indigo-400 ${
-                artExpanded ? 'text-sm md:text-lg' : 'text-xs md:text-sm'
+              <Shuffle className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={previousTrack}
+              className="p-1.5 text-zinc-400 hover:text-white transition-colors"
+              title="Previous"
+            >
+              <SkipBack className="w-5 h-5" />
+            </button>
+
+            <button
+              onClick={togglePlay}
+              style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+              className="w-10 h-10 rounded-full text-white flex items-center justify-center shadow-lg transition-transform active:scale-95 cursor-pointer shrink-0"
+              title={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
+            </button>
+
+            <button
+              onClick={nextTrack}
+              className="p-1.5 text-zinc-400 hover:text-white transition-colors"
+              title="Next"
+            >
+              <SkipForward className="w-5 h-5" />
+            </button>
+
+            <button
+              onClick={cycleRepeatMode}
+              style={repeatMode !== 'off' ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
+              className={`p-1.5 rounded-xl transition-colors ${
+                repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
               }`}
-              onClick={(e) => {
-                if (currentTrack.artist && currentTrack.artist !== 'Unknown Artist') {
-                  e.stopPropagation();
-                  setShowLyricsFullscreen(false);
-                  usePlayerStore.getState().navigateToArtist(currentTrack.artist);
-                }
+              title="Repeat"
+            >
+              <RepeatIcon className="w-4 h-4" />
+            </button>
+
+            {/* Seek Bar inside floating pill */}
+            <div className="flex items-center gap-2.5 text-xs font-mono text-zinc-400 w-48 sm:w-72 md:w-96">
+              <span>{formatTime(currentTime)}</span>
+              <div className="relative flex-1 flex items-center group cursor-pointer min-w-[90px]">
+                {isWavySeekbarEnabled ? (
+                  <WavyAudioSlider
+                    value={currentTime}
+                    min={0}
+                    max={duration || 100}
+                    step={0.1}
+                    onChange={handleSeek}
+                    size="md"
+                    className="flex-1"
+                    formatTooltip={(val) => formatTime(val)}
+                    active={controlsVisible}
+                  />
+                ) : (
+                  <AudioSlider
+                    value={currentTime}
+                    min={0}
+                    max={duration || 100}
+                    step={0.1}
+                    onChange={handleSeek}
+                    size="md"
+                    className="flex-1"
+                    formatTooltip={(val) => formatTime(val)}
+                  />
+                )}
+              </div>
+              <span>{formatTime(duration)}</span>
+            </div>
+
+            {/* Integrated Volume control when space is compact */}
+            {isCompact && (
+              <div ref={volRefCallback} className="flex items-center gap-1.5 pl-2 border-l border-white/10">
+                <button
+                  onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
+                  className="text-zinc-400 hover:text-white transition-colors p-1"
+                >
+                  {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
+                </button>
+                <AudioSlider
+                  value={volume}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onChange={(val) => setVolume(val)}
+                  formatTooltip={(val) => `${Math.round(val * 100)}%`}
+                  size="sm"
+                  className="w-20"
+                />
+                <span
+                  style={{ color: 'var(--color-stop-1, #6366f1)' }}
+                  className="text-[10px] font-mono font-bold min-w-[28px] text-right"
+                >
+                  {Math.round(volume * 100)}%
+                </span>
+              </div>
+            )}
+
+            {/* Exit Lyrics Button */}
+            <button
+              onClick={handleClose}
+              className="p-1.5 rounded-xl hover:text-white hover:bg-white/10 transition-colors"
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+              title="Exit Karaoke View"
+            >
+              <Mic2 className="w-5 h-5" />
+            </button>
+          </motion.div>
+
+          {/* Floating Glass Volume Pill (Bottom-Right, Hidden on Compact Windows to avoid collision) */}
+          {!isCompact && (
+            <motion.div
+              animate={{
+                opacity: controlsVisible ? 1 : 0,
+                y: controlsVisible ? 0 : 20,
               }}
+              transition={{ duration: 0.3 }}
+              className={`fixed bottom-6 right-8 z-40 glass-panel border border-white/10 rounded-full px-4 py-2 shadow-2xl flex items-center gap-3.5 ${
+                controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
+              }`}
             >
-              {currentTrack.artist}
-            </span>
-            {currentTrack.album && (
-              <span
-                className={`text-zinc-400 truncate mt-0.5 transition-all cursor-pointer hover:underline hover:text-indigo-400 ${
-                  artExpanded ? 'text-xs md:text-sm' : 'text-[11px]'
-                }`}
-                onClick={(e) => {
-                  if (currentTrack.album && currentTrack.album !== 'Unknown Album') {
-                    e.stopPropagation();
-                    setShowLyricsFullscreen(false);
-                    usePlayerStore.getState().navigateToAlbum(currentTrack.album);
-                  }
-                }}
-              >
-                {currentTrack.album}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Floating Glass Transport Controls (Bottom-Center, Responsive) */}
-      <motion.div
-        animate={{
-          opacity: controlsVisible ? 1 : 0,
-          y: controlsVisible ? 0 : 20,
-        }}
-        transition={{ duration: 0.3 }}
-        className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-40 glass-panel border border-white/10 rounded-full px-5 py-2.5 shadow-2xl flex items-center gap-4 md:gap-6 ${
-          controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
-        } ${isCompact ? 'max-w-[92vw] overflow-x-auto custom-scrollbar' : ''}`}
-      >
-        <button
-          onClick={toggleShuffle}
-          style={shuffleEnabled ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-          className={`p-1.5 rounded-xl transition-colors ${
-            shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
-          }`}
-          title="Shuffle"
-        >
-          <Shuffle className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={previousTrack}
-          className="p-1.5 text-zinc-400 hover:text-white transition-colors"
-          title="Previous"
-        >
-          <SkipBack className="w-5 h-5" />
-        </button>
-
-        <button
-          onClick={togglePlay}
-          style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-          className="w-10 h-10 rounded-full text-white flex items-center justify-center shadow-lg transition-transform active:scale-95 cursor-pointer shrink-0"
-          title={isPlaying ? 'Pause' : 'Play'}
-        >
-          {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
-        </button>
-
-        <button
-          onClick={nextTrack}
-          className="p-1.5 text-zinc-400 hover:text-white transition-colors"
-          title="Next"
-        >
-          <SkipForward className="w-5 h-5" />
-        </button>
-
-        <button
-          onClick={cycleRepeatMode}
-          style={repeatMode !== 'off' ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-          className={`p-1.5 rounded-xl transition-colors ${
-            repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
-          }`}
-          title="Repeat"
-        >
-          <RepeatIcon className="w-4 h-4" />
-        </button>
-
-        {/* Seek Bar inside floating pill */}
-        <div className="flex items-center gap-2.5 text-xs font-mono text-zinc-400 w-48 sm:w-72 md:w-96">
-          <span>{formatTime(currentTime)}</span>
-          <div className="relative flex-1 flex items-center group cursor-pointer min-w-[90px]">
-            {isWavySeekbarEnabled ? (
-              <WavyAudioSlider
-                value={currentTime}
-                min={0}
-                max={duration || 100}
-                step={0.1}
-                onChange={handleSeek}
-                size="md"
-                className="flex-1"
-                formatTooltip={(val) => formatTime(val)}
-                active={controlsVisible}
-              />
-            ) : (
-              <AudioSlider
-                value={currentTime}
-                min={0}
-                max={duration || 100}
-                step={0.1}
-                onChange={handleSeek}
-                size="md"
-                className="flex-1"
-                formatTooltip={(val) => formatTime(val)}
-              />
-            )}
-          </div>
-          <span>{formatTime(duration)}</span>
-        </div>
-
-        {/* Integrated Volume control when space is compact */}
-        {isCompact && (
-          <div ref={volRefCallback} className="flex items-center gap-1.5 pl-2 border-l border-white/10">
-            <button
-              onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
-              className="text-zinc-400 hover:text-white transition-colors p-1"
-            >
-              {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
-            </button>
-            <AudioSlider
-              value={volume}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(val) => setVolume(val)}
-              formatTooltip={(val) => `${Math.round(val * 100)}%`}
-              size="sm"
-              className="w-20"
-            />
-            <span
-              style={{ color: 'var(--color-stop-1, #6366f1)' }}
-              className="text-[10px] font-mono font-bold min-w-[28px] text-right"
-            >
-              {Math.round(volume * 100)}%
-            </span>
-          </div>
-        )}
-
-        {/* Exit Lyrics Button */}
-        <button
-          onClick={handleClose}
-          className="p-1.5 rounded-xl hover:text-white hover:bg-white/10 transition-colors"
-          style={{ color: 'var(--color-stop-1, #6366f1)' }}
-          title="Exit Karaoke View"
-        >
-          <Mic2 className="w-5 h-5" />
-        </button>
-      </motion.div>
-
-      {/* Floating Glass Volume Pill (Bottom-Right, Hidden on Compact Windows to avoid collision) */}
-      {!isCompact && (
-        <motion.div
-          animate={{
-            opacity: controlsVisible ? 1 : 0,
-            y: controlsVisible ? 0 : 20,
-          }}
-          transition={{ duration: 0.3 }}
-          className={`fixed bottom-6 right-8 z-40 glass-panel border border-white/10 rounded-full px-4 py-2 shadow-2xl flex items-center gap-3.5 ${
-            controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
-          }`}
-        >
-          <div ref={volRefCallback} className="flex items-center gap-2.5">
-            <button
-              onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
-              className="text-zinc-400 hover:text-white transition-colors p-1"
-              title={volume > 0 ? 'Mute' : 'Unmute'}
-            >
-              {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
-            </button>
-            <AudioSlider
-              value={volume}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(val) => setVolume(val)}
-              formatTooltip={(val) => `${Math.round(val * 100)}%`}
-              size="md"
-              className="w-24 sm:w-28 md:w-32"
-            />
-            <span
-              style={{ color: 'var(--color-stop-1, #6366f1)' }}
-              className="text-xs font-mono font-bold min-w-[32px] text-right"
-            >
-              {Math.round(volume * 100)}%
-            </span>
-          </div>
-        </motion.div>
+              <div ref={volRefCallback} className="flex items-center gap-2.5">
+                <button
+                  onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
+                  className="text-zinc-400 hover:text-white transition-colors p-1"
+                  title={volume > 0 ? 'Mute' : 'Unmute'}
+                >
+                  {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
+                </button>
+                <AudioSlider
+                  value={volume}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  onChange={(val) => setVolume(val)}
+                  formatTooltip={(val) => `${Math.round(val * 100)}%`}
+                  size="md"
+                  className="w-24 sm:w-28 md:w-32"
+                />
+                <span
+                  style={{ color: 'var(--color-stop-1, #6366f1)' }}
+                  className="text-xs font-mono font-bold min-w-[32px] text-right"
+                >
+                  {Math.round(volume * 100)}%
+                </span>
+              </div>
+            </motion.div>
+          )}
+        </>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { Track, ActiveTab, SleepTimer, RepeatMode, Playlist, RefreshLibraryResult } from '../types/player';
+import { Track, ActiveTab, SleepTimer, RepeatMode, Playlist, RefreshLibraryResult, BackgroundType, LyricsLayoutMode, LyricsArtSize } from '../types/player';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { fetchLatestRelease, UpdateCheckResult } from '../utils/updateChecker';
@@ -37,6 +37,57 @@ export function getEffectiveReplayGain(track?: Track | null, mode: ReplayGainMod
   return typeof track.replay_gain_db === 'number' ? track.replay_gain_db : 0;
 }
 
+export function groupLinkedTracks(tracks: Track[], linkedTracks: Record<string, string[]> = {}): Track[][] {
+  const clusters: Track[][] = [];
+  const processed = new Set<string>();
+  const trackMap = new Map<string, Track>();
+  tracks.forEach((t) => trackMap.set(t.id, t));
+
+  for (const t of tracks) {
+    if (processed.has(t.id)) continue;
+    const cluster: Track[] = [t];
+    processed.add(t.id);
+
+    let currId = t.id;
+    while (linkedTracks[currId] && linkedTracks[currId].length > 0) {
+      let nextFound = false;
+      for (const nextId of linkedTracks[currId]) {
+        if (!processed.has(nextId) && trackMap.has(nextId)) {
+          cluster.push(trackMap.get(nextId)!);
+          processed.add(nextId);
+          currId = nextId;
+          nextFound = true;
+          break;
+        }
+      }
+      if (!nextFound) break;
+    }
+    clusters.push(cluster);
+  }
+  return clusters;
+}
+
+export function shuffleLinkedClusters(clusters: Track[][], currentTrackId?: string): Track[] {
+  let currentCluster: Track[] | null = null;
+  const remainingClusters: Track[][] = [];
+
+  for (const cluster of clusters) {
+    if (currentTrackId && cluster.some((t) => t.id === currentTrackId)) {
+      currentCluster = cluster;
+    } else {
+      remainingClusters.push(cluster);
+    }
+  }
+
+  for (let i = remainingClusters.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [remainingClusters[i], remainingClusters[j]] = [remainingClusters[j], remainingClusters[i]];
+  }
+
+  const finalClusters = currentCluster ? [currentCluster, ...remainingClusters] : remainingClusters;
+  return finalClusters.flat();
+}
+
 interface PlayerState {
   audioAnalysisProgress: { current: number; total: number } | null;
   tracks: Track[];
@@ -56,6 +107,24 @@ interface PlayerState {
   toggleGaplessEnabled: () => void;
   replayGainMode: ReplayGainMode;
   setReplayGainMode: (mode: ReplayGainMode) => void;
+  backgroundType: BackgroundType;
+  customBgPath: string | null;
+  customBgColor: string;
+  bgBlurAmount: number;
+  bgDimOpacity: number;
+  setBackgroundType: (type: BackgroundType) => void;
+  setCustomBgPath: (path: string | null) => void;
+  setCustomBgColor: (color: string) => void;
+  setBgBlurAmount: (blur: number) => void;
+  setBgDimOpacity: (opacity: number) => void;
+  lyricsLayoutMode: LyricsLayoutMode;
+  setLyricsLayoutMode: (mode: LyricsLayoutMode) => void;
+  lyricsArtSize: LyricsArtSize;
+  setLyricsArtSize: (size: LyricsArtSize) => void;
+  linkedTracks: Record<string, string[]>;
+  linkTracks: (primaryId: string, nextId: string) => void;
+  unlinkTrack: (trackId: string) => void;
+  isTrackLinked: (trackId: string) => boolean;
   likedTrackIds: string[];
   sleepTimer: SleepTimer;
   showLyricsFullscreen: boolean;
@@ -361,6 +430,50 @@ export const usePlayerStore = create<PlayerState>()(
       replayGainMode: 'track',
       setReplayGainMode: (mode) => set({ replayGainMode: mode }),
 
+      backgroundType: 'dynamic_glow',
+      customBgPath: null,
+      customBgColor: '#0f172a',
+      bgBlurAmount: 20,
+      bgDimOpacity: 0.6,
+      setBackgroundType: (type) => set({ backgroundType: type }),
+      setCustomBgPath: (path) => set({ customBgPath: path }),
+      setCustomBgColor: (color) => set({ customBgColor: color }),
+      setBgBlurAmount: (blur) => set({ bgBlurAmount: Math.max(0, Math.min(100, blur)) }),
+      setBgDimOpacity: (opacity) => set({ bgDimOpacity: Math.max(0, Math.min(1, opacity)) }),
+
+      lyricsLayoutMode: 'centered',
+      setLyricsLayoutMode: (mode) => set({ lyricsLayoutMode: mode }),
+      lyricsArtSize: 'compact',
+      setLyricsArtSize: (size) => set({ lyricsArtSize: size }),
+
+      linkedTracks: {},
+      linkTracks: (primaryId, nextId) =>
+        set((state) => {
+          const existing = state.linkedTracks[primaryId] || [];
+          if (existing.includes(nextId)) return state;
+          return {
+            linkedTracks: {
+              ...state.linkedTracks,
+              [primaryId]: [...existing, nextId],
+            },
+          };
+        }),
+      unlinkTrack: (trackId) =>
+        set((state) => {
+          const newLinks = { ...state.linkedTracks };
+          delete newLinks[trackId];
+          Object.keys(newLinks).forEach((k) => {
+            newLinks[k] = newLinks[k].filter((id) => id !== trackId);
+            if (newLinks[k].length === 0) delete newLinks[k];
+          });
+          return { linkedTracks: newLinks };
+        }),
+      isTrackLinked: (trackId) => {
+        const { linkedTracks } = get();
+        if (linkedTracks[trackId] && linkedTracks[trackId].length > 0) return true;
+        return Object.values(linkedTracks).some((targets) => targets.includes(trackId));
+      },
+
       selectedArtist: null,
       selectedAlbum: null,
       navigateToArtist: (artist) => set({ selectedArtist: artist, activeTab: 'artistView', infoModalTrack: null }),
@@ -635,13 +748,10 @@ export const usePlayerStore = create<PlayerState>()(
           let savedOriginal = baseQueue;
 
           if (shuffleEnabled) {
-            const remaining = baseQueue.filter((_, i) => i !== index);
-            for (let i = remaining.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
-            }
-            newQueue = [track, ...remaining];
-            finalIndex = 0;
+            const clusters = groupLinkedTracks(baseQueue, get().linkedTracks);
+            newQueue = shuffleLinkedClusters(clusters, track.id);
+            finalIndex = newQueue.findIndex((t) => t.id === track.id);
+            if (finalIndex === -1) finalIndex = 0;
           }
 
           set({
@@ -1016,17 +1126,16 @@ export const usePlayerStore = create<PlayerState>()(
           if (newShuffle) {
             const currentObj = state.currentTrack;
             const sourceQueue = state.queue.length > 0 ? state.queue : state.tracks;
-            const remaining = sourceQueue.filter((t) => t.id !== currentObj?.id);
-            for (let i = remaining.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
-            }
-            const shuffledQueue = currentObj ? [currentObj, ...remaining] : remaining;
+            const clusters = groupLinkedTracks(sourceQueue, state.linkedTracks);
+            const shuffledQueue = shuffleLinkedClusters(clusters, currentObj?.id);
+            const newCurrentIndex = currentObj
+              ? Math.max(0, shuffledQueue.findIndex((t) => t.id === currentObj.id))
+              : 0;
             return {
               shuffleEnabled: true,
               originalQueue: [...sourceQueue],
               queue: shuffledQueue,
-              currentIndex: 0,
+              currentIndex: newCurrentIndex,
             };
           } else {
             const orig = state.originalQueue.length > 0 ? state.originalQueue : state.queue;
@@ -1438,6 +1547,17 @@ export const usePlayerStore = create<PlayerState>()(
         shuffleEnabled: state.shuffleEnabled,
         repeatMode: state.repeatMode,
         playlists: state.playlists,
+        crossfadeDuration: state.crossfadeDuration,
+        isGaplessEnabled: state.isGaplessEnabled,
+        replayGainMode: state.replayGainMode,
+        backgroundType: state.backgroundType,
+        customBgPath: state.customBgPath,
+        customBgColor: state.customBgColor,
+        bgBlurAmount: state.bgBlurAmount,
+        bgDimOpacity: state.bgDimOpacity,
+        lyricsLayoutMode: state.lyricsLayoutMode,
+        lyricsArtSize: state.lyricsArtSize,
+        linkedTracks: state.linkedTracks,
         visibleTrackColumns: state.visibleTrackColumns,
         trackGridDensity: state.trackGridDensity,
         columnOrder: state.columnOrder,

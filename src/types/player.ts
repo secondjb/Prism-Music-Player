@@ -34,6 +34,9 @@ export interface RefreshLibraryResult {
 
 export type ActiveTab = 'home' | 'search' | 'library' | 'playlists' | 'liked' | 'albums' | 'artists' | 'folders' | 'lyrics' | 'settings' | 'filter' | 'stats' | 'artistView' | 'albumView';
 
+export type BackgroundType = 'dynamic_glow' | 'album_art_blur' | 'custom_photo' | 'solid_color' | 'amoled_black';
+export type LyricsLayoutMode = 'split' | 'centered';
+export type LyricsArtSize = 'compact' | 'expanded';
 
 export type RepeatMode = 'off' | 'all' | 'one';
 

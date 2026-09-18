@@ -126,28 +126,36 @@ export const SongInfoModal: React.FC = () => {
   return (
     <div className="w-full h-full overflow-y-auto animate-fade-in text-zinc-100 flex flex-col custom-scrollbar pr-2">
       {/* Top Header */}
-      <div className="flex items-center justify-between py-2 shrink-0">
+      <div className="flex items-center justify-between py-2 shrink-0 border-b border-white/10 pb-4 mb-2">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-400">
+          <div
+            className="p-2.5 rounded-xl border flex items-center justify-center shadow-lg shrink-0"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+              color: 'var(--color-stop-1, #6366f1)',
+            }}
+          >
             <Info className="w-5 h-5" />
           </div>
           <div>
             <h3 className="font-bold text-lg text-white">Track Metadata & Info</h3>
-            <p className="text-sm text-zinc-400 truncate max-w-xl">{infoModalTrack.title}</p>
+            <p className="text-xs text-zinc-400 truncate max-w-xl">{infoModalTrack.title}</p>
           </div>
         </div>
         <button
           onClick={() => setInfoModalTrack(null)}
           className="p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+          title="Back / Close"
         >
           <X className="w-6 h-6" />
         </button>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 w-full max-w-7xl mx-auto py-8 flex flex-col lg:flex-row gap-12 items-start">
+      <div className="flex-1 w-full max-w-7xl mx-auto py-6 flex flex-col lg:flex-row gap-10 items-start">
         {/* Left Side: Huge Cover Art & Basic Info */}
-        <div className="w-full lg:w-[450px] shrink-0 flex flex-col gap-6">
+        <div className="w-full lg:w-[420px] shrink-0 flex flex-col gap-6">
           <div className="w-full aspect-square rounded-3xl overflow-hidden bg-zinc-900 border border-white/10 shadow-2xl relative">
             {displayArt ? (
               <img
@@ -156,16 +164,20 @@ export const SongInfoModal: React.FC = () => {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-indigo-900/20">
-                <Music className="w-32 h-32 text-indigo-400/50" />
+              <div
+                className="w-full h-full flex items-center justify-center"
+                style={{ backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)' }}
+              >
+                <Music className="w-32 h-32" style={{ color: 'var(--color-stop-1, #6366f1)', opacity: 0.5 }} />
               </div>
             )}
           </div>
 
-          <div className="flex flex-col gap-1">
-            <h2 className="text-4xl font-black text-white drop-shadow-sm">{infoModalTrack.title}</h2>
+          <div className="flex flex-col gap-1 min-w-0">
+            <h2 className="text-3xl lg:text-4xl font-black text-white drop-shadow-sm truncate">{infoModalTrack.title}</h2>
             <p 
-              className="text-2xl font-bold text-indigo-400 mt-1 cursor-pointer hover:underline"
+              className="text-xl lg:text-2xl font-bold mt-1 cursor-pointer hover:underline truncate"
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
               onClick={() => {
                 if (infoModalTrack.artist && infoModalTrack.artist !== 'Unknown Artist') {
                   usePlayerStore.getState().navigateToArtist(infoModalTrack.artist);
@@ -176,7 +188,7 @@ export const SongInfoModal: React.FC = () => {
               {infoModalTrack.artist}
             </p>
             <p 
-              className="text-lg text-zinc-400 mt-2 cursor-pointer hover:underline hover:text-indigo-400"
+              className="text-base text-zinc-400 mt-1 cursor-pointer hover:underline hover:text-white truncate"
               onClick={() => {
                 if (infoModalTrack.album && infoModalTrack.album !== 'Unknown Album') {
                   usePlayerStore.getState().navigateToAlbum(infoModalTrack.album);
@@ -188,14 +200,28 @@ export const SongInfoModal: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 mt-2 text-sm font-mono text-zinc-300">
+          <div className="flex flex-wrap items-center gap-2 mt-1 text-xs font-mono text-zinc-300">
             {infoModalTrack.bit_rate_kbps && (
-              <span className="px-3 py-1 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-bold">
+              <span
+                className="px-3 py-1 rounded-lg border font-bold"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                  color: 'var(--color-stop-1, #6366f1)',
+                }}
+              >
                 {infoModalTrack.bit_rate_kbps} kbps
               </span>
             )}
             {infoModalTrack.sample_rate && (
-              <span className="px-3 py-1 rounded-lg bg-purple-500/20 border border-purple-500/30 text-purple-300 font-bold">
+              <span
+                className="px-3 py-1 rounded-lg border font-bold"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--color-stop-3, #ec4899) 20%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--color-stop-3, #ec4899) 40%, transparent)',
+                  color: 'var(--color-stop-3, #ec4899)',
+                }}
+              >
                 {(infoModalTrack.sample_rate / 1000).toFixed(1)} kHz
               </span>
             )}
@@ -213,12 +239,15 @@ export const SongInfoModal: React.FC = () => {
         </div>
 
         {/* Right Side: Detailed Metadata Grid */}
-        <div className="flex-1 w-full flex flex-col gap-8">
+        <div className="flex-1 w-full min-w-0 flex flex-col gap-8">
           {/* Local Audio File Specs */}
           <section className="flex flex-col gap-4">
-            <div className="flex items-center gap-3 text-indigo-400 border-b border-white/10 pb-3">
+            <div
+              className="flex items-center gap-3 border-b border-white/10 pb-3"
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+            >
               <HardDrive className="w-6 h-6" />
-              <h3 className="text-lg font-bold">Local File Technical Specs & ID3 Tags</h3>
+              <h3 className="text-lg font-bold text-white">Local File Technical Specs & ID3 Tags</h3>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -236,12 +265,14 @@ export const SongInfoModal: React.FC = () => {
 
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Musical Key</span>
-                <span className="text-xl font-mono text-indigo-300 font-bold">{infoModalTrack.key || 'N/A'}</span>
+                <span className="text-xl font-mono font-bold" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
+                  {infoModalTrack.key || 'N/A'}
+                </span>
               </div>
 
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">BPM (Beats Per Minute)</span>
-                <span className="text-xl font-mono text-purple-300 font-bold">
+                <span className="text-xl font-mono font-bold" style={{ color: 'var(--color-stop-3, #ec4899)' }}>
                   {infoModalTrack.bpm ? `${infoModalTrack.bpm} BPM` : 'N/A'}
                 </span>
               </div>
@@ -358,7 +389,7 @@ export const SongInfoModal: React.FC = () => {
 
               {/* Real-time Matching Search Results */}
               {searchQuery.trim() && (
-                <div className="flex flex-col gap-2 max-h-60 overflow-y-auto custom-scrollbar pr-1 pt-1">
+                <div className="flex flex-col gap-2 max-h-60 overflow-y-auto custom-scrollbar pr-1 pt-1 max-w-full">
                   {candidateTracks.length === 0 ? (
                     <div className="p-4 text-center text-xs text-zinc-400">
                       No tracks found matching "{searchQuery}"
@@ -367,23 +398,30 @@ export const SongInfoModal: React.FC = () => {
                     candidateTracks.map((candidate) => (
                       <div
                         key={candidate.id}
-                        className="p-2.5 rounded-xl bg-black/30 border border-white/5 hover:border-white/15 flex items-center justify-between gap-3 transition-colors"
+                        className="p-2.5 rounded-xl bg-black/30 border border-white/5 hover:border-white/15 flex items-center justify-between gap-3 transition-colors max-w-full min-w-0"
                       >
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div
+                          className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden cursor-pointer group/cand"
+                          onClick={() => setInfoModalTrack(candidate)}
+                          title="Click to view details for this track"
+                        >
                           <LinkedTrackThumbnail track={candidate} />
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-xs font-bold text-white truncate">{candidate.title}</span>
-                            <span className="text-[11px] text-zinc-400 truncate">
+                          <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
+                            <span className="text-xs font-bold text-white truncate block w-full group-hover/cand:underline group-hover/cand:text-indigo-300">
+                              {candidate.title}
+                            </span>
+                            <span className="text-[11px] text-zinc-400 truncate block w-full">
                               {candidate.artist} {candidate.album ? `• ${candidate.album}` : ''}
                             </span>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-xs font-mono text-zinc-500">{formatDuration(candidate.duration_secs)}</span>
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          <span className="text-xs font-mono text-zinc-500 hidden sm:inline">{formatDuration(candidate.duration_secs)}</span>
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               if (linkDirection === 'after') {
                                 linkTracks(infoModalTrack.id, candidate.id);
                                 setLinkSuccessMsg(`Linked: "${infoModalTrack.title}" will now play into "${candidate.title}".`);
@@ -527,14 +565,20 @@ export const SongInfoModal: React.FC = () => {
 
           {/* iTunes API Info */}
           <section className="flex flex-col gap-4 mt-4">
-            <div className="flex items-center gap-3 text-purple-400 border-b border-white/10 pb-3">
+            <div
+              className="flex items-center gap-3 border-b border-white/10 pb-3"
+              style={{ color: 'var(--color-stop-3, #ec4899)' }}
+            >
               <Globe className="w-6 h-6" />
-              <h3 className="text-lg font-bold">Public Release API Info (iTunes)</h3>
+              <h3 className="text-lg font-bold text-white">Public Release API Info (iTunes)</h3>
             </div>
 
             {isLoadingOnline ? (
               <div className="flex items-center gap-4 text-zinc-400 p-8">
-                <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                <div
+                  className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
+                  style={{ borderColor: 'var(--color-stop-1, #6366f1)', borderTopColor: 'transparent' }}
+                />
                 <span>Fetching online metadata...</span>
               </div>
             ) : onlineError ? (
@@ -582,7 +626,12 @@ export const SongInfoModal: React.FC = () => {
                       href={onlineData.trackViewUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 font-bold transition-colors border border-purple-500/30"
+                      className="inline-flex items-center gap-2 px-5 py-3 rounded-xl font-bold transition-all border shadow-md hover:brightness-110"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+                        borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 45%, transparent)',
+                        color: 'white',
+                      }}
                     >
                       <span>Open on Apple Music</span>
                       <ExternalLink className="w-4 h-4" />

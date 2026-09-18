@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Checkbox from '@mui/material/Checkbox';
 import Slider from '@mui/material/Slider';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
@@ -185,10 +185,13 @@ const ANIMATION_OPTIONS = [
 const BACKGROUND_OPTIONS = [
   { id: 'dynamic_glow', name: 'Dynamic Ambient Glow (Default)', desc: 'Vibrant animated gradient matching active album art colors' },
   { id: 'album_art_blur', name: 'Blurred Album Artwork', desc: 'Full-bleed frosted glass cover art with custom blur & dimming' },
+  { id: 'album_art_color', name: 'Album Art Dynamic Solid Tint', desc: 'Minimalist solid background derived from current album art colors' },
   { id: 'custom_photo', name: 'Custom Wallpaper / Image', desc: 'Custom local photo background with adjustable blur & opacity' },
   { id: 'solid_color', name: 'Solid Color Theme', desc: 'Clean single-shade minimalist background' },
   { id: 'amoled_black', name: 'AMOLED Pure Black (#000000)', desc: 'Zero glow pure black for OLED displays & maximum battery saving' },
 ] as const;
+
+let savedSettingsScrollTop = 0;
 
 export const SettingsView: React.FC = () => {
   const tracks = usePlayerStore((s) => s.tracks);
@@ -376,9 +379,23 @@ export const SettingsView: React.FC = () => {
     }
   };
 
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = savedSettingsScrollTop;
+    }
+  }, []);
+
   return (
     <ThemeProvider theme={muiDarkTheme}>
-      <div className="w-full max-w-4xl mx-auto flex flex-col gap-8 pb-36 overflow-y-auto custom-scrollbar pr-2 h-full">
+      <div
+        ref={scrollContainerRef}
+        onScroll={(e) => {
+          savedSettingsScrollTop = e.currentTarget.scrollTop;
+        }}
+        className="w-full max-w-4xl mx-auto flex flex-col gap-8 pb-36 overflow-y-auto custom-scrollbar pr-2 h-full"
+      >
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-white/10 pb-5 text-center sm:text-left">

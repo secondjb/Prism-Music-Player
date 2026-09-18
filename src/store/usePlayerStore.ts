@@ -37,13 +37,73 @@ export function getEffectiveReplayGain(track?: Track | null, mode: ReplayGainMod
   return typeof track.replay_gain_db === 'number' ? track.replay_gain_db : 0;
 }
 
-export function groupLinkedTracks(tracks: Track[], linkedTracks: Record<string, string[]> = {}): Track[][] {
-  const clusters: Track[][] = [];
-  const processed = new Set<string>();
+export function clusterQueueWithLinks(tracks: Track[], linkedTracks: Record<string, string[]> = {}): Track[] {
+  if (!tracks || tracks.length === 0) return [];
+  const trackIdSet = new Set(tracks.map((t) => t.id));
   const trackMap = new Map<string, Track>();
   tracks.forEach((t) => trackMap.set(t.id, t));
 
+  // Determine which tracks in this queue have an incoming link from another track in the queue
+  const hasIncomingLink = new Set<string>();
+  for (const [srcId, targetIds] of Object.entries(linkedTracks)) {
+    if (trackIdSet.has(srcId)) {
+      for (const tgtId of targetIds) {
+        if (trackIdSet.has(tgtId)) {
+          hasIncomingLink.add(tgtId);
+        }
+      }
+    }
+  }
+
+  const result: Track[] = [];
+  const added = new Set<string>();
+
   for (const t of tracks) {
+    if (added.has(t.id)) continue;
+
+    // If this track has an incoming link from another track in the queue that hasn't been added yet,
+    // skip it for now - it will be pulled right after its parent!
+    if (hasIncomingLink.has(t.id)) {
+      continue;
+    }
+
+    // Traverse chain starting at t
+    let curr: Track | undefined = t;
+    while (curr && !added.has(curr.id)) {
+      result.push(curr);
+      added.add(curr.id);
+
+      const nextIds = linkedTracks[curr.id] || [];
+      let nextTrack: Track | undefined = undefined;
+      for (const nid of nextIds) {
+        if (trackIdSet.has(nid) && !added.has(nid)) {
+          nextTrack = trackMap.get(nid);
+          break;
+        }
+      }
+      curr = nextTrack;
+    }
+  }
+
+  // Fallback pass to add any remaining tracks (e.g. isolated cycles)
+  for (const t of tracks) {
+    if (!added.has(t.id)) {
+      result.push(t);
+      added.add(t.id);
+    }
+  }
+
+  return result;
+}
+
+export function groupLinkedTracks(tracks: Track[], linkedTracks: Record<string, string[]> = {}): Track[][] {
+  const clustered = clusterQueueWithLinks(tracks, linkedTracks);
+  const clusters: Track[][] = [];
+  const processed = new Set<string>();
+  const trackMap = new Map<string, Track>();
+  clustered.forEach((t) => trackMap.set(t.id, t));
+
+  for (const t of clustered) {
     if (processed.has(t.id)) continue;
     const cluster: Track[] = [t];
     processed.add(t.id);
@@ -765,20 +825,23 @@ export const usePlayerStore = create<PlayerState>()(
 
       playTrack: async (track, contextTracks) => {
         try {
-          const { shuffleEnabled } = get();
+          const { shuffleEnabled, linkedTracks } = get();
           let baseQueue = contextTracks && contextTracks.length > 0 ? [...contextTracks] : [track];
-          let index = baseQueue.findIndex((t) => t.id === track.id);
-          if (index === -1) {
+          if (!baseQueue.some((t) => t.id === track.id)) {
             baseQueue = [track, ...baseQueue];
-            index = 0;
           }
 
-          let newQueue = baseQueue;
+          // Cluster linked tracks so linked pairs always appear consecutive in queue
+          const clusteredQueue = clusterQueueWithLinks(baseQueue, linkedTracks);
+          let index = clusteredQueue.findIndex((t) => t.id === track.id);
+          if (index === -1) index = 0;
+
+          let newQueue = clusteredQueue;
           let finalIndex = index;
-          let savedOriginal = baseQueue;
+          let savedOriginal = clusteredQueue;
 
           if (shuffleEnabled) {
-            const clusters = groupLinkedTracks(baseQueue, get().linkedTracks);
+            const clusters = groupLinkedTracks(clusteredQueue, linkedTracks);
             newQueue = shuffleLinkedClusters(clusters, track.id);
             finalIndex = newQueue.findIndex((t) => t.id === track.id);
             if (finalIndex === -1) finalIndex = 0;
@@ -1168,7 +1231,8 @@ export const usePlayerStore = create<PlayerState>()(
               currentIndex: newCurrentIndex,
             };
           } else {
-            const orig = state.originalQueue.length > 0 ? state.originalQueue : state.queue;
+            const rawOrig = state.originalQueue.length > 0 ? state.originalQueue : state.queue;
+            const orig = clusterQueueWithLinks(rawOrig, state.linkedTracks);
             const restoredIdx = state.currentTrack
               ? orig.findIndex((t) => t.id === state.currentTrack?.id)
               : 0;

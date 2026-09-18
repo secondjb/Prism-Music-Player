@@ -827,5 +827,12 @@ fn run_audio_thread(
         thread::sleep(Duration::from_millis(15));
     }
 
+    if !stop_signal.load(Ordering::SeqCst) {
+        let dur = *current_duration_secs.lock();
+        if dur > 0.0 {
+            *current_position_secs.lock() = dur;
+        }
+    }
+
     Ok(())
 }

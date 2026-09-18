@@ -59,9 +59,13 @@ export const App: React.FC = () => {
   }, [trackArt, ambientArt]);
 
   const isTransitioningRef = useRef(false);
+  const lastPosRef = useRef(-1);
+  const stallCountRef = useRef(0);
 
   useEffect(() => {
     isTransitioningRef.current = false;
+    lastPosRef.current = -1;
+    stallCountRef.current = 0;
   }, [currentTrack?.id]);
 
   // Continuous audio engine position polling & auto-advance (runs globally regardless of page/tab)
@@ -88,13 +92,29 @@ export const App: React.FC = () => {
           const dur = effectiveDur;
           const rm = state.repeatMode;
           const crossfade = state.crossfadeDuration || 0;
+
+          // Detect if playback position has stalled near the end of track (meaning audio stream reached EOF)
+          if (dur > 1 && pos >= dur - 1.5) {
+            if (lastPosRef.current >= 0 && Math.abs(pos - lastPosRef.current) < 0.03) {
+              stallCountRef.current += 1;
+            } else {
+              stallCountRef.current = 0;
+            }
+          } else {
+            stallCountRef.current = 0;
+          }
+          lastPosRef.current = pos;
+
           const isTransition =
             crossfade > 0 && dur > crossfade * 2
               ? pos >= dur - crossfade
-              : dur > 0 && pos >= dur - 0.05;
+              : dur > 0 && (pos >= dur - 0.35 || (pos >= dur - 1.5 && stallCountRef.current >= 2));
 
           if (dur > 1 && pos > 0.5 && isTransition && !isTransitioningRef.current) {
             isTransitioningRef.current = true;
+            setTimeout(() => {
+              isTransitioningRef.current = false;
+            }, 1000);
             if (rm === 'one') {
               usePlayerStore.getState().seek(0);
             } else {
@@ -472,7 +492,7 @@ export const App: React.FC = () => {
 
       {/* Dynamic Ambient Background Glows */}
       {!isLyricsActive && (
-        <div className="absolute inset-0 pointer-events-none -z-10 overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
           {(ambientArt || trackArt) ? (
             <div
               className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] opacity-20 blur-[140px] transition-all duration-1000 bg-cover bg-center scale-110"
@@ -497,25 +517,21 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Main App Body Layout (hidden when on dedicated lyrics page) */}
-      {!isLyricsActive && (
-        <>
-          <div className="flex flex-1 min-h-0 z-10">
-            <Sidebar />
-            <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-              <Header />
-              <div className="flex-1 min-h-0 overflow-hidden px-8 py-2 flex flex-col">
-                {renderContent()}
-              </div>
-            </main>
+      {/* Main App Body Layout (preserved in DOM to maintain scroll offsets) */}
+      <div className={`flex flex-1 min-h-0 z-10 ${isLyricsActive ? 'hidden' : ''}`}>
+        <Sidebar />
+        <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          <Header />
+          <div className="flex-1 min-h-0 overflow-hidden px-8 py-2 flex flex-col">
+            {renderContent()}
           </div>
+        </main>
+      </div>
 
-          {/* Bottom Audio Player Bar */}
-          <div className="z-20">
-            <BottomBar />
-          </div>
-        </>
-      )}
+      {/* Bottom Audio Player Bar */}
+      <div className={`z-20 ${isLyricsActive ? 'hidden' : ''}`}>
+        <BottomBar />
+      </div>
 
       {/* Dedicated Lyrics View Page */}
       {isLyricsActive && <LyricsView />}
@@ -528,9 +544,6 @@ export const App: React.FC = () => {
 
       {/* Link Track Modal */}
       <LinkTrackModal />
-
-      {/* Song Info Modal */}
-      {infoModalTrack && <SongInfoModal />}
     </div>
   );
 };

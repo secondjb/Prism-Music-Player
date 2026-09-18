@@ -39,7 +39,6 @@ import {
   Activity,
   Waves,
   Globe,
-  Columns,
   Palette,
 } from 'lucide-react';
 
@@ -48,6 +47,7 @@ const romanizer = createRomanizer({ japaneseDictPath: '/dict' });
 const BACKGROUND_OPTIONS = [
   { id: 'dynamic_glow', name: 'Ambient Dynamic Glow', desc: 'Flowing animated gradient synced to album artwork palette' },
   { id: 'album_art_blur', name: 'Album Artwork Blur', desc: 'Subtly blurred and dimmed high-resolution album cover backdrop' },
+  { id: 'album_art_color', name: 'Album Art Solid Tint', desc: 'Minimalist solid backdrop derived dynamically from current song artwork' },
   { id: 'custom_photo', name: 'Custom Wallpaper Image', desc: 'Select any custom PNG, JPG or WebP wallpaper photo from your PC' },
   { id: 'solid_color', name: 'Solid Minimal Color', desc: 'Clean, distraction-free solid slate or custom picked hex tint' },
   { id: 'amoled_black', name: 'AMOLED Pure Black', desc: 'Zero-light true black #000000 background for OLED displays' },
@@ -1566,6 +1566,15 @@ export const LyricsView: React.FC = () => {
         />
       )}
 
+      {backgroundType === 'album_art_color' && (
+        <div
+          className="absolute inset-0 -z-10 pointer-events-none transition-colors duration-700"
+          style={{
+            backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #1e1b4b) 35%, #09090b)',
+          }}
+        />
+      )}
+
       {backgroundType === 'album_art_blur' && (
         <div className="absolute inset-0 -z-10 pointer-events-none overflow-hidden bg-[#09090b]">
           {(trackArt || bgTrackArt) && (
@@ -1723,26 +1732,6 @@ export const LyricsView: React.FC = () => {
             <Globe className="w-5 h-5" />
           </button>
 
-          {/* Layout Mode Toggle (Split vs Centered) */}
-          <button
-            onClick={() => setLyricsLayoutMode(lyricsLayoutMode === 'split' ? 'centered' : 'split')}
-            className={`p-2.5 rounded-xl transition-all border ${
-              lyricsLayoutMode === 'split'
-                ? 'text-white shadow-lg border-transparent'
-                : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
-            }`}
-            style={
-              lyricsLayoutMode === 'split'
-                ? {
-                    backgroundColor: 'var(--color-stop-1, #6366f1)',
-                    borderColor: 'transparent',
-                  }
-                : undefined
-            }
-            title={lyricsLayoutMode === 'split' ? 'Switch to Centered View' : 'Switch to Side-by-Side Split View'}
-          >
-            <Columns className="w-5 h-5" />
-          </button>
 
           {/* Fullscreen Toggle Button */}
           <button
@@ -2258,13 +2247,13 @@ export const LyricsView: React.FC = () => {
         <div className="flex-1 flex flex-row min-h-0 w-full gap-8 lg:gap-14 overflow-hidden z-10 px-8 lg:px-14 py-3">
           {/* Left Column (50%): Big Album Art, Track Info, Seekbar & Fading Controls */}
           {currentTrack && (
-            <div className="w-1/2 min-w-0 h-full flex flex-col justify-center items-center lg:items-start pl-2 pr-6 shrink-0 my-auto">
+            <div className="w-1/2 min-w-0 h-full flex flex-col justify-center items-center px-4 shrink-0 my-auto">
               <div
                 onClick={() => setLyricsArtSize(lyricsArtSize === 'expanded' ? 'compact' : 'expanded')}
                 className={`relative rounded-3xl overflow-hidden shadow-2xl border border-white/15 group cursor-pointer transition-all duration-300 shrink-0 ${
                   lyricsArtSize === 'expanded'
-                    ? 'w-[min(480px,92%)] max-h-[50vh]'
-                    : 'w-[min(380px,80%)] max-h-[42vh]'
+                    ? 'w-[min(540px,92%)] max-h-[56vh]'
+                    : 'w-[min(420px,84%)] max-h-[46vh]'
                 } aspect-square`}
                 title={lyricsArtSize === 'expanded' ? 'Click to shrink artwork' : 'Click to enlarge artwork'}
               >
@@ -2286,7 +2275,7 @@ export const LyricsView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex flex-col min-w-0 w-full mt-5 max-w-[480px]">
+              <div className="flex flex-col min-w-0 w-full mt-5 max-w-[540px]">
                 <span className="font-extrabold text-white text-2xl xl:text-3xl truncate drop-shadow-md">
                   {currentTrack.title}
                 </span>
@@ -2316,44 +2305,44 @@ export const LyricsView: React.FC = () => {
                 )}
               </div>
 
-              {/* Fading Controls Container (Seekbar, Transport Buttons, Volume) */}
+              {/* Seekbar - ALWAYS VISIBLE */}
+              <div className="w-full max-w-[540px] flex items-center gap-2.5 text-xs font-mono text-zinc-400 mt-4">
+                <span>{formatTime(currentTime)}</span>
+                <div className="relative flex-1 flex items-center group cursor-pointer min-w-[90px]">
+                  {isWavySeekbarEnabled ? (
+                    <WavyAudioSlider
+                      value={currentTime}
+                      min={0}
+                      max={duration || 100}
+                      step={0.1}
+                      onChange={handleSeek}
+                      size="md"
+                      className="flex-1"
+                      formatTooltip={(val) => formatTime(val)}
+                      active={true}
+                    />
+                  ) : (
+                    <AudioSlider
+                      value={currentTime}
+                      min={0}
+                      max={duration || 100}
+                      step={0.1}
+                      onChange={handleSeek}
+                      size="md"
+                      className="flex-1"
+                      formatTooltip={(val) => formatTime(val)}
+                    />
+                  )}
+                </div>
+                <span>{formatTime(duration)}</span>
+              </div>
+
+              {/* Fading Controls Container (Transport Buttons & Volume Slider) */}
               <div
-                className={`w-full max-w-[480px] flex flex-col transition-opacity duration-300 ${
+                className={`w-full max-w-[540px] flex flex-col transition-opacity duration-300 ${
                   controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
                 }`}
               >
-                {/* Seekbar */}
-                <div className="w-full flex items-center gap-2.5 text-xs font-mono text-zinc-400 mt-4">
-                  <span>{formatTime(currentTime)}</span>
-                  <div className="relative flex-1 flex items-center group cursor-pointer min-w-[90px]">
-                    {isWavySeekbarEnabled ? (
-                      <WavyAudioSlider
-                        value={currentTime}
-                        min={0}
-                        max={duration || 100}
-                        step={0.1}
-                        onChange={handleSeek}
-                        size="md"
-                        className="flex-1"
-                        formatTooltip={(val) => formatTime(val)}
-                        active={controlsVisible}
-                      />
-                    ) : (
-                      <AudioSlider
-                        value={currentTime}
-                        min={0}
-                        max={duration || 100}
-                        step={0.1}
-                        onChange={handleSeek}
-                        size="md"
-                        className="flex-1"
-                        formatTooltip={(val) => formatTime(val)}
-                      />
-                    )}
-                  </div>
-                  <span>{formatTime(duration)}</span>
-                </div>
-
                 {/* Transport Buttons & Volume Slider */}
                 <div className="w-full flex items-center justify-between mt-3 pt-2 border-t border-white/10">
                   <div className="flex items-center gap-2 sm:gap-3">

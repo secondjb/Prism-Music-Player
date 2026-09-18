@@ -558,9 +558,25 @@ export const FilterView: React.FC = () => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
+let savedFilterScrollTop = 0;
+
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = savedFilterScrollTop;
+    }
+  }, []);
+
   return (
     <ThemeProvider theme={muiDarkTheme}>
-      <div className="w-full h-full flex flex-col gap-4 overflow-y-auto custom-scrollbar text-zinc-100 select-none pb-32 pr-2">
+      <div 
+        ref={scrollContainerRef}
+        onScroll={(e) => {
+          savedFilterScrollTop = e.currentTarget.scrollTop;
+        }}
+        className="w-full h-full flex flex-col gap-4 overflow-y-auto custom-scrollbar text-zinc-100 select-none pb-32 pr-2"
+      >
         {/* Header Bar */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0 bg-white/5 border border-white/10 rounded-2xl p-4 glass">
           <div className="flex items-center gap-3">

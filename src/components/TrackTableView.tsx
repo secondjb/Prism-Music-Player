@@ -318,6 +318,9 @@ const TitleCell: React.FC<any> = ({ model }) => {
   const matchedLyricSnippet = useMemo(() => {
     if (!searchQuery || !searchQuery.trim() || !track.unsynced_lyrics) return null;
     const q = searchQuery.trim().toLowerCase();
+    // Do not brand with lyrics match if the song title matches the query
+    if (track.title && track.title.toLowerCase().includes(q)) return null;
+
     const lines = track.unsynced_lyrics.split(/\r?\n/);
     for (const rawLine of lines) {
       const clean = rawLine.replace(/\[\d+:\d+(\.\d+)?\]/g, '').trim();
@@ -326,7 +329,7 @@ const TitleCell: React.FC<any> = ({ model }) => {
       }
     }
     return null;
-  }, [searchQuery, track.unsynced_lyrics]);
+  }, [searchQuery, track.unsynced_lyrics, track.title]);
 
   return (
     <div
@@ -350,6 +353,15 @@ const TitleCell: React.FC<any> = ({ model }) => {
         e.currentTarget.dispatchEvent(evt);
       }}
     >
+      {matchedLyricSnippet && (
+        <span
+          className="text-[10px] text-zinc-400 font-medium tracking-tight truncate leading-tight select-none mb-0.5"
+          title={`Lyrics match: "${matchedLyricSnippet}"`}
+        >
+          Lyrics match
+        </span>
+      )}
+
       <div className="flex items-center gap-1.5 min-w-0">
         <span
           title={track.title}
@@ -404,27 +416,7 @@ const TitleCell: React.FC<any> = ({ model }) => {
         )}
       </div>
 
-      {matchedLyricSnippet && (
-        <div className="flex items-center gap-1.5 min-w-0 mt-0.5 max-w-full">
-          <span
-            className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold border shrink-0 uppercase tracking-wider leading-none"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
-              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
-              color: 'var(--color-stop-1, #6366f1)',
-            }}
-          >
-            Lyrics Search
-          </span>
-          <span
-            className="text-[11px] text-indigo-200/90 font-sans italic truncate"
-            title={`Matched lyrics snippet: "${matchedLyricSnippet}"`}
-          >
-            &ldquo;{matchedLyricSnippet}&rdquo;
-          </span>
-        </div>
-      )}
-      {showSubArtistUnderTitle && (
+      {(showSubArtistUnderTitle || matchedLyricSnippet) && (
         <div className="flex items-center min-w-0 leading-none -mt-0.5">
           {hasSubArtistLink ? (
             <span
@@ -441,7 +433,7 @@ const TitleCell: React.FC<any> = ({ model }) => {
                   : 'text-[11px]'
               }`}
             >
-              {track.artist}
+              {matchedLyricSnippet ? `Song • ${track.artist}` : track.artist}
             </span>
           ) : (
             <span
@@ -453,7 +445,7 @@ const TitleCell: React.FC<any> = ({ model }) => {
                   : 'text-[11px]'
               }`}
             >
-              {track.artist}
+              {matchedLyricSnippet ? `Song • ${track.artist}` : track.artist}
             </span>
           )}
         </div>

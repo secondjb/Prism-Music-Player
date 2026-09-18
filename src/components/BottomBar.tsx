@@ -286,29 +286,18 @@ export const BottomBar: React.FC = () => {
                 </div>
               )}
 
-              {/* Hover Overlay with Immersive View & Enlarge Album Art buttons */}
-              <div className="absolute inset-0 bg-black/60 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 pointer-events-auto">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowLyricsFullscreen(true);
-                  }}
-                  className="p-1.5 rounded-lg bg-black/50 hover:bg-indigo-600 text-white transition-all transform active:scale-95 shadow-sm cursor-pointer"
-                  title="Open Immersive Lyrics View"
-                >
-                  <Mic2 className="w-3.5 h-3.5" />
-                </button>
+              {/* Hover Overlay with Enlarge Album Art button */}
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-auto">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setIsArtExpanded(!isArtExpanded);
                   }}
-                  className="p-1.5 rounded-lg bg-black/50 hover:bg-white/20 text-white transition-all transform active:scale-95 shadow-sm cursor-pointer"
-                  title={isArtExpanded ? 'Shrink Album Art' : 'Enlarge Album Art'}
+                  className="p-2 rounded-lg bg-black/50 hover:bg-white/20 text-white transition-all transform active:scale-95 shadow-sm cursor-pointer"
+                  title="Enlarge Album Art"
                 >
-                  {isArtExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                  <Maximize2 className="w-4 h-4" />
                 </button>
               </div>
             </div>

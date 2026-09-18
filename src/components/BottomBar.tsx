@@ -26,6 +26,8 @@ import {
   Check,
   Plus,
   ChevronRight,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { Track } from '../types/player';
 import { SleepTimerModal } from './SleepTimerModal';
@@ -91,6 +93,7 @@ export const BottomBar: React.FC = () => {
   const [prevVol, setPrevVol] = useState(volume);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [showPlaylistSub, setShowPlaylistSub] = useState(false);
+  const [isArtExpanded, setIsArtExpanded] = useState(false);
   const playlistSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handlePlaylistSubmenuEnter = () => {
@@ -224,6 +227,51 @@ export const BottomBar: React.FC = () => {
 
         {currentTrack ? (
           <>
+            {/* Expanded Floating Album Art Card */}
+            {isArtExpanded && (
+              <div
+                className="absolute left-6 bottom-24 w-64 h-64 rounded-2xl overflow-hidden shadow-2xl border border-white/20 z-50 animate-in fade-in zoom-in-95 duration-200 bg-zinc-950 group/expanded select-none"
+                style={{
+                  boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8), 0 0 25px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+                }}
+              >
+                {trackArt ? (
+                  <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-tr from-indigo-950 to-purple-950 flex items-center justify-center">
+                    <Sparkles className="w-12 h-12 text-indigo-400" />
+                  </div>
+                )}
+                
+                {/* Floating overlay actions on expanded card */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40 opacity-0 group-hover/expanded:opacity-100 transition-opacity p-3 flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setShowLyricsFullscreen(true)}
+                      className="p-1.5 rounded-lg bg-black/60 hover:bg-white/20 text-white transition-colors flex items-center gap-1.5 text-[11px] font-medium backdrop-blur-md cursor-pointer"
+                      title="Open Immersive Lyrics View"
+                    >
+                      <Mic2 className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                      <span>Immersive View</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsArtExpanded(false)}
+                      className="p-1.5 rounded-lg bg-black/60 hover:bg-white/20 text-white transition-colors backdrop-blur-md cursor-pointer"
+                      title="Shrink Album Art"
+                    >
+                      <Minimize2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-white font-bold text-xs truncate drop-shadow">{currentTrack.title}</span>
+                    <span className="text-zinc-300 text-[11px] truncate">{currentTrack.artist}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div
               draggable={Boolean(currentTrack)}
               onDragStart={(e) => currentTrack && handleTrackDragStart(e, currentTrack)}
@@ -237,6 +285,32 @@ export const BottomBar: React.FC = () => {
                   <Sparkles className="w-6 h-6 text-indigo-400" />
                 </div>
               )}
+
+              {/* Hover Overlay with Immersive View & Enlarge Album Art buttons */}
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 pointer-events-auto">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowLyricsFullscreen(true);
+                  }}
+                  className="p-1.5 rounded-lg bg-black/50 hover:bg-indigo-600 text-white transition-all transform active:scale-95 shadow-sm cursor-pointer"
+                  title="Open Immersive Lyrics View"
+                >
+                  <Mic2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsArtExpanded(!isArtExpanded);
+                  }}
+                  className="p-1.5 rounded-lg bg-black/50 hover:bg-white/20 text-white transition-all transform active:scale-95 shadow-sm cursor-pointer"
+                  title={isArtExpanded ? 'Shrink Album Art' : 'Enlarge Album Art'}
+                >
+                  {isArtExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-col min-w-0 cursor-context-menu">

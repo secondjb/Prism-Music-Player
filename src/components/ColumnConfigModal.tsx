@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import Slider from '@mui/material/Slider';
 import { RefreshCw, Check, X, SlidersHorizontal } from 'lucide-react';
 import {
@@ -46,13 +47,13 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
   const densitySteps: TrackGridDensity[] = ['compact', 'normal', 'large', 'extra-large', 'huge', 'massive'];
   const currentStepIndex = Math.max(0, densitySteps.indexOf(density));
 
-  return (
+  return createPortal(
     <>
       {/* Invisible backdrop to dismiss popover without dimming the screen */}
-      <div className="fixed inset-0 z-40 bg-transparent" onClick={onClose} />
+      <div className="fixed inset-0 z-[999] bg-transparent" onClick={onClose} />
 
-      {/* Popover Card floating fixed in viewport so it never clips under scroll containers */}
-      <div className="fixed right-8 top-20 w-84 glass-panel border border-white/10 rounded-2xl shadow-2xl p-4 z-50 flex flex-col gap-3.5 text-xs max-h-[34rem] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150 bg-[#121212]/95 text-white">
+      {/* Popover Card floating fixed in viewport so it never clips under scroll containers or scroll handles */}
+      <div className="fixed right-8 top-20 w-84 glass-panel border border-white/10 rounded-2xl shadow-2xl p-4 z-[1000] flex flex-col gap-3.5 text-xs max-h-[34rem] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-150 bg-[#121212]/95 text-white">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
           <div className="flex items-center gap-2 font-bold text-sm text-white">
@@ -213,6 +214,7 @@ export const ColumnConfigModal: React.FC<ColumnConfigModalProps> = ({
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 };

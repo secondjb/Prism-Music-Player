@@ -108,7 +108,7 @@ export const App: React.FC = () => {
           const isTransition =
             crossfade > 0 && dur > crossfade * 2
               ? pos >= dur - crossfade
-              : dur > 0 && (pos >= dur - 0.35 || (pos >= dur - 1.5 && stallCountRef.current >= 2));
+              : dur > 0 && (pos >= dur - 0.04 || (pos >= dur - 0.5 && stallCountRef.current >= 4));
 
           if (dur > 1 && pos > 0.5 && isTransition && !isTransitioningRef.current) {
             isTransitioningRef.current = true;
@@ -388,29 +388,38 @@ export const App: React.FC = () => {
     initLoad();
   }, []);
 
-  // Filter tracks based on search query (including lyrics)
+  // Filter tracks based on search query (metadata matches first, lyrics matches at the bottom)
   const deferredSearchQuery = React.useDeferredValue(searchQuery);
 
-  const filteredTracks = tracks.filter((t) => {
-    if (!deferredSearchQuery) {
-      if (activeTab === 'liked') return likedTrackIds.includes(t.id);
-      return true;
+  const filteredTracks = React.useMemo(() => {
+    if (!deferredSearchQuery || !deferredSearchQuery.trim()) {
+      if (activeTab === 'liked') return tracks.filter((t) => likedTrackIds.includes(t.id));
+      return tracks;
     }
     const q = deferredSearchQuery.trim().toLowerCase();
-    const cleanLyrics = t.unsynced_lyrics ? t.unsynced_lyrics.replace(/\[\d+:\d+(\.\d+)?\]/g, ' ') : '';
-    const matchesSearch =
-      t.title.toLowerCase().includes(q) ||
-      t.artist.toLowerCase().includes(q) ||
-      t.album.toLowerCase().includes(q) ||
-      (cleanLyrics && cleanLyrics.toLowerCase().includes(q));
 
-    if (!matchesSearch) return false;
+    const metadataMatches: typeof tracks = [];
+    const lyricsOnlyMatches: typeof tracks = [];
 
-    if (activeTab === 'liked') {
-      return likedTrackIds.includes(t.id);
+    for (const t of tracks) {
+      if (activeTab === 'liked' && !likedTrackIds.includes(t.id)) continue;
+
+      const titleMatch = t.title?.toLowerCase().includes(q);
+      const artistMatch = t.artist?.toLowerCase().includes(q);
+      const albumMatch = t.album?.toLowerCase().includes(q);
+
+      if (titleMatch || artistMatch || albumMatch) {
+        metadataMatches.push(t);
+      } else if (t.unsynced_lyrics) {
+        const cleanLyrics = t.unsynced_lyrics.replace(/\[\d+:\d+(\.\d+)?\]/g, ' ');
+        if (cleanLyrics.toLowerCase().includes(q)) {
+          lyricsOnlyMatches.push(t);
+        }
+      }
     }
-    return true;
-  });
+
+    return [...metadataMatches, ...lyricsOnlyMatches];
+  }, [tracks, deferredSearchQuery, activeTab, likedTrackIds]);
 
   const isStatsCollectionEnabled = usePlayerStore((s) => s.isStatsCollectionEnabled);
   

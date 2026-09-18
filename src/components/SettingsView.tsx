@@ -840,9 +840,9 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Crossfade Duration Slider */}
-          <div className="flex flex-col gap-2 p-4 rounded-xl bg-white/5 border border-white/5 col-span-1 md:col-span-2">
+          <div className="flex flex-col gap-2 p-3.5 rounded-xl bg-white/5 border border-white/5 col-span-1 md:col-span-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <FastForward className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
@@ -864,7 +864,7 @@ export const SettingsView: React.FC = () => {
                 {crossfadeDuration === 0 ? 'Off (0.0s)' : `${crossfadeDuration.toFixed(1)}s`}
               </span>
             </div>
-            <div className="px-3 pt-3 pb-2">
+            <div className="px-3 pt-2 pb-1">
               <Slider
                 aria-label="Crossfade Duration"
                 value={crossfadeDuration}
@@ -880,12 +880,12 @@ export const SettingsView: React.FC = () => {
           </div>
 
           {/* Gapless Playback Toggle */}
-          <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
-            <div className="flex items-center gap-3">
-              <Radio className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-              <div className="flex flex-col">
+          <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 gap-2">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <Radio className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <div className="flex flex-col min-w-0">
                 <span className="text-xs font-semibold text-white">Gapless Audio Playback</span>
-                <span className="text-[11px] text-zinc-400">
+                <span className="text-[11px] text-zinc-400 leading-tight">
                   Preloads upcoming tracks to eliminate silent pauses between tracks
                 </span>
               </div>
@@ -905,17 +905,17 @@ export const SettingsView: React.FC = () => {
           </div>
 
           {/* ReplayGain Mode Selector */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
-            <div className="flex items-center gap-3">
-              <Volume2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-              <div className="flex flex-col">
+          <div className="flex flex-col justify-between p-3 rounded-xl bg-white/5 border border-white/5 gap-2.5">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <Volume2 className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <div className="flex flex-col min-w-0">
                 <span className="text-xs font-semibold text-white">ReplayGain Loudness Mode</span>
-                <span className="text-[11px] text-zinc-400">
+                <span className="text-[11px] text-zinc-400 leading-tight">
                   Automatic volume normalization based on track/album embedded ReplayGain tags
                 </span>
               </div>
             </div>
-            <div className="w-full sm:w-80">
+            <div className="w-full">
               <M3Selector
                 value={replayGainMode}
                 onChange={(val) => setReplayGainMode(val as any)}

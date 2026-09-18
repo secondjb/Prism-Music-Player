@@ -318,8 +318,10 @@ const TitleCell: React.FC<any> = ({ model }) => {
   const matchedLyricSnippet = useMemo(() => {
     if (!searchQuery || !searchQuery.trim() || !track.unsynced_lyrics) return null;
     const q = searchQuery.trim().toLowerCase();
-    // Do not brand with lyrics match if the song title matches the query
-    if (track.title && track.title.toLowerCase().includes(q)) return null;
+    // Do not brand with lyrics match if the song title, artist, or album matches the query
+    if (track.title?.toLowerCase().includes(q)) return null;
+    if (track.artist?.toLowerCase().includes(q)) return null;
+    if (track.album?.toLowerCase().includes(q)) return null;
 
     const lines = track.unsynced_lyrics.split(/\r?\n/);
     for (const rawLine of lines) {
@@ -329,7 +331,7 @@ const TitleCell: React.FC<any> = ({ model }) => {
       }
     }
     return null;
-  }, [searchQuery, track.unsynced_lyrics, track.title]);
+  }, [searchQuery, track.unsynced_lyrics, track.title, track.artist, track.album]);
 
   return (
     <div
@@ -416,7 +418,7 @@ const TitleCell: React.FC<any> = ({ model }) => {
         )}
       </div>
 
-      {(showSubArtistUnderTitle || matchedLyricSnippet) && (
+      {showSubArtistUnderTitle && (
         <div className="flex items-center min-w-0 leading-none -mt-0.5">
           {hasSubArtistLink ? (
             <span
@@ -433,7 +435,7 @@ const TitleCell: React.FC<any> = ({ model }) => {
                   : 'text-[11px]'
               }`}
             >
-              {matchedLyricSnippet ? `Song • ${track.artist}` : track.artist}
+              {track.artist}
             </span>
           ) : (
             <span
@@ -445,7 +447,7 @@ const TitleCell: React.FC<any> = ({ model }) => {
                   : 'text-[11px]'
               }`}
             >
-              {matchedLyricSnippet ? `Song • ${track.artist}` : track.artist}
+              {track.artist}
             </span>
           )}
         </div>

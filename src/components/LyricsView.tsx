@@ -40,6 +40,7 @@ import {
   Waves,
   Globe,
   Palette,
+  Columns2,
 } from 'lucide-react';
 
 const romanizer = createRomanizer({ japaneseDictPath: '/dict' });
@@ -749,8 +750,6 @@ export const LyricsView: React.FC = () => {
     toggleInferWordSyncedLyrics,
     lyricsLayoutMode,
     setLyricsLayoutMode,
-    lyricsArtSize,
-    setLyricsArtSize,
     backgroundType,
     setBackgroundType,
     customBgPath,
@@ -2244,43 +2243,28 @@ export const LyricsView: React.FC = () => {
 
       {/* RENDER MODE: SIDE-BY-SIDE SPLIT VIEW */}
       {lyricsLayoutMode === 'split' && !isCompact ? (
-        <div className="flex-1 flex flex-row min-h-0 w-full gap-8 lg:gap-14 overflow-hidden z-10 px-8 lg:px-14 py-3">
+        <div className="flex-1 flex flex-row min-h-0 w-full gap-4 lg:gap-8 overflow-hidden z-10 px-6 lg:px-10 py-3">
           {/* Left Column (50%): Big Album Art, Track Info, Seekbar & Fading Controls */}
           {currentTrack && (
             <div className="w-1/2 min-w-0 h-full flex flex-col justify-center items-center px-4 shrink-0 my-auto">
               <div
-                onClick={() => setLyricsArtSize(lyricsArtSize === 'expanded' ? 'compact' : 'expanded')}
-                className={`relative rounded-3xl overflow-hidden shadow-2xl border border-white/15 group cursor-pointer transition-all duration-300 shrink-0 ${
-                  lyricsArtSize === 'expanded'
-                    ? 'w-[min(540px,92%)] max-h-[56vh]'
-                    : 'w-[min(420px,84%)] max-h-[46vh]'
-                } aspect-square`}
-                title={lyricsArtSize === 'expanded' ? 'Click to shrink artwork' : 'Click to enlarge artwork'}
+                className="relative rounded-3xl overflow-hidden shadow-2xl border border-white/15 shrink-0 w-[min(640px,94%)] max-h-[64vh] aspect-square select-none cursor-default"
               >
                 {trackArt ? (
                   <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
-                    <Mic2 className="w-16 h-16" />
+                    <Mic2 className="w-20 h-20" />
                   </div>
                 )}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center">
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-2">
-                    {lyricsArtSize === 'expanded' ? (
-                      <ChevronLeft className="w-5 h-5 text-white" />
-                    ) : (
-                      <ChevronRight className="w-5 h-5 text-white" />
-                    )}
-                  </div>
-                </div>
               </div>
 
-              <div className="flex flex-col min-w-0 w-full mt-5 max-w-[540px]">
-                <span className="font-extrabold text-white text-2xl xl:text-3xl truncate drop-shadow-md">
+              <div className="flex flex-col min-w-0 w-full mt-6 max-w-[640px]">
+                <span className="font-extrabold text-white text-3xl lg:text-4xl xl:text-5xl truncate drop-shadow-md">
                   {currentTrack.title}
                 </span>
                 <span
-                  className="font-semibold text-zinc-300 text-sm xl:text-base truncate mt-1 cursor-pointer hover:underline hover:text-indigo-400"
+                  className="font-semibold text-zinc-300 text-base lg:text-xl truncate mt-1.5 cursor-pointer hover:underline hover:text-indigo-400"
                   onClick={() => {
                     if (currentTrack.artist && currentTrack.artist !== 'Unknown Artist') {
                       setShowLyricsFullscreen(false);
@@ -2292,7 +2276,7 @@ export const LyricsView: React.FC = () => {
                 </span>
                 {currentTrack.album && (
                   <span
-                    className="text-xs text-zinc-400 truncate mt-0.5 cursor-pointer hover:underline hover:text-indigo-400"
+                    className="text-sm text-zinc-400 truncate mt-1 cursor-pointer hover:underline hover:text-indigo-400"
                     onClick={() => {
                       if (currentTrack.album && currentTrack.album !== 'Unknown Album') {
                         setShowLyricsFullscreen(false);
@@ -2306,7 +2290,7 @@ export const LyricsView: React.FC = () => {
               </div>
 
               {/* Seekbar - ALWAYS VISIBLE */}
-              <div className="w-full max-w-[540px] flex items-center gap-2.5 text-xs font-mono text-zinc-400 mt-4">
+              <div className="w-full max-w-[640px] flex items-center gap-3 text-xs font-mono text-zinc-400 mt-5">
                 <span>{formatTime(currentTime)}</span>
                 <div className="relative flex-1 flex items-center group cursor-pointer min-w-[90px]">
                   {isWavySeekbarEnabled ? (
@@ -2339,17 +2323,17 @@ export const LyricsView: React.FC = () => {
 
               {/* Fading Controls Container (Transport Buttons & Volume Slider) */}
               <div
-                className={`w-full max-w-[540px] flex flex-col transition-opacity duration-300 ${
+                className={`w-full max-w-[640px] flex flex-col transition-opacity duration-300 ${
                   controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
                 }`}
               >
                 {/* Transport Buttons & Volume Slider */}
-                <div className="w-full flex items-center justify-between mt-3 pt-2 border-t border-white/10">
-                  <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-full flex items-center justify-between mt-3 pt-2.5 border-t border-white/10">
+                  <div className="flex items-center gap-2.5 sm:gap-3.5">
                     <button
                       onClick={toggleShuffle}
                       style={shuffleEnabled ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-                      className={`p-1.5 rounded-xl transition-colors ${
+                      className={`p-2 rounded-xl transition-colors ${
                         shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
                       }`}
                       title="Shuffle"
@@ -2358,7 +2342,7 @@ export const LyricsView: React.FC = () => {
                     </button>
                     <button
                       onClick={previousTrack}
-                      className="p-1.5 text-zinc-400 hover:text-white transition-colors"
+                      className="p-2 text-zinc-400 hover:text-white transition-colors"
                       title="Previous"
                     >
                       <SkipBack className="w-5 h-5" />
@@ -2366,14 +2350,14 @@ export const LyricsView: React.FC = () => {
                     <button
                       onClick={togglePlay}
                       style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-                      className="w-10 h-10 rounded-full text-white flex items-center justify-center shadow-lg transition-transform active:scale-95 cursor-pointer shrink-0"
+                      className="w-12 h-12 rounded-full text-white flex items-center justify-center shadow-lg transition-transform active:scale-95 cursor-pointer shrink-0"
                       title={isPlaying ? 'Pause' : 'Play'}
                     >
-                      {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
+                      {isPlaying ? <Pause className="w-6 h-6 fill-white" /> : <Play className="w-6 h-6 fill-white ml-0.5" />}
                     </button>
                     <button
                       onClick={nextTrack}
-                      className="p-1.5 text-zinc-400 hover:text-white transition-colors"
+                      className="p-2 text-zinc-400 hover:text-white transition-colors"
                       title="Next"
                     >
                       <SkipForward className="w-5 h-5" />
@@ -2381,7 +2365,7 @@ export const LyricsView: React.FC = () => {
                     <button
                       onClick={cycleRepeatMode}
                       style={repeatMode !== 'off' ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-                      className={`p-1.5 rounded-xl transition-colors ${
+                      className={`p-2 rounded-xl transition-colors ${
                         repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
                       }`}
                       title="Repeat"
@@ -2413,12 +2397,12 @@ export const LyricsView: React.FC = () => {
             </div>
           )}
 
-          {/* Right Column (50%): Scrolling Lyrics */}
+          {/* Right Column (50%): Scrolling Lyrics shifted left and up */}
           <div
             ref={containerRef}
             className={`w-1/2 min-w-0 h-full overflow-y-auto custom-scrollbar ${
               !isScrollbarVisible ? 'scrollbar-hidden' : ''
-            } flex flex-col items-center justify-start gap-6 pt-[26vh] pb-[26vh] z-10 relative pr-2`}
+            } flex flex-col items-start pl-4 lg:pl-10 justify-start gap-6 pt-[16vh] pb-[22vh] z-10 relative pr-2`}
           >
             {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
               <button
@@ -2672,15 +2656,34 @@ export const LyricsView: React.FC = () => {
                     <Mic2 className="w-8 h-8" />
                   </div>
                 )}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-2">
-                    {artExpanded ? (
-                      <ChevronLeft className="w-5 h-5 text-white" />
-                    ) : (
+                {artExpanded ? (
+                  <>
+                    {/* Center button allowing switch to Immersive View */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLyricsLayoutMode('split');
+                        }}
+                        className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-full bg-black/80 hover:bg-black/95 text-white text-xs font-semibold shadow-2xl border border-white/25 hover:scale-105 active:scale-95 transition-all backdrop-blur-md cursor-pointer group/btn"
+                        title="Enter Immersive View"
+                      >
+                        <Columns2 className="w-4 h-4 text-indigo-400 group-hover/btn:text-white transition-colors" />
+                        <span>Immersive View</span>
+                      </button>
+                    </div>
+                    <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-1.5 pointer-events-none">
+                      <ChevronLeft className="w-4 h-4 text-white" />
+                    </div>
+                  </>
+                ) : (
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-2">
                       <ChevronRight className="w-5 h-5 text-white" />
-                    )}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="flex flex-col min-w-0 flex-1 mb-1">

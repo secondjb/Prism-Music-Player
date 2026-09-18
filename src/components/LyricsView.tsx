@@ -2397,12 +2397,12 @@ export const LyricsView: React.FC = () => {
             </div>
           )}
 
-          {/* Right Column (50%): Scrolling Lyrics centered on second column */}
+          {/* Right Column (50%): Scrolling Lyrics shifted left towards album art */}
           <div
             ref={containerRef}
             className={`h-full w-full min-w-0 overflow-y-auto custom-scrollbar ${
               !isScrollbarVisible ? 'scrollbar-hidden' : ''
-            } flex flex-col items-center justify-start gap-6 pt-[16vh] pb-[22vh] px-6 lg:px-12 z-10 relative`}
+            } flex flex-col items-center justify-start gap-6 pt-[16vh] pb-[22vh] pl-2 sm:pl-4 pr-[8%] lg:pr-[10%] z-10 relative`}
           >
             {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
               <button

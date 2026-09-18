@@ -155,51 +155,51 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
     if (!isUnsynced) {
       switch (lyricsAnimationStyle) {
         case 'apple_fluid':
-          scaleTarget = isActive ? 1.085 : distance === 1 ? 0.99 : 0.975;
+          scaleTarget = isActive ? 1.085 : distance === 1 && !isPast ? 0.99 : 0.975;
           transXTarget = isActive ? 4 : isPast ? 0 : -6;
           transYTarget = isActive ? -2 : isPast ? -1 : 3;
-          opacityTarget = isActive ? 1 : distance === 1 ? 0.64 : isPast ? 0.5 : 0.43;
+          opacityTarget = isActive ? 1 : isPast ? 0.45 : distance === 1 ? 0.64 : 0.43;
           break;
         case 'karaoke_pulse':
-          scaleTarget = isActive ? 1.1 : distance === 1 ? 0.99 : 0.97;
+          scaleTarget = isActive ? 1.1 : distance === 1 && !isPast ? 0.99 : 0.97;
           transXTarget = isActive ? 4 : 0;
           transYTarget = isActive ? -3 : 1;
-          opacityTarget = isActive ? 1 : isPast ? 0.62 : 0.49;
+          opacityTarget = isActive ? 1 : isPast ? 0.45 : distance === 1 ? 0.60 : 0.49;
           break;
         case 'kinetic_slide':
           scaleTarget = isActive ? 1.045 : isPast ? 0.99 : 0.975;
           transXTarget = isActive ? 0 : isPast ? 14 : -24;
           transYTarget = isActive ? -1 : 1;
-          opacityTarget = isActive ? 1 : isPast ? 0.54 : 0.42;
+          opacityTarget = isActive ? 1 : isPast ? 0.45 : 0.42;
           break;
         case 'cinematic_blur':
-          scaleTarget = isActive ? 1.065 : distance === 1 ? 0.96 : 0.93;
+          scaleTarget = isActive ? 1.065 : distance === 1 && !isPast ? 0.96 : 0.93;
           transYTarget = isActive ? 0 : isPast ? -10 : 10;
-          opacityTarget = isActive ? 1 : distance <= 1 ? 0.58 : 0.28;
-          blurAmount = isActive ? 'blur(0px)' : distance === 1 ? 'blur(2px)' : 'blur(4px)';
+          opacityTarget = isActive ? 1 : isPast ? 0.45 : distance <= 1 ? 0.58 : 0.28;
+          blurAmount = isActive ? 'blur(0px)' : isPast ? 'blur(0px)' : distance === 1 ? 'blur(2px)' : 'blur(4px)';
           break;
         case 'lossless_glow':
-          scaleTarget = isActive ? 1.075 : distance === 1 ? 0.99 : 0.97;
+          scaleTarget = isActive ? 1.075 : distance === 1 && !isPast ? 0.99 : 0.97;
           transXTarget = isActive ? 3 : 0;
           transYTarget = isActive ? -2 : 1;
-          opacityTarget = isActive ? 1 : distance === 1 ? 0.66 : 0.46;
+          opacityTarget = isActive ? 1 : isPast ? 0.45 : distance === 1 ? 0.66 : 0.46;
           break;
         case 'card_pop':
           scaleTarget = isActive ? 1.065 : 0.985;
           transYTarget = isActive ? -5 : 2;
-          opacityTarget = isActive ? 1 : isPast ? 0.62 : 0.48;
+          opacityTarget = isActive ? 1 : isPast ? 0.45 : distance === 1 ? 0.60 : 0.48;
           break;
         case 'apple_zoom':
-          scaleTarget = isActive ? 1.18 : distance === 1 ? 0.94 : 0.88;
+          scaleTarget = isActive ? 1.18 : distance === 1 && !isPast ? 0.94 : 0.88;
           transYTarget = isActive ? -4 : isPast ? -1 : 2;
-          opacityTarget = isActive ? 1 : distance === 1 ? 0.55 : 0.32;
+          opacityTarget = isActive ? 1 : isPast ? 0.45 : distance === 1 ? 0.55 : 0.32;
           break;
         case 'minimal_wave':
         default:
           scaleTarget = 1;
           transXTarget = isActive ? 2 : isPast ? 0 : -2;
           transYTarget = isPast ? -1 : isActive ? 0 : 1;
-          opacityTarget = isActive ? 1 : distance === 1 ? 0.58 : 0.38;
+          opacityTarget = isActive ? 1 : isPast ? 0.45 : distance === 1 ? 0.58 : 0.38;
           break;
       }
     }
@@ -499,7 +499,9 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                 ? 'text-white'
                 : isPast
                 ? 'text-white/45'
-                : 'text-white/60'
+                : distance === 1
+                ? 'text-white/70'
+                : 'text-white/45'
             }`}
             style={{
               ...lineGlowStyle,
@@ -630,6 +632,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
     if (
       !prev.isActive &&
       !next.isActive &&
+      prev.isPast === next.isPast &&
       prev.distance === next.distance &&
       prev.activeFontSize === next.activeFontSize &&
       prev.inactiveFontSize === next.inactiveFontSize &&
@@ -646,6 +649,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
       prev.isActive &&
       next.isActive &&
       !next.line.hasSyllables &&
+      prev.isPast === next.isPast &&
       prev.distance === next.distance &&
       prev.activeFontSize === next.activeFontSize &&
       prev.inactiveFontSize === next.inactiveFontSize &&
@@ -910,18 +914,24 @@ export const LyricsView: React.FC = () => {
       if (line.startSecs <= currentTime) {
         activeIndex = i;
       }
-      let endSecs = line.startSecs + line.durationSecs;
-      if (line.syllables.length > 0) {
-        const lastSyl = line.syllables[line.syllables.length - 1];
-        endSecs = Math.max(endSecs, (lastSyl.timeMs + lastSyl.durationMs) / 1000);
+      let endSecs = getLineEndSecs(line);
+      const interludeAfter = interludeList.find((item) => item.insertIndex === i + 1);
+      if (interludeAfter) {
+        endSecs = Math.min(endSecs, interludeAfter.startSecs);
       }
       if (currentTime >= line.startSecs && currentTime < endSecs) {
         activeLineIndices.add(i);
       }
     }
 
-    if (activeLineIndices.size === 0 && activeIndex !== -1 && !activeInterlude) {
-      activeLineIndices.add(activeIndex);
+    if (activeInterlude) {
+      activeLineIndices.clear();
+    } else if (activeLineIndices.size === 0 && activeIndex !== -1) {
+      const currentLine = lines[activeIndex];
+      const endSecs = getLineEndSecs(currentLine);
+      if (currentTime < endSecs + 1.2) {
+        activeLineIndices.add(activeIndex);
+      }
     }
   }
 
@@ -2272,17 +2282,18 @@ export const LyricsView: React.FC = () => {
             ) : (
               lines.map((line, idx) => {
                 const isUnsynced = line.startSecs === -1;
-                const isActive = isUnsynced || activeLineIndices.has(idx);
+                const isActive = !isUnsynced && !activeInterlude && activeLineIndices.has(idx);
                 const isPast =
                   !isActive &&
                   ((activeInterlude && idx < activeInterlude.insertIndex) ||
-                    (!activeInterlude && activeIndex >= 0 && idx < activeIndex));
+                    (!activeInterlude && activeIndex >= 0 && idx < activeIndex) ||
+                    (idx === activeIndex && !isActive && currentTime >= getLineEndSecs(line)));
                 const distance = isActive
                   ? 0
                   : activeInterlude
                   ? idx < activeInterlude.insertIndex
-                    ? 999
-                    : idx - activeInterlude.insertIndex + 1
+                    ? Math.abs(activeInterlude.insertIndex - idx)
+                    : Math.abs(idx - activeInterlude.insertIndex + 1)
                   : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0));
 
                 const interludeBefore = !isUnsynced
@@ -2393,17 +2404,18 @@ export const LyricsView: React.FC = () => {
             ) : (
               lines.map((line, idx) => {
                 const isUnsynced = line.startSecs === -1;
-                const isActive = isUnsynced || activeLineIndices.has(idx);
+                const isActive = !isUnsynced && !activeInterlude && activeLineIndices.has(idx);
                 const isPast =
                   !isActive &&
                   ((activeInterlude && idx < activeInterlude.insertIndex) ||
-                    (!activeInterlude && activeIndex >= 0 && idx < activeIndex));
+                    (!activeInterlude && activeIndex >= 0 && idx < activeIndex) ||
+                    (idx === activeIndex && !isActive && currentTime >= getLineEndSecs(line)));
                 const distance = isActive
                   ? 0
                   : activeInterlude
                   ? idx < activeInterlude.insertIndex
-                    ? 999
-                    : idx - activeInterlude.insertIndex + 1
+                    ? Math.abs(activeInterlude.insertIndex - idx)
+                    : Math.abs(idx - activeInterlude.insertIndex + 1)
                   : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0));
 
                 const interludeBefore = !isUnsynced

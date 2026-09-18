@@ -11,7 +11,8 @@ import { parseRichLyrics, ParsedLyricLine, LyricSyllable, hasExplicitWordSync, i
 import { createRomanizer, detectScript } from 'lyric-romanizer';
 import { enrichLineWithRomanization } from '../utils/japaneseRomanizer';
 import { motion, AnimatePresence } from 'framer-motion';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   Mic2,
@@ -39,9 +40,18 @@ import {
   Waves,
   Globe,
   Columns,
+  Palette,
 } from 'lucide-react';
 
 const romanizer = createRomanizer({ japaneseDictPath: '/dict' });
+
+const BACKGROUND_OPTIONS = [
+  { id: 'dynamic_glow', name: 'Ambient Dynamic Glow', desc: 'Flowing animated gradient synced to album artwork palette' },
+  { id: 'album_art_blur', name: 'Album Artwork Blur', desc: 'Subtly blurred and dimmed high-resolution album cover backdrop' },
+  { id: 'custom_photo', name: 'Custom Wallpaper Image', desc: 'Select any custom PNG, JPG or WebP wallpaper photo from your PC' },
+  { id: 'solid_color', name: 'Solid Minimal Color', desc: 'Clean, distraction-free solid slate or custom picked hex tint' },
+  { id: 'amoled_black', name: 'AMOLED Pure Black', desc: 'Zero-light true black #000000 background for OLED displays' },
+] as const;
 
 const FONT_OPTIONS = [
   { id: 'system-ui, -apple-system, sans-serif', name: 'System Default', desc: 'Native OS typeface' },
@@ -741,6 +751,16 @@ export const LyricsView: React.FC = () => {
     setLyricsLayoutMode,
     lyricsArtSize,
     setLyricsArtSize,
+    backgroundType,
+    setBackgroundType,
+    customBgPath,
+    setCustomBgPath,
+    customBgColor,
+    setCustomBgColor,
+    bgBlurAmount,
+    setBgBlurAmount,
+    bgDimOpacity,
+    setBgDimOpacity,
   } = usePlayerStore();
 
   const trackArt = useTrackArt(currentTrack);
@@ -1046,6 +1066,12 @@ export const LyricsView: React.FC = () => {
     lyricsFontSizePreset === 'balanced'
       ? activeFontSize
       : Math.max(16, activeFontSize * 0.65);
+
+  const splitActiveFontSize = Math.max(22, Math.min(Math.round(activeFontSize * 0.84), Math.round(windowHeight * 0.05)));
+  const splitInactiveFontSize =
+    lyricsFontSizePreset === 'balanced'
+      ? splitActiveFontSize
+      : Math.max(14, Math.round(splitActiveFontSize * 0.68));
 
   // Auto-hide controls logic on mouse idle
   useEffect(() => {
@@ -1525,35 +1551,84 @@ export const LyricsView: React.FC = () => {
       className="fixed inset-0 z-50 bg-[#09090b] flex flex-col justify-between p-8 overflow-hidden select-none"
       style={{ fontFamily: lyricsFontFamily }}
     >
-      {/* 100% Solid Base Layer (guarantees zero bleed-through from background) */}
-      <div className="absolute inset-0 bg-[#09090b] -z-10 pointer-events-none" />
+      {/* 100% Solid Base Layer (guarantees zero bleed-through from underlying window) */}
+      <div className="absolute inset-0 bg-[#09090b] -z-20 pointer-events-none" />
 
-      {/* Vibrant Ambient Colored Glow (cover art or theme radial gradient) */}
-      <div className="absolute inset-0 pointer-events-none -z-10 overflow-hidden">
-        {(bgTrackArt || trackArt) ? (
+      {/* Dynamic Background Renderer */}
+      {backgroundType === 'amoled_black' && (
+        <div className="absolute inset-0 bg-[#000000] -z-10 pointer-events-none" />
+      )}
+
+      {backgroundType === 'solid_color' && (
+        <div
+          className="absolute inset-0 -z-10 pointer-events-none transition-colors duration-500"
+          style={{ backgroundColor: customBgColor || '#09090b' }}
+        />
+      )}
+
+      {backgroundType === 'album_art_blur' && (
+        <div className="absolute inset-0 -z-10 pointer-events-none overflow-hidden bg-[#09090b]">
+          {(trackArt || bgTrackArt) && (
+            <div
+              className="absolute inset-0 bg-cover bg-center transition-all duration-700 scale-110"
+              style={{
+                backgroundImage: `url(${trackArt || bgTrackArt})`,
+                filter: `blur(${bgBlurAmount}px)`,
+              }}
+            />
+          )}
           <div
-            className="absolute inset-0 pointer-events-none opacity-25 blur-[90px] scale-110 bg-cover bg-center transition-all duration-1000"
-            style={{ backgroundImage: `url(${bgTrackArt || trackArt})` }}
+            className="absolute inset-0 bg-black transition-opacity duration-300"
+            style={{ opacity: bgDimOpacity }}
           />
-        ) : (
-          <>
-            <div 
-              className="absolute -top-40 -left-40 w-[650px] h-[650px] rounded-full blur-[140px] opacity-20 pointer-events-none transition-all duration-700"
+        </div>
+      )}
+
+      {backgroundType === 'custom_photo' && (
+        <div className="absolute inset-0 -z-10 pointer-events-none overflow-hidden bg-[#09090b]">
+          {customBgPath && (
+            <div
+              className="absolute inset-0 bg-cover bg-center transition-all duration-700 scale-105"
               style={{
-                background: 'radial-gradient(circle, var(--color-stop-1, #6366F1), var(--color-stop-3, #EC4899), transparent 70%)'
+                backgroundImage: `url(${customBgPath})`,
+                filter: `blur(${bgBlurAmount}px)`,
               }}
             />
-            <div 
-              className="absolute top-1/3 -right-40 w-[650px] h-[650px] rounded-full blur-[150px] opacity-20 pointer-events-none transition-all duration-700"
-              style={{
-                background: 'radial-gradient(circle, var(--color-stop-4, #D946EF), var(--color-stop-6, #818CF8), transparent 70%)'
-              }}
+          )}
+          <div
+            className="absolute inset-0 bg-black transition-opacity duration-300"
+            style={{ opacity: bgDimOpacity }}
+          />
+        </div>
+      )}
+
+      {backgroundType === 'dynamic_glow' && (
+        <div className="absolute inset-0 pointer-events-none -z-10 overflow-hidden bg-[#09090b]">
+          {(bgTrackArt || trackArt) ? (
+            <div
+              className="absolute inset-0 pointer-events-none opacity-25 blur-[90px] scale-110 bg-cover bg-center transition-all duration-1000"
+              style={{ backgroundImage: `url(${bgTrackArt || trackArt})` }}
             />
-          </>
-        )}
-        {/* Subtle dark vignette overlay for lyric contrast and readability */}
-        <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/40 via-transparent to-black/60" />
-      </div>
+          ) : (
+            <>
+              <div 
+                className="absolute -top-40 -left-40 w-[650px] h-[650px] rounded-full blur-[140px] opacity-20 pointer-events-none transition-all duration-700"
+                style={{
+                  background: 'radial-gradient(circle, var(--color-stop-1, #6366F1), var(--color-stop-3, #EC4899), transparent 70%)'
+                }}
+              />
+              <div 
+                className="absolute top-1/3 -right-40 w-[650px] h-[650px] rounded-full blur-[150px] opacity-20 pointer-events-none transition-all duration-700"
+                style={{
+                  background: 'radial-gradient(circle, var(--color-stop-4, #D946EF), var(--color-stop-6, #818CF8), transparent 70%)'
+                }}
+              />
+            </>
+          )}
+          {/* Subtle dark vignette overlay for lyric contrast and readability */}
+          <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/40 via-transparent to-black/60" />
+        </div>
+      )}
 
       {/* Top Bar Controls (Fades on idle) */}
       <motion.div
@@ -2062,28 +2137,142 @@ export const LyricsView: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* --- SECTION 3: BACKGROUND & ATMOSPHERE --- */}
+            <div className="border-t border-white/10 my-1 pt-3 flex flex-col gap-2.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Background Style</span>
+
+              {/* Background Mode Selector */}
+              <M3Selector
+                label="Lyrics Background Theme"
+                icon={<Palette className="w-3.5 h-3.5" />}
+                value={backgroundType}
+                onChange={(val) => setBackgroundType(val as any)}
+                options={BACKGROUND_OPTIONS}
+              />
+
+              {/* Custom Photo Wallpaper controls */}
+              {backgroundType === 'custom_photo' && (
+                <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-white/5 border border-white/5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-zinc-300 font-medium">Custom Photo</span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const selected = await open({
+                            multiple: false,
+                            filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'] }],
+                          });
+                          if (selected && typeof selected === 'string') {
+                            const assetUrl = window.__TAURI_INTERNALS__ ? convertFileSrc(selected) : selected;
+                            setCustomBgPath(assetUrl);
+                          }
+                        } catch (e) {
+                          console.warn('Pick background image error:', e);
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-white text-[10px] font-semibold shadow-sm cursor-pointer"
+                      style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+                    >
+                      Choose Image...
+                    </button>
+                  </div>
+                  {customBgPath && (
+                    <span className="text-[10px] text-zinc-500 truncate">{customBgPath}</span>
+                  )}
+                </div>
+              )}
+
+              {/* Solid Color Picker */}
+              {backgroundType === 'solid_color' && (
+                <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-white/5 border border-white/5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-zinc-300 font-medium">Color Tint</span>
+                    <input
+                      type="color"
+                      value={customBgColor}
+                      onChange={(e) => setCustomBgColor(e.target.value)}
+                      className="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-0"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {['#09090b', '#0f172a', '#18181b', '#1e1b4b', '#311042', '#064e3b'].map((hex) => (
+                      <button
+                        key={hex}
+                        type="button"
+                        onClick={() => setCustomBgColor(hex)}
+                        className={`w-5 h-5 rounded-full border transition-transform ${
+                          customBgColor.toLowerCase() === hex ? 'scale-125 border-white' : 'border-white/20 hover:scale-110'
+                        }`}
+                        style={{ backgroundColor: hex }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Blur & Dim Sliders */}
+              {(backgroundType === 'album_art_blur' || backgroundType === 'custom_photo') && (
+                <div className="flex flex-col gap-2.5 p-2.5 rounded-xl bg-white/5 border border-white/5">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-[11px] text-zinc-300">
+                      <span>Blur Amount</span>
+                      <span className="font-mono">{bgBlurAmount}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={2}
+                      value={bgBlurAmount}
+                      onChange={(e) => setBgBlurAmount(parseInt(e.target.value, 10))}
+                      className="w-full h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between text-[11px] text-zinc-300">
+                      <span>Dim Tint Overlay</span>
+                      <span className="font-mono">{Math.round(bgDimOpacity * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={0.9}
+                      step={0.05}
+                      value={bgDimOpacity}
+                      onChange={(e) => setBgDimOpacity(parseFloat(e.target.value))}
+                      className="w-full h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* RENDER MODE: SIDE-BY-SIDE SPLIT VIEW */}
       {lyricsLayoutMode === 'split' && !isCompact ? (
-        <div className="flex-1 flex flex-row min-h-0 w-full gap-8 md:gap-14 overflow-hidden z-10 px-6 md:px-12 py-2">
-          {/* Left Column: Big Album Art, Track Info, Seekbar & Controls */}
+        <div className="flex-1 flex flex-row min-h-0 w-full gap-8 lg:gap-14 overflow-hidden z-10 px-8 lg:px-14 py-3">
+          {/* Left Column (50%): Big Album Art, Track Info, Seekbar & Fading Controls */}
           {currentTrack && (
-            <div className="w-[38%] min-w-[320px] max-w-[460px] h-full flex flex-col justify-center items-start shrink-0 my-auto">
+            <div className="w-1/2 min-w-0 h-full flex flex-col justify-center items-center lg:items-start pl-2 pr-6 shrink-0 my-auto">
               <div
                 onClick={() => setLyricsArtSize(lyricsArtSize === 'expanded' ? 'compact' : 'expanded')}
                 className={`relative rounded-3xl overflow-hidden shadow-2xl border border-white/15 group cursor-pointer transition-all duration-300 shrink-0 ${
-                  lyricsArtSize === 'expanded' ? 'w-80 h-80 xl:w-96 xl:h-96' : 'w-64 h-64 xl:w-80 xl:h-80'
-                }`}
+                  lyricsArtSize === 'expanded'
+                    ? 'w-[min(480px,92%)] max-h-[50vh]'
+                    : 'w-[min(380px,80%)] max-h-[42vh]'
+                } aspect-square`}
                 title={lyricsArtSize === 'expanded' ? 'Click to shrink artwork' : 'Click to enlarge artwork'}
               >
                 {trackArt ? (
                   <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
-                    <Mic2 className="w-12 h-12" />
+                    <Mic2 className="w-16 h-16" />
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center">
@@ -2097,7 +2286,7 @@ export const LyricsView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex flex-col min-w-0 w-full mt-5">
+              <div className="flex flex-col min-w-0 w-full mt-5 max-w-[480px]">
                 <span className="font-extrabold text-white text-2xl xl:text-3xl truncate drop-shadow-md">
                   {currentTrack.title}
                 </span>
@@ -2127,113 +2316,120 @@ export const LyricsView: React.FC = () => {
                 )}
               </div>
 
-              {/* Seekbar */}
-              <div className="w-full flex items-center gap-2.5 text-xs font-mono text-zinc-400 mt-5">
-                <span>{formatTime(currentTime)}</span>
-                <div className="relative flex-1 flex items-center group cursor-pointer min-w-[90px]">
-                  {isWavySeekbarEnabled ? (
-                    <WavyAudioSlider
-                      value={currentTime}
-                      min={0}
-                      max={duration || 100}
-                      step={0.1}
-                      onChange={handleSeek}
-                      size="md"
-                      className="flex-1"
-                      formatTooltip={(val) => formatTime(val)}
-                      active={controlsVisible}
-                    />
-                  ) : (
-                    <AudioSlider
-                      value={currentTime}
-                      min={0}
-                      max={duration || 100}
-                      step={0.1}
-                      onChange={handleSeek}
-                      size="md"
-                      className="flex-1"
-                      formatTooltip={(val) => formatTime(val)}
-                    />
-                  )}
+              {/* Fading Controls Container (Seekbar, Transport Buttons, Volume) */}
+              <div
+                className={`w-full max-w-[480px] flex flex-col transition-opacity duration-300 ${
+                  controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                }`}
+              >
+                {/* Seekbar */}
+                <div className="w-full flex items-center gap-2.5 text-xs font-mono text-zinc-400 mt-4">
+                  <span>{formatTime(currentTime)}</span>
+                  <div className="relative flex-1 flex items-center group cursor-pointer min-w-[90px]">
+                    {isWavySeekbarEnabled ? (
+                      <WavyAudioSlider
+                        value={currentTime}
+                        min={0}
+                        max={duration || 100}
+                        step={0.1}
+                        onChange={handleSeek}
+                        size="md"
+                        className="flex-1"
+                        formatTooltip={(val) => formatTime(val)}
+                        active={controlsVisible}
+                      />
+                    ) : (
+                      <AudioSlider
+                        value={currentTime}
+                        min={0}
+                        max={duration || 100}
+                        step={0.1}
+                        onChange={handleSeek}
+                        size="md"
+                        className="flex-1"
+                        formatTooltip={(val) => formatTime(val)}
+                      />
+                    )}
+                  </div>
+                  <span>{formatTime(duration)}</span>
                 </div>
-                <span>{formatTime(duration)}</span>
-              </div>
 
-              {/* Transport Buttons & Volume Slider */}
-              <div className="w-full flex items-center justify-between mt-3 pt-2 border-t border-white/10">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <button
-                    onClick={toggleShuffle}
-                    style={shuffleEnabled ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-                    className={`p-1.5 rounded-xl transition-colors ${
-                      shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
-                    }`}
-                    title="Shuffle"
-                  >
-                    <Shuffle className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={previousTrack}
-                    className="p-1.5 text-zinc-400 hover:text-white transition-colors"
-                    title="Previous"
-                  >
-                    <SkipBack className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={togglePlay}
-                    style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-                    className="w-10 h-10 rounded-full text-white flex items-center justify-center shadow-lg transition-transform active:scale-95 cursor-pointer shrink-0"
-                    title={isPlaying ? 'Pause' : 'Play'}
-                  >
-                    {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
-                  </button>
-                  <button
-                    onClick={nextTrack}
-                    className="p-1.5 text-zinc-400 hover:text-white transition-colors"
-                    title="Next"
-                  >
-                    <SkipForward className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={cycleRepeatMode}
-                    style={repeatMode !== 'off' ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-                    className={`p-1.5 rounded-xl transition-colors ${
-                      repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
-                    }`}
-                    title="Repeat"
-                  >
-                    <RepeatIcon className="w-4 h-4" />
-                  </button>
-                </div>
-                <div ref={volRefCallback} className="flex items-center gap-1.5 pl-2">
-                  <button
-                    onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
-                    className="text-zinc-400 hover:text-white transition-colors p-1"
-                    title={volume > 0 ? 'Mute' : 'Unmute'}
-                  >
-                    {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
-                  </button>
-                  <AudioSlider
-                    value={volume}
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    onChange={(val) => setVolume(val)}
-                    formatTooltip={(val) => `${Math.round(val * 100)}%`}
-                    size="sm"
-                    className="w-16 sm:w-20"
-                  />
+                {/* Transport Buttons & Volume Slider */}
+                <div className="w-full flex items-center justify-between mt-3 pt-2 border-t border-white/10">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <button
+                      onClick={toggleShuffle}
+                      style={shuffleEnabled ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
+                      className={`p-1.5 rounded-xl transition-colors ${
+                        shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
+                      }`}
+                      title="Shuffle"
+                    >
+                      <Shuffle className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={previousTrack}
+                      className="p-1.5 text-zinc-400 hover:text-white transition-colors"
+                      title="Previous"
+                    >
+                      <SkipBack className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={togglePlay}
+                      style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+                      className="w-10 h-10 rounded-full text-white flex items-center justify-center shadow-lg transition-transform active:scale-95 cursor-pointer shrink-0"
+                      title={isPlaying ? 'Pause' : 'Play'}
+                    >
+                      {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
+                    </button>
+                    <button
+                      onClick={nextTrack}
+                      className="p-1.5 text-zinc-400 hover:text-white transition-colors"
+                      title="Next"
+                    >
+                      <SkipForward className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={cycleRepeatMode}
+                      style={repeatMode !== 'off' ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
+                      className={`p-1.5 rounded-xl transition-colors ${
+                        repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
+                      }`}
+                      title="Repeat"
+                    >
+                      <RepeatIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div ref={volRefCallback} className="flex items-center gap-1.5 pl-2">
+                    <button
+                      onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
+                      className="text-zinc-400 hover:text-white transition-colors p-1"
+                      title={volume > 0 ? 'Mute' : 'Unmute'}
+                    >
+                      {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
+                    </button>
+                    <AudioSlider
+                      value={volume}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      onChange={(val) => setVolume(val)}
+                      formatTooltip={(val) => `${Math.round(val * 100)}%`}
+                      size="sm"
+                      className="w-16 sm:w-20"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Right Column: Scrolling Lyrics */}
+          {/* Right Column (50%): Scrolling Lyrics */}
           <div
             ref={containerRef}
-            className={`flex-1 min-w-0 h-full overflow-y-auto custom-scrollbar ${
+            className={`w-1/2 min-w-0 h-full overflow-y-auto custom-scrollbar ${
               !isScrollbarVisible ? 'scrollbar-hidden' : ''
-            } flex flex-col items-start justify-start gap-6 pt-[25vh] pb-[25vh] z-10 relative pl-4`}
+            } flex flex-col items-center justify-start gap-6 pt-[26vh] pb-[26vh] z-10 relative pr-2`}
           >
             {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
               <button
@@ -2318,7 +2514,7 @@ export const LyricsView: React.FC = () => {
                             : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0))
                         }
                         lyricsFontSizePreset={lyricsFontSizePreset}
-                        activeFontSize={activeFontSize}
+                        activeFontSize={splitActiveFontSize}
                         onSeek={handleSeek}
                       />
                     )}
@@ -2335,8 +2531,8 @@ export const LyricsView: React.FC = () => {
                       romanizationMode={romanizationMode}
                       isTranslationEnabled={isTranslationEnabled}
                       translationMode={translationMode}
-                      activeFontSize={activeFontSize}
-                      inactiveFontSize={inactiveFontSize}
+                      activeFontSize={splitActiveFontSize}
+                      inactiveFontSize={splitInactiveFontSize}
                       currentTimeMs={currentTimeMs}
                       activeLineRef={activeLineRef}
                       onSeek={handleSeek}

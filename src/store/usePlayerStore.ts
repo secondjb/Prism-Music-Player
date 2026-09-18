@@ -123,8 +123,12 @@ interface PlayerState {
   setLyricsArtSize: (size: LyricsArtSize) => void;
   linkedTracks: Record<string, string[]>;
   linkTracks: (primaryId: string, nextId: string) => void;
+  removeLink: (sourceId: string, targetId: string) => void;
+  reverseLinkOrder: (trackAId: string, trackBId: string) => void;
   unlinkTrack: (trackId: string) => void;
   isTrackLinked: (trackId: string) => boolean;
+  linkModalTrack: Track | null;
+  setLinkModalTrack: (track: Track | null) => void;
   likedTrackIds: string[];
   sleepTimer: SleepTimer;
   showLyricsFullscreen: boolean;
@@ -447,8 +451,11 @@ export const usePlayerStore = create<PlayerState>()(
       setLyricsArtSize: (size) => set({ lyricsArtSize: size }),
 
       linkedTracks: {},
+      linkModalTrack: null,
+      setLinkModalTrack: (track) => set({ linkModalTrack: track }),
       linkTracks: (primaryId, nextId) =>
         set((state) => {
+          if (primaryId === nextId) return state;
           const existing = state.linkedTracks[primaryId] || [];
           if (existing.includes(nextId)) return state;
           return {
@@ -457,6 +464,29 @@ export const usePlayerStore = create<PlayerState>()(
               [primaryId]: [...existing, nextId],
             },
           };
+        }),
+      removeLink: (sourceId, targetId) =>
+        set((state) => {
+          const newLinks = { ...state.linkedTracks };
+          if (newLinks[sourceId]) {
+            newLinks[sourceId] = newLinks[sourceId].filter((id) => id !== targetId);
+            if (newLinks[sourceId].length === 0) delete newLinks[sourceId];
+          }
+          return { linkedTracks: newLinks };
+        }),
+      reverseLinkOrder: (trackAId, trackBId) =>
+        set((state) => {
+          const newLinks = { ...state.linkedTracks };
+          if (newLinks[trackAId]?.includes(trackBId)) {
+            newLinks[trackAId] = newLinks[trackAId].filter((id) => id !== trackBId);
+            if (newLinks[trackAId].length === 0) delete newLinks[trackAId];
+            newLinks[trackBId] = [...(newLinks[trackBId] || []), trackAId];
+          } else if (newLinks[trackBId]?.includes(trackAId)) {
+            newLinks[trackBId] = newLinks[trackBId].filter((id) => id !== trackAId);
+            if (newLinks[trackBId].length === 0) delete newLinks[trackBId];
+            newLinks[trackAId] = [...(newLinks[trackAId] || []), trackBId];
+          }
+          return { linkedTracks: newLinks };
         }),
       unlinkTrack: (trackId) =>
         set((state) => {

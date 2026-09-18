@@ -313,6 +313,21 @@ const TitleCell: React.FC<any> = ({ model }) => {
     showSubArtistUnderTitle && track.artist && track.artist !== 'Unknown Artist'
   );
 
+  const searchQuery = usePlayerStore((s) => s.searchQuery);
+
+  const matchedLyricSnippet = useMemo(() => {
+    if (!searchQuery || !searchQuery.trim() || !track.unsynced_lyrics) return null;
+    const q = searchQuery.trim().toLowerCase();
+    const lines = track.unsynced_lyrics.split(/\r?\n/);
+    for (const rawLine of lines) {
+      const clean = rawLine.replace(/\[\d+:\d+(\.\d+)?\]/g, '').trim();
+      if (clean && clean.toLowerCase().includes(q)) {
+        return clean;
+      }
+    }
+    return null;
+  }, [searchQuery, track.unsynced_lyrics]);
+
   return (
     <div
       draggable={Boolean(track.id)}
@@ -388,6 +403,27 @@ const TitleCell: React.FC<any> = ({ model }) => {
           </span>
         )}
       </div>
+
+      {matchedLyricSnippet && (
+        <div className="flex items-center gap-1.5 min-w-0 mt-0.5 max-w-full">
+          <span
+            className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold border shrink-0 uppercase tracking-wider leading-none"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+              color: 'var(--color-stop-1, #6366f1)',
+            }}
+          >
+            Lyrics Search
+          </span>
+          <span
+            className="text-[11px] text-indigo-200/90 font-sans italic truncate"
+            title={`Matched lyrics snippet: "${matchedLyricSnippet}"`}
+          >
+            &ldquo;{matchedLyricSnippet}&rdquo;
+          </span>
+        </div>
+      )}
       {showSubArtistUnderTitle && (
         <div className="flex items-center min-w-0 leading-none -mt-0.5">
           {hasSubArtistLink ? (
@@ -1969,44 +2005,57 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                 const nextTrack = currentIdx >= 0 && currentIdx < tracks.length - 1 ? tracks[currentIdx + 1] : null;
                 const isLinked = isTrackLinked(contextMenu.track.id);
 
-                if (isLinked) {
-                  return (
+                return (
+                  <>
                     <button
                       type="button"
                       onClick={() => {
-                        unlinkTrack(contextMenu.track.id);
+                        setInfoModalTrack(contextMenu.track);
                         setContextMenu(null);
                       }}
                       onMouseEnter={(e) => handleItemHover(e, true)}
                       onMouseLeave={(e) => handleItemHover(e, false)}
                       className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
-                    >
-                      <Unlink className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                      <span>Unlink Song Pair</span>
-                    </button>
-                  );
-                }
-
-                if (nextTrack) {
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        linkTracks(contextMenu.track.id, nextTrack.id);
-                        setContextMenu(null);
-                      }}
-                      onMouseEnter={(e) => handleItemHover(e, true)}
-                      onMouseLeave={(e) => handleItemHover(e, false)}
-                      className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
-                      title={`Link to play seamlessly before "${nextTrack.title}" even when shuffled`}
+                      title="Open track details and search any song to link"
                     >
                       <Link2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                      <span className="truncate">Link to Next Song</span>
+                      <span className="truncate">Link to Song...</span>
                     </button>
-                  );
-                }
 
-                return null;
+                    {nextTrack && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          linkTracks(contextMenu.track.id, nextTrack.id);
+                          setContextMenu(null);
+                        }}
+                        onMouseEnter={(e) => handleItemHover(e, true)}
+                        onMouseLeave={(e) => handleItemHover(e, false)}
+                        className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+                        title={`Link to play seamlessly before "${nextTrack.title}"`}
+                      >
+                        <Link2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                        <span className="truncate">Link to Next Song</span>
+                      </button>
+                    )}
+
+                    {isLinked && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          unlinkTrack(contextMenu.track.id);
+                          setContextMenu(null);
+                        }}
+                        onMouseEnter={(e) => handleItemHover(e, true)}
+                        onMouseLeave={(e) => handleItemHover(e, false)}
+                        className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+                      >
+                        <Unlink className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                        <span>Unlink Song Pair</span>
+                      </button>
+                    )}
+                  </>
+                );
               })()}
 
               <button

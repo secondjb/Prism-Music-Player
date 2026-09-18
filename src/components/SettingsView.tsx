@@ -915,8 +915,8 @@ export const SettingsView: React.FC = () => {
         <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
           <Palette className="w-5 h-5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
           <div>
-            <h3 className="text-base font-bold text-white">Background Themes & Visual Styling</h3>
-            <p className="text-xs text-zinc-400">Customize dynamic ambient glow, full-bleed blurred album art, custom photo wallpapers, or pure AMOLED black.</p>
+            <h3 className="text-base font-bold text-white">Lyrics Screen Background Themes</h3>
+            <p className="text-xs text-zinc-400">Customize dynamic ambient glow, full-bleed blurred album art, custom photo wallpapers, or pure AMOLED black on the lyrics screen.</p>
           </div>
         </div>
 
@@ -926,9 +926,9 @@ export const SettingsView: React.FC = () => {
             <div className="flex items-center gap-3">
               <Layers className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               <div className="flex flex-col">
-                <span className="text-xs font-semibold text-white">App Background Style</span>
+                <span className="text-xs font-semibold text-white">Lyrics Background Style</span>
                 <span className="text-[11px] text-zinc-400">
-                  Choose background mode across all library views
+                  Choose visual atmosphere on the immersive lyrics screen
                 </span>
               </div>
             </div>

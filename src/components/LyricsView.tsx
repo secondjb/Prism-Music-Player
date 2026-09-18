@@ -2243,10 +2243,10 @@ export const LyricsView: React.FC = () => {
 
       {/* RENDER MODE: SIDE-BY-SIDE SPLIT VIEW */}
       {lyricsLayoutMode === 'split' && !isCompact ? (
-        <div className="flex-1 flex flex-row min-h-0 w-full gap-4 lg:gap-8 overflow-hidden z-10 px-6 lg:px-10 py-3">
+        <div className="flex-1 grid grid-cols-2 min-h-0 w-full h-full overflow-hidden z-10">
           {/* Left Column (50%): Big Album Art, Track Info, Seekbar & Fading Controls */}
           {currentTrack && (
-            <div className="w-1/2 min-w-0 h-full flex flex-col justify-center items-center px-4 shrink-0 my-auto">
+            <div className="h-full w-full min-w-0 flex flex-col justify-center items-center px-8 lg:px-14 shrink-0 my-auto">
               <div
                 className="relative rounded-3xl overflow-hidden shadow-2xl border border-white/15 shrink-0 w-[min(640px,94%)] max-h-[64vh] aspect-square select-none cursor-default"
               >
@@ -2328,58 +2328,58 @@ export const LyricsView: React.FC = () => {
                 }`}
               >
                 {/* Transport Buttons & Volume Slider */}
-                <div className="w-full flex items-center justify-between mt-3 pt-2.5 border-t border-white/10">
-                  <div className="flex items-center gap-2.5 sm:gap-3.5">
+                <div className="w-full flex items-center justify-between mt-4 pt-3.5 border-t border-white/10">
+                  <div className="flex items-center gap-3 sm:gap-4">
                     <button
                       onClick={toggleShuffle}
                       style={shuffleEnabled ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-                      className={`p-2 rounded-xl transition-colors ${
+                      className={`p-2.5 sm:p-3 rounded-2xl transition-colors hover:bg-white/10 ${
                         shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
                       }`}
                       title="Shuffle"
                     >
-                      <Shuffle className="w-4 h-4" />
+                      <Shuffle className="w-6 h-6" />
                     </button>
                     <button
                       onClick={previousTrack}
-                      className="p-2 text-zinc-400 hover:text-white transition-colors"
+                      className="p-2.5 sm:p-3 text-zinc-400 hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
                       title="Previous"
                     >
-                      <SkipBack className="w-5 h-5" />
+                      <SkipBack className="w-7 h-7" />
                     </button>
                     <button
                       onClick={togglePlay}
                       style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-                      className="w-12 h-12 rounded-full text-white flex items-center justify-center shadow-lg transition-transform active:scale-95 cursor-pointer shrink-0"
+                      className="w-16 h-16 sm:w-18 sm:h-18 rounded-full text-white flex items-center justify-center shadow-2xl transition-transform active:scale-95 cursor-pointer shrink-0 hover:scale-105"
                       title={isPlaying ? 'Pause' : 'Play'}
                     >
-                      {isPlaying ? <Pause className="w-6 h-6 fill-white" /> : <Play className="w-6 h-6 fill-white ml-0.5" />}
+                      {isPlaying ? <Pause className="w-8 h-8 fill-white" /> : <Play className="w-8 h-8 fill-white ml-0.5" />}
                     </button>
                     <button
                       onClick={nextTrack}
-                      className="p-2 text-zinc-400 hover:text-white transition-colors"
+                      className="p-2.5 sm:p-3 text-zinc-400 hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
                       title="Next"
                     >
-                      <SkipForward className="w-5 h-5" />
+                      <SkipForward className="w-7 h-7" />
                     </button>
                     <button
                       onClick={cycleRepeatMode}
                       style={repeatMode !== 'off' ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-                      className={`p-2 rounded-xl transition-colors ${
+                      className={`p-2.5 sm:p-3 rounded-2xl transition-colors hover:bg-white/10 ${
                         repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
                       }`}
                       title="Repeat"
                     >
-                      <RepeatIcon className="w-4 h-4" />
+                      <RepeatIcon className="w-6 h-6" />
                     </button>
                   </div>
-                  <div ref={volRefCallback} className="flex items-center gap-1.5 pl-2">
+                  <div ref={volRefCallback} className="flex items-center gap-2 pl-3">
                     <button
                       onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
-                      className="text-zinc-400 hover:text-white transition-colors p-1"
+                      className="text-zinc-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-xl"
                       title={volume > 0 ? 'Mute' : 'Unmute'}
                     >
-                      {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
+                      {volume > 0 ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6 text-rose-400" />}
                     </button>
                     <AudioSlider
                       value={volume}
@@ -2388,8 +2388,8 @@ export const LyricsView: React.FC = () => {
                       step={0.01}
                       onChange={(val) => setVolume(val)}
                       formatTooltip={(val) => `${Math.round(val * 100)}%`}
-                      size="sm"
-                      className="w-16 sm:w-20"
+                      size="md"
+                      className="w-32 sm:w-44 md:w-52"
                     />
                   </div>
                 </div>
@@ -2397,12 +2397,12 @@ export const LyricsView: React.FC = () => {
             </div>
           )}
 
-          {/* Right Column (50%): Scrolling Lyrics shifted left and up */}
+          {/* Right Column (50%): Scrolling Lyrics centered on second column */}
           <div
             ref={containerRef}
-            className={`w-1/2 min-w-0 h-full overflow-y-auto custom-scrollbar ${
+            className={`h-full w-full min-w-0 overflow-y-auto custom-scrollbar ${
               !isScrollbarVisible ? 'scrollbar-hidden' : ''
-            } flex flex-col items-start pl-4 lg:pl-10 justify-start gap-6 pt-[16vh] pb-[22vh] z-10 relative pr-2`}
+            } flex flex-col items-center justify-start gap-6 pt-[16vh] pb-[22vh] px-6 lg:px-12 z-10 relative`}
           >
             {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
               <button

@@ -1,6 +1,37 @@
-import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { RevoGrid, Template } from '@revolist/react-datagrid';
+import React, { useState, useRef, useCallback, useMemo, useEffect, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import { RevoGrid } from '@revolist/react-datagrid';
 import type { ColumnRegular } from '@revolist/revogrid';
+
+// Custom React Cell Template adapter with dynamic entity keying.
+// By placing a unique key on the returned span (derived from the track's ID or row index),
+// Stencil's virtual DOM creates a fresh DOM element and invokes the ref callback whenever
+// the underlying track changes, preventing stale or blank cell renders when clearing searches.
+const createReactCellTemplate = (ReactComponent: React.ComponentType<any>, customProps?: any) => {
+  return (h: any, p: any, addition: any) => {
+    const props = customProps ? { ...customProps, ...p } : p;
+    props.addition = addition;
+    const trackId = p.model?.id || `row-${p.rowIndex || 0}`;
+    const key = `${p.prop}-${trackId}`;
+    return h('span', {
+      key,
+      ref: (el: any) => {
+        if (!el) {
+          if (el?._root) {
+            el._root.unmount();
+            el._root = undefined;
+          }
+        } else {
+          if (!el._root) {
+            el._root = createRoot(el);
+          }
+          const vNode = createElement(ReactComponent, { ...props, key });
+          el._root.render(vNode);
+        }
+      },
+    });
+  };
+};
 import {
   Play,
   Pause,
@@ -295,14 +326,15 @@ const TrackArtCell: React.FC<any> = ({ model }) => {
   );
 };
 
-const TitleCell: React.FC<any> = ({ model }) => {
+const TitleCell: React.FC<any> = ({ model, value }) => {
   const track = (model || {}) as Track;
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const showSubArtistUnderTitle = usePlayerStore((s) => s.showSubArtistUnderTitle);
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
   const linkedTracks = usePlayerStore((s) => s.linkedTracks);
 
-  if (!track.title || (model as any)?.__isSpacer) return null;
+  const title = track.title || (typeof value === 'string' ? value : '');
+  if (!title || !title.trim() || (model as any)?.__isSpacer) return null;
   const isCurrentPlaying = currentTrack?.id === track.id;
   const isLinked = Boolean(
     (linkedTracks[track.id] && linkedTracks[track.id].length > 0) ||
@@ -366,7 +398,7 @@ const TitleCell: React.FC<any> = ({ model }) => {
 
       <div className="flex items-center gap-1.5 min-w-0">
         <span
-          title={track.title}
+          title={title}
           className={`truncate font-medium min-w-0 leading-snug pb-0.5 ${
             trackGridDensity === 'massive'
               ? 'text-xl'
@@ -387,7 +419,7 @@ const TitleCell: React.FC<any> = ({ model }) => {
               : { color: '#ffffff' }
           }
         >
-          {track.title}
+          {title}
         </span>
         {isLinked && (
           <span
@@ -1053,9 +1085,12 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   });
   const [sortState, setSortState] = useState<{ prop: string; order: 'asc' | 'desc' } | null>(null);
 
+  const searchQuery = usePlayerStore((s) => s.searchQuery);
+  const isSearchActive = Boolean(searchQuery && searchQuery.trim());
+
   const gridKey = useMemo(() => {
-    return `rg-${containerWidth}-${trackGridDensity}-${visibleTrackColumns.length}-${columnOrder.join(',')}`;
-  }, [containerWidth, trackGridDensity, visibleTrackColumns.length, columnOrder]);
+    return `rg-${containerWidth}-${trackGridDensity}-${visibleTrackColumns.length}-${columnOrder.join(',')}-${isSearchActive ? 'search' : 'all'}`;
+  }, [containerWidth, trackGridDensity, visibleTrackColumns.length, columnOrder, isSearchActive]);
 
   // Synchronize RevoGrid sorting lifecycle with React state to maintain and toggle sort orders correctly
   useEffect(() => {
@@ -1215,23 +1250,23 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   );
 
   // Cell Template instances memoized
-  const orderCellTemplate = useMemo(() => Template(OrderCell), []);
-  const artCellTemplate = useMemo(() => Template(TrackArtCell), []);
-  const titleCellTemplate = useMemo(() => Template(TitleCell), []);
-  const artistCellTemplate = useMemo(() => Template(ArtistCell), []);
-  const albumCellTemplate = useMemo(() => Template(AlbumCell), []);
-  const dateCellTemplate = useMemo(() => Template(DateCell), []);
-  const genreCellTemplate = useMemo(() => Template(GenreCell), []);
-  const durationCellTemplate = useMemo(() => Template(DurationCell), []);
-  const bitrateCellTemplate = useMemo(() => Template(BitrateCell), []);
-  const sampleRateCellTemplate = useMemo(() => Template(SampleRateCell), []);
-  const bitDepthCellTemplate = useMemo(() => Template(BitDepthCell), []);
-  const columnHeaderTemplate = useMemo(() => Template(ColumnHeader), [sortState]);
-  const favoriteCellTemplate = useMemo(() => Template(FavoriteCell), []);
-  const playNextCellTemplate = useMemo(() => Template(PlayNextCell), []);
-  const addToQueueCellTemplate = useMemo(() => Template(AddToQueueCell), []);
-  const addToPlaylistCellTemplate = useMemo(() => Template(AddToPlaylistCell), []);
-  const actionsCellTemplate = useMemo(() => Template(ActionsCell), []);
+  const orderCellTemplate = useMemo(() => createReactCellTemplate(OrderCell), []);
+  const artCellTemplate = useMemo(() => createReactCellTemplate(TrackArtCell), []);
+  const titleCellTemplate = useMemo(() => createReactCellTemplate(TitleCell), []);
+  const artistCellTemplate = useMemo(() => createReactCellTemplate(ArtistCell), []);
+  const albumCellTemplate = useMemo(() => createReactCellTemplate(AlbumCell), []);
+  const dateCellTemplate = useMemo(() => createReactCellTemplate(DateCell), []);
+  const genreCellTemplate = useMemo(() => createReactCellTemplate(GenreCell), []);
+  const durationCellTemplate = useMemo(() => createReactCellTemplate(DurationCell), []);
+  const bitrateCellTemplate = useMemo(() => createReactCellTemplate(BitrateCell), []);
+  const sampleRateCellTemplate = useMemo(() => createReactCellTemplate(SampleRateCell), []);
+  const bitDepthCellTemplate = useMemo(() => createReactCellTemplate(BitDepthCell), []);
+  const columnHeaderTemplate = useMemo(() => createReactCellTemplate(ColumnHeader), [sortState]);
+  const favoriteCellTemplate = useMemo(() => createReactCellTemplate(FavoriteCell), []);
+  const playNextCellTemplate = useMemo(() => createReactCellTemplate(PlayNextCell), []);
+  const addToQueueCellTemplate = useMemo(() => createReactCellTemplate(AddToQueueCell), []);
+  const addToPlaylistCellTemplate = useMemo(() => createReactCellTemplate(AddToPlaylistCell), []);
+  const actionsCellTemplate = useMemo(() => createReactCellTemplate(ActionsCell), []);
 
   // Ordered visible column IDs: order and art are pinned start, all other columns follow columnOrder
   const orderedVisibleColumnIds = useMemo(() => {
@@ -1543,10 +1578,10 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     // and user can scroll 1-2 row heights deeper than there are songs
     const spacerRows = [
       {
-        id: '',
-        title: '',
-        artist: '',
-        album: '',
+        id: `__spacer_1_${tracks.length}`,
+        title: ' ',
+        artist: ' ',
+        album: ' ',
         duration_secs: 0,
         year: null,
         genre: '',
@@ -1556,10 +1591,10 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         rowClass: 'spacer-row pointer-events-none opacity-0 select-none !bg-transparent border-none',
       },
       {
-        id: '',
-        title: '',
-        artist: '',
-        album: '',
+        id: `__spacer_2_${tracks.length}`,
+        title: ' ',
+        artist: ' ',
+        album: ' ',
         duration_secs: 0,
         year: null,
         genre: '',

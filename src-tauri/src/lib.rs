@@ -2,6 +2,8 @@ mod audio;
 pub mod audio_analysis;
 mod metadata;
 mod stats;
+#[cfg(target_os = "windows")]
+pub mod taskbar;
 
 use audio::GlobalAudioEngine;
 use metadata::{
@@ -176,6 +178,11 @@ fn update_media_controls_playback(
     controls_state: State<'_, MediaControlState>,
     is_playing: bool,
 ) {
+    #[cfg(target_os = "windows")]
+    {
+        taskbar::update_taskbar_play_state(is_playing);
+    }
+
     if let Ok(mut guard) = controls_state.0.lock() {
         if let Some(controls) = guard.as_mut() {
             let playback = if is_playing {
@@ -185,6 +192,14 @@ fn update_media_controls_playback(
             };
             let _ = controls.set_playback(playback);
         }
+    }
+}
+
+#[tauri::command]
+fn set_taskbar_playback_state(is_playing: bool) {
+    #[cfg(target_os = "windows")]
+    {
+        taskbar::set_taskbar_playback_state(is_playing);
     }
 }
 
@@ -622,7 +637,16 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 #[cfg(target_os = "windows")]
-                let hwnd = app.get_webview_window("main").and_then(|w| w.hwnd().ok()).map(|h| h.0 as *mut std::ffi::c_void);
+                let raw_hwnd = app.get_webview_window("main").and_then(|w| w.hwnd().ok()).map(|h| h.0 as isize);
+                #[cfg(target_os = "windows")]
+                if let Some(hwnd_val) = raw_hwnd {
+                    let taskbar_app = app.handle().clone();
+                    if let Err(e) = taskbar::init_taskbar(&taskbar_app, hwnd_val) {
+                        eprintln!("[Taskbar] Failed to initialize thumbnail buttons: {}", e);
+                    }
+                }
+                #[cfg(target_os = "windows")]
+                let hwnd = raw_hwnd.map(|h| h as *mut std::ffi::c_void);
                 #[cfg(not(target_os = "windows"))]
                 let hwnd = None;
 
@@ -693,6 +717,7 @@ pub fn run() {
             pause_audio,
             resume_audio,
             update_media_controls_playback,
+            set_taskbar_playback_state,
             update_media_controls_metadata,
             seek_audio,
             set_volume,

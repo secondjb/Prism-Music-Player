@@ -150,6 +150,7 @@ export const App: React.FC = () => {
         }).catch(() => {});
       }
       invoke('update_media_controls_playback', { isPlaying }).catch(() => {});
+      invoke('set_taskbar_playback_state', { isPlaying }).catch(() => {});
     }
 
     if (!('mediaSession' in navigator)) return;
@@ -235,7 +236,7 @@ export const App: React.FC = () => {
     window.addEventListener('dragover', handleGlobalDrag, false);
     window.addEventListener('drop', handleGlobalDrag, false);
 
-    let unlisten: (() => void) | undefined;
+    const unlistens: (() => void)[] = [];
     if (window.__TAURI_INTERNALS__) {
       listen<string>('media-control', (event) => {
         const store = usePlayerStore.getState();
@@ -261,7 +262,25 @@ export const App: React.FC = () => {
             break;
         }
       }).then((unlistenFn) => {
-        unlisten = unlistenFn;
+        unlistens.push(unlistenFn);
+      });
+
+      listen('media-prev', () => {
+        usePlayerStore.getState().previousTrack();
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
+      listen('media-toggle', () => {
+        usePlayerStore.getState().togglePlay();
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
+      listen('media-next', () => {
+        usePlayerStore.getState().nextTrack();
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
       });
     }
 
@@ -289,9 +308,7 @@ export const App: React.FC = () => {
       window.removeEventListener('drop', handleGlobalDrag, false);
       window.removeEventListener('scroll', handleScroll, { capture: true });
       clearTimeout(scrollTimeout);
-      if (unlisten) {
-        unlisten();
-      }
+      unlistens.forEach((fn) => fn());
     };
   }, []);
 

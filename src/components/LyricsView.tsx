@@ -2248,23 +2248,23 @@ export const LyricsView: React.FC = () => {
           {currentTrack && (
             <div className="h-full w-full min-w-0 flex flex-col justify-center items-center px-8 lg:px-14 shrink-0 my-auto">
               <div
-                className="relative rounded-3xl overflow-hidden shadow-2xl border border-white/15 shrink-0 w-[min(640px,94%)] max-h-[64vh] aspect-square select-none cursor-default"
+                className="relative rounded-[clamp(1rem,2vw,1.5rem)] overflow-hidden shadow-2xl border border-white/15 shrink-0 w-[clamp(240px,38vw,640px)] max-w-[min(94%,60vh)] aspect-square select-none cursor-default"
               >
                 {trackArt ? (
                   <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
-                    <Mic2 className="w-20 h-20" />
+                    <Mic2 className="w-[clamp(3rem,6vw,5rem)] h-[clamp(3rem,6vw,5rem)]" />
                   </div>
                 )}
               </div>
 
-              <div className="flex flex-col min-w-0 w-full mt-6 max-w-[640px]">
-                <span className="font-extrabold text-white text-3xl lg:text-4xl xl:text-5xl truncate drop-shadow-md">
+              <div className="flex flex-col min-w-0 w-full mt-[clamp(1rem,3vh,1.5rem)] max-w-[clamp(240px,38vw,640px)]">
+                <span className="font-extrabold text-white text-[clamp(1.5rem,3.5vw,3rem)] truncate drop-shadow-md leading-tight">
                   {currentTrack.title}
                 </span>
                 <span
-                  className="font-semibold text-zinc-300 text-base lg:text-xl truncate mt-1.5 cursor-pointer hover:underline hover:text-indigo-400"
+                  className="font-semibold text-zinc-300 text-[clamp(1rem,1.8vw,1.25rem)] truncate mt-1 cursor-pointer hover:underline hover:text-indigo-400"
                   onClick={() => {
                     if (currentTrack.artist && currentTrack.artist !== 'Unknown Artist') {
                       setShowLyricsFullscreen(false);
@@ -2276,7 +2276,7 @@ export const LyricsView: React.FC = () => {
                 </span>
                 {currentTrack.album && (
                   <span
-                    className="text-sm text-zinc-400 truncate mt-1 cursor-pointer hover:underline hover:text-indigo-400"
+                    className="text-[clamp(0.75rem,1.2vw,0.875rem)] text-zinc-400 truncate mt-1 cursor-pointer hover:underline hover:text-indigo-400"
                     onClick={() => {
                       if (currentTrack.album && currentTrack.album !== 'Unknown Album') {
                         setShowLyricsFullscreen(false);
@@ -2290,7 +2290,7 @@ export const LyricsView: React.FC = () => {
               </div>
 
               {/* Seekbar - ALWAYS VISIBLE */}
-              <div className="w-full max-w-[640px] flex items-center gap-3 text-xs font-mono text-zinc-400 mt-5">
+              <div className="w-full max-w-[clamp(240px,38vw,640px)] flex items-center gap-[clamp(0.5rem,1vw,0.75rem)] text-[clamp(0.65rem,1vw,0.75rem)] font-mono text-zinc-400 mt-[clamp(1rem,2.5vh,1.25rem)]">
                 <span>{formatTime(currentTime)}</span>
                 <div className="relative flex-1 flex items-center group cursor-pointer min-w-[90px]">
                   {isWavySeekbarEnabled ? (
@@ -2323,63 +2323,63 @@ export const LyricsView: React.FC = () => {
 
               {/* Fading Controls Container (Transport Buttons & Volume Slider) */}
               <div
-                className={`w-full max-w-[640px] flex flex-col transition-opacity duration-300 ${
+                className={`w-full max-w-[clamp(240px,38vw,640px)] flex flex-col transition-opacity duration-300 ${
                   controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
                 }`}
               >
                 {/* Transport Buttons & Volume Slider */}
-                <div className="w-full flex items-center justify-between mt-4 pt-3.5 border-t border-white/10">
-                  <div className="flex items-center gap-3 sm:gap-4">
+                <div className="w-full flex items-center justify-between mt-[clamp(0.5rem,1.5vh,1rem)] pt-[clamp(0.5rem,1.5vh,0.875rem)] border-t border-white/10">
+                  <div className="flex items-center gap-[clamp(0.25rem,1vw,1rem)]">
                     <button
                       onClick={toggleShuffle}
                       style={shuffleEnabled ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-                      className={`p-2.5 sm:p-3 rounded-2xl transition-colors hover:bg-white/10 ${
+                      className={`p-[clamp(0.4rem,1vw,0.75rem)] rounded-2xl transition-colors hover:bg-white/10 ${
                         shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
                       }`}
                       title="Shuffle"
                     >
-                      <Shuffle className="w-6 h-6" />
+                      <Shuffle className="w-[clamp(1.2rem,2vw,1.5rem)] h-[clamp(1.2rem,2vw,1.5rem)]" />
                     </button>
                     <button
                       onClick={previousTrack}
-                      className="p-2.5 sm:p-3 text-zinc-400 hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
+                      className="p-[clamp(0.4rem,1vw,0.75rem)] text-zinc-400 hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
                       title="Previous"
                     >
-                      <SkipBack className="w-7 h-7" />
+                      <SkipBack className="w-[clamp(1.5rem,2.5vw,1.75rem)] h-[clamp(1.5rem,2.5vw,1.75rem)]" />
                     </button>
                     <button
                       onClick={togglePlay}
                       style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-                      className="w-16 h-16 sm:w-18 sm:h-18 rounded-full text-white flex items-center justify-center shadow-2xl transition-transform active:scale-95 cursor-pointer shrink-0 hover:scale-105"
+                      className="w-[clamp(3rem,5.5vw,4.5rem)] h-[clamp(3rem,5.5vw,4.5rem)] rounded-full text-white flex items-center justify-center shadow-2xl transition-transform active:scale-95 cursor-pointer shrink-0 hover:scale-105"
                       title={isPlaying ? 'Pause' : 'Play'}
                     >
-                      {isPlaying ? <Pause className="w-8 h-8 fill-white" /> : <Play className="w-8 h-8 fill-white ml-0.5" />}
+                      {isPlaying ? <Pause className="w-[clamp(1.5rem,2.5vw,2rem)] h-[clamp(1.5rem,2.5vw,2rem)] fill-white" /> : <Play className="w-[clamp(1.5rem,2.5vw,2rem)] h-[clamp(1.5rem,2.5vw,2rem)] fill-white ml-[clamp(0.1rem,0.2vw,0.125rem)]" />}
                     </button>
                     <button
                       onClick={nextTrack}
-                      className="p-2.5 sm:p-3 text-zinc-400 hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
+                      className="p-[clamp(0.4rem,1vw,0.75rem)] text-zinc-400 hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
                       title="Next"
                     >
-                      <SkipForward className="w-7 h-7" />
+                      <SkipForward className="w-[clamp(1.5rem,2.5vw,1.75rem)] h-[clamp(1.5rem,2.5vw,1.75rem)]" />
                     </button>
                     <button
                       onClick={cycleRepeatMode}
                       style={repeatMode !== 'off' ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-                      className={`p-2.5 sm:p-3 rounded-2xl transition-colors hover:bg-white/10 ${
+                      className={`p-[clamp(0.4rem,1vw,0.75rem)] rounded-2xl transition-colors hover:bg-white/10 ${
                         repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
                       }`}
                       title="Repeat"
                     >
-                      <RepeatIcon className="w-6 h-6" />
+                      <RepeatIcon className="w-[clamp(1.2rem,2vw,1.5rem)] h-[clamp(1.2rem,2vw,1.5rem)]" />
                     </button>
                   </div>
-                  <div ref={volRefCallback} className="flex items-center gap-2 pl-3">
+                  <div ref={volRefCallback} className="flex items-center gap-[clamp(0.25rem,1vw,0.5rem)] pl-[clamp(0.25rem,1vw,0.75rem)]">
                     <button
                       onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
-                      className="text-zinc-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-xl"
+                      className="text-zinc-400 hover:text-white transition-colors p-[clamp(0.25rem,0.75vw,0.5rem)] hover:bg-white/10 rounded-xl"
                       title={volume > 0 ? 'Mute' : 'Unmute'}
                     >
-                      {volume > 0 ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6 text-rose-400" />}
+                      {volume > 0 ? <Volume2 className="w-[clamp(1.2rem,2vw,1.5rem)] h-[clamp(1.2rem,2vw,1.5rem)]" /> : <VolumeX className="w-[clamp(1.2rem,2vw,1.5rem)] h-[clamp(1.2rem,2vw,1.5rem)] text-rose-400" />}
                     </button>
                     <AudioSlider
                       value={volume}
@@ -2389,7 +2389,7 @@ export const LyricsView: React.FC = () => {
                       onChange={(val) => setVolume(val)}
                       formatTooltip={(val) => `${Math.round(val * 100)}%`}
                       size="md"
-                      className="w-32 sm:w-44 md:w-52"
+                      className="w-[clamp(4.5rem,10vw,13rem)]"
                     />
                   </div>
                 </div>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
+import { TrackProgressBar } from './player/TrackProgressBar';
 import { AudioSlider } from './AudioSlider';
-import { WavyAudioSlider } from './WavyAudioSlider';
 import {
   Play,
   Pause,
@@ -64,9 +64,6 @@ export const BottomBar: React.FC = () => {
   const togglePlay = usePlayerStore((s) => s.togglePlay);
   const nextTrack = usePlayerStore((s) => s.nextTrack);
   const previousTrack = usePlayerStore((s) => s.previousTrack);
-  const currentTime = usePlayerStore((s) => s.currentTime);
-  const duration = usePlayerStore((s) => s.duration);
-  const seek = usePlayerStore((s) => s.seek);
   const volume = usePlayerStore((s) => s.volume);
   const setVolume = usePlayerStore((s) => s.setVolume);
   const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
@@ -80,7 +77,6 @@ export const BottomBar: React.FC = () => {
   const toggleShuffle = usePlayerStore((s) => s.toggleShuffle);
   const repeatMode = usePlayerStore((s) => s.repeatMode);
   const cycleRepeatMode = usePlayerStore((s) => s.cycleRepeatMode);
-  const isWavySeekbarEnabled = usePlayerStore((s) => s.isWavySeekbarEnabled);
 
   const trackArt = useTrackArt(currentTrack);
 
@@ -125,18 +121,8 @@ export const BottomBar: React.FC = () => {
   const playNext = usePlayerStore((s) => s.playNext);
   const setInfoModalTrack = usePlayerStore((s) => s.setInfoModalTrack);
 
-  // Local drag state for butter-smooth seeking
-  const [dragSeekVal, setDragSeekVal] = useState<number | null>(null);
-
   // Ref for volume wheel scrolling
   const volContainerRef = useRef<HTMLDivElement>(null);
-
-  const formatTime = (secs: number) => {
-    if (!secs || isNaN(secs)) return '0:00';
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
 
   const handleMuteToggle = () => {
     if (isMuted) {
@@ -185,8 +171,6 @@ export const BottomBar: React.FC = () => {
   };
 
   const isLiked = currentTrack ? likedTrackIds.includes(currentTrack.id) : false;
-
-  const currentSeekDisplay = dragSeekVal !== null ? dragSeekVal : currentTime;
   const effectiveVol = isMuted ? 0 : volume;
 
   const RepeatIcon = repeatMode === 'one' ? Repeat1 : Repeat;
@@ -596,41 +580,9 @@ export const BottomBar: React.FC = () => {
           </button>
         </div>
 
-        {/* Seek Bar with Wavy or Material 3 Slider */}
-        <div className="w-full flex items-center gap-3 text-xs font-mono text-zinc-400">
-          <span>{formatTime(currentSeekDisplay)}</span>
-          {isWavySeekbarEnabled ? (
-            <WavyAudioSlider
-              value={currentSeekDisplay}
-              min={0}
-              max={duration || 100}
-              step={0.1}
-              onChange={(val) => setDragSeekVal(val)}
-              onChangeCommitted={(val) => {
-                seek(val);
-                setDragSeekVal(null);
-              }}
-              formatTooltip={(val) => formatTime(val)}
-              className="flex-1"
-              active={!isLyricsActive}
-            />
-          ) : (
-            <AudioSlider
-              value={currentSeekDisplay}
-              min={0}
-              max={duration || 100}
-              step={0.1}
-              onChange={(val) => setDragSeekVal(val)}
-              onChangeCommitted={(val) => {
-                seek(val);
-                setDragSeekVal(null);
-              }}
-              formatTooltip={(val) => formatTime(val)}
-              className="flex-1"
-            />
-          )}
-          <span>{formatTime(duration)}</span>
-        </div>
+        {/* Seek Bar with Isolated High-Frequency Rerenders */}
+        <TrackProgressBar isLyricsActive={isLyricsActive} />
+
       </div>
 
       {/* 3. Volume & Extra Controls (Right - Responsive & Auto-Shrinking) */}

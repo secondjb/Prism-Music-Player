@@ -1,29 +1,59 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo, useDeferredValue, lazy, Suspense } from 'react';
 import { usePlayerStore, getEffectiveReplayGain } from './store/usePlayerStore';
 import { Track } from './types/player';
 import { useTrackArt } from './utils/useTrackArt';
+import { useAudioPlayback } from './hooks/useAudioPlayback';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { TrackList } from './components/TrackList';
-import { AlbumGrid } from './components/AlbumGrid';
-import { ArtistsGrid } from './components/ArtistsGrid';
-import { ArtistView } from './components/ArtistView';
-import { AlbumView } from './components/AlbumView';
-import { SettingsView } from './components/SettingsView';
-import { PlaylistView } from './components/PlaylistView';
 import { BottomBar } from './components/BottomBar';
 import { LyricsView } from './components/LyricsView';
 import { QueueDrawer } from './components/QueueDrawer';
-import { SongInfoModal } from './components/SongInfoModal';
-import { LinkTrackModal } from './components/LinkTrackModal';
-import { FilterView } from './components/FilterView';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { logListeningEvent } from './utils/stats';
-import { StatsView } from './components/StatsView';
 import { updateLogoGradientFromImage } from './utils/colorExtractor';
 
+// Code-split heavy views & modals for instant initial bundle loading
+const SettingsView = lazy(() =>
+  import('./components/SettingsView').then((m) => ({ default: m.SettingsView }))
+);
+const StatsView = lazy(() =>
+  import('./components/StatsView').then((m) => ({ default: m.StatsView }))
+);
+const FilterView = lazy(() =>
+  import('./components/FilterView').then((m) => ({ default: m.FilterView }))
+);
+const SongInfoModal = lazy(() =>
+  import('./components/SongInfoModal').then((m) => ({ default: m.SongInfoModal }))
+);
+const LinkTrackModal = lazy(() =>
+  import('./components/LinkTrackModal').then((m) => ({ default: m.LinkTrackModal }))
+);
+const PlaylistView = lazy(() =>
+  import('./components/PlaylistView').then((m) => ({ default: m.PlaylistView }))
+);
+const AlbumGrid = lazy(() =>
+  import('./components/AlbumGrid').then((m) => ({ default: m.AlbumGrid }))
+);
+const ArtistsGrid = lazy(() =>
+  import('./components/ArtistsGrid').then((m) => ({ default: m.ArtistsGrid }))
+);
+const ArtistView = lazy(() =>
+  import('./components/ArtistView').then((m) => ({ default: m.ArtistView }))
+);
+const AlbumView = lazy(() =>
+  import('./components/AlbumView').then((m) => ({ default: m.AlbumView }))
+);
+
+const ViewSuspenseFallback: React.FC = () => (
+  <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
+    <div className="w-5 h-5 border-2 border-zinc-500 border-t-transparent rounded-full animate-spin mr-2.5" />
+    <span>Loading...</span>
+  </div>
+);
+
 export const App: React.FC = () => {
+  // Low-frequency subscriptions
   const tracks = usePlayerStore((s) => s.tracks);
   const setTracks = usePlayerStore((s) => s.setTracks);
   const activeTab = usePlayerStore((s) => s.activeTab);
@@ -34,9 +64,7 @@ export const App: React.FC = () => {
   const showLyricsFullscreen = usePlayerStore((s) => s.showLyricsFullscreen);
   const isQueueOpen = usePlayerStore((s) => s.isQueueOpen);
   const infoModalTrack = usePlayerStore((s) => s.infoModalTrack);
-  const nextTrack = usePlayerStore((s) => s.nextTrack);
-  const sleepTimer = usePlayerStore((s) => s.sleepTimer);
-  const tickSleepTimerSecond = usePlayerStore((s) => s.tickSleepTimerSecond);
+  const isStatsCollectionEnabled = usePlayerStore((s) => s.isStatsCollectionEnabled);
 
   const silentAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -58,274 +86,8 @@ export const App: React.FC = () => {
     updateLogoGradientFromImage(trackArt || ambientArt);
   }, [trackArt, ambientArt]);
 
-  const isTransitioningRef = useRef(false);
-  const lastPosRef = useRef(-1);
-  const stallCountRef = useRef(0);
-
-  useEffect(() => {
-    isTransitioningRef.current = false;
-    lastPosRef.current = -1;
-    stallCountRef.current = 0;
-  }, [currentTrack?.id]);
-
-  // Continuous audio engine position polling & auto-advance (runs globally regardless of page/tab)
-  useEffect(() => {
-    if (!isPlaying || !window.__TAURI_INTERNALS__) return;
-    const pollInterval = (showLyricsFullscreen || activeTab === 'lyrics') ? 150 : 250;
-    const interval = setInterval(async () => {
-      try {
-        const res: any = await invoke('get_playback_position');
-        const pos = Array.isArray(res) ? res[0] : res;
-        const durFromRust = Array.isArray(res) ? res[1] : 0;
-        if (typeof pos === 'number' && !isNaN(pos) && pos >= 0) {
-          const state = usePlayerStore.getState();
-          const effectiveDur = durFromRust > 0 ? durFromRust : (state.currentTrack?.duration_secs || state.duration || 0);
-          
-          // CRITICAL OPTIMIZATION: Skip expensive React renders when app is minimized/hidden
-          if (!document.hidden) {
-            usePlayerStore.setState({
-              currentTime: pos,
-              ...(effectiveDur > 0 ? { duration: effectiveDur } : {})
-            });
-          }
-          
-          const dur = effectiveDur;
-          const rm = state.repeatMode;
-          const crossfade = state.crossfadeDuration || 0;
-
-          // Detect if playback position has stalled near the end of track (meaning audio stream reached EOF)
-          if (dur > 1 && pos >= dur - 1.5) {
-            if (lastPosRef.current >= 0 && Math.abs(pos - lastPosRef.current) < 0.03) {
-              stallCountRef.current += 1;
-            } else {
-              stallCountRef.current = 0;
-            }
-          } else {
-            stallCountRef.current = 0;
-          }
-          lastPosRef.current = pos;
-
-          const isTransition =
-            crossfade > 0 && dur > crossfade * 2
-              ? pos >= dur - crossfade
-              : dur > 0 && (pos >= dur - 0.04 || (pos >= dur - 0.5 && stallCountRef.current >= 4));
-
-          if (dur > 1 && pos > 0.5 && isTransition && !isTransitioningRef.current) {
-            isTransitioningRef.current = true;
-            setTimeout(() => {
-              isTransitioningRef.current = false;
-            }, 1000);
-            if (rm === 'one') {
-              usePlayerStore.getState().replayCurrentTrack();
-            } else {
-              nextTrack();
-            }
-          }
-        }
-      } catch (e) {
-        // Ignored
-      }
-    }, pollInterval);
-    return () => clearInterval(interval);
-  }, [isPlaying, nextTrack, showLyricsFullscreen, activeTab]);
-
-  // Sleep timer interval tick (runs globally)
-  useEffect(() => {
-    if (!sleepTimer.active || sleepTimer.mode !== 'time') return;
-    const interval = setInterval(() => {
-      tickSleepTimerSecond();
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [sleepTimer.active, sleepTimer.mode, tickSleepTimerSecond]);
-
-  // Sync MediaSession metadata & action handlers for Windows System Media Transport Controls (SMTC)
-  useEffect(() => {
-    if (window.__TAURI_INTERNALS__) {
-      if (currentTrack) {
-        invoke('update_media_controls_metadata', {
-          title: currentTrack.title,
-          artist: currentTrack.artist,
-          album: currentTrack.album || '',
-          durationSecs: currentTrack.duration_secs || null,
-        }).catch(() => {});
-      }
-      invoke('update_media_controls_playback', { isPlaying }).catch(() => {});
-      invoke('set_taskbar_playback_state', { isPlaying }).catch(() => {});
-    }
-
-    if (!('mediaSession' in navigator)) return;
-
-    if (currentTrack) {
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: currentTrack.title,
-        artist: currentTrack.artist,
-        album: currentTrack.album || '',
-        artwork: trackArt ? [{ src: trackArt, sizes: '512x512', type: 'image/png' }] : [],
-      });
-    } else {
-      navigator.mediaSession.metadata = null;
-    }
-
-    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-  }, [currentTrack, isPlaying, trackArt]);
-
-  useEffect(() => {
-    if (!('mediaSession' in navigator)) return;
-
-    const actionHandlers: [MediaSessionAction, MediaSessionActionHandler][] = [
-      ['play', () => usePlayerStore.getState().resume()],
-      ['pause', () => usePlayerStore.getState().pause()],
-      ['previoustrack', () => usePlayerStore.getState().previousTrack()],
-      ['nexttrack', () => usePlayerStore.getState().nextTrack()],
-      ['seekto', (details) => {
-        if (typeof details.seekTime === 'number') {
-          usePlayerStore.getState().seek(details.seekTime);
-        }
-      }],
-    ];
-
-    for (const [action, handler] of actionHandlers) {
-      try {
-        navigator.mediaSession.setActionHandler(action, handler);
-      } catch (e) {
-        // Action not supported
-      }
-    }
-
-    return () => {
-      for (const [action] of actionHandlers) {
-        try {
-          navigator.mediaSession.setActionHandler(action, null);
-        } catch (e) {
-          // Ignored
-        }
-      }
-    };
-  }, []);
-
-  // Global hardware & keyboard media shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
-        return;
-      }
-
-      if (e.code === 'Space' || e.key === ' ') {
-        e.preventDefault();
-        usePlayerStore.getState().togglePlay();
-      }
-    };
-
-    const handleContextMenu = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
-        return;
-      }
-      e.preventDefault();
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('contextmenu', handleContextMenu);
-
-    const handleGlobalDrag = (e: DragEvent) => {
-      e.preventDefault();
-    };
-    
-    // Tauri/WebView2 global drag interception fix
-    window.addEventListener('dragover', handleGlobalDrag, false);
-    window.addEventListener('drop', handleGlobalDrag, false);
-
-    const unlistens: (() => void)[] = [];
-    if (window.__TAURI_INTERNALS__) {
-      listen<string>('media-control', (event) => {
-        const store = usePlayerStore.getState();
-        switch (event.payload) {
-          case 'play':
-            store.resume();
-            break;
-          case 'pause':
-            if (store.isPlaying) {
-              store.pause();
-            } else {
-              store.resume();
-            }
-            break;
-          case 'toggle':
-            store.togglePlay();
-            break;
-          case 'next':
-            store.nextTrack();
-            break;
-          case 'previous':
-            store.previousTrack();
-            break;
-        }
-      }).then((unlistenFn) => {
-        unlistens.push(unlistenFn);
-      });
-
-      listen('media-prev', () => {
-        usePlayerStore.getState().previousTrack();
-      }).then((unlistenFn) => {
-        unlistens.push(unlistenFn);
-      });
-
-      listen('media-toggle', () => {
-        usePlayerStore.getState().togglePlay();
-      }).then((unlistenFn) => {
-        unlistens.push(unlistenFn);
-      });
-
-      listen('media-next', () => {
-        usePlayerStore.getState().nextTrack();
-      }).then((unlistenFn) => {
-        unlistens.push(unlistenFn);
-      });
-
-      listen('replaygain-scan-progress', (event: { payload: { current: number; total: number; path: string; replay_gain_db: number | null; replay_gain_peak: number | null; error: string | null; is_finished: boolean } }) => {
-        const { current, total, path, replay_gain_db, replay_gain_peak, is_finished } = event.payload;
-        usePlayerStore.getState().setReplayGainScanProgress({
-          current,
-          total,
-          path,
-          isFinished: is_finished,
-        });
-        if (replay_gain_db != null) {
-          usePlayerStore.getState().updateTrackReplayGain(path, replay_gain_db, replay_gain_peak);
-        }
-      }).then((unlistenFn) => {
-        unlistens.push(unlistenFn);
-      });
-    }
-
-    // Global active scroll detection for auto-hiding scrollbar pills
-    let scrollTimeout: any;
-    const handleScroll = (e: Event) => {
-      const target = e.target as HTMLElement;
-      if (target && target.classList) {
-        target.classList.add('is-scrolling');
-        const grid = target.closest('revo-grid');
-        if (grid) grid.classList.add('is-scrolling');
-        clearTimeout(scrollTimeout);
-        scrollTimeout = setTimeout(() => {
-          target.classList.remove('is-scrolling');
-          if (grid) grid.classList.remove('is-scrolling');
-        }, 1000);
-      }
-    };
-    window.addEventListener('scroll', handleScroll, { capture: true, passive: true });
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('contextmenu', handleContextMenu);
-      window.removeEventListener('dragover', handleGlobalDrag, false);
-      window.removeEventListener('drop', handleGlobalDrag, false);
-      window.removeEventListener('scroll', handleScroll, { capture: true });
-      clearTimeout(scrollTimeout);
-      unlistens.forEach((fn) => fn());
-    };
-  }, []);
+  // Centralized hardware, MediaSession, and playback lifecycle hook
+  useAudioPlayback({ trackArt: trackArt || ambientArt });
 
   // Load saved library.json and synchronize saved volume state on startup
   useEffect(() => {
@@ -408,15 +170,13 @@ export const App: React.FC = () => {
               }
             }
           } catch {}
-          
+
           // Restore playback state
           if (store.currentTrack) {
-            // Force pause state on startup for safety
             usePlayerStore.setState({ isPlaying: false });
-            // Pre-load track in rust backend and seek to saved time
-            await invoke('play_audio', { 
-              path: store.currentTrack.path, 
-              replayGainDb: getEffectiveReplayGain(store.currentTrack, store.replayGainMode, savedTracks) 
+            await invoke('play_audio', {
+              path: store.currentTrack.path,
+              replayGainDb: getEffectiveReplayGain(store.currentTrack, store.replayGainMode, savedTracks),
             });
             await invoke('pause_audio');
             if (store.currentTime > 0) {
@@ -424,12 +184,10 @@ export const App: React.FC = () => {
             }
           }
 
-          // Check for app updates if enabled
           if (store.autoCheckUpdates) {
             store.checkAppUpdate(false);
           }
 
-          // Pre-warm audio devices cache in background
           invoke('get_audio_output_details', { forceRefresh: false }).catch(() => {});
         }
       } catch (e) {
@@ -437,12 +195,12 @@ export const App: React.FC = () => {
       }
     };
     initLoad();
-  }, []);
+  }, [setTracks]);
 
   // Filter tracks based on search query (metadata matches first, lyrics matches at the bottom)
-  const deferredSearchQuery = React.useDeferredValue(searchQuery);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
-  const filteredTracks = React.useMemo(() => {
+  const filteredTracks = useMemo(() => {
     if (!deferredSearchQuery || !deferredSearchQuery.trim()) {
       if (activeTab === 'liked') return tracks.filter((t) => likedTrackIds.includes(t.id));
       return tracks;
@@ -472,8 +230,6 @@ export const App: React.FC = () => {
     return [...metadataMatches, ...lyricsOnlyMatches];
   }, [tracks, deferredSearchQuery, activeTab, likedTrackIds]);
 
-  const isStatsCollectionEnabled = usePlayerStore((s) => s.isStatsCollectionEnabled);
-  
   const listeningMsRef = useRef(0);
   const currentTrackRef = useRef(currentTrack);
 
@@ -490,19 +246,16 @@ export const App: React.FC = () => {
 
   // Log listening event when current track changes if sufficient time was spent
   useEffect(() => {
-    if (currentTrackRef.current && currentTrackRef.current.id !== currentTrack?.id && isStatsCollectionEnabled) {
+    if (
+      currentTrackRef.current &&
+      currentTrackRef.current.id !== currentTrack?.id &&
+      isStatsCollectionEnabled
+    ) {
       const track = currentTrackRef.current;
       const ms = listeningMsRef.current;
-      // Log if listened for > 30s or > 50% of the song duration
       const threshold = Math.min(30000, (track.duration_secs * 1000) / 2);
       if (ms >= threshold && threshold > 0) {
-        logListeningEvent(
-          track.title,
-          track.artist,
-          track.album,
-          track.genre || null,
-          ms
-        );
+        logListeningEvent(track.title, track.artist, track.album, track.genre || null, ms);
       }
       listeningMsRef.current = 0;
     }
@@ -511,31 +264,66 @@ export const App: React.FC = () => {
 
   const renderContent = () => {
     if (infoModalTrack) {
-      return <SongInfoModal />;
+      return (
+        <Suspense fallback={<ViewSuspenseFallback />}>
+          <SongInfoModal />
+        </Suspense>
+      );
     }
     switch (activeTab) {
       case 'filter':
-        return <FilterView />;
+        return (
+          <Suspense fallback={<ViewSuspenseFallback />}>
+            <FilterView />
+          </Suspense>
+        );
       case 'settings':
-        return <SettingsView />;
+        return (
+          <Suspense fallback={<ViewSuspenseFallback />}>
+            <SettingsView />
+          </Suspense>
+        );
       case 'stats':
-        return <StatsView />;
+        return (
+          <Suspense fallback={<ViewSuspenseFallback />}>
+            <StatsView />
+          </Suspense>
+        );
       case 'albums':
-        return <AlbumGrid tracks={filteredTracks} />;
+        return (
+          <Suspense fallback={<ViewSuspenseFallback />}>
+            <AlbumGrid tracks={filteredTracks} />
+          </Suspense>
+        );
       case 'artists':
-        return <ArtistsGrid tracks={filteredTracks} />;
+        return (
+          <Suspense fallback={<ViewSuspenseFallback />}>
+            <ArtistsGrid tracks={filteredTracks} />
+          </Suspense>
+        );
       case 'artistView':
-        return <ArtistView />;
+        return (
+          <Suspense fallback={<ViewSuspenseFallback />}>
+            <ArtistView />
+          </Suspense>
+        );
       case 'albumView':
-        return <AlbumView />;
+        return (
+          <Suspense fallback={<ViewSuspenseFallback />}>
+            <AlbumView />
+          </Suspense>
+        );
       case 'playlists':
-        return <PlaylistView />;
+        return (
+          <Suspense fallback={<ViewSuspenseFallback />}>
+            <PlaylistView />
+          </Suspense>
+        );
       case 'lyrics':
         return null;
       default:
         return <TrackList tracks={filteredTracks} />;
     }
-
   };
 
   const isLyricsActive = showLyricsFullscreen || activeTab === 'lyrics';
@@ -553,7 +341,7 @@ export const App: React.FC = () => {
       {/* Dynamic Ambient Background Glows */}
       {!isLyricsActive && (
         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-          {(ambientArt || trackArt) ? (
+          {ambientArt || trackArt ? (
             <div
               className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] opacity-20 blur-[140px] transition-all duration-1000 bg-cover bg-center scale-110"
               style={{ backgroundImage: `url(${ambientArt || trackArt})` }}
@@ -563,13 +351,15 @@ export const App: React.FC = () => {
               <div
                 className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full blur-[140px] opacity-15 pointer-events-none transition-all duration-700"
                 style={{
-                  background: 'radial-gradient(circle, var(--color-stop-1, #6366F1), var(--color-stop-3, #EC4899), transparent 70%)',
+                  background:
+                    'radial-gradient(circle, var(--color-stop-1, #6366F1), var(--color-stop-3, #EC4899), transparent 70%)',
                 }}
               />
               <div
                 className="absolute top-1/3 -right-40 w-[600px] h-[600px] rounded-full blur-[150px] opacity-15 pointer-events-none transition-all duration-700"
                 style={{
-                  background: 'radial-gradient(circle, var(--color-stop-4, #D946EF), var(--color-stop-6, #818CF8), transparent 70%)',
+                  background:
+                    'radial-gradient(circle, var(--color-stop-4, #D946EF), var(--color-stop-6, #818CF8), transparent 70%)',
                 }}
               />
             </>
@@ -603,7 +393,9 @@ export const App: React.FC = () => {
       />
 
       {/* Link Track Modal */}
-      <LinkTrackModal />
+      <Suspense fallback={null}>
+        <LinkTrackModal />
+      </Suspense>
     </div>
   );
 };

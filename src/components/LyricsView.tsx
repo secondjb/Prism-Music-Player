@@ -76,15 +76,6 @@ const ANIMATION_OPTIONS = [
   { id: 'minimal_wave', name: 'Minimal Clean', desc: 'Low-latency clean opacity transitions' },
 ] as const;
 
-const ROMANIZATION_OPTIONS = [
-  { id: 'below', name: 'Add Below Original', desc: 'Display romanization underneath original script' },
-  { id: 'replace', name: 'Replace Original', desc: 'Replace original script with romanized text' },
-] as const;
-
-const TRANSLATION_OPTIONS = [
-  { id: 'below', name: 'Add Below Original', desc: 'Display translation underneath original lyrics' },
-  { id: 'replace', name: 'Replace Original', desc: 'Replace original lyrics with translated text' },
-] as const;
 
 interface LyricLineRowProps {
   line: ParsedLyricLine;
@@ -770,6 +761,7 @@ export const LyricsView: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isEmbedding, setIsEmbedding] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'atmosphere' | 'typography' | 'sync'>('atmosphere');
   const [controlsVisible, setControlsVisible] = useState(true);
   const [artExpanded, setArtExpanded] = useState(false);
   const [isUserScrolled, setIsUserScrolled] = useState(false);
@@ -1545,6 +1537,28 @@ export const LyricsView: React.FC = () => {
   const isUnsynced = lines.length > 0 && lines[0].startSecs === -1;
   const isWordSynced = hasExplicitWordSync(lines);
 
+  const handleRomanizationChange = (state: 'off' | 'below' | 'replace') => {
+    if (state === 'off') {
+      if (isRomanizationEnabled) toggleRomanization();
+    } else {
+      if (!isRomanizationEnabled) toggleRomanization();
+      setRomanizationMode(state);
+    }
+  };
+
+  const currentRomanizationState = !isRomanizationEnabled ? 'off' : romanizationMode;
+
+  const handleTranslationChange = (state: 'off' | 'below' | 'replace') => {
+    if (state === 'off') {
+      if (isTranslationEnabled) toggleTranslation();
+    } else {
+      if (!isTranslationEnabled) toggleTranslation();
+      setTranslationMode(state);
+    }
+  };
+
+  const currentTranslationState = !isTranslationEnabled ? 'off' : translationMode;
+
   return (
     <div
       className="fixed inset-0 z-50 bg-[#09090b] flex flex-col justify-between p-8 overflow-hidden select-none"
@@ -1790,453 +1804,512 @@ export const LyricsView: React.FC = () => {
             initial={{ opacity: 0, scale: 0.95, y: -10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -10 }}
-            className="absolute right-8 top-20 w-80 max-h-[80vh] overflow-y-auto custom-scrollbar glass-panel border border-white/15 rounded-2xl shadow-2xl p-4.5 z-50 flex flex-col gap-3 text-xs text-zinc-200"
+            className="absolute right-8 top-20 w-[340px] max-h-[82vh] overflow-y-auto custom-scrollbar glass-panel border border-white/15 rounded-2xl shadow-2xl p-4.5 z-50 flex flex-col gap-3.5 text-xs text-zinc-200"
           >
-            <div className="flex items-center justify-between border-b border-white/10 pb-2">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
               <h4 className="text-sm font-bold text-white flex items-center gap-2">
                 <Settings2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                 Lyrics & Visual Settings
               </h4>
               <button
                 onClick={() => setShowSettings(false)}
-                className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-white/10"
+                className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* --- SECTION 1: LYRICS & TYPOGRAPHY --- */}
-            <div className="flex flex-col gap-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Lyrics & Typography</span>
+            {/* Tab Navigation Pills */}
+            <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
+              <button
+                onClick={() => setSettingsTab('atmosphere')}
+                className={`flex-1 py-1 px-1.5 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  settingsTab === 'atmosphere'
+                    ? 'text-white shadow-md'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+                style={settingsTab === 'atmosphere' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+              >
+                <Palette className="w-3 h-3" />
+                <span>Atmosphere</span>
+              </button>
+              <button
+                onClick={() => setSettingsTab('typography')}
+                className={`flex-1 py-1 px-1.5 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  settingsTab === 'typography'
+                    ? 'text-white shadow-md'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+                style={settingsTab === 'typography' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+              >
+                <TypeIcon className="w-3 h-3" />
+                <span>Typography</span>
+              </button>
+              <button
+                onClick={() => setSettingsTab('sync')}
+                className={`flex-1 py-1 px-1.5 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  settingsTab === 'sync'
+                    ? 'text-white shadow-md'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+                style={settingsTab === 'sync' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+              >
+                <Languages className="w-3 h-3" />
+                <span>Sync & Lang</span>
+              </button>
+            </div>
 
-              {/* Animation Style Selector */}
-              <M3Selector
-                label="Lyric Animation Style"
-                icon={<Activity className="w-3.5 h-3.5" />}
-                value={lyricsAnimationStyle}
-                onChange={(val) => setLyricsAnimationStyle(val as any)}
-                options={ANIMATION_OPTIONS}
-              />
+            {/* TAB 1: ATMOSPHERE */}
+            {settingsTab === 'atmosphere' && (
+              <div className="flex flex-col gap-3">
+                <M3Selector
+                  label="Background Theme"
+                  icon={<Palette className="w-3.5 h-3.5" />}
+                  value={backgroundType}
+                  onChange={(val) => setBackgroundType(val as any)}
+                  options={BACKGROUND_OPTIONS}
+                />
 
-              {/* Font Family Selector */}
-              <M3Selector
-                label="Lyrics Typography & Font"
-                icon={<TypeIcon className="w-3.5 h-3.5" />}
-                value={lyricsFontFamily}
-                onChange={(val) => setLyricsFontFamily(val)}
-                options={FONT_OPTIONS}
-              />
+                {/* Custom Photo Wallpaper */}
+                {backgroundType === 'custom_photo' && (
+                  <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-white/5 border border-white/5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-zinc-300 font-medium">Custom Photo</span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const selected = await open({
+                              multiple: false,
+                              filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'] }],
+                            });
+                            if (selected && typeof selected === 'string') {
+                              const assetUrl = window.__TAURI_INTERNALS__ ? convertFileSrc(selected) : selected;
+                              setCustomBgPath(assetUrl);
+                            }
+                          } catch (e) {
+                            console.warn('Pick background image error:', e);
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-white text-[10px] font-semibold shadow-sm cursor-pointer"
+                        style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+                      >
+                        Choose Image...
+                      </button>
+                    </div>
+                    {customBgPath && (
+                      <span className="text-[10px] text-zinc-500 truncate">{customBgPath}</span>
+                    )}
+                  </div>
+                )}
 
-              {/* Romanization Mode Selector */}
-              <M3Selector
-                label="Romanization Mode"
-                icon={<Languages className="w-3.5 h-3.5" />}
-                value={romanizationMode}
-                onChange={(val) => setRomanizationMode(val as any)}
-                options={ROMANIZATION_OPTIONS}
-              />
+                {/* Solid Color Tint */}
+                {backgroundType === 'solid_color' && (
+                  <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-white/5 border border-white/5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-zinc-300 font-medium">Color Tint</span>
+                      <input
+                        type="color"
+                        value={customBgColor}
+                        onChange={(e) => setCustomBgColor(e.target.value)}
+                        className="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-0"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {['#09090b', '#0f172a', '#18181b', '#1e1b4b', '#311042', '#064e3b'].map((hex) => (
+                        <button
+                          key={hex}
+                          type="button"
+                          onClick={() => setCustomBgColor(hex)}
+                          className={`w-5 h-5 rounded-full border transition-transform ${
+                            customBgColor.toLowerCase() === hex ? 'scale-125 border-white' : 'border-white/20 hover:scale-110'
+                          }`}
+                          style={{ backgroundColor: hex }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-              {/* Translation Mode Selector */}
-              <M3Selector
-                label="Translation Mode"
-                icon={<Globe className="w-3.5 h-3.5" />}
-                value={translationMode}
-                onChange={(val) => setTranslationMode(val as any)}
-                options={TRANSLATION_OPTIONS}
-              />
+                {/* Blur & Dim Sliders */}
+                {(backgroundType === 'album_art_blur' || backgroundType === 'custom_photo') && (
+                  <div className="flex flex-col gap-2.5 p-2.5 rounded-xl bg-white/5 border border-white/5">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between text-[11px] text-zinc-300">
+                        <span>Blur Amount</span>
+                        <span className="font-mono">{bgBlurAmount}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={2}
+                        value={bgBlurAmount}
+                        onChange={(e) => setBgBlurAmount(parseInt(e.target.value, 10))}
+                        className="w-full h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                      />
+                    </div>
 
-              {/* Lyrics Size Presets */}
-              <div className="flex flex-col gap-1.5 pt-1">
-                <span className="text-zinc-300 font-semibold text-xs">Lyrics Size Preset</span>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {(['normal', 'balanced', 'large', 'maximum'] as const).map((preset) => (
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between text-[11px] text-zinc-300">
+                        <span>Dim Tint Overlay</span>
+                        <span className="font-mono">{Math.round(bgDimOpacity * 100)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={0.9}
+                        step={0.05}
+                        value={bgDimOpacity}
+                        onChange={(e) => setBgDimOpacity(parseFloat(e.target.value))}
+                        className="w-full h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Lyrics Layout Mode */}
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <span className="text-zinc-300 font-semibold text-xs">Screen Layout</span>
+                  <div className="grid grid-cols-2 gap-1.5">
                     <button
-                      key={preset}
-                      onClick={() => setLyricsFontSizePreset(preset)}
-                      className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold capitalize transition-all ${
-                        lyricsFontSizePreset === preset
+                      onClick={() => setLyricsLayoutMode('centered')}
+                      className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold transition-all cursor-pointer ${
+                        lyricsLayoutMode === 'centered'
                           ? 'text-white shadow-md'
                           : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
                       }`}
-                      style={
-                        lyricsFontSizePreset === preset
-                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
-                          : undefined
-                      }
+                      style={lyricsLayoutMode === 'centered' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
                     >
-                      {preset === 'maximum' ? 'Max Space' : preset}
+                      Centered Focus
                     </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Manual Font Size Slider */}
-              <div className="flex flex-col gap-1.5">
-                <div className="flex justify-between text-xs text-zinc-300">
-                  <span>Manual Font Size</span>
-                  <span className="font-mono font-bold" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
-                    {Math.round(activeFontSize)}px
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={18}
-                  max={150}
-                  step={1}
-                  value={activeFontSize}
-                  onChange={(e) => {
-                    setLyricsFontSizePreset('manual');
-                    setLyricsFontSize(parseInt(e.target.value, 10));
-                  }}
-                  style={{
-                    background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${
-                      ((activeFontSize - 18) / (150 - 18)) * 100
-                    }%, #27272a ${((activeFontSize - 18) / (150 - 18)) * 100}%)`,
-                  }}
-                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
-                />
-              </div>
-
-              {/* Prefer Word-Synced Online Lyrics */}
-              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                <div className="flex flex-col pr-2">
-                  <span className="text-white font-medium text-xs">Prefer Word/Syllable Sync</span>
-                  <span className="text-[10px] text-zinc-400">Query rich syllable & word-level timing</span>
-                </div>
-                <Checkbox
-                  checked={preferWordSyncedLyrics}
-                  onChange={togglePreferWordSyncedLyrics}
-                  size="small"
-                  sx={{
-                    color: 'var(--color-stop-1, #6366f1)',
-                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                    p: 0.5,
-                  }}
-                />
-              </div>
-
-              {/* Infer Word-by-Word Sync */}
-              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                <div className="flex flex-col pr-2">
-                  <span className="text-white font-medium text-xs">Infer Word-by-Word Sync</span>
-                  <span className="text-[10px] text-zinc-400">Estimate word timing for standard LRC</span>
-                </div>
-                <Checkbox
-                  checked={inferWordSyncedLyrics}
-                  onChange={toggleInferWordSyncedLyrics}
-                  size="small"
-                  sx={{
-                    color: 'var(--color-stop-1, #6366f1)',
-                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                    p: 0.5,
-                  }}
-                />
-              </div>
-
-              {/* Lyric Translation Toggle */}
-              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                <div className="flex flex-col pr-2">
-                  <span className="text-white font-medium text-xs">Lyric Translation</span>
-                  <span className="text-[10px] text-zinc-400">Translate lyrics & word timestamps to English</span>
-                </div>
-                <Checkbox
-                  checked={isTranslationEnabled}
-                  onChange={toggleTranslation}
-                  size="small"
-                  sx={{
-                    color: 'var(--color-stop-1, #6366f1)',
-                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                    p: 0.5,
-                  }}
-                />
-              </div>
-
-              {/* Auto-fetch Online Lyrics */}
-              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                <div className="flex flex-col pr-2">
-                  <span className="text-white font-medium text-xs">Auto-fetch Online Lyrics</span>
-                  <span className="text-[10px] text-zinc-400">Search online database on track load</span>
-                </div>
-                <Checkbox
-                  checked={lrclibAutoFetch}
-                  onChange={(e) => setLrclibAutoFetch(e.target.checked)}
-                  size="small"
-                  sx={{
-                    color: 'var(--color-stop-1, #6366f1)',
-                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                    p: 0.5,
-                  }}
-                />
-              </div>
-
-              {/* Prefer Online Lyrics */}
-              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                <div className="flex flex-col pr-2">
-                  <span className="text-white font-medium text-xs">Prefer Online Over Embedded</span>
-                  <span className="text-[10px] text-zinc-400">Prioritize online synced lyrics</span>
-                </div>
-                <Checkbox
-                  checked={preferOnlineLyrics}
-                  onChange={(e) => setPreferOnlineLyrics(e.target.checked)}
-                  size="small"
-                  sx={{
-                    color: 'var(--color-stop-1, #6366f1)',
-                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                    p: 0.5,
-                  }}
-                />
-              </div>
-
-              {/* Auto-Embed Synced Lyrics */}
-              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                <div className="flex flex-col pr-2">
-                  <span className="text-white font-medium text-xs">Auto-embed Lyrics to Audio</span>
-                  <span className="text-[10px] text-zinc-400">Save fetched lyrics directly to file tags</span>
-                </div>
-                <Checkbox
-                  checked={autoEmbedLyrics}
-                  onChange={toggleAutoEmbedLyrics}
-                  size="small"
-                  sx={{
-                    color: 'var(--color-stop-1, #6366f1)',
-                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                    p: 0.5,
-                  }}
-                />
-              </div>
-
-              <div className="flex flex-col gap-2 pt-1">
-                <button
-                  onClick={handleManualRefresh}
-                  style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-                  className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-                  Refresh Online Lyrics
-                </button>
-                
-                <button
-                  onClick={handleEmbedLyrics}
-                  disabled={isEmbedding || !rawLrc.trim()}
-                  style={{ backgroundColor: 'var(--color-stop-2, #818cf8)' }}
-                  className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Save className={`w-3.5 h-3.5 ${isEmbedding ? 'animate-pulse' : ''}`} />
-                  {isEmbedding ? 'Embedding...' : 'Embed Lyrics to File'}
-                </button>
-              </div>
-            </div>
-
-            {/* --- SECTION 2: PLAYER & VISUAL ELEMENTS --- */}
-            <div className="border-t border-white/10 my-1 pt-3 flex flex-col gap-2.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Player & Visuals</span>
-
-              {/* Wavy Seekbar Toggle */}
-              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                <div className="flex items-center gap-2.5 pr-2">
-                  <Waves className="w-4 h-4 shrink-0" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                  <div className="flex flex-col">
-                    <span className="text-white font-medium text-xs">Wavy Seekbar</span>
-                    <span className="text-[10px] text-zinc-400">Dynamic 3-layer frosted waveform</span>
-                  </div>
-                </div>
-                <Checkbox
-                  checked={isWavySeekbarEnabled}
-                  onChange={toggleWavySeekbar}
-                  size="small"
-                  sx={{
-                    color: 'var(--color-stop-1, #6366f1)',
-                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                    p: 0.5,
-                  }}
-                />
-              </div>
-
-              {/* Show Audio Bitrate & Frequency Specs */}
-              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                <div className="flex flex-col pr-2">
-                  <span className="text-white font-medium text-xs">Show Audio Specs Badge</span>
-                  <span className="text-[10px] text-zinc-400">Display FLAC kHz/bit depth badges</span>
-                </div>
-                <Checkbox
-                  checked={showAudioSpecs}
-                  onChange={toggleShowAudioSpecs}
-                  size="small"
-                  sx={{
-                    color: 'var(--color-stop-1, #6366f1)',
-                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                    p: 0.5,
-                  }}
-                />
-              </div>
-
-              {/* Auto-hide controls on idle */}
-              <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                <div className="flex flex-col pr-2">
-                  <span className="text-white font-medium text-xs">Auto-hide Controls on Idle</span>
-                  <span className="text-[10px] text-zinc-400">Fade out buttons during playback</span>
-                </div>
-                <Checkbox
-                  checked={autoHideLyricsControls}
-                  onChange={() => toggleAutoHideLyricsControls()}
-                  size="small"
-                  sx={{
-                    color: 'var(--color-stop-1, #6366f1)',
-                    '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                    p: 0.5,
-                  }}
-                />
-              </div>
-
-              {/* Lyrics Layout Mode Setting */}
-              <div className="flex flex-col gap-1.5 pt-1">
-                <span className="text-zinc-300 font-semibold text-xs">Lyrics Screen Layout</span>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    onClick={() => setLyricsLayoutMode('centered')}
-                    className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold transition-all ${
-                      lyricsLayoutMode === 'centered'
-                        ? 'text-white shadow-md'
-                        : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
-                    }`}
-                    style={
-                      lyricsLayoutMode === 'centered'
-                        ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
-                        : undefined
-                    }
-                  >
-                    Centered Focus
-                  </button>
-                  <button
-                    onClick={() => setLyricsLayoutMode('split')}
-                    className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold transition-all ${
-                      lyricsLayoutMode === 'split'
-                        ? 'text-white shadow-md'
-                        : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
-                    }`}
-                    style={
-                      lyricsLayoutMode === 'split'
-                        ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
-                        : undefined
-                    }
-                  >
-                    Side-by-Side Split
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* --- SECTION 3: BACKGROUND & ATMOSPHERE --- */}
-            <div className="border-t border-white/10 my-1 pt-3 flex flex-col gap-2.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Background Style</span>
-
-              {/* Background Mode Selector */}
-              <M3Selector
-                label="Lyrics Background Theme"
-                icon={<Palette className="w-3.5 h-3.5" />}
-                value={backgroundType}
-                onChange={(val) => setBackgroundType(val as any)}
-                options={BACKGROUND_OPTIONS}
-              />
-
-              {/* Custom Photo Wallpaper controls */}
-              {backgroundType === 'custom_photo' && (
-                <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-white/5 border border-white/5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] text-zinc-300 font-medium">Custom Photo</span>
                     <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          const selected = await open({
-                            multiple: false,
-                            filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'] }],
-                          });
-                          if (selected && typeof selected === 'string') {
-                            const assetUrl = window.__TAURI_INTERNALS__ ? convertFileSrc(selected) : selected;
-                            setCustomBgPath(assetUrl);
-                          }
-                        } catch (e) {
-                          console.warn('Pick background image error:', e);
-                        }
-                      }}
-                      className="px-2.5 py-1 rounded-lg text-white text-[10px] font-semibold shadow-sm cursor-pointer"
-                      style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+                      onClick={() => setLyricsLayoutMode('split')}
+                      className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold transition-all cursor-pointer ${
+                        lyricsLayoutMode === 'split'
+                          ? 'text-white shadow-md'
+                          : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
+                      }`}
+                      style={lyricsLayoutMode === 'split' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
                     >
-                      Choose Image...
+                      Side-by-Side Split
                     </button>
                   </div>
-                  {customBgPath && (
-                    <span className="text-[10px] text-zinc-500 truncate">{customBgPath}</span>
-                  )}
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* Solid Color Picker */}
-              {backgroundType === 'solid_color' && (
-                <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-white/5 border border-white/5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-zinc-300 font-medium">Color Tint</span>
-                    <input
-                      type="color"
-                      value={customBgColor}
-                      onChange={(e) => setCustomBgColor(e.target.value)}
-                      className="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-0"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {['#09090b', '#0f172a', '#18181b', '#1e1b4b', '#311042', '#064e3b'].map((hex) => (
+            {/* TAB 2: TYPOGRAPHY & ANIMATION */}
+            {settingsTab === 'typography' && (
+              <div className="flex flex-col gap-3">
+                <M3Selector
+                  label="Lyric Animation Style"
+                  icon={<Activity className="w-3.5 h-3.5" />}
+                  value={lyricsAnimationStyle}
+                  onChange={(val) => setLyricsAnimationStyle(val as any)}
+                  options={ANIMATION_OPTIONS}
+                />
+
+                <M3Selector
+                  label="Lyrics Typography & Font"
+                  icon={<TypeIcon className="w-3.5 h-3.5" />}
+                  value={lyricsFontFamily}
+                  onChange={(val) => setLyricsFontFamily(val)}
+                  options={FONT_OPTIONS}
+                />
+
+                {/* Lyrics Size Presets */}
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <span className="text-zinc-300 font-semibold text-xs">Lyrics Size Preset</span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(['normal', 'balanced', 'large', 'maximum'] as const).map((preset) => (
                       <button
-                        key={hex}
-                        type="button"
-                        onClick={() => setCustomBgColor(hex)}
-                        className={`w-5 h-5 rounded-full border transition-transform ${
-                          customBgColor.toLowerCase() === hex ? 'scale-125 border-white' : 'border-white/20 hover:scale-110'
+                        key={preset}
+                        onClick={() => setLyricsFontSizePreset(preset)}
+                        className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold capitalize transition-all cursor-pointer ${
+                          lyricsFontSizePreset === preset
+                            ? 'text-white shadow-md'
+                            : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
                         }`}
-                        style={{ backgroundColor: hex }}
-                      />
+                        style={lyricsFontSizePreset === preset ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                      >
+                        {preset === 'maximum' ? 'Max Space' : preset}
+                      </button>
                     ))}
                   </div>
                 </div>
-              )}
 
-              {/* Blur & Dim Sliders */}
-              {(backgroundType === 'album_art_blur' || backgroundType === 'custom_photo') && (
-                <div className="flex flex-col gap-2.5 p-2.5 rounded-xl bg-white/5 border border-white/5">
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between text-[11px] text-zinc-300">
-                      <span>Blur Amount</span>
-                      <span className="font-mono">{bgBlurAmount}px</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      step={2}
-                      value={bgBlurAmount}
-                      onChange={(e) => setBgBlurAmount(parseInt(e.target.value, 10))}
-                      className="w-full h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
+                {/* Manual Font Size Slider */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex justify-between text-xs text-zinc-300">
+                    <span>Manual Font Size</span>
+                    <span className="font-mono font-bold" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
+                      {Math.round(activeFontSize)}px
+                    </span>
                   </div>
+                  <input
+                    type="range"
+                    min={18}
+                    max={150}
+                    step={1}
+                    value={activeFontSize}
+                    onChange={(e) => {
+                      setLyricsFontSizePreset('manual');
+                      setLyricsFontSize(parseInt(e.target.value, 10));
+                    }}
+                    style={{
+                      background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${
+                        ((activeFontSize - 18) / (150 - 18)) * 100
+                      }%, #27272a ${((activeFontSize - 18) / (150 - 18)) * 100}%)`,
+                    }}
+                    className="w-full h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
+                  />
+                </div>
 
-                  <div className="flex flex-col gap-1">
-                    <div className="flex justify-between text-[11px] text-zinc-300">
-                      <span>Dim Tint Overlay</span>
-                      <span className="font-mono">{Math.round(bgDimOpacity * 100)}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={0.9}
-                      step={0.05}
-                      value={bgDimOpacity}
-                      onChange={(e) => setBgDimOpacity(parseFloat(e.target.value))}
-                      className="w-full h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
+                {/* Visual Checkboxes */}
+                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                  <div className="flex items-center gap-2 pr-2">
+                    <Waves className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                    <span className="text-white font-medium text-xs">Wavy Seekbar</span>
+                  </div>
+                  <Checkbox
+                    checked={isWavySeekbarEnabled}
+                    onChange={toggleWavySeekbar}
+                    size="small"
+                    sx={{
+                      color: 'var(--color-stop-1, #6366f1)',
+                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                      p: 0.5,
+                    }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                  <div className="flex flex-col pr-2">
+                    <span className="text-white font-medium text-xs">Audio Specs Badge</span>
+                    <span className="text-[10px] text-zinc-400">FLAC sample rate & bit depth</span>
+                  </div>
+                  <Checkbox
+                    checked={showAudioSpecs}
+                    onChange={toggleShowAudioSpecs}
+                    size="small"
+                    sx={{
+                      color: 'var(--color-stop-1, #6366f1)',
+                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                      p: 0.5,
+                    }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                  <div className="flex flex-col pr-2">
+                    <span className="text-white font-medium text-xs">Auto-hide Controls</span>
+                    <span className="text-[10px] text-zinc-400">Fade buttons during playback</span>
+                  </div>
+                  <Checkbox
+                    checked={autoHideLyricsControls}
+                    onChange={() => toggleAutoHideLyricsControls()}
+                    size="small"
+                    sx={{
+                      color: 'var(--color-stop-1, #6366f1)',
+                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                      p: 0.5,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: SYNC & LANGUAGES */}
+            {settingsTab === 'sync' && (
+              <div className="flex flex-col gap-3">
+                {/* 3-State Romanization */}
+                <div className="flex flex-col gap-1.5 p-2.5 rounded-xl bg-white/5 border border-white/5">
+                  <div className="flex items-center gap-2">
+                    <Languages className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                    <span className="text-white font-medium text-xs">Lyric Romanization</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
+                    <button
+                      onClick={() => handleRomanizationChange('off')}
+                      className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                        currentRomanizationState === 'off' ? 'text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                      style={currentRomanizationState === 'off' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                    >
+                      Off
+                    </button>
+                    <button
+                      onClick={() => handleRomanizationChange('below')}
+                      className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                        currentRomanizationState === 'below' ? 'text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                      style={currentRomanizationState === 'below' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                    >
+                      Below
+                    </button>
+                    <button
+                      onClick={() => handleRomanizationChange('replace')}
+                      className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                        currentRomanizationState === 'replace' ? 'text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                      style={currentRomanizationState === 'replace' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                    >
+                      Replace
+                    </button>
                   </div>
                 </div>
-              )}
-            </div>
+
+                {/* 3-State Translation */}
+                <div className="flex flex-col gap-1.5 p-2.5 rounded-xl bg-white/5 border border-white/5">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                    <span className="text-white font-medium text-xs">AI Translation</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
+                    <button
+                      onClick={() => handleTranslationChange('off')}
+                      className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                        currentTranslationState === 'off' ? 'text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                      style={currentTranslationState === 'off' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                    >
+                      Off
+                    </button>
+                    <button
+                      onClick={() => handleTranslationChange('below')}
+                      className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                        currentTranslationState === 'below' ? 'text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                      style={currentTranslationState === 'below' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                    >
+                      Below
+                    </button>
+                    <button
+                      onClick={() => handleTranslationChange('replace')}
+                      className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                        currentTranslationState === 'replace' ? 'text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                      style={currentTranslationState === 'replace' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                    >
+                      Replace
+                    </button>
+                  </div>
+                </div>
+
+                {/* Prefer Word Sync */}
+                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                  <div className="flex flex-col pr-2">
+                    <span className="text-white font-medium text-xs">Prefer Word/Syllable Sync</span>
+                    <span className="text-[10px] text-zinc-400">Query rich syllable timing</span>
+                  </div>
+                  <Checkbox
+                    checked={preferWordSyncedLyrics}
+                    onChange={togglePreferWordSyncedLyrics}
+                    size="small"
+                    sx={{
+                      color: 'var(--color-stop-1, #6366f1)',
+                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                      p: 0.5,
+                    }}
+                  />
+                </div>
+
+                {/* Infer Word-by-Word */}
+                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                  <div className="flex flex-col pr-2">
+                    <span className="text-white font-medium text-xs">Infer Word-by-Word Sync</span>
+                    <span className="text-[10px] text-zinc-400">Estimate word timing</span>
+                  </div>
+                  <Checkbox
+                    checked={inferWordSyncedLyrics}
+                    onChange={toggleInferWordSyncedLyrics}
+                    size="small"
+                    sx={{
+                      color: 'var(--color-stop-1, #6366f1)',
+                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                      p: 0.5,
+                    }}
+                  />
+                </div>
+
+                {/* Auto-fetch Online Lyrics */}
+                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                  <div className="flex flex-col pr-2">
+                    <span className="text-white font-medium text-xs">Auto-fetch Online Lyrics</span>
+                    <span className="text-[10px] text-zinc-400">Search online database</span>
+                  </div>
+                  <Checkbox
+                    checked={lrclibAutoFetch}
+                    onChange={(e) => setLrclibAutoFetch(e.target.checked)}
+                    size="small"
+                    sx={{
+                      color: 'var(--color-stop-1, #6366f1)',
+                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                      p: 0.5,
+                    }}
+                  />
+                </div>
+
+                {/* Prefer Online */}
+                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                  <div className="flex flex-col pr-2">
+                    <span className="text-white font-medium text-xs">Prefer Online Over Embedded</span>
+                    <span className="text-[10px] text-zinc-400">Prioritize online synced</span>
+                  </div>
+                  <Checkbox
+                    checked={preferOnlineLyrics}
+                    onChange={(e) => setPreferOnlineLyrics(e.target.checked)}
+                    size="small"
+                    sx={{
+                      color: 'var(--color-stop-1, #6366f1)',
+                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                      p: 0.5,
+                    }}
+                  />
+                </div>
+
+                {/* Auto Embed */}
+                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
+                  <div className="flex flex-col pr-2">
+                    <span className="text-white font-medium text-xs">Auto-embed to Audio</span>
+                    <span className="text-[10px] text-zinc-400">Save fetched lyrics to file</span>
+                  </div>
+                  <Checkbox
+                    checked={autoEmbedLyrics}
+                    onChange={toggleAutoEmbedLyrics}
+                    size="small"
+                    sx={{
+                      color: 'var(--color-stop-1, #6366f1)',
+                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                      p: 0.5,
+                    }}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <button
+                    onClick={handleManualRefresh}
+                    style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+                    className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                    Refresh Online Lyrics
+                  </button>
+                  
+                  <button
+                    onClick={handleEmbedLyrics}
+                    disabled={isEmbedding || !rawLrc.trim()}
+                    style={{ backgroundColor: 'var(--color-stop-2, #818cf8)' }}
+                    className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Save className={`w-3.5 h-3.5 ${isEmbedding ? 'animate-pulse' : ''}`} />
+                    {isEmbedding ? 'Embedding...' : 'Embed Lyrics to File'}
+                  </button>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

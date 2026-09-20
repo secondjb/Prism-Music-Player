@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useTrackArt } from '../utils/useTrackArt';
 import { AudioSlider } from './AudioSlider';
 import { WavyAudioSlider } from './WavyAudioSlider';
@@ -77,6 +78,399 @@ const ANIMATION_OPTIONS = [
 ] as const;
 
 
+const formatTime = (secs: number) => {
+  if (!secs || isNaN(secs)) return '0:00';
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+};
+
+interface LyricsSeekbarProps {
+  duration: number;
+  isWavySeekbarEnabled: boolean;
+  onSeek: (secs: number) => void;
+  className?: string;
+  active?: boolean;
+}
+
+const LyricsSeekbar = React.memo<LyricsSeekbarProps>(({
+  duration,
+  isWavySeekbarEnabled,
+  onSeek,
+  className = "w-full max-w-[clamp(240px,38vw,640px)] flex items-center gap-[clamp(0.5rem,1vw,0.75rem)] text-[clamp(0.65rem,1vw,0.75rem)] font-mono text-zinc-400 mt-[clamp(1rem,2.5vh,1.25rem)]",
+  active = true,
+}) => {
+  const currentTime = usePlayerStore((s) => s.currentTime);
+  return (
+    <div className={className}>
+      <span>{formatTime(currentTime)}</span>
+      <div className="relative flex-1 flex items-center group cursor-pointer min-w-[90px]">
+        {isWavySeekbarEnabled ? (
+          <WavyAudioSlider
+            value={currentTime}
+            min={0}
+            max={duration || 100}
+            step={0.1}
+            onChange={onSeek}
+            size="md"
+            className="flex-1"
+            formatTooltip={(val) => formatTime(val)}
+            active={active}
+          />
+        ) : (
+          <AudioSlider
+            value={currentTime}
+            min={0}
+            max={duration || 100}
+            step={0.1}
+            onChange={onSeek}
+            size="md"
+            className="flex-1"
+            formatTooltip={(val) => formatTime(val)}
+          />
+        )}
+      </div>
+      <span>{formatTime(duration)}</span>
+    </div>
+  );
+});
+
+interface SyllableItem {
+  syl: LyricSyllable;
+  sIdx: number;
+}
+
+interface WordGroup {
+  wordIndex: number;
+  syllables: SyllableItem[];
+  hasTrailingSpace: boolean;
+}
+
+const renderSyllableTransWords = (
+  transWords: string[],
+  wordDur: number,
+  line: ParsedLyricLine,
+  currentTimeMs: number,
+  isPast: boolean,
+  lyricsAnimationStyle: string
+) => {
+  return transWords.map((word, wIdx) => {
+    const sylStart = line.timeMs + wIdx * wordDur;
+    const sylEnd = sylStart + wordDur;
+    const isSylActive = currentTimeMs >= 0 && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
+    const isSylPast = isPast || (currentTimeMs >= 0 && currentTimeMs >= sylEnd);
+
+    let sylLift = 0;
+    let sylScale = 1;
+
+    if (isSylActive) {
+      switch (lyricsAnimationStyle) {
+        case 'karaoke_pulse':
+          sylLift = -4;
+          sylScale = 1.15;
+          break;
+        case 'card_pop':
+        case 'apple_zoom':
+          sylLift = -3.5;
+          sylScale = 1.12;
+          break;
+        case 'apple_fluid':
+        case 'lossless_glow':
+          sylLift = -2.5;
+          sylScale = 1.09;
+          break;
+        case 'kinetic_slide':
+          sylLift = -2;
+          sylScale = 1.07;
+          break;
+        case 'cinematic_blur':
+          sylLift = -1.5;
+          sylScale = 1.05;
+          break;
+        case 'minimal_wave':
+        default:
+          sylLift = 0;
+          sylScale = 1.02;
+          break;
+      }
+    }
+
+    return (
+      <span
+        key={`${line.id}-trans-syl-${wIdx}`}
+        className={`inline-block whitespace-nowrap transition-all duration-200 ease-out mr-[0.28em] ${
+          isSylActive ? 'drop-shadow-md' : ''
+        }`}
+        style={{
+          transform: `translateY(${sylLift}px) scale(${sylScale})`,
+          opacity: isSylActive ? 1 : isPast ? 0.45 : isSylPast ? 0.9 : 0.45,
+          color: isSylActive
+            ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, #ffffff)'
+            : isPast
+            ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 14%, rgba(255, 255, 255, 0.45))'
+            : isSylPast
+            ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, rgba(255, 255, 255, 0.92))'
+            : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 14%, rgba(255, 255, 255, 0.45))',
+          ...(isSylActive && lyricsAnimationStyle === 'lossless_glow'
+            ? {
+                textShadow:
+                  '0 0 12px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #818cf8)',
+              }
+            : undefined),
+        }}
+      >
+        {word}
+      </span>
+    );
+  });
+};
+
+const renderSyllableGroups = (
+  wordGroups: WordGroup[],
+  line: ParsedLyricLine,
+  currentTimeMs: number,
+  isPast: boolean,
+  lyricsAnimationStyle: string
+) => {
+  return wordGroups.map((group) => (
+    <span
+      key={`${line.id}-word-${group.wordIndex}`}
+      className={`inline-flex items-baseline whitespace-nowrap ${
+        group.hasTrailingSpace ? 'mr-[0.28em]' : ''
+      }`}
+    >
+      {group.syllables.map(({ syl, sIdx }) => {
+        const sylStart = syl.timeMs;
+        const sylEnd = syl.timeMs + syl.durationMs;
+        const isSylActive = currentTimeMs >= 0 && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
+        const isSylPast = isPast || (currentTimeMs >= 0 && currentTimeMs >= sylEnd);
+
+        let sylLift = 0;
+        let sylScale = 1;
+
+        if (isSylActive) {
+          switch (lyricsAnimationStyle) {
+            case 'karaoke_pulse':
+              sylLift = -4;
+              sylScale = 1.15;
+              break;
+            case 'card_pop':
+            case 'apple_zoom':
+              sylLift = -3.5;
+              sylScale = 1.12;
+              break;
+            case 'apple_fluid':
+            case 'lossless_glow':
+              sylLift = -2.5;
+              sylScale = 1.09;
+              break;
+            case 'kinetic_slide':
+              sylLift = -2;
+              sylScale = 1.07;
+              break;
+            case 'cinematic_blur':
+              sylLift = -1.5;
+              sylScale = 1.05;
+              break;
+            case 'minimal_wave':
+            default:
+              sylLift = 0;
+              sylScale = 1.02;
+              break;
+          }
+        }
+
+        return (
+          <span
+            key={`${line.id}-syl-${sIdx}`}
+            className={`inline-block transition-all duration-200 ease-out ${
+              isSylActive ? 'drop-shadow-md' : ''
+            }`}
+            style={{
+              transform: `translateY(${sylLift}px) scale(${sylScale})`,
+              opacity: isSylActive ? 1 : isPast ? 0.45 : isSylPast ? 0.9 : 0.45,
+              color: isSylActive
+                ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, #ffffff)'
+                : isPast
+                ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 14%, rgba(255, 255, 255, 0.45))'
+                : isSylPast
+                ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, rgba(255, 255, 255, 0.92))'
+                : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 14%, rgba(255, 255, 255, 0.45))',
+              ...(isSylActive && lyricsAnimationStyle === 'lossless_glow'
+                ? {
+                    textShadow:
+                      '0 0 12px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #818cf8)',
+                  }
+                : undefined),
+            }}
+          >
+            {syl.text}
+          </span>
+        );
+      })}
+    </span>
+  ));
+};
+
+const ActiveSyllableWords: React.FC<{
+  line: ParsedLyricLine;
+  showTrans: boolean;
+  translationMode: string;
+  wordGroups: WordGroup[];
+  lyricsAnimationStyle: string;
+  isPast: boolean;
+}> = ({ line, showTrans, translationMode, wordGroups, lyricsAnimationStyle, isPast }) => {
+  const currentTimeMs = usePlayerStore((s) => s.currentTime * 1000);
+  if (showTrans && translationMode === 'replace' && line.translation) {
+    const transWords = line.translation.trim().split(/\s+/).filter(Boolean);
+    const wordDur = line.durationMs / Math.max(1, transWords.length);
+    return <>{renderSyllableTransWords(transWords, wordDur, line, currentTimeMs, isPast, lyricsAnimationStyle)}</>;
+  }
+  return <>{renderSyllableGroups(wordGroups, line, currentTimeMs, isPast, lyricsAnimationStyle)}</>;
+};
+
+const StaticSyllableWords: React.FC<{
+  line: ParsedLyricLine;
+  showTrans: boolean;
+  translationMode: string;
+  wordGroups: WordGroup[];
+  lyricsAnimationStyle: string;
+  isPast: boolean;
+}> = ({ line, showTrans, translationMode, wordGroups, lyricsAnimationStyle, isPast }) => {
+  if (showTrans && translationMode === 'replace' && line.translation) {
+    const transWords = line.translation.trim().split(/\s+/).filter(Boolean);
+    const wordDur = line.durationMs / Math.max(1, transWords.length);
+    return <>{renderSyllableTransWords(transWords, wordDur, line, -1, isPast, lyricsAnimationStyle)}</>;
+  }
+  return <>{renderSyllableGroups(wordGroups, line, -1, isPast, lyricsAnimationStyle)}</>;
+};
+
+const renderSubRomGroups = (
+  wordGroups: WordGroup[],
+  line: ParsedLyricLine,
+  currentTimeMs: number,
+  isPast: boolean,
+  inactiveFontSize: number
+) => {
+  return wordGroups.map((group) => (
+    <span
+      key={`${line.id}-rom-word-${group.wordIndex}`}
+      className={`inline-flex items-baseline whitespace-nowrap ${
+        group.hasTrailingSpace ? 'mr-[0.28em]' : ''
+      }`}
+    >
+      {group.syllables.map(({ syl, sIdx }) => {
+        const sylStart = syl.timeMs;
+        const sylEnd = syl.timeMs + syl.durationMs;
+        const isSylActive = currentTimeMs >= 0 && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
+        const isSylPast = isPast || (currentTimeMs >= 0 && currentTimeMs >= sylEnd);
+        const romText = syl.romanizedText || syl.text;
+
+        return (
+          <span
+            key={`${line.id}-rom-${sIdx}`}
+            className="inline-block transition-all duration-150"
+            style={{
+              fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
+              color: isSylActive
+                ? '#ffffff'
+                : isPast
+                ? 'rgba(255, 255, 255, 0.45)'
+                : isSylPast
+                ? 'rgba(255, 255, 255, 0.85)'
+                : 'rgba(255, 255, 255, 0.45)',
+              fontWeight: isSylActive ? 700 : 400,
+              transform: isSylActive ? 'scale(1.06) translateY(-1px)' : 'scale(1)',
+              textShadow: isSylActive
+                ? '0 0 10px rgba(255, 255, 255, 0.6), 0 0 18px var(--color-stop-1, #6366f1)'
+                : undefined,
+            }}
+          >
+            {romText}
+          </span>
+        );
+      })}
+    </span>
+  ));
+};
+
+const ActiveSubRomWords: React.FC<{
+  line: ParsedLyricLine;
+  wordGroups: WordGroup[];
+  inactiveFontSize: number;
+  isPast: boolean;
+}> = ({ line, wordGroups, inactiveFontSize, isPast }) => {
+  const currentTimeMs = usePlayerStore((s) => s.currentTime * 1000);
+  return <>{renderSubRomGroups(wordGroups, line, currentTimeMs, isPast, inactiveFontSize)}</>;
+};
+
+const StaticSubRomWords: React.FC<{
+  line: ParsedLyricLine;
+  wordGroups: WordGroup[];
+  inactiveFontSize: number;
+  isPast: boolean;
+}> = ({ line, wordGroups, inactiveFontSize, isPast }) => {
+  return <>{renderSubRomGroups(wordGroups, line, -1, isPast, inactiveFontSize)}</>;
+};
+
+const renderSubTransWords = (
+  subTrans: string,
+  line: ParsedLyricLine,
+  currentTimeMs: number,
+  isPast: boolean,
+  inactiveFontSize: number
+) => {
+  const transWords = subTrans.trim().split(/\s+/).filter(Boolean);
+  const wordDur = line.durationMs / Math.max(1, transWords.length);
+  return transWords.map((word, wIdx) => {
+    const sylStart = line.timeMs + wIdx * wordDur;
+    const sylEnd = sylStart + wordDur;
+    const isSylActive = currentTimeMs >= 0 && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
+    const isSylPast = isPast || (currentTimeMs >= 0 && currentTimeMs >= sylEnd);
+
+    return (
+      <span
+        key={`${line.id}-trans-${wIdx}`}
+        className="inline-block whitespace-nowrap transition-all duration-150 mr-[0.28em]"
+        style={{
+          fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
+          color: isSylActive
+            ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, #ffffff)'
+            : isSylPast
+            ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, rgba(255, 255, 255, 0.85))'
+            : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.45))',
+          fontWeight: isSylActive ? 700 : 400,
+          transform: isSylActive ? 'scale(1.06) translateY(-1px)' : 'scale(1)',
+          textShadow: isSylActive
+            ? '0 0 10px rgba(255, 255, 255, 0.6), 0 0 18px var(--color-stop-1, #6366f1)'
+            : undefined,
+        }}
+      >
+        {word}
+      </span>
+    );
+  });
+};
+
+const ActiveSubTransWords: React.FC<{
+  line: ParsedLyricLine;
+  subTrans: string;
+  inactiveFontSize: number;
+  isPast: boolean;
+}> = ({ line, subTrans, inactiveFontSize, isPast }) => {
+  const currentTimeMs = usePlayerStore((s) => s.currentTime * 1000);
+  return <>{renderSubTransWords(subTrans, line, currentTimeMs, isPast, inactiveFontSize)}</>;
+};
+
+const StaticSubTransWords: React.FC<{
+  line: ParsedLyricLine;
+  subTrans: string;
+  inactiveFontSize: number;
+  isPast: boolean;
+}> = ({ line, subTrans, inactiveFontSize, isPast }) => {
+  return <>{renderSubTransWords(subTrans, line, -1, isPast, inactiveFontSize)}</>;
+};
+
 interface LyricLineRowProps {
   line: ParsedLyricLine;
   idx: number;
@@ -92,20 +486,8 @@ interface LyricLineRowProps {
   translationMode: string;
   activeFontSize: number;
   inactiveFontSize: number;
-  currentTimeMs: number;
   activeLineRef: React.Ref<HTMLDivElement> | null;
   onSeek: (secs: number) => void;
-}
-
-interface SyllableItem {
-  syl: LyricSyllable;
-  sIdx: number;
-}
-
-interface WordGroup {
-  wordIndex: number;
-  syllables: SyllableItem[];
-  hasTrailingSpace: boolean;
 }
 
 const LyricLineRow = React.memo<LyricLineRowProps>(
@@ -124,7 +506,6 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
     translationMode,
     activeFontSize,
     inactiveFontSize,
-    currentTimeMs,
     activeLineRef,
     onSeek,
   }) => {
@@ -335,164 +716,25 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
         {/* Granular Syllable / Word rendering with Jumping text */}
         {line.hasSyllables && !isUnsynced ? (
           <div className="inline-flex flex-wrap justify-center items-baseline text-center max-w-full">
-            {(() => {
-              if (showTrans && translationMode === 'replace' && line.translation) {
-                const transWords = line.translation.trim().split(/\s+/).filter(Boolean);
-                const wordDur = line.durationMs / Math.max(1, transWords.length);
-                return transWords.map((word, wIdx) => {
-                  const sylStart = line.timeMs + (wIdx * wordDur);
-                  const sylEnd = sylStart + wordDur;
-                  const isSylActive = isActive && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
-                  const isSylPast = isPast || (isActive && currentTimeMs >= sylEnd);
-
-                  let sylLift = 0;
-                  let sylScale = 1;
-
-                  if (isSylActive) {
-                    switch (lyricsAnimationStyle) {
-                      case 'karaoke_pulse':
-                        sylLift = -4;
-                        sylScale = 1.15;
-                        break;
-                      case 'card_pop':
-                      case 'apple_zoom':
-                        sylLift = -3.5;
-                        sylScale = 1.12;
-                        break;
-                      case 'apple_fluid':
-                      case 'lossless_glow':
-                        sylLift = -2.5;
-                        sylScale = 1.09;
-                        break;
-                      case 'kinetic_slide':
-                        sylLift = -2;
-                        sylScale = 1.07;
-                        break;
-                      case 'cinematic_blur':
-                        sylLift = -1.5;
-                        sylScale = 1.05;
-                        break;
-                      case 'minimal_wave':
-                      default:
-                        sylLift = 0;
-                        sylScale = 1.02;
-                        break;
-                    }
-                  }
-
-                    return (
-                      <span
-                        key={`${line.id}-trans-syl-${wIdx}`}
-                        className={`inline-block whitespace-nowrap transition-all duration-200 ease-out mr-[0.28em] ${
-                          isSylActive ? 'drop-shadow-md' : ''
-                        }`}
-                        style={{
-                          transform: `translateY(${sylLift}px) scale(${sylScale})`,
-                          opacity: isSylActive ? 1 : isPast ? 0.45 : isSylPast ? 0.9 : 0.45,
-                        color: isSylActive
-                          ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, #ffffff)'
-                          : isPast
-                          ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 14%, rgba(255, 255, 255, 0.45))'
-                          : isSylPast
-                          ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, rgba(255, 255, 255, 0.92))'
-                          : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 14%, rgba(255, 255, 255, 0.45))',
-                        ...(isSylActive && lyricsAnimationStyle === 'lossless_glow'
-                          ? {
-                              textShadow:
-                                '0 0 12px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #818cf8)',
-                            }
-                          : undefined),
-                      }}
-                    >
-                      {word}
-                    </span>
-                  );
-                });
-              }
-
-              return wordGroups.map((group) => (
-                <span
-                  key={`${line.id}-word-${group.wordIndex}`}
-                  className={`inline-flex items-baseline whitespace-nowrap ${
-                    group.hasTrailingSpace ? 'mr-[0.28em]' : ''
-                  }`}
-                >
-                  {group.syllables.map(({ syl, sIdx }) => {
-                    const sylStart = syl.timeMs;
-                    const sylEnd = syl.timeMs + syl.durationMs;
-                    const isSylActive = isActive && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
-                    const isSylPast = isPast || (isActive && currentTimeMs >= sylEnd);
-
-                    let sylLift = 0;
-                    let sylScale = 1;
-
-                    if (isSylActive) {
-                      switch (lyricsAnimationStyle) {
-                        case 'karaoke_pulse':
-                          sylLift = -4;
-                          sylScale = 1.15;
-                          break;
-                        case 'card_pop':
-                        case 'apple_zoom':
-                          sylLift = -3.5;
-                          sylScale = 1.12;
-                          break;
-                        case 'apple_fluid':
-                        case 'lossless_glow':
-                          sylLift = -2.5;
-                          sylScale = 1.09;
-                          break;
-                        case 'kinetic_slide':
-                          sylLift = -2;
-                          sylScale = 1.07;
-                          break;
-                        case 'cinematic_blur':
-                          sylLift = -1.5;
-                          sylScale = 1.05;
-                          break;
-                        case 'minimal_wave':
-                        default:
-                          sylLift = 0;
-                          sylScale = 1.02;
-                          break;
-                      }
-                    }
-
-                    const sylDisplayText =
-                      isRomanizationEnabled && romanizationMode === 'replace' && syl.romanizedText
-                        ? syl.romanizedText
-                        : syl.text;
-
-                    return (
-                      <span
-                        key={`${line.id}-syl-${sIdx}`}
-                        className={`inline-block transition-all duration-200 ease-out ${
-                          isSylActive
-                            ? 'text-white drop-shadow-md'
-                            : isPast
-                            ? 'text-white/45'
-                            : isSylPast
-                            ? 'text-white/90'
-                            : 'text-white/45'
-                        }`}
-                        style={{
-                          transform: `translateY(${sylLift}px) scale(${sylScale})`,
-                          opacity: isSylActive ? 1 : isPast ? 0.45 : isSylPast ? 0.9 : 0.45,
-                          ...(isSylActive && lyricsAnimationStyle === 'lossless_glow'
-                            ? {
-                                textShadow:
-                                  '0 0 12px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #818cf8)',
-                              }
-                            : undefined)
-                        }}
-                      >
-                        {sylDisplayText}
-                      </span>
-                    );
-                  })}
-                </span>
-              ));
-            })()}
+            {isActive ? (
+              <ActiveSyllableWords
+                line={line}
+                showTrans={showTrans}
+                translationMode={translationMode}
+                wordGroups={wordGroups}
+                lyricsAnimationStyle={lyricsAnimationStyle}
+                isPast={isPast}
+              />
+            ) : (
+              <StaticSyllableWords
+                line={line}
+                showTrans={showTrans}
+                translationMode={translationMode}
+                wordGroups={wordGroups}
+                lyricsAnimationStyle={lyricsAnimationStyle}
+                isPast={isPast}
+              />
+            )}
           </div>
         ) : (
           <div
@@ -524,46 +766,21 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
         {subRom && (
           line.hasSyllables && !isUnsynced ? (
             <div className="w-full flex flex-wrap justify-center items-center gap-1 font-mono mt-1.5 select-none text-center">
-              {wordGroups.map((group) => (
-                <span
-                  key={`${line.id}-rom-word-${group.wordIndex}`}
-                  className={`inline-flex items-baseline whitespace-nowrap ${
-                    group.hasTrailingSpace ? 'mr-[0.28em]' : ''
-                  }`}
-                >
-                  {group.syllables.map(({ syl, sIdx }) => {
-                    const sylStart = syl.timeMs;
-                    const sylEnd = syl.timeMs + syl.durationMs;
-                    const isSylActive = isActive && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
-                    const isSylPast = isPast || (isActive && currentTimeMs >= sylEnd);
-                    const romText = syl.romanizedText || syl.text;
-
-                    return (
-                      <span
-                        key={`${line.id}-rom-${sIdx}`}
-                        className="inline-block transition-all duration-150"
-                        style={{
-                          fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
-                          color: isSylActive
-                            ? '#ffffff'
-                            : isPast
-                            ? 'rgba(255, 255, 255, 0.45)'
-                            : isSylPast
-                            ? 'rgba(255, 255, 255, 0.85)'
-                            : 'rgba(255, 255, 255, 0.45)',
-                          fontWeight: isSylActive ? 700 : 400,
-                          transform: isSylActive ? 'scale(1.06) translateY(-1px)' : 'scale(1)',
-                          textShadow: isSylActive
-                            ? '0 0 10px rgba(255, 255, 255, 0.6), 0 0 18px var(--color-stop-1, #6366f1)'
-                            : undefined,
-                        }}
-                      >
-                        {romText}
-                      </span>
-                    );
-                  })}
-                </span>
-              ))}
+              {isActive ? (
+                <ActiveSubRomWords
+                  line={line}
+                  wordGroups={wordGroups}
+                  inactiveFontSize={inactiveFontSize}
+                  isPast={isPast}
+                />
+              ) : (
+                <StaticSubRomWords
+                  line={line}
+                  wordGroups={wordGroups}
+                  inactiveFontSize={inactiveFontSize}
+                  isPast={isPast}
+                />
+              )}
             </div>
           ) : (
             <div
@@ -582,38 +799,21 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
         {subTrans && (
           line.hasSyllables && !isUnsynced ? (
             <div className="w-full flex flex-wrap justify-center items-center gap-1 font-sans mt-1.5 select-none text-center">
-              {(() => {
-                const transWords = subTrans.trim().split(/\s+/).filter(Boolean);
-                const wordDur = line.durationMs / Math.max(1, transWords.length);
-                return transWords.map((word, wIdx) => {
-                  const sylStart = line.timeMs + (wIdx * wordDur);
-                  const sylEnd = sylStart + wordDur;
-                  const isSylActive = isActive && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
-                  const isSylPast = isPast || (isActive && currentTimeMs >= sylEnd);
-
-                  return (
-                    <span
-                      key={`${line.id}-trans-${wIdx}`}
-                      className="inline-block whitespace-nowrap transition-all duration-150 mr-[0.28em]"
-                      style={{
-                        fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
-                        color: isSylActive
-                          ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, #ffffff)'
-                          : isSylPast
-                          ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, rgba(255, 255, 255, 0.85))'
-                          : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.45))',
-                        fontWeight: isSylActive ? 700 : 400,
-                        transform: isSylActive ? 'scale(1.06) translateY(-1px)' : 'scale(1)',
-                        textShadow: isSylActive
-                          ? '0 0 10px rgba(255, 255, 255, 0.6), 0 0 18px var(--color-stop-1, #6366f1)'
-                          : undefined,
-                      }}
-                    >
-                      {word}
-                    </span>
-                  );
-                });
-              })()}
+              {isActive ? (
+                <ActiveSubTransWords
+                  line={line}
+                  subTrans={subTrans}
+                  inactiveFontSize={inactiveFontSize}
+                  isPast={isPast}
+                />
+              ) : (
+                <StaticSubTransWords
+                  line={line}
+                  subTrans={subTrans}
+                  inactiveFontSize={inactiveFontSize}
+                  isPast={isPast}
+                />
+              )}
             </div>
           ) : (
             <div
@@ -631,40 +831,20 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
     );
   },
   (prev, next) => {
-    if (
-      !prev.isActive &&
-      !next.isActive &&
+    return (
+      prev.isActive === next.isActive &&
       prev.isPast === next.isPast &&
       prev.distance === next.distance &&
       prev.activeFontSize === next.activeFontSize &&
       prev.inactiveFontSize === next.inactiveFontSize &&
       prev.lyricsAnimationStyle === next.lyricsAnimationStyle &&
+      prev.lyricsFontSizePreset === next.lyricsFontSizePreset &&
       prev.line === next.line &&
       prev.isRomanizationEnabled === next.isRomanizationEnabled &&
       prev.romanizationMode === next.romanizationMode &&
       prev.isTranslationEnabled === next.isTranslationEnabled &&
       prev.translationMode === next.translationMode
-    ) {
-      return true;
-    }
-    if (
-      prev.isActive &&
-      next.isActive &&
-      !next.line.hasSyllables &&
-      prev.isPast === next.isPast &&
-      prev.distance === next.distance &&
-      prev.activeFontSize === next.activeFontSize &&
-      prev.inactiveFontSize === next.inactiveFontSize &&
-      prev.lyricsAnimationStyle === next.lyricsAnimationStyle &&
-      prev.line === next.line &&
-      prev.isRomanizationEnabled === next.isRomanizationEnabled &&
-      prev.romanizationMode === next.romanizationMode &&
-      prev.isTranslationEnabled === next.isTranslationEnabled &&
-      prev.translationMode === next.translationMode
-    ) {
-      return true;
-    }
-    return false;
+    );
   }
 );
 
@@ -685,6 +865,74 @@ const getLineEndSecs = (line: ParsedLyricLine): number => {
   const estimatedSecs = Math.max(2.0, Math.min(line.durationSecs || 4.0, wordsCount * 0.55));
   return line.startSecs + estimatedSecs;
 };
+
+interface InterludeGap {
+  key: string;
+  startSecs: number;
+  endSecs: number;
+  insertIndex: number;
+}
+
+interface ActiveLyricState {
+  activeIndex: number;
+  activeLinesKey: string;
+  activeInterludeKey: string | null;
+  isCurrentLinePassed: boolean;
+}
+
+function computeActiveLyricState(
+  currentTime: number,
+  lines: ParsedLyricLine[],
+  interludeList: InterludeGap[]
+): ActiveLyricState {
+  const activeInterlude =
+    interludeList.find((item) => currentTime >= item.startSecs && currentTime < item.endSecs) || null;
+
+  let activeIndex = -1;
+  const activeLineIndices = new Set<number>();
+  let isCurrentLinePassed = false;
+
+  if (lines.length > 0 && lines[0].startSecs !== -1) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.startSecs <= currentTime) {
+        activeIndex = i;
+      }
+      let endSecs = getLineEndSecs(line);
+      const interludeAfter = interludeList.find((item) => item.insertIndex === i + 1);
+      if (interludeAfter) {
+        endSecs = Math.min(endSecs, interludeAfter.startSecs);
+      }
+      if (currentTime >= line.startSecs && currentTime < endSecs) {
+        activeLineIndices.add(i);
+      }
+    }
+
+    if (activeInterlude) {
+      activeLineIndices.clear();
+    } else if (activeLineIndices.size === 0 && activeIndex !== -1) {
+      const currentLine = lines[activeIndex];
+      const endSecs = getLineEndSecs(currentLine);
+      if (currentTime < endSecs + 1.2) {
+        activeLineIndices.add(activeIndex);
+      }
+    }
+
+    if (activeIndex >= 0) {
+      const curLine = lines[activeIndex];
+      isCurrentLinePassed = currentTime >= getLineEndSecs(curLine);
+    }
+  }
+
+  const activeLinesKey = Array.from(activeLineIndices).sort((a, b) => a - b).join(',');
+
+  return {
+    activeIndex,
+    activeLinesKey,
+    activeInterludeKey: activeInterlude?.key || null,
+    isCurrentLinePassed,
+  };
+}
 
 const LyricInterludeRow = InterludeIndicator;
 
@@ -726,11 +974,11 @@ export const LyricsView: React.FC = () => {
     }
   });
 
+  const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const duration = usePlayerStore((s) => s.duration);
+
   const {
-    currentTrack,
-    currentTime,
-    duration,
-    isPlaying,
     togglePlay,
     nextTrack,
     previousTrack,
@@ -788,7 +1036,67 @@ export const LyricsView: React.FC = () => {
     setBgBlurAmount,
     bgDimOpacity,
     setBgDimOpacity,
-  } = usePlayerStore();
+  } = usePlayerStore(
+    useShallow((s) => ({
+      togglePlay: s.togglePlay,
+      nextTrack: s.nextTrack,
+      previousTrack: s.previousTrack,
+      shuffleEnabled: s.shuffleEnabled,
+      toggleShuffle: s.toggleShuffle,
+      repeatMode: s.repeatMode,
+      cycleRepeatMode: s.cycleRepeatMode,
+      volume: s.volume,
+      setVolume: s.setVolume,
+      lrclibAutoFetch: s.lrclibAutoFetch,
+      setLrclibAutoFetch: s.setLrclibAutoFetch,
+      preferOnlineLyrics: s.preferOnlineLyrics,
+      setPreferOnlineLyrics: s.setPreferOnlineLyrics,
+      isRomanizationEnabled: s.isRomanizationEnabled,
+      romanizationMode: s.romanizationMode,
+      setRomanizationMode: s.setRomanizationMode,
+      toggleRomanization: s.toggleRomanization,
+      isTranslationEnabled: s.isTranslationEnabled,
+      translationMode: s.translationMode,
+      setTranslationMode: s.setTranslationMode,
+      toggleTranslation: s.toggleTranslation,
+      showAudioSpecs: s.showAudioSpecs,
+      toggleShowAudioSpecs: s.toggleShowAudioSpecs,
+      autoHideLyricsControls: s.autoHideLyricsControls,
+      toggleAutoHideLyricsControls: s.toggleAutoHideLyricsControls,
+      setShowLyricsFullscreen: s.setShowLyricsFullscreen,
+      activeTab: s.activeTab,
+      setActiveTab: s.setActiveTab,
+      seek: s.seek,
+      lyricsFontSizePreset: s.lyricsFontSizePreset,
+      setLyricsFontSizePreset: s.setLyricsFontSizePreset,
+      lyricsFontSize: s.lyricsFontSize,
+      setLyricsFontSize: s.setLyricsFontSize,
+      lyricsFontFamily: s.lyricsFontFamily,
+      setLyricsFontFamily: s.setLyricsFontFamily,
+      lyricsAnimationStyle: s.lyricsAnimationStyle,
+      setLyricsAnimationStyle: s.setLyricsAnimationStyle,
+      isWavySeekbarEnabled: s.isWavySeekbarEnabled,
+      toggleWavySeekbar: s.toggleWavySeekbar,
+      autoEmbedLyrics: s.autoEmbedLyrics,
+      toggleAutoEmbedLyrics: s.toggleAutoEmbedLyrics,
+      preferWordSyncedLyrics: s.preferWordSyncedLyrics,
+      togglePreferWordSyncedLyrics: s.togglePreferWordSyncedLyrics,
+      inferWordSyncedLyrics: s.inferWordSyncedLyrics,
+      toggleInferWordSyncedLyrics: s.toggleInferWordSyncedLyrics,
+      lyricsLayoutMode: s.lyricsLayoutMode,
+      setLyricsLayoutMode: s.setLyricsLayoutMode,
+      backgroundType: s.backgroundType,
+      setBackgroundType: s.setBackgroundType,
+      customBgPath: s.customBgPath,
+      setCustomBgPath: s.setCustomBgPath,
+      customBgColor: s.customBgColor,
+      setCustomBgColor: s.setCustomBgColor,
+      bgBlurAmount: s.bgBlurAmount,
+      setBgBlurAmount: s.setBgBlurAmount,
+      bgDimOpacity: s.bgDimOpacity,
+      setBgDimOpacity: s.setBgDimOpacity,
+    }))
+  );
 
   const trackArt = useTrackArt(currentTrack);
   const bgTrackArt = useTrackArt(currentTrack, { thumbnail: true, maxSize: 128 });
@@ -904,13 +1212,6 @@ export const LyricsView: React.FC = () => {
 
   const isCompact = windowWidth < 850;
 
-  interface InterludeGap {
-    key: string;
-    startSecs: number;
-    endSecs: number;
-    insertIndex: number;
-  }
-
   // Memoize interlude gaps (intro or >=5s pauses between lines without music notes/instrumental tags)
   const interludeList = useMemo<InterludeGap[]>(() => {
     if (lines.length === 0 || lines[0].startSecs === -1) return [];
@@ -948,40 +1249,21 @@ export const LyricsView: React.FC = () => {
     return interludes;
   }, [lines]);
 
-  const activeInterlude = interludeList.find(
-    (item) => currentTime >= item.startSecs && currentTime < item.endSecs
+  const activeLyricState = usePlayerStore(
+    useShallow((s) => computeActiveLyricState(s.currentTime, lines, interludeList))
   );
 
-  // Determine active line index and set of overlapping active lines (spoken at the same time)
-  let activeIndex = -1;
-  const activeLineIndices = new Set<number>();
+  const { activeIndex, activeLinesKey, activeInterludeKey, isCurrentLinePassed } = activeLyricState;
 
-  if (lines.length > 0 && lines[0].startSecs !== -1) {
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.startSecs <= currentTime) {
-        activeIndex = i;
-      }
-      let endSecs = getLineEndSecs(line);
-      const interludeAfter = interludeList.find((item) => item.insertIndex === i + 1);
-      if (interludeAfter) {
-        endSecs = Math.min(endSecs, interludeAfter.startSecs);
-      }
-      if (currentTime >= line.startSecs && currentTime < endSecs) {
-        activeLineIndices.add(i);
-      }
-    }
+  const activeLineIndices = useMemo(() => {
+    if (!activeLinesKey) return new Set<number>();
+    return new Set<number>(activeLinesKey.split(',').map(Number));
+  }, [activeLinesKey]);
 
-    if (activeInterlude) {
-      activeLineIndices.clear();
-    } else if (activeLineIndices.size === 0 && activeIndex !== -1) {
-      const currentLine = lines[activeIndex];
-      const endSecs = getLineEndSecs(currentLine);
-      if (currentTime < endSecs + 1.2) {
-        activeLineIndices.add(activeIndex);
-      }
-    }
-  }
+  const activeInterlude = useMemo(() => {
+    if (!activeInterludeKey) return null;
+    return interludeList.find((item) => item.key === activeInterludeKey) || null;
+  }, [activeInterludeKey, interludeList]);
 
   // Dynamic font size calculation for 'balanced' preset:
   // Dynamically calculates the optimal font size based on the current song's line lengths and wrapping,
@@ -1266,18 +1548,22 @@ export const LyricsView: React.FC = () => {
   const lastScrolledMaxLineRef = useRef<number>(-1);
   const lastScrolledInterludeRef = useRef<string | null>(null);
   const lastScrollTargetRef = useRef<number>(0);
-  const lastCurrentTimeRef = useRef<number>(currentTime);
 
   // Detect manual seeks or skips (time jumping backwards or skipping > 2.5s) and reset monotonic scroll clamp
   useEffect(() => {
-    const dt = currentTime - lastCurrentTimeRef.current;
-    if (dt < -0.5 || dt > 2.5) {
-      lastScrolledMaxLineRef.current = -1;
-      lastScrollTargetRef.current = 0;
-      lastScrolledInterludeRef.current = null;
-    }
-    lastCurrentTimeRef.current = currentTime;
-  }, [currentTime]);
+    let lastTime = usePlayerStore.getState().currentTime;
+    const unsub = usePlayerStore.subscribe((state) => {
+      const curTime = state.currentTime;
+      const dt = curTime - lastTime;
+      if (dt < -0.5 || dt > 2.5) {
+        lastScrolledMaxLineRef.current = -1;
+        lastScrollTargetRef.current = 0;
+        lastScrolledInterludeRef.current = null;
+      }
+      lastTime = curTime;
+    });
+    return unsub;
+  }, []);
 
   // When lines change or reload, reset scroll tracking
   useEffect(() => {
@@ -1286,8 +1572,6 @@ export const LyricsView: React.FC = () => {
     lastScrolledInterludeRef.current = null;
   }, [lines]);
 
-  // Stable key representing currently active lines
-  const activeLinesKey = Array.from(activeLineIndices).sort((a, b) => a - b).join(',');
 
   // The furthest active line index in forward playback
   const maxActiveLine = activeLineIndices.size > 0
@@ -1562,15 +1846,7 @@ export const LyricsView: React.FC = () => {
     }
   };
 
-  const formatTime = (secs: number) => {
-    if (!secs || isNaN(secs)) return '0:00';
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
-
   const RepeatIcon = repeatMode === 'one' ? Repeat1 : Repeat;
-  const currentTimeMs = currentTime * 1000;
   const isUnsynced = lines.length > 0 && lines[0].startSecs === -1;
   const isWordSynced = hasExplicitWordSync(lines);
 
@@ -2475,36 +2751,11 @@ export const LyricsView: React.FC = () => {
               </div>
 
               {/* Seekbar - ALWAYS VISIBLE */}
-              <div className="w-full max-w-[clamp(240px,38vw,640px)] flex items-center gap-[clamp(0.5rem,1vw,0.75rem)] text-[clamp(0.65rem,1vw,0.75rem)] font-mono text-zinc-400 mt-[clamp(1rem,2.5vh,1.25rem)]">
-                <span>{formatTime(currentTime)}</span>
-                <div className="relative flex-1 flex items-center group cursor-pointer min-w-[90px]">
-                  {isWavySeekbarEnabled ? (
-                    <WavyAudioSlider
-                      value={currentTime}
-                      min={0}
-                      max={duration || 100}
-                      step={0.1}
-                      onChange={handleSeek}
-                      size="md"
-                      className="flex-1"
-                      formatTooltip={(val) => formatTime(val)}
-                      active={true}
-                    />
-                  ) : (
-                    <AudioSlider
-                      value={currentTime}
-                      min={0}
-                      max={duration || 100}
-                      step={0.1}
-                      onChange={handleSeek}
-                      size="md"
-                      className="flex-1"
-                      formatTooltip={(val) => formatTime(val)}
-                    />
-                  )}
-                </div>
-                <span>{formatTime(duration)}</span>
-              </div>
+              <LyricsSeekbar
+                duration={duration}
+                isWavySeekbarEnabled={isWavySeekbarEnabled}
+                onSeek={handleSeek}
+              />
 
               {/* Fading Controls Container (Transport Buttons & Volume Slider) */}
               <div
@@ -2641,7 +2892,7 @@ export const LyricsView: React.FC = () => {
                   !isActive &&
                   ((activeInterlude && idx < activeInterlude.insertIndex) ||
                     (!activeInterlude && activeIndex >= 0 && idx < activeIndex) ||
-                    (idx === activeIndex && !isActive && currentTime >= getLineEndSecs(line)));
+                    (idx === activeIndex && !isActive && isCurrentLinePassed));
                 const distance = isActive
                   ? 0
                   : activeInterlude
@@ -2662,10 +2913,9 @@ export const LyricsView: React.FC = () => {
                         id={interludeBefore.key}
                         startSecs={interludeBefore.startSecs}
                         endSecs={interludeBefore.endSecs}
-                        currentTime={currentTime}
                         isPlaying={isPlaying}
                         isActive={activeInterlude?.key === interludeBefore.key}
-                        isPast={currentTime >= interludeBefore.endSecs}
+                        isPast={activeIndex >= interludeBefore.insertIndex}
                         distance={
                           activeInterlude?.key === interludeBefore.key
                             ? 0
@@ -2691,7 +2941,6 @@ export const LyricsView: React.FC = () => {
                       translationMode={translationMode}
                       activeFontSize={splitActiveFontSize}
                       inactiveFontSize={splitInactiveFontSize}
-                      currentTimeMs={currentTimeMs}
                       activeLineRef={activeLineRef}
                       onSeek={handleSeek}
                     />
@@ -2763,7 +3012,7 @@ export const LyricsView: React.FC = () => {
                   !isActive &&
                   ((activeInterlude && idx < activeInterlude.insertIndex) ||
                     (!activeInterlude && activeIndex >= 0 && idx < activeIndex) ||
-                    (idx === activeIndex && !isActive && currentTime >= getLineEndSecs(line)));
+                    (idx === activeIndex && !isActive && isCurrentLinePassed));
                 const distance = isActive
                   ? 0
                   : activeInterlude
@@ -2784,10 +3033,9 @@ export const LyricsView: React.FC = () => {
                         id={interludeBefore.key}
                         startSecs={interludeBefore.startSecs}
                         endSecs={interludeBefore.endSecs}
-                        currentTime={currentTime}
                         isPlaying={isPlaying}
                         isActive={activeInterlude?.key === interludeBefore.key}
-                        isPast={currentTime >= interludeBefore.endSecs}
+                        isPast={activeIndex >= interludeBefore.insertIndex}
                         distance={
                           activeInterlude?.key === interludeBefore.key
                             ? 0
@@ -2813,7 +3061,6 @@ export const LyricsView: React.FC = () => {
                       translationMode={translationMode}
                       activeFontSize={activeFontSize}
                       inactiveFontSize={inactiveFontSize}
-                      currentTimeMs={currentTimeMs}
                       activeLineRef={activeLineRef}
                       onSeek={handleSeek}
                     />
@@ -2972,36 +3219,13 @@ export const LyricsView: React.FC = () => {
             </button>
 
             {/* Seek Bar inside floating pill */}
-            <div className="flex items-center gap-2.5 text-xs font-mono text-zinc-400 w-48 sm:w-72 md:w-96">
-              <span>{formatTime(currentTime)}</span>
-              <div className="relative flex-1 flex items-center group cursor-pointer min-w-[90px]">
-                {isWavySeekbarEnabled ? (
-                  <WavyAudioSlider
-                    value={currentTime}
-                    min={0}
-                    max={duration || 100}
-                    step={0.1}
-                    onChange={handleSeek}
-                    size="md"
-                    className="flex-1"
-                    formatTooltip={(val) => formatTime(val)}
-                    active={controlsVisible}
-                  />
-                ) : (
-                  <AudioSlider
-                    value={currentTime}
-                    min={0}
-                    max={duration || 100}
-                    step={0.1}
-                    onChange={handleSeek}
-                    size="md"
-                    className="flex-1"
-                    formatTooltip={(val) => formatTime(val)}
-                  />
-                )}
-              </div>
-              <span>{formatTime(duration)}</span>
-            </div>
+            <LyricsSeekbar
+              duration={duration}
+              isWavySeekbarEnabled={isWavySeekbarEnabled}
+              onSeek={handleSeek}
+              className="flex items-center gap-2.5 text-xs font-mono text-zinc-400 w-48 sm:w-72 md:w-96"
+              active={controlsVisible}
+            />
 
             {/* Integrated Volume control when space is compact */}
             {isCompact && (

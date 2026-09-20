@@ -57,6 +57,27 @@ console.error = (...args) => {
   } catch {}
 };
 
+const origConsoleWarn = console.warn;
+console.warn = (...args) => {
+  try {
+    origConsoleWarn(...args);
+    const formatted = args.map(safeFormatArg).join(" ");
+    reportFrontendLog("CONSOLE_WARN", formatted);
+  } catch {}
+};
+
+const origConsoleLog = console.log;
+console.log = (...args) => {
+  try {
+    origConsoleLog(...args);
+    const first = typeof args[0] === 'string' ? args[0] : '';
+    if (first.startsWith('[Perf:') || first.startsWith('[AudioPerf:') || first.startsWith('[Frontend:')) {
+      const formatted = args.map(safeFormatArg).join(" ");
+      reportFrontendLog("INFO", formatted);
+    }
+  } catch {}
+};
+
 interface Props {
   children?: ReactNode;
 }

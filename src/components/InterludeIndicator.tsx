@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Music } from 'lucide-react';
+import { usePlayerStore } from '../store/usePlayerStore';
 
 export interface InterludeIndicatorProps {
   id?: string;
   startSecs: number;
   endSecs: number;
-  currentTime: number;
+  currentTime?: number;
   isPlaying: boolean;
   isActive: boolean;
   isPast: boolean;
@@ -19,7 +20,7 @@ export const InterludeIndicator: React.FC<InterludeIndicatorProps> = React.memo(
   id,
   startSecs,
   endSecs,
-  currentTime,
+  currentTime: propCurrentTime,
   isPlaying,
   isActive,
   isPast: _isPast,
@@ -31,6 +32,10 @@ export const InterludeIndicator: React.FC<InterludeIndicatorProps> = React.memo(
   if (lyricsFontSizePreset === 'maximum' && distance > 1) {
     return null;
   }
+
+  // Subscribe to store time only when this specific interlude is active
+  const storeTime = usePlayerStore((s) => (isActive ? s.currentTime : startSecs));
+  const currentTime = propCurrentTime !== undefined ? propCurrentTime : storeTime;
 
   // Smooth local time tracking with RAF for fluid 60/120fps interpolation
   const [animTime, setAnimTime] = useState(currentTime);

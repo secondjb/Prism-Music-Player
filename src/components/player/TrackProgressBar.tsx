@@ -1,4 +1,4 @@
-import React, { useState, memo } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { AudioSlider } from '../AudioSlider';
 import { WavyAudioSlider } from '../WavyAudioSlider';
@@ -21,6 +21,8 @@ interface TrackProgressBarProps {
  * and sibling playback controls from wasted re-renders.
  */
 export const TrackProgressBar: React.FC<TrackProgressBarProps> = memo(({ isLyricsActive = false }) => {
+  const renderStartTime = performance.now();
+
   const currentTime = usePlayerStore((s) => s.currentTime);
   const duration = usePlayerStore((s) => s.duration);
   const seek = usePlayerStore((s) => s.seek);
@@ -28,6 +30,41 @@ export const TrackProgressBar: React.FC<TrackProgressBarProps> = memo(({ isLyric
 
   // Local drag state for butter-smooth seeking
   const [dragSeekVal, setDragSeekVal] = useState<number | null>(null);
+
+  // Performance tracking
+  const perfRef = useRef({
+    renderCount: 0,
+    accumulatedRenderMs: 0,
+    windowStart: performance.now(),
+  });
+
+  perfRef.current.renderCount++;
+
+  useEffect(() => {
+    const renderEndTime = performance.now();
+    const renderDuration = renderEndTime - renderStartTime;
+    perfRef.current.accumulatedRenderMs += renderDuration;
+
+    if (renderDuration > 5) {
+      console.warn(`[Perf:TrackProgressBar:SPIKE] Heavy render: ${renderDuration.toFixed(2)}ms`);
+    }
+
+    const elapsedSecs = (renderEndTime - perfRef.current.windowStart) / 1000;
+    if (elapsedSecs >= 5) {
+      const fps = (perfRef.current.renderCount / elapsedSecs).toFixed(1);
+      const avgDuration = (
+        perfRef.current.accumulatedRenderMs / perfRef.current.renderCount
+      ).toFixed(2);
+      console.log(
+        `[Perf:TrackProgressBar] Rate=${fps} renders/sec, AvgRenderTime=${avgDuration}ms (${perfRef.current.renderCount} renders in ${elapsedSecs.toFixed(1)}s)`
+      );
+      perfRef.current = {
+        renderCount: 0,
+        accumulatedRenderMs: 0,
+        windowStart: performance.now(),
+      };
+    }
+  });
 
   const displayTime = dragSeekVal !== null ? dragSeekVal : currentTime;
 

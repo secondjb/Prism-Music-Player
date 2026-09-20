@@ -697,9 +697,12 @@ fn run_audio_thread(
         }
 
         if !is_playing.load(Ordering::SeqCst) {
-            thread::sleep(Duration::from_millis(15));
+            // Idle when paused: sleep 40ms to avoid burning CPU polling COM devices
+            thread::sleep(Duration::from_millis(40));
             continue;
         }
+
+        let loop_start = std::time::Instant::now();
 
         let packet = match format.next_packet() {
             Ok(packet) => packet,
@@ -717,8 +720,13 @@ fn run_audio_thread(
             *current_position_secs.lock() = pos_secs;
         }
 
-        match decoder.decode(&packet) {
+        let decode_start = std::time::Instant::now();
+        let decode_result = decoder.decode(&packet);
+        let decode_time = decode_start.elapsed();
+
+        match decode_result {
             Ok(decoded) => {
+                let dsp_start = std::time::Instant::now();
                 let gain_db = *replay_gain_db.lock();
                 let vol = *volume.lock();
 
@@ -752,13 +760,17 @@ fn run_audio_thread(
                     sample_buf = Some(symphonia::core::audio::SampleBuffer::<f32>::new(cap, spec));
                 }
 
+                let dsp_time = dsp_start.elapsed();
+
                 if let Some(ref mut buf) = sample_buf {
                     buf.copy_interleaved_ref(decoded);
                     let raw_samples = buf.samples();
 
-                    // Non-blocking sample pusher closure with instant WASAPI stall detection
+                    let push_start = std::time::Instant::now();
+
+                    // Non-blocking sample pusher closure with lazy stall detection (avoids Instant::now syscall per-sample)
                     let push_sample = |sample: f32| -> bool {
-                        let stall_start = std::time::Instant::now();
+                        let mut stall_start: Option<std::time::Instant> = None;
                         loop {
                             if stop_signal.load(Ordering::SeqCst) {
                                 return false;
@@ -766,7 +778,8 @@ fn run_audio_thread(
                             match tx.try_send(sample) {
                                 Ok(_) => return true,
                                 Err(crossbeam_channel::TrySendError::Full(_)) => {
-                                    if stall_start.elapsed() > Duration::from_millis(100) {
+                                    let start = stall_start.get_or_insert_with(std::time::Instant::now);
+                                    if start.elapsed() > Duration::from_millis(100) {
                                         device_changed.store(true, Ordering::SeqCst);
                                         return false;
                                     }
@@ -819,6 +832,21 @@ fn run_audio_thread(
                                 }
                             }
                         }
+                    }
+
+                    let push_time = push_start.elapsed();
+                    let total_loop_time = loop_start.elapsed();
+
+                    // Performance telemetry: Detect CPU bottlenecks or frame delays
+                    if total_loop_time > Duration::from_millis(12) {
+                        eprintln!(
+                            "[AudioPerf:SPIKE] Slow frame! Total: {:.2}ms (Decode: {:.2}ms, DSP: {:.2}ms, Push: {:.2}ms, Buf: {})",
+                            total_loop_time.as_secs_f64() * 1000.0,
+                            decode_time.as_secs_f64() * 1000.0,
+                            dsp_time.as_secs_f64() * 1000.0,
+                            push_time.as_secs_f64() * 1000.0,
+                            tx.len()
+                        );
                     }
                 }
             }

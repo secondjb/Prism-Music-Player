@@ -87,9 +87,46 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
   isCollapsed: propIsCollapsed,
   onToggleCollapse: propOnToggleCollapse,
 }) => {
+  const renderStartTime = performance.now();
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const isCollapsed = propIsCollapsed !== undefined ? propIsCollapsed : internalCollapsed;
   const toggleCollapse = propOnToggleCollapse || (() => setInternalCollapsed((prev) => !prev));
+
+  // Performance telemetry: monitor re-render frequency and heavy render blocks
+  const perfRef = useRef({
+    renderCount: 0,
+    accumulatedRenderMs: 0,
+    windowStart: performance.now(),
+  });
+  perfRef.current.renderCount++;
+
+  useEffect(() => {
+    const renderEndTime = performance.now();
+    const renderDuration = renderEndTime - renderStartTime;
+    perfRef.current.accumulatedRenderMs += renderDuration;
+
+    if (renderDuration > 15) {
+      console.warn(`[Perf:WordSyncedLyricsFinder:SPIKE] Heavy render: ${renderDuration.toFixed(2)}ms`);
+    }
+
+    const elapsedSecs = (renderEndTime - perfRef.current.windowStart) / 1000;
+    if (elapsedSecs >= 5) {
+      const fps = (perfRef.current.renderCount / elapsedSecs).toFixed(1);
+      const avgDuration = (
+        perfRef.current.accumulatedRenderMs / perfRef.current.renderCount
+      ).toFixed(2);
+      if (perfRef.current.renderCount > 1) {
+        console.log(
+          `[Perf:WordSyncedLyricsFinder] Rate=${fps} renders/sec, AvgRenderTime=${avgDuration}ms (${perfRef.current.renderCount} renders in ${elapsedSecs.toFixed(1)}s)`
+        );
+      }
+      perfRef.current = {
+        renderCount: 0,
+        accumulatedRenderMs: 0,
+        windowStart: performance.now(),
+      };
+    }
+  });
 
   const tracks = usePlayerStore((s) => s.tracks);
   const setTracks = usePlayerStore((s) => s.setTracks);
@@ -99,7 +136,7 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
   const pause = usePlayerStore((s) => s.pause);
   const resume = usePlayerStore((s) => s.resume);
   const seek = usePlayerStore((s) => s.seek);
-  const currentTime = usePlayerStore((s) => s.currentTime);
+  // NOTE: currentTime is NOT subscribed here to prevent re-rendering 2,000+ lines on every 150ms playback tick
   const duration = usePlayerStore((s) => s.duration);
   const isRomanizationEnabled = usePlayerStore((s) => s.isRomanizationEnabled);
   const romanizationMode = usePlayerStore((s) => s.romanizationMode);
@@ -437,7 +474,13 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
 
   // Is the currently reviewed candidate also the active player track?
   const isCandidatePlayingThis = currentTrack?.id === activeCandidate?.track.id;
-  const activeTimeSecs = isCandidatePlayingThis ? currentTime : 0;
+  const activeCandidateTrackId = activeCandidate?.track.id;
+  // Subscribed to currentTime ONLY when this specific candidate is being auditioned in the preview player.
+  // When idle or playing library songs, selector returns 0 and skips all re-renders.
+  const activeTimeSecs = usePlayerStore((s) =>
+    activeCandidateTrackId && s.currentTrack?.id === activeCandidateTrackId ? s.currentTime : 0
+  );
+  const currentTime = activeTimeSecs;
   const activeTimeMs = activeTimeSecs * 1000;
 
   // Pause preview audition if user leaves the lyrics finder while auditioning

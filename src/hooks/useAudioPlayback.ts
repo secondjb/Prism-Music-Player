@@ -37,12 +37,26 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
   useEffect(() => {
     if (!isPlaying || !window.__TAURI_INTERNALS__) return;
     const pollInterval = showLyricsFullscreen || activeTab === 'lyrics' ? 150 : 250;
+    let lastTick = performance.now();
+    let tickCount = 0;
+    let accumulatedIpc = 0;
+    let accumulatedUpdate = 0;
+
     const interval = setInterval(async () => {
+      const tickStart = performance.now();
+      const intervalJitter = tickStart - lastTick - pollInterval;
+      lastTick = tickStart;
+
       try {
+        const ipcStart = performance.now();
         const res: any = await invoke('get_playback_position');
+        const ipcEnd = performance.now();
+        const ipcDuration = ipcEnd - ipcStart;
+
         const pos = Array.isArray(res) ? res[0] : res;
         const durFromRust = Array.isArray(res) ? res[1] : 0;
         if (typeof pos === 'number' && !isNaN(pos) && pos >= 0) {
+          const updateStart = performance.now();
           const state = usePlayerStore.getState();
           const effectiveDur =
             durFromRust > 0 ? durFromRust : state.currentTrack?.duration_secs || state.duration || 0;
@@ -53,6 +67,26 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
               currentTime: pos,
               ...(effectiveDur > 0 ? { duration: effectiveDur } : {}),
             });
+          }
+          const updateEnd = performance.now();
+          const updateDuration = updateEnd - updateStart;
+
+          accumulatedIpc += ipcDuration;
+          accumulatedUpdate += updateDuration;
+          tickCount++;
+
+          // Log warning if single poll exceeded 10ms or log periodic 5s performance summary
+          if (ipcDuration > 10 || updateDuration > 10) {
+            console.warn(
+              `[Perf:useAudioPlayback:SPIKE] Slow tick: IPC=${ipcDuration.toFixed(2)}ms, StateUpdate=${updateDuration.toFixed(2)}ms, Jitter=${intervalJitter.toFixed(1)}ms`
+            );
+          } else if (tickCount % 20 === 0) {
+            console.log(
+              `[Perf:useAudioPlayback:Avg] Avg IPC=${(accumulatedIpc / tickCount).toFixed(2)}ms, Avg Update=${(accumulatedUpdate / tickCount).toFixed(2)}ms, Jitter=${intervalJitter.toFixed(1)}ms (${tickCount} ticks)`
+            );
+            accumulatedIpc = 0;
+            accumulatedUpdate = 0;
+            tickCount = 0;
           }
 
           const dur = effectiveDur;

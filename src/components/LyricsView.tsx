@@ -689,6 +689,42 @@ const getLineEndSecs = (line: ParsedLyricLine): number => {
 const LyricInterludeRow = InterludeIndicator;
 
 export const LyricsView: React.FC = () => {
+  const renderStartTime = performance.now();
+  const perfRef = useRef({
+    renderCount: 0,
+    accumulatedRenderMs: 0,
+    windowStart: performance.now(),
+  });
+  perfRef.current.renderCount++;
+
+  useEffect(() => {
+    const renderEndTime = performance.now();
+    const renderDuration = renderEndTime - renderStartTime;
+    perfRef.current.accumulatedRenderMs += renderDuration;
+
+    if (renderDuration > 15) {
+      console.warn(`[Perf:LyricsView:SPIKE] Heavy render: ${renderDuration.toFixed(2)}ms`);
+    }
+
+    const elapsedSecs = (renderEndTime - perfRef.current.windowStart) / 1000;
+    if (elapsedSecs >= 5) {
+      const fps = (perfRef.current.renderCount / elapsedSecs).toFixed(1);
+      const avgDuration = (
+        perfRef.current.accumulatedRenderMs / perfRef.current.renderCount
+      ).toFixed(2);
+      if (perfRef.current.renderCount > 1) {
+        console.log(
+          `[Perf:LyricsView] Rate=${fps} renders/sec, AvgRenderTime=${avgDuration}ms (${perfRef.current.renderCount} renders in ${elapsedSecs.toFixed(1)}s)`
+        );
+      }
+      perfRef.current = {
+        renderCount: 0,
+        accumulatedRenderMs: 0,
+        windowStart: performance.now(),
+      };
+    }
+  });
+
   const {
     currentTrack,
     currentTime,

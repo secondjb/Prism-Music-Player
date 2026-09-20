@@ -702,7 +702,8 @@ export const LyricsView: React.FC = () => {
     const renderDuration = renderEndTime - renderStartTime;
     perfRef.current.accumulatedRenderMs += renderDuration;
 
-    if (renderDuration > 15) {
+    // Throttle spike warnings to once every 5s and only warn if frame budget severely exceeded (>60ms)
+    if (renderDuration > 60 && renderEndTime - perfRef.current.windowStart > 5000) {
       console.warn(`[Perf:LyricsView:SPIKE] Heavy render: ${renderDuration.toFixed(2)}ms`);
     }
 

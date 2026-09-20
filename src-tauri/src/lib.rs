@@ -53,6 +53,7 @@ pub fn run() {
                 #[cfg(target_os = "windows")]
                 let raw_hwnd = app
                     .get_webview_window("main")
+                    .or_else(|| app.webview_windows().values().next().cloned())
                     .and_then(|w| w.hwnd().ok())
                     .map(|h| h.0 as isize);
 
@@ -65,17 +66,28 @@ pub fn run() {
                 }
 
                 #[cfg(target_os = "windows")]
-                let hwnd = raw_hwnd.map(|h| h as *mut std::ffi::c_void);
-                #[cfg(not(target_os = "windows"))]
-                let hwnd = None;
-
-                let config = PlatformConfig {
-                    dbus_name: "prism_music_player",
-                    display_name: "Prism Music Player",
-                    hwnd,
+                let controls_opt = if let Some(h) = raw_hwnd {
+                    let config = PlatformConfig {
+                        dbus_name: "prism_music_player",
+                        display_name: "Prism Music Player",
+                        hwnd: Some(h as *mut std::ffi::c_void),
+                    };
+                    MediaControls::new(config).ok()
+                } else {
+                    None
                 };
 
-                if let Ok(mut controls) = MediaControls::new(config) {
+                #[cfg(not(target_os = "windows"))]
+                let controls_opt = {
+                    let config = PlatformConfig {
+                        dbus_name: "prism_music_player",
+                        display_name: "Prism Music Player",
+                        hwnd: None,
+                    };
+                    MediaControls::new(config).ok()
+                };
+
+                if let Some(mut controls) = controls_opt {
                     if controls
                         .attach(move |event| {
                             let event_name = match event {

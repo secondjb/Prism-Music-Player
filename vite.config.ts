@@ -10,6 +10,14 @@ export default defineConfig(async () => ({
   base: "./",
   plugins: [react(), tailwindcss()],
 
+  optimizeDeps: {
+    include: [
+      "@revolist/react-datagrid",
+      "@revolist/revogrid",
+      "@revolist/revogrid/loader",
+    ],
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

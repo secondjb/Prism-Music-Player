@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 
 const logPath = process.argv[2] || 'dev-output.log';
-const logStream = fs.createWriteStream(logPath, { flags: 'w', encoding: 'utf8' });
+fs.writeFileSync(logPath, '', 'utf8');
 
 // Match standard ANSI escape sequences
 const ansiRegex = /[\u001B\u009B][[\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\d\/#&.:=?%@~_]+)*|[a-zA-Z\d]+(?:;[-a-zA-Z\d\/#&.:=?%@~_]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-ntqry=><~]))/g;
@@ -9,14 +9,12 @@ const ansiRegex = /[\u001B\u009B][[\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\d\/#&.:=?%@~_]
 process.stdin.on('data', (chunk) => {
   // Live console gets raw stream with original colors
   process.stdout.write(chunk);
-  // Log file gets clean UTF-8 text without cluttering escape sequences
+  // Log file gets clean UTF-8 text immediately flushed
   const text = chunk.toString('utf8');
   const clean = text.replace(ansiRegex, '');
-  logStream.write(clean);
-});
-
-process.stdin.on('end', () => {
-  logStream.end();
+  try {
+    fs.appendFileSync(logPath, clean, 'utf8');
+  } catch {}
 });
 
 // Handle graceful exit

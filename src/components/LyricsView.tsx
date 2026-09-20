@@ -1708,13 +1708,14 @@ export const LyricsView: React.FC = () => {
             onClick={toggleRomanization}
             className={`p-2.5 rounded-xl transition-all border ${
               isRomanizationEnabled
-                ? 'text-white shadow-lg border-transparent'
+                ? 'shadow-lg border-transparent'
                 : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
             }`}
             style={
               isRomanizationEnabled
                 ? {
                     backgroundColor: 'var(--color-stop-1, #6366f1)',
+                    color: 'var(--color-stop-1-text, #ffffff)',
                     borderColor: 'transparent',
                   }
                 : undefined
@@ -1729,13 +1730,14 @@ export const LyricsView: React.FC = () => {
             onClick={toggleTranslation}
             className={`p-2.5 rounded-xl transition-all border ${
               isTranslationEnabled
-                ? 'text-white shadow-lg border-transparent'
+                ? 'shadow-lg border-transparent'
                 : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
             }`}
             style={
               isTranslationEnabled
                 ? {
                     backgroundColor: 'var(--color-stop-1, #6366f1)',
+                    color: 'var(--color-stop-1-text, #ffffff)',
                     borderColor: 'transparent',
                   }
                 : undefined
@@ -1746,38 +1748,19 @@ export const LyricsView: React.FC = () => {
           </button>
 
 
-          {/* Fullscreen Toggle Button */}
-          <button
-            onClick={toggleFullscreen}
-            className={`p-2.5 rounded-xl transition-all border ${
-              isFullscreen
-                ? 'text-white shadow-lg border-transparent'
-                : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
-            }`}
-            style={
-              isFullscreen
-                ? {
-                    backgroundColor: 'var(--color-stop-1, #6366f1)',
-                    borderColor: 'transparent',
-                  }
-                : undefined
-            }
-            title={isFullscreen ? 'Exit Fullscreen (F11)' : 'Fullscreen (F11)'}
-          >
-            {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-          </button>
-
+          {/* Settings Modal Toggle Button */}
           <button
             onClick={() => setShowSettings(!showSettings)}
             className={`p-2.5 rounded-xl transition-all border ${
               showSettings
-                ? 'text-white shadow-lg border-transparent'
+                ? 'shadow-lg border-transparent'
                 : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
             }`}
             style={
               showSettings
                 ? {
                     backgroundColor: 'var(--color-stop-1, #6366f1)',
+                    color: 'var(--color-stop-1-text, #ffffff)',
                     borderColor: 'transparent',
                   }
                 : undefined
@@ -1785,6 +1768,28 @@ export const LyricsView: React.FC = () => {
             title="Settings"
           >
             <Settings2 className="w-5 h-5" />
+          </button>
+
+          {/* Fullscreen Toggle Button */}
+          <button
+            onClick={toggleFullscreen}
+            className={`p-2.5 rounded-xl transition-all border ${
+              isFullscreen
+                ? 'shadow-lg border-transparent'
+                : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
+            }`}
+            style={
+              isFullscreen
+                ? {
+                    backgroundColor: 'var(--color-stop-1, #6366f1)',
+                    color: 'var(--color-stop-1-text, #ffffff)',
+                    borderColor: 'transparent',
+                  }
+                : undefined
+            }
+            title={isFullscreen ? 'Exit Fullscreen (F11)' : 'Fullscreen (F11)'}
+          >
+            {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
           </button>
 
           <button
@@ -1826,10 +1831,14 @@ export const LyricsView: React.FC = () => {
                 onClick={() => setSettingsTab('atmosphere')}
                 className={`flex-1 py-1 px-1.5 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   settingsTab === 'atmosphere'
-                    ? 'text-white shadow-md'
+                    ? 'shadow-md'
                     : 'text-zinc-400 hover:text-zinc-200'
                 }`}
-                style={settingsTab === 'atmosphere' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                style={
+                  settingsTab === 'atmosphere'
+                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
+                    : undefined
+                }
               >
                 <Palette className="w-3 h-3" />
                 <span>Atmosphere</span>
@@ -1838,10 +1847,14 @@ export const LyricsView: React.FC = () => {
                 onClick={() => setSettingsTab('typography')}
                 className={`flex-1 py-1 px-1.5 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   settingsTab === 'typography'
-                    ? 'text-white shadow-md'
+                    ? 'shadow-md'
                     : 'text-zinc-400 hover:text-zinc-200'
                 }`}
-                style={settingsTab === 'typography' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                style={
+                  settingsTab === 'typography'
+                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
+                    : undefined
+                }
               >
                 <TypeIcon className="w-3 h-3" />
                 <span>Typography</span>
@@ -1850,10 +1863,14 @@ export const LyricsView: React.FC = () => {
                 onClick={() => setSettingsTab('sync')}
                 className={`flex-1 py-1 px-1.5 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                   settingsTab === 'sync'
-                    ? 'text-white shadow-md'
+                    ? 'shadow-md'
                     : 'text-zinc-400 hover:text-zinc-200'
                 }`}
-                style={settingsTab === 'sync' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                style={
+                  settingsTab === 'sync'
+                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
+                    : undefined
+                }
               >
                 <Languages className="w-3 h-3" />
                 <span>Sync & Lang</span>
@@ -1977,10 +1994,14 @@ export const LyricsView: React.FC = () => {
                       onClick={() => setLyricsLayoutMode('centered')}
                       className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold transition-all cursor-pointer ${
                         lyricsLayoutMode === 'centered'
-                          ? 'text-white shadow-md'
+                          ? 'shadow-md'
                           : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
                       }`}
-                      style={lyricsLayoutMode === 'centered' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                      style={
+                        lyricsLayoutMode === 'centered'
+                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
+                          : undefined
+                      }
                     >
                       Centered Focus
                     </button>
@@ -1988,10 +2009,14 @@ export const LyricsView: React.FC = () => {
                       onClick={() => setLyricsLayoutMode('split')}
                       className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold transition-all cursor-pointer ${
                         lyricsLayoutMode === 'split'
-                          ? 'text-white shadow-md'
+                          ? 'shadow-md'
                           : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
                       }`}
-                      style={lyricsLayoutMode === 'split' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                      style={
+                        lyricsLayoutMode === 'split'
+                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
+                          : undefined
+                      }
                     >
                       Side-by-Side Split
                     </button>
@@ -2029,10 +2054,14 @@ export const LyricsView: React.FC = () => {
                         onClick={() => setLyricsFontSizePreset(preset)}
                         className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold capitalize transition-all cursor-pointer ${
                           lyricsFontSizePreset === preset
-                            ? 'text-white shadow-md'
+                            ? 'shadow-md'
                             : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
                         }`}
-                        style={lyricsFontSizePreset === preset ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                        style={
+                          lyricsFontSizePreset === preset
+                            ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
+                            : undefined
+                        }
                       >
                         {preset === 'maximum' ? 'Max Space' : preset}
                       </button>
@@ -2134,27 +2163,39 @@ export const LyricsView: React.FC = () => {
                     <button
                       onClick={() => handleRomanizationChange('off')}
                       className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                        currentRomanizationState === 'off' ? 'text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'
+                        currentRomanizationState === 'off' ? 'shadow-md' : 'text-zinc-400 hover:text-zinc-200'
                       }`}
-                      style={currentRomanizationState === 'off' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                      style={
+                        currentRomanizationState === 'off'
+                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
+                          : undefined
+                      }
                     >
                       Off
                     </button>
                     <button
                       onClick={() => handleRomanizationChange('below')}
                       className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                        currentRomanizationState === 'below' ? 'text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'
+                        currentRomanizationState === 'below' ? 'shadow-md' : 'text-zinc-400 hover:text-zinc-200'
                       }`}
-                      style={currentRomanizationState === 'below' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                      style={
+                        currentRomanizationState === 'below'
+                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
+                          : undefined
+                      }
                     >
                       Below
                     </button>
                     <button
                       onClick={() => handleRomanizationChange('replace')}
                       className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                        currentRomanizationState === 'replace' ? 'text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'
+                        currentRomanizationState === 'replace' ? 'shadow-md' : 'text-zinc-400 hover:text-zinc-200'
                       }`}
-                      style={currentRomanizationState === 'replace' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                      style={
+                        currentRomanizationState === 'replace'
+                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
+                          : undefined
+                      }
                     >
                       Replace
                     </button>
@@ -2171,27 +2212,39 @@ export const LyricsView: React.FC = () => {
                     <button
                       onClick={() => handleTranslationChange('off')}
                       className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                        currentTranslationState === 'off' ? 'text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'
+                        currentTranslationState === 'off' ? 'shadow-md' : 'text-zinc-400 hover:text-zinc-200'
                       }`}
-                      style={currentTranslationState === 'off' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                      style={
+                        currentTranslationState === 'off'
+                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
+                          : undefined
+                      }
                     >
                       Off
                     </button>
                     <button
                       onClick={() => handleTranslationChange('below')}
                       className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                        currentTranslationState === 'below' ? 'text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'
+                        currentTranslationState === 'below' ? 'shadow-md' : 'text-zinc-400 hover:text-zinc-200'
                       }`}
-                      style={currentTranslationState === 'below' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                      style={
+                        currentTranslationState === 'below'
+                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
+                          : undefined
+                      }
                     >
                       Below
                     </button>
                     <button
                       onClick={() => handleTranslationChange('replace')}
                       className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                        currentTranslationState === 'replace' ? 'text-white shadow-md' : 'text-zinc-400 hover:text-zinc-200'
+                        currentTranslationState === 'replace' ? 'shadow-md' : 'text-zinc-400 hover:text-zinc-200'
                       }`}
-                      style={currentTranslationState === 'replace' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                      style={
+                        currentTranslationState === 'replace'
+                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
+                          : undefined
+                      }
                     >
                       Replace
                     </button>
@@ -2291,8 +2344,11 @@ export const LyricsView: React.FC = () => {
                 <div className="flex flex-col gap-1.5 pt-1">
                   <button
                     onClick={handleManualRefresh}
-                    style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-                    className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110 cursor-pointer"
+                    style={{
+                      backgroundColor: 'var(--color-stop-1, #6366f1)',
+                      color: 'var(--color-stop-1-text, #ffffff)',
+                    }}
+                    className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-semibold transition-colors hover:brightness-110 cursor-pointer"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
                     Refresh Online Lyrics
@@ -2301,8 +2357,11 @@ export const LyricsView: React.FC = () => {
                   <button
                     onClick={handleEmbedLyrics}
                     disabled={isEmbedding || !rawLrc.trim()}
-                    style={{ backgroundColor: 'var(--color-stop-2, #818cf8)' }}
-                    className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    style={{
+                      backgroundColor: 'var(--color-stop-2, #818cf8)',
+                      color: 'var(--color-stop-2-text, #ffffff)',
+                    }}
+                    className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-semibold transition-colors hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <Save className={`w-3.5 h-3.5 ${isEmbedding ? 'animate-pulse' : ''}`} />
                     {isEmbedding ? 'Embedding...' : 'Embed Lyrics to File'}

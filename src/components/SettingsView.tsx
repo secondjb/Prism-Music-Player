@@ -541,7 +541,7 @@ export const SettingsView: React.FC = () => {
                 }`}
                 style={
                   !isRefreshing && !isScanning && includedDirectories.length > 0
-                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
                     : undefined
                 }
                 title="Scan watched music directories for newly added/removed songs"
@@ -559,12 +559,15 @@ export const SettingsView: React.FC = () => {
                     borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
                     color: 'var(--color-stop-1, #6366f1)',
                   }}
-                  title="View last scan results"
+                  title="View scan details and changes"
                 >
+                  <Sparkles className="w-3.5 h-3.5" />
                   <span>
-                    +{lastRefreshResult.added_count} / -{lastRefreshResult.removed_count + lastRefreshResult.missing_count}
+                    +{lastRefreshResult.added_count} / -{lastRefreshResult.removed_count}
                   </span>
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showRefreshDropdown ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform ${showRefreshDropdown ? 'rotate-180' : ''}`}
+                  />
                 </button>
               )}
 
@@ -670,10 +673,14 @@ export const SettingsView: React.FC = () => {
                   onClick={() => setSelectedCategory(cat.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                     isActive
-                      ? 'text-white shadow-md'
+                      ? 'shadow-md'
                       : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
                   }`}
-                  style={isActive ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
+                  style={
+                    isActive
+                      ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
+                      : undefined
+                  }
                 >
                   {cat.icon}
                   <span>{cat.label}</span>

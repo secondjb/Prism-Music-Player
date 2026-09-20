@@ -67,14 +67,52 @@ const DEFAULT_COLOR_STOPS = [
   '#818CF8', // Light Indigo
 ];
 
+/**
+ * Fast, zero-dependency YIQ relative luminance calculation to determine
+ * whether dark (#09090b) or light (#ffffff) text should be used for optimal contrast.
+ */
+export function getContrastTextColor(color: string): string {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+
+  if (color.startsWith('#')) {
+    let hex = color.slice(1);
+    if (hex.length === 3) {
+      hex = hex.split('').map((c) => c + c).join('');
+    }
+    const num = parseInt(hex, 16);
+    r = (num >> 16) & 255;
+    g = (num >> 8) & 255;
+    b = num & 255;
+  } else if (color.startsWith('rgb')) {
+    const match = color.match(/\d+/g);
+    if (match && match.length >= 3) {
+      r = parseInt(match[0], 10);
+      g = parseInt(match[1], 10);
+      b = parseInt(match[2], 10);
+    }
+  }
+
+  // YIQ luminance formula ((r * 299) + (g * 587) + (b * 114)) / 1000
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 145 ? '#09090b' : '#ffffff';
+}
+
+function applyColorStops(stops: string[]): void {
+  stops.forEach((color, idx) => {
+    const contrastText = getContrastTextColor(color);
+    document.documentElement.style.setProperty(`--color-stop-${idx + 1}`, color);
+    document.documentElement.style.setProperty(`--color-stop-${idx + 1}-text`, contrastText);
+  });
+}
+
 let currentExtractRequestId = 0;
 
 export function updateLogoGradientFromImage(imageSrc?: string | null): void {
   const requestId = ++currentExtractRequestId;
   if (!imageSrc) {
-    DEFAULT_COLOR_STOPS.forEach((color, idx) => {
-      document.documentElement.style.setProperty(`--color-stop-${idx + 1}`, color);
-    });
+    applyColorStops(DEFAULT_COLOR_STOPS);
     return;
   }
 
@@ -144,9 +182,7 @@ export function updateLogoGradientFromImage(imageSrc?: string | null): void {
 
       if (sortedBins.length === 0 || totalValidVibrant < 10) {
         // Fallback for monochrome or dark covers: gentle neutral violet/slate
-        DEFAULT_COLOR_STOPS.forEach((color, idx) => {
-          document.documentElement.style.setProperty(`--color-stop-${idx + 1}`, color);
-        });
+        applyColorStops(DEFAULT_COLOR_STOPS);
         return;
       }
 
@@ -170,19 +206,14 @@ export function updateLogoGradientFromImage(imageSrc?: string | null): void {
       const stop6 = hslToRgbString(primary.h + 15, Math.min(0.9, normSat * 1.05), Math.min(0.68, normLight * 1.12));
 
       const finalStops = [stop1, stop2, stop3, stop4, stop5, stop6];
-
-      finalStops.forEach((color, idx) => {
-        document.documentElement.style.setProperty(`--color-stop-${idx + 1}`, color);
-      });
+      applyColorStops(finalStops);
     } catch (e) {
       console.warn('Failed to extract album art colors:', e);
     }
   };
   img.onerror = () => {
     if (requestId !== currentExtractRequestId) return;
-    DEFAULT_COLOR_STOPS.forEach((color, idx) => {
-      document.documentElement.style.setProperty(`--color-stop-${idx + 1}`, color);
-    });
+    applyColorStops(DEFAULT_COLOR_STOPS);
   };
   img.src = imageSrc;
 }

@@ -32,10 +32,10 @@ const AlbumSection: React.FC<{ albumName: string; tracks: Track[]; artistName: s
   };
 
   return (
-    <div ref={ref} className="mb-8 bg-white/5 rounded-2xl p-6 border border-white/10">
-      <div className="flex items-end gap-6 mb-4">
+    <div ref={ref} className="mb-8 bg-white/5 rounded-2xl p-4 sm:p-6 border border-white/10">
+      <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 sm:gap-6 mb-4 text-center sm:text-left">
         <div 
-          className="w-32 h-32 rounded-xl overflow-hidden shadow-lg cursor-pointer group relative"
+          className="w-28 h-28 sm:w-32 sm:h-32 rounded-xl overflow-hidden shadow-lg cursor-pointer group relative shrink-0"
           onClick={() => navigateToAlbum(albumName)}
         >
           {art ? (
@@ -46,7 +46,7 @@ const AlbumSection: React.FC<{ albumName: string; tracks: Track[]; artistName: s
             </div>
           )}
           <div 
-            className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+            className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
             onClick={(e) => { e.stopPropagation(); playAlbum(); }}
           >
             <div 
@@ -60,14 +60,14 @@ const AlbumSection: React.FC<{ albumName: string; tracks: Track[]; artistName: s
             </div>
           </div>
         </div>
-        <div className="flex-1 pb-2">
+        <div className="flex-1 min-w-0 pb-1 sm:pb-2">
           <h3 
-            className="text-2xl font-bold text-white hover:underline cursor-pointer"
+            className="text-xl sm:text-2xl font-bold text-white hover:underline cursor-pointer truncate"
             onClick={() => navigateToAlbum(albumName)}
           >
             {albumName}
           </h3>
-          <p className="text-zinc-400 text-sm mt-1">{artistName} • {tracks.length} songs</p>
+          <p className="text-zinc-400 text-xs sm:text-sm mt-1 truncate">{artistName} • {tracks.length} songs</p>
         </div>
       </div>
       <TrackList tracks={tracks} hideControls={true} autoHeight={true} />

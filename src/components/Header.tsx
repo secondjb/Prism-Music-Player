@@ -48,12 +48,12 @@ export const Header: React.FC = () => {
   };
 
   return (
-    <header className="w-full py-4 px-8 flex items-center justify-between z-10 shrink-0">
-      <div className="flex items-center gap-3">
-        <h2 className="text-2xl font-bold text-white tracking-tight">{getTitle()}</h2>
+    <header className="w-full py-3 sm:py-4 px-4 sm:px-8 flex items-center justify-between z-10 shrink-0 gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight truncate">{getTitle()}</h2>
         {(activeTab === 'library' || activeTab === 'liked') && (
           <span
-            className="px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold border"
+            className="px-2 sm:px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-mono font-semibold border shrink-0 hidden xs:inline sm:inline"
             style={{
               backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
               color: 'var(--color-stop-1, #6366f1)',
@@ -65,8 +65,8 @@ export const Header: React.FC = () => {
         )}
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="relative w-72">
+      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+        <div className="relative w-48 sm:w-64 md:w-72">
           <SearchIcon className="w-5 h-5 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"

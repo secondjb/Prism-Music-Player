@@ -200,10 +200,10 @@ export const SongInfoModal: React.FC = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 w-full max-w-7xl mx-auto py-6 flex flex-col lg:flex-row gap-10 items-start">
-        {/* Left Side: Huge Cover Art & Basic Info */}
-        <div className="w-full lg:w-[420px] shrink-0 flex flex-col gap-6">
-          <div className="w-full aspect-square rounded-3xl overflow-hidden bg-zinc-900 border border-white/10 shadow-2xl relative">
+      <div className="flex-1 w-full max-w-7xl mx-auto py-4 sm:py-6 flex flex-col xl:flex-row gap-6 xl:gap-10 items-start">
+        {/* Left Side: Huge Cover Art & Basic Info (responsive on small/medium vs large) */}
+        <div className="w-full xl:w-[360px] 2xl:w-[420px] shrink-0 flex flex-col sm:flex-row xl:flex-col gap-5 sm:gap-6 items-center sm:items-start">
+          <div className="w-44 h-44 sm:w-56 sm:h-56 xl:w-full xl:h-auto aspect-square rounded-2xl sm:rounded-3xl overflow-hidden bg-zinc-900 border border-white/10 shadow-2xl relative shrink-0">
             {displayArt ? (
               <img
                 src={displayArt}
@@ -215,15 +215,15 @@ export const SongInfoModal: React.FC = () => {
                 className="w-full h-full flex items-center justify-center"
                 style={{ backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)' }}
               >
-                <Music className="w-32 h-32" style={{ color: 'var(--color-stop-1, #6366f1)', opacity: 0.5 }} />
+                <Music className="w-20 h-20 sm:w-28 sm:h-28 xl:w-32 xl:h-32" style={{ color: 'var(--color-stop-1, #6366f1)', opacity: 0.5 }} />
               </div>
             )}
           </div>
 
-          <div className="flex flex-col gap-1 min-w-0">
-            <h2 className="text-3xl lg:text-4xl font-black text-white drop-shadow-sm truncate">{infoModalTrack.title}</h2>
+          <div className="flex flex-col gap-1 min-w-0 flex-1 w-full text-center sm:text-left">
+            <h2 className="text-2xl sm:text-3xl xl:text-4xl font-black text-white drop-shadow-sm truncate">{infoModalTrack.title}</h2>
             <p 
-              className="text-xl lg:text-2xl font-bold mt-1 cursor-pointer hover:underline truncate"
+              className="text-lg sm:text-xl xl:text-2xl font-bold mt-0.5 sm:mt-1 cursor-pointer hover:underline truncate"
               style={{ color: 'var(--color-stop-1, #6366f1)' }}
               onClick={() => {
                 if (infoModalTrack.artist && infoModalTrack.artist !== 'Unknown Artist') {
@@ -235,7 +235,7 @@ export const SongInfoModal: React.FC = () => {
               {infoModalTrack.artist}
             </p>
             <p 
-              className="text-base text-zinc-400 mt-1 cursor-pointer hover:underline hover:text-white truncate"
+              className="text-sm sm:text-base text-zinc-400 mt-0.5 sm:mt-1 cursor-pointer hover:underline hover:text-white truncate"
               onClick={() => {
                 if (infoModalTrack.album && infoModalTrack.album !== 'Unknown Album') {
                   usePlayerStore.getState().navigateToAlbum(infoModalTrack.album);
@@ -245,48 +245,48 @@ export const SongInfoModal: React.FC = () => {
             >
               {infoModalTrack.album || 'Unknown Album'}
             </p>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2 mt-1 text-xs font-mono text-zinc-300">
-            {infoModalTrack.bit_rate_kbps && (
-              <span
-                className="px-3 py-1 rounded-lg border font-bold"
-                style={{
-                  backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
-                  borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
-                  color: 'var(--color-stop-1, #6366f1)',
-                }}
-              >
-                {infoModalTrack.bit_rate_kbps} kbps
-              </span>
-            )}
-            {infoModalTrack.sample_rate && (
-              <span
-                className="px-3 py-1 rounded-lg border font-bold"
-                style={{
-                  backgroundColor: 'color-mix(in srgb, var(--color-stop-3, #ec4899) 20%, transparent)',
-                  borderColor: 'color-mix(in srgb, var(--color-stop-3, #ec4899) 40%, transparent)',
-                  color: 'var(--color-stop-3, #ec4899)',
-                }}
-              >
-                {(infoModalTrack.sample_rate / 1000).toFixed(1)} kHz
-              </span>
-            )}
-            {infoModalTrack.bit_depth && (
-              <span className="px-3 py-1 rounded-lg bg-white/10 border border-white/10">
-                {infoModalTrack.bit_depth}-bit
-              </span>
-            )}
-            {infoModalTrack.channels && (
-              <span className="px-3 py-1 rounded-lg bg-white/10 border border-white/10">
-                {infoModalTrack.channels} ch
-              </span>
-            )}
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2 text-xs font-mono text-zinc-300">
+              {infoModalTrack.bit_rate_kbps && (
+                <span
+                  className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-lg border font-bold"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                    color: 'var(--color-stop-1, #6366f1)',
+                  }}
+                >
+                  {infoModalTrack.bit_rate_kbps} kbps
+                </span>
+              )}
+              {infoModalTrack.sample_rate && (
+                <span
+                  className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-lg border font-bold"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--color-stop-3, #ec4899) 20%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--color-stop-3, #ec4899) 40%, transparent)',
+                    color: 'var(--color-stop-3, #ec4899)',
+                  }}
+                >
+                  {(infoModalTrack.sample_rate / 1000).toFixed(1)} kHz
+                </span>
+              )}
+              {infoModalTrack.bit_depth && (
+                <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-lg bg-white/10 border border-white/10">
+                  {infoModalTrack.bit_depth}-bit
+                </span>
+              )}
+              {infoModalTrack.channels && (
+                <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-lg bg-white/10 border border-white/10">
+                  {infoModalTrack.channels} ch
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Right Side: Detailed Metadata Grid */}
-        <div className="flex-1 w-full min-w-0 flex flex-col gap-8">
+        <div className="flex-1 w-full min-w-0 flex flex-col gap-6 sm:gap-8">
           {/* Local Audio File Specs */}
           <section className="flex flex-col gap-4">
             <div

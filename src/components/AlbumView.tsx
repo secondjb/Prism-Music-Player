@@ -36,8 +36,8 @@ export const AlbumView: React.FC = () => {
         </button>
       </div>
       
-      <div className="flex items-end gap-8 mb-8 px-4">
-        <div className="w-48 h-48 rounded-2xl overflow-hidden shadow-2xl relative group">
+      <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 sm:gap-8 mb-8 px-4 text-center sm:text-left">
+        <div className="w-36 h-36 sm:w-48 sm:h-48 rounded-2xl overflow-hidden shadow-2xl relative group shrink-0">
           {art ? (
             <img src={art} alt={selectedAlbum} className="w-full h-full object-cover" />
           ) : (
@@ -50,21 +50,21 @@ export const AlbumView: React.FC = () => {
             onClick={playAlbum}
           >
             <div 
-              className="w-16 h-16 rounded-full text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"
               style={{
                 backgroundColor: 'var(--color-stop-1, #6366f1)',
                 boxShadow: '0 8px 24px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
               }}
             >
-              <Play className="w-8 h-8 fill-white ml-2" />
+              <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-white ml-1.5" />
             </div>
           </div>
         </div>
         
-        <div className="flex-1 pb-2">
-          <h2 className="text-4xl font-bold text-white tracking-tight">{selectedAlbum}</h2>
+        <div className="flex-1 min-w-0 pb-2">
+          <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight truncate">{selectedAlbum}</h2>
           <p 
-            className="text-lg mt-2 font-medium cursor-pointer hover:underline"
+            className="text-base sm:text-lg mt-1 sm:mt-2 font-medium cursor-pointer hover:underline truncate"
             style={{ color: 'var(--color-stop-1, #818cf8)' }}
             onClick={() => {
               if (artistName !== 'Unknown Artist') {
@@ -74,7 +74,7 @@ export const AlbumView: React.FC = () => {
           >
             {artistName}
           </p>
-          <p className="text-zinc-500 text-sm mt-1">{albumTracks.length} songs</p>
+          <p className="text-zinc-500 text-xs sm:text-sm mt-1">{albumTracks.length} songs</p>
         </div>
       </div>
       

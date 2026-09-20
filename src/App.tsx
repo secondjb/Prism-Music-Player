@@ -116,7 +116,7 @@ export const App: React.FC = () => {
               isTransitioningRef.current = false;
             }, 1000);
             if (rm === 'one') {
-              usePlayerStore.getState().seek(0);
+              usePlayerStore.getState().replayCurrentTrack();
             } else {
               nextTrack();
             }

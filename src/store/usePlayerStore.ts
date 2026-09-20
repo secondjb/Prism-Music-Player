@@ -384,6 +384,7 @@ interface PlayerState {
   setVolume: (vol: number) => void;
   nextTrack: () => void;
   previousTrack: () => void;
+  replayCurrentTrack: () => Promise<void>;
   addToQueue: (track: Track) => void;
   playNext: (track: Track) => void;
   removeFromUserQueue: (index: number) => void;
@@ -1273,7 +1274,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       resume: async () => {
-        const { currentTrack, queue, playIndex } = get();
+        const { currentTrack, queue, playIndex, currentTime, duration, tracks, replayGainMode } = get();
         if (!currentTrack) {
           if (queue.length > 0) {
             playIndex(0);
@@ -1284,13 +1285,44 @@ export const usePlayerStore = create<PlayerState>()(
         try {
           if (window.__TAURI_INTERNALS__) {
             await invoke('set_volume', { volume: get().volume });
-            await invoke('resume_audio');
+            const dur = currentTrack.duration_secs || duration || 0;
+            if (dur > 0 && currentTime >= dur - 0.5) {
+              set({ currentTime: 0 });
+              await invoke('play_audio', {
+                path: currentTrack.path,
+                replayGainDb: getEffectiveReplayGain(currentTrack, replayGainMode, tracks),
+              });
+            } else {
+              await invoke('resume_audio');
+            }
           }
         } catch (e) {
           console.warn('Rust resume_audio error:', e);
         }
       },
 
+      replayCurrentTrack: async () => {
+        const { currentTrack, tracks, replayGainMode, crossfadeDuration, onTrackFinished, volume } = get();
+        if (!currentTrack) return;
+        onTrackFinished();
+        set({
+          currentTime: 0,
+          duration: currentTrack.duration_secs || 0,
+          isPlaying: true,
+        });
+        try {
+          if (window.__TAURI_INTERNALS__) {
+            await invoke('set_volume', { volume });
+            await invoke('play_audio', {
+              path: currentTrack.path,
+              replayGainDb: getEffectiveReplayGain(currentTrack, replayGainMode, tracks),
+              crossfadeSecs: crossfadeDuration > 0 ? crossfadeDuration : null,
+            });
+          }
+        } catch (e) {
+          console.warn('Rust play_audio replay error:', e);
+        }
+      },
 
       seek: async (seconds) => {
         set({ currentTime: seconds });
@@ -1308,21 +1340,8 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       nextTrack: async () => {
-        const { userQueue, currentIndex, queue, repeatMode, playIndex, seek, onTrackFinished } = get();
+        const { userQueue, currentIndex, queue, repeatMode, playIndex, onTrackFinished } = get();
         onTrackFinished();
-
-        // Repeat One: replay current track
-        if (repeatMode === 'one') {
-          seek(0);
-          set({ isPlaying: true });
-          try {
-            await invoke('seek_audio', { positionSecs: 0 });
-            await invoke('resume_audio');
-          } catch (e) {
-            console.warn('Rust seek error:', e);
-          }
-          return;
-        }
 
         // Priority User Queue takes precedence over context queue
         if (userQueue.length > 0) {
@@ -1351,7 +1370,7 @@ export const usePlayerStore = create<PlayerState>()(
 
         const nextIdx = currentIndex + 1;
         if (nextIdx >= queue.length) {
-          if (repeatMode === 'all') {
+          if (repeatMode === 'all' || repeatMode === 'one') {
             playIndex(0);
           } else {
             // repeatMode === 'off': stop at end

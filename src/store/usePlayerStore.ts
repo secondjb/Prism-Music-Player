@@ -37,6 +37,65 @@ export function getEffectiveReplayGain(track?: Track | null, mode: ReplayGainMod
   return typeof track.replay_gain_db === 'number' ? track.replay_gain_db : 0;
 }
 
+export function getLinkedChainTracks(
+  trackId: string,
+  linkedTracks: Record<string, string[]> = {},
+  allTracks: Track[] = []
+): Track[] {
+  if (!trackId) return [];
+  const trackMap = new Map<string, Track>();
+  allTracks.forEach((t) => trackMap.set(t.id, t));
+
+  const targetTrack = trackMap.get(trackId);
+  if (!targetTrack) return [];
+
+  // Build predecessor lookup
+  const predMap = new Map<string, string>();
+  for (const [src, targets] of Object.entries(linkedTracks)) {
+    if (Array.isArray(targets)) {
+      for (const tgt of targets) {
+        if (!predMap.has(tgt)) {
+          predMap.set(tgt, src);
+        }
+      }
+    }
+  }
+
+  // Walk backwards to find head
+  let headId = trackId;
+  const backVisited = new Set<string>([headId]);
+  while (predMap.has(headId)) {
+    const parentId = predMap.get(headId)!;
+    if (backVisited.has(parentId)) break; // cycle guard
+    backVisited.add(parentId);
+    headId = parentId;
+  }
+
+  // Walk forwards from head
+  const chain: Track[] = [];
+  const fwdVisited = new Set<string>();
+  let currId: string | undefined = headId;
+
+  while (currId && !fwdVisited.has(currId)) {
+    fwdVisited.add(currId);
+    const trk = trackMap.get(currId);
+    if (trk) {
+      chain.push(trk);
+    }
+    const nextList: string[] = (currId ? linkedTracks[currId] : []) || [];
+    let nextId: string | undefined = undefined;
+    for (const nid of nextList) {
+      if (!fwdVisited.has(nid) && trackMap.has(nid)) {
+        nextId = nid;
+        break;
+      }
+    }
+    currId = nextId;
+  }
+
+  return chain.length > 0 ? chain : [targetTrack];
+}
+
 export function clusterQueueWithLinks(tracks: Track[], linkedTracks: Record<string, string[]> = {}): Track[] {
   if (!tracks || tracks.length === 0) return [];
   const trackIdSet = new Set(tracks.map((t) => t.id));
@@ -187,6 +246,16 @@ interface PlayerState {
   reverseLinkOrder: (trackAId: string, trackBId: string) => void;
   unlinkTrack: (trackId: string) => void;
   isTrackLinked: (trackId: string) => boolean;
+  reorderLinkedChain: (orderedTrackIds: string[]) => void;
+  addTrackToChain: (
+    anchorTrackId: string,
+    newTrackId: string,
+    position?: 'start' | 'end' | 'before' | 'after'
+  ) => void;
+  removeTrackFromChain: (trackId: string) => void;
+  reverseChain: (trackId: string) => void;
+  unlinkChain: (trackId: string) => void;
+  playLinkedSuite: (trackId: string) => void;
   linkModalTrack: Track | null;
   setLinkModalTrack: (track: Track | null) => void;
   likedTrackIds: string[];
@@ -578,6 +647,101 @@ export const usePlayerStore = create<PlayerState>()(
         const { linkedTracks } = get();
         if (linkedTracks[trackId] && linkedTracks[trackId].length > 0) return true;
         return Object.values(linkedTracks).some((targets) => targets.includes(trackId));
+      },
+
+      reorderLinkedChain: (orderedTrackIds) =>
+        set((state) => {
+          if (!orderedTrackIds || orderedTrackIds.length < 2) return state;
+          const chainSet = new Set(orderedTrackIds);
+          const newLinks: Record<string, string[]> = {};
+
+          // Copy existing links that don't involve internal connections inside this chain
+          for (const [src, targets] of Object.entries(state.linkedTracks)) {
+            if (chainSet.has(src)) {
+              const remaining = targets.filter((t) => !chainSet.has(t));
+              if (remaining.length > 0) {
+                newLinks[src] = remaining;
+              }
+            } else {
+              newLinks[src] = [...targets];
+            }
+          }
+
+          // Build sequential links: 0 -> 1 -> 2 -> ... -> n-1
+          for (let i = 0; i < orderedTrackIds.length - 1; i++) {
+            const fromId = orderedTrackIds[i];
+            const toId = orderedTrackIds[i + 1];
+            const existing = newLinks[fromId] || [];
+            if (!existing.includes(toId)) {
+              newLinks[fromId] = [toId, ...existing.filter((id) => id !== toId)];
+            }
+          }
+
+          return { linkedTracks: newLinks };
+        }),
+
+      addTrackToChain: (anchorTrackId, newTrackId, position = 'end') => {
+        const { tracks, linkedTracks, reorderLinkedChain } = get();
+        if (anchorTrackId === newTrackId) return;
+        const currentChain = getLinkedChainTracks(anchorTrackId, linkedTracks, tracks);
+        const currentIds = currentChain.map((t) => t.id).filter((id) => id !== newTrackId);
+
+        let newIds: string[];
+        if (position === 'start') {
+          newIds = [newTrackId, ...currentIds];
+        } else if (position === 'before') {
+          const anchorIdx = currentIds.indexOf(anchorTrackId);
+          if (anchorIdx === -1) {
+            newIds = [newTrackId, ...currentIds];
+          } else {
+            newIds = [...currentIds.slice(0, anchorIdx), newTrackId, ...currentIds.slice(anchorIdx)];
+          }
+        } else if (position === 'after') {
+          const anchorIdx = currentIds.indexOf(anchorTrackId);
+          if (anchorIdx === -1) {
+            newIds = [...currentIds, newTrackId];
+          } else {
+            newIds = [...currentIds.slice(0, anchorIdx + 1), newTrackId, ...currentIds.slice(anchorIdx + 1)];
+          }
+        } else {
+          // 'end'
+          newIds = [...currentIds, newTrackId];
+        }
+
+        reorderLinkedChain(newIds);
+      },
+
+      removeTrackFromChain: (trackId) => {
+        const { tracks, linkedTracks, reorderLinkedChain, unlinkTrack } = get();
+        const currentChain = getLinkedChainTracks(trackId, linkedTracks, tracks);
+        if (currentChain.length <= 2) {
+          unlinkTrack(trackId);
+          return;
+        }
+        const remainingIds = currentChain.map((t) => t.id).filter((id) => id !== trackId);
+        reorderLinkedChain(remainingIds);
+      },
+
+      reverseChain: (trackId) => {
+        const { tracks, linkedTracks, reorderLinkedChain } = get();
+        const currentChain = getLinkedChainTracks(trackId, linkedTracks, tracks);
+        if (currentChain.length < 2) return;
+        const reversedIds = [...currentChain.map((t) => t.id)].reverse();
+        reorderLinkedChain(reversedIds);
+      },
+
+      unlinkChain: (trackId) => {
+        const { tracks, linkedTracks, unlinkTrack } = get();
+        const currentChain = getLinkedChainTracks(trackId, linkedTracks, tracks);
+        currentChain.forEach((t) => unlinkTrack(t.id));
+      },
+
+      playLinkedSuite: (trackId) => {
+        const { tracks, linkedTracks, playTrack } = get();
+        const currentChain = getLinkedChainTracks(trackId, linkedTracks, tracks);
+        if (currentChain.length > 0) {
+          playTrack(currentChain[0], currentChain);
+        }
       },
 
       selectedArtist: null,

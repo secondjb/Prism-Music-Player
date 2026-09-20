@@ -1054,8 +1054,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const addTracksToPlaylist = usePlayerStore((s) => s.addTracksToPlaylist);
   const createPlaylist = usePlayerStore((s) => s.createPlaylist);
   const activeTab = usePlayerStore((s) => s.activeTab);
-  const linkTracks = usePlayerStore((s) => s.linkTracks);
-  const unlinkTrack = usePlayerStore((s) => s.unlinkTrack);
 
   // Multi-Selection state & actions
   const selectedTrackIds = usePlayerStore((s) => s.selectedTrackIds);
@@ -1311,6 +1309,46 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       container.removeEventListener('prism-row-select', handleRowSelectEvt);
     };
   }, [playTrack, tracks, selectTrackRange, toggleSelectTrack, selectSingleTrack]);
+
+  // Clear selection when clicking anywhere else on the screen (outside track rows/cells)
+  useEffect(() => {
+    if (selectedTrackIds.length === 0) return;
+
+    const handleGlobalPointerDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      // Do not clear if clicking context menu, batch action bar, modals, inputs, or interactive buttons
+      if (
+        target.closest('.context-menu-container') ||
+        target.closest('[role="dialog"]') ||
+        target.closest('input') ||
+        target.closest('textarea')
+      ) {
+        return;
+      }
+
+      // If clicking inside a valid non-spacer track row/cell, allow cell click handler to handle it
+      if (
+        (target.closest('revogr-row') ||
+          target.closest('.rgRow') ||
+          target.closest('.rgCell') ||
+          target.closest('[data-rgroup]') ||
+          target.closest('.group\\/row')) &&
+        !target.closest('.spacer-row')
+      ) {
+        return;
+      }
+
+      // Clicked outside track rows - clear selection
+      clearSelection();
+    };
+
+    window.addEventListener('pointerdown', handleGlobalPointerDown, true);
+    return () => {
+      window.removeEventListener('pointerdown', handleGlobalPointerDown, true);
+    };
+  }, [selectedTrackIds.length, clearSelection]);
 
   // Toggle visibility helper
   const handleToggleColumn = useCallback(
@@ -1881,7 +1919,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
             <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-white/10 text-zinc-300">
               {tracks.length}
             </span>
-            {selectedTrackIds.length > 0 && (
+            {selectedTrackIds.length > 1 && (
               <span
                 className="px-2 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-1.5"
                 style={{
@@ -2398,23 +2436,42 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                           onMouseEnter={(e) => handleItemHover(e, true)}
                           onMouseLeave={(e) => handleItemHover(e, false)}
                           className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
-                          title="Open track details and search any song to link"
+                          title="Open track details and edit multi-song suite sequence"
                         >
                           <Link2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                          <span className="truncate">Link to Song...</span>
+                          <span className="truncate">
+                            {isLinkedSong ? 'Edit Linked Suite...' : 'Link to Song / Create Suite...'}
+                          </span>
                         </button>
 
-                        {nextTrack && (
+                        {isLinkedSong && (
                           <button
                             type="button"
                             onClick={() => {
-                              linkTracks(primaryTrack.id, nextTrack.id);
+                              usePlayerStore.getState().playLinkedSuite(primaryTrack.id);
                               setContextMenu(null);
                             }}
                             onMouseEnter={(e) => handleItemHover(e, true)}
                             onMouseLeave={(e) => handleItemHover(e, false)}
                             className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
-                            title={`Link to play seamlessly before "${nextTrack.title}"`}
+                            title="Play this linked suite from the beginning"
+                          >
+                            <Play className="w-4 h-4 fill-current" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                            <span className="truncate">Play Linked Suite</span>
+                          </button>
+                        )}
+
+                        {nextTrack && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              usePlayerStore.getState().addTrackToChain(primaryTrack.id, nextTrack.id, 'after');
+                              setContextMenu(null);
+                            }}
+                            onMouseEnter={(e) => handleItemHover(e, true)}
+                            onMouseLeave={(e) => handleItemHover(e, false)}
+                            className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+                            title={`Link to play seamlessly into "${nextTrack.title}"`}
                           >
                             <Link2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                             <span className="truncate">Link to Next Song</span>
@@ -2425,7 +2482,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                           <button
                             type="button"
                             onClick={() => {
-                              unlinkTrack(primaryTrack.id);
+                              usePlayerStore.getState().unlinkChain(primaryTrack.id);
                               setContextMenu(null);
                             }}
                             onMouseEnter={(e) => handleItemHover(e, true)}
@@ -2433,7 +2490,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                             className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
                           >
                             <Unlink className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                            <span>Unlink Song Pair</span>
+                            <span>Unlink Song Suite</span>
                           </button>
                         )}
                       </>

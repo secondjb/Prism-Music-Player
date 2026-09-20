@@ -1,7 +1,19 @@
-﻿import React, { useState, useMemo } from 'react';
-import { usePlayerStore } from '../store/usePlayerStore';
+import React, { useState, useMemo } from 'react';
+import { usePlayerStore, getLinkedChainTracks } from '../store/usePlayerStore';
 import { Track } from '../types/player';
-import { X, Search, Link2, Music, Check, ArrowRight } from 'lucide-react';
+import {
+  X,
+  Search,
+  Link2,
+  Music,
+  GripVertical,
+  ChevronUp,
+  ChevronDown,
+  Play,
+  Trash2,
+  ArrowLeftRight,
+  Plus,
+} from 'lucide-react';
 import { useTrackArt } from '../utils/useTrackArt';
 
 const TrackRowArt: React.FC<{ track: Track }> = ({ track }) => {
@@ -28,39 +40,64 @@ export const LinkTrackModal: React.FC = () => {
   const setLinkModalTrack = usePlayerStore((s) => s.setLinkModalTrack);
   const tracks = usePlayerStore((s) => s.tracks);
   const linkedTracks = usePlayerStore((s) => s.linkedTracks);
-  const linkTracks = usePlayerStore((s) => s.linkTracks);
+  const reorderLinkedChain = usePlayerStore((s) => s.reorderLinkedChain);
+  const addTrackToChain = usePlayerStore((s) => s.addTrackToChain);
+  const removeTrackFromChain = usePlayerStore((s) => s.removeTrackFromChain);
+  const reverseChain = usePlayerStore((s) => s.reverseChain);
+  const playLinkedSuite = usePlayerStore((s) => s.playLinkedSuite);
 
   const [query, setQuery] = useState('');
-  const [linkDirection, setLinkDirection] = useState<'after' | 'before'>('after');
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  // Active suite chain
+  const linkedChain = useMemo(() => {
+    if (!linkModalTrack) return [];
+    return getLinkedChainTracks(linkModalTrack.id, linkedTracks, tracks);
+  }, [linkModalTrack, linkedTracks, tracks]);
+
+  const isSuiteLinked = linkedChain.length > 1;
+
+  const totalSuiteDuration = useMemo(() => {
+    return linkedChain.reduce((acc, t) => acc + (t.duration_secs || 0), 0);
+  }, [linkedChain]);
 
   const availableTracks = useMemo(() => {
     if (!linkModalTrack) return [];
-    const currentId = linkModalTrack.id;
+    const chainIds = new Set(linkedChain.map((t) => t.id));
     const q = query.trim().toLowerCase();
 
     return tracks
-      .filter((t) => t.id !== currentId)
+      .filter((t) => !chainIds.has(t.id))
       .filter((t) => {
         if (!q) return true;
         return (
           t.title.toLowerCase().includes(q) ||
           t.artist.toLowerCase().includes(q) ||
-          t.album.toLowerCase().includes(q)
+          (t.album && t.album.toLowerCase().includes(q))
         );
       });
-  }, [tracks, linkModalTrack, query]);
+  }, [tracks, linkModalTrack, linkedChain, query]);
 
   if (!linkModalTrack) return null;
 
-  const currentLinkedAfter = linkedTracks[linkModalTrack.id] || [];
+  const handleMoveItem = (fromIdx: number, toIdx: number) => {
+    if (toIdx < 0 || toIdx >= linkedChain.length) return;
+    const updated = [...linkedChain];
+    const [moved] = updated.splice(fromIdx, 1);
+    updated.splice(toIdx, 0, moved);
+    reorderLinkedChain(updated.map((t) => t.id));
+  };
 
-  const handleSelectTrack = (targetTrack: Track) => {
-    if (linkDirection === 'after') {
-      linkTracks(linkModalTrack.id, targetTrack.id);
-    } else {
-      linkTracks(targetTrack.id, linkModalTrack.id);
+  const handleDrop = (targetIdx: number) => {
+    if (draggedIndex === null || draggedIndex === targetIdx) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
     }
-    setLinkModalTrack(null);
+    handleMoveItem(draggedIndex, targetIdx);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   };
 
   return (
@@ -69,10 +106,11 @@ export const LinkTrackModal: React.FC = () => {
       onClick={() => setLinkModalTrack(null)}
     >
       <div
-        className="w-full max-w-lg bg-zinc-900/95 border border-white/10 rounded-2xl p-6 shadow-2xl flex flex-col gap-4 max-h-[85vh] animate-in zoom-in-95 duration-150 text-white"
+        className="w-full max-w-xl bg-zinc-900/95 border border-white/10 rounded-2xl p-6 shadow-2xl flex flex-col gap-4 max-h-[90vh] animate-in zoom-in-95 duration-150 text-white"
         onClick={(e) => e.stopPropagation()}
         style={{
-          boxShadow: '0 24px 48px -12px rgba(0, 0, 0, 0.8), 0 0 24px color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+          boxShadow:
+            '0 24px 48px -12px rgba(0, 0, 0, 0.8), 0 0 24px color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
         }}
       >
         {/* Header */}
@@ -85,9 +123,25 @@ export const LinkTrackModal: React.FC = () => {
               <Link2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-white">Link Song Pair / Suite</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-base text-white">Linked Song Suite</h3>
+                {isSuiteLinked && (
+                  <span
+                    className="text-[11px] font-semibold px-2 py-0.5 rounded-full border"
+                    style={{
+                      backgroundColor:
+                        'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                      borderColor:
+                        'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                      color: 'var(--color-stop-1, #6366f1)',
+                    }}
+                  >
+                    {linkedChain.length} Tracks • {formatDuration(totalSuiteDuration)}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-zinc-400">
-                Queues together in shuffle and plays gaplessly in sequence
+                Drag handles to reorder sequence, queue together when shuffling, and play gaplessly
               </p>
             </div>
           </div>
@@ -99,103 +153,194 @@ export const LinkTrackModal: React.FC = () => {
           </button>
         </div>
 
-        {/* Current Anchor Track Info */}
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
-          <TrackRowArt track={linkModalTrack} />
-          <div className="flex flex-col min-w-0 flex-1">
-            <span className="text-sm font-bold text-white truncate">{linkModalTrack.title}</span>
-            <span className="text-xs text-zinc-400 truncate">{linkModalTrack.artist}</span>
+        {/* Suite Controls if Linked */}
+        {isSuiteLinked && (
+          <div className="flex items-center justify-between gap-2 p-1.5 bg-black/40 rounded-xl border border-white/10 text-xs">
+            <span className="text-[11px] font-medium text-zinc-400 pl-2">
+              Suite playback sequence (top to bottom):
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => playLinkedSuite(linkModalTrack.id)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-white transition-all shadow-sm cursor-pointer"
+                style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+              >
+                <Play className="w-3 h-3 fill-current" />
+                <span>Play Suite</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => reverseChain(linkModalTrack.id)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-medium text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer"
+              >
+                <ArrowLeftRight className="w-3 h-3" />
+                <span>Reverse</span>
+              </button>
+            </div>
           </div>
-          <span
-            className="text-[11px] font-semibold px-2 py-0.5 rounded-md border shrink-0"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
-              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
-              color: 'var(--color-stop-1, #6366f1)',
-            }}
-          >
-            Anchor Track
+        )}
+
+        {/* Current Linked Sequence with Drag Handles */}
+        <div className="flex flex-col gap-1.5 max-h-52 overflow-y-auto custom-scrollbar pr-1">
+          {linkedChain.map((chainTrack, idx) => {
+            const isAnchor = chainTrack.id === linkModalTrack.id;
+            const isDragging = draggedIndex === idx;
+            const isOver = dragOverIndex === idx;
+
+            return (
+              <div
+                key={chainTrack.id}
+                draggable={isSuiteLinked}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', String(idx));
+                  setDraggedIndex(idx);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (dragOverIndex !== idx) setDragOverIndex(idx);
+                }}
+                onDragLeave={() => {
+                  if (dragOverIndex === idx) setDragOverIndex(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleDrop(idx);
+                }}
+                onDragEnd={() => {
+                  setDraggedIndex(null);
+                  setDragOverIndex(null);
+                }}
+                className={`group p-2.5 rounded-xl flex items-center justify-between gap-3 transition-all ${
+                  isAnchor
+                    ? 'bg-white/10 border-2 border-indigo-500/60'
+                    : 'bg-white/5 border border-white/10 hover:bg-white/[0.08]'
+                } ${
+                  isDragging
+                    ? 'opacity-40 scale-95 border-dashed border-indigo-400'
+                    : isOver
+                    ? 'border-indigo-400 ring-2 ring-indigo-400/40'
+                    : ''
+                }`}
+              >
+                <div className="flex items-center gap-2 shrink-0">
+                  {isSuiteLinked && (
+                    <div
+                      className="p-1 rounded-md text-zinc-500 group-hover:text-zinc-300 cursor-grab active:cursor-grabbing hover:bg-white/10 transition-colors"
+                      title="Drag to reorder"
+                    >
+                      <GripVertical className="w-4 h-4" />
+                    </div>
+                  )}
+                  <span
+                    className="text-xs font-mono font-bold w-5 h-5 rounded flex items-center justify-center border shrink-0"
+                    style={
+                      isAnchor
+                        ? {
+                            backgroundColor: 'var(--color-stop-1, #6366f1)',
+                            borderColor: 'var(--color-stop-1, #6366f1)',
+                            color: '#fff',
+                          }
+                        : {
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            color: '#cbd5e1',
+                          }
+                    }
+                  >
+                    {idx + 1}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
+                  <TrackRowArt track={chainTrack} />
+                  <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
+                    <span className="text-xs font-bold text-white truncate">{chainTrack.title}</span>
+                    <span className="text-[11px] text-zinc-400 truncate">
+                      {chainTrack.artist} {chainTrack.album ? `• ${chainTrack.album}` : ''}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="text-[11px] font-mono text-zinc-500 mr-1">
+                    {formatDuration(chainTrack.duration_secs)}
+                  </span>
+                  {isSuiteLinked && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => handleMoveItem(idx, idx - 1)}
+                        className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        title="Move Up"
+                      >
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === linkedChain.length - 1}
+                        onClick={() => handleMoveItem(idx, idx + 1)}
+                        className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        title="Move Down"
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeTrackFromChain(chainTrack.id)}
+                        className="p-1 rounded text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-colors ml-0.5"
+                        title="Remove track from suite"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Search Input for adding more songs to the suite */}
+        <div className="flex flex-col gap-1.5 border-t border-white/10 pt-3">
+          <span className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+            <Plus className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+            Add Another Song to Suite
           </span>
+          <div className="relative w-full">
+            <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search library tracks to add..."
+              className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-9 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none transition-all"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Direction Switcher */}
-        <div className="flex items-center justify-between gap-2 p-1 bg-black/40 rounded-xl border border-white/10 text-xs">
-          <button
-            type="button"
-            onClick={() => setLinkDirection('after')}
-            className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
-              linkDirection === 'after'
-                ? 'text-white shadow-md font-semibold'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-            style={
-              linkDirection === 'after'
-                ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
-                : undefined
-            }
-          >
-            <span>Play Next</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-            <span className="text-zinc-200">(After current)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setLinkDirection('before')}
-            className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
-              linkDirection === 'before'
-                ? 'text-white shadow-md font-semibold'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-            style={
-              linkDirection === 'before'
-                ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
-                : undefined
-            }
-          >
-            <span>Play First</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-            <span className="text-zinc-200">(Before current)</span>
-          </button>
-        </div>
-
-        {/* Search Input */}
-        <div className="relative w-full">
-          <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search tracks in your library..."
-            className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-9 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none transition-all"
-            autoFocus
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => setQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        {/* Track List */}
-        <div className="flex-1 overflow-y-auto max-h-64 custom-scrollbar flex flex-col gap-1 pr-1">
+        {/* Matching Track List */}
+        <div className="flex-1 overflow-y-auto max-h-52 custom-scrollbar flex flex-col gap-1 pr-1">
           {availableTracks.length === 0 ? (
-            <div className="text-center py-8 text-zinc-500 text-xs italic">
-              {query ? 'No matching tracks found' : 'No other tracks in library'}
+            <div className="text-center py-6 text-zinc-500 text-xs italic">
+              {query ? 'No matching tracks found' : 'Type above to search library'}
             </div>
           ) : (
-            availableTracks.slice(0, 50).map((track) => {
-              const isAlreadyLinked = currentLinkedAfter.includes(track.id);
-
+            availableTracks.slice(0, 30).map((track) => {
               return (
-                <button
+                <div
                   key={track.id}
-                  type="button"
-                  onClick={() => handleSelectTrack(track)}
-                  className="flex items-center justify-between p-2 rounded-xl transition-colors hover:bg-white/10 text-left group cursor-pointer w-full"
+                  className="flex items-center justify-between p-2 rounded-xl transition-colors hover:bg-white/10 text-left group w-full"
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
                     <TrackRowArt track={track} />
@@ -209,24 +354,65 @@ export const LinkTrackModal: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[11px] font-mono text-zinc-500">
                       {formatDuration(track.duration_secs)}
                     </span>
-                    {isAlreadyLinked ? (
-                      <span className="p-1 rounded-md bg-indigo-500/20 text-indigo-400">
-                        <Check className="w-3.5 h-3.5" />
-                      </span>
+
+                    {isSuiteLinked ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            addTrackToChain(linkModalTrack.id, track.id, 'start');
+                            setQuery('');
+                          }}
+                          className="px-2 py-1 rounded-lg text-xs font-semibold text-zinc-300 hover:text-white bg-white/10 hover:bg-white/20 border border-white/10 transition-all cursor-pointer"
+                          title="Add to beginning of suite (#1)"
+                        >
+                          + Start
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            addTrackToChain(linkModalTrack.id, track.id, 'end');
+                            setQuery('');
+                          }}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white shadow-sm transition-transform active:scale-95 cursor-pointer flex items-center gap-1"
+                          style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+                          title="Add to end of suite"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>+ End</span>
+                        </button>
+                      </div>
                     ) : (
-                      <span
-                        className="px-2.5 py-1 rounded-lg text-xs font-semibold opacity-0 group-hover:opacity-100 transition-all text-white shadow-sm"
-                        style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-                      >
-                        Link
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            addTrackToChain(linkModalTrack.id, track.id, 'before');
+                            setQuery('');
+                          }}
+                          className="px-2 py-1 rounded-lg text-xs font-semibold text-zinc-300 hover:text-white bg-white/10 hover:bg-white/20 border border-white/10 transition-all cursor-pointer"
+                        >
+                          Play Before
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            addTrackToChain(linkModalTrack.id, track.id, 'after');
+                            setQuery('');
+                          }}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white shadow-sm transition-transform active:scale-95 cursor-pointer flex items-center gap-1"
+                          style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+                        >
+                          Play After
+                        </button>
+                      </div>
                     )}
                   </div>
-                </button>
+                </div>
               );
             })
           )}

@@ -136,7 +136,11 @@ export const PlaylistView: React.FC = () => {
                       setEditingId(null);
                     }
                   }}
-                  className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-lg font-bold text-white focus:outline-none focus:border-indigo-500"
+                  className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-lg font-bold text-white focus:outline-none transition-all"
+                  style={{
+                    borderColor: 'var(--color-stop-1, #6366f1)',
+                    boxShadow: '0 0 12px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+                  }}
                   autoFocus
                 />
                 <button
@@ -1007,8 +1011,16 @@ const PlaylistCoverCell: React.FC<{ track: Track | null }> = ({ track }) => {
   return art ? (
     <img src={art} alt={track.title} className="w-full h-full object-cover" />
   ) : (
-    <div className="bg-gradient-to-br from-indigo-900/60 to-purple-900/60 flex items-center justify-center">
-      <Music className="w-4 h-4 text-indigo-300/60" />
+    <div
+      className="flex items-center justify-center w-full h-full"
+      style={{
+        background: 'linear-gradient(135deg, color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, #18181b), color-mix(in srgb, var(--color-stop-2, #8b5cf6) 20%, #09090b))',
+      }}
+    >
+      <Music
+        className="w-4 h-4"
+        style={{ color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 75%, white)' }}
+      />
     </div>
   );
 };

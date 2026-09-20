@@ -284,9 +284,16 @@ export const StatsView: React.FC = () => {
       </div>
 
       {showDemoStats && (
-        <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-xs text-indigo-300 animate-in fade-in">
+        <div
+          className="flex items-center justify-between px-4 py-2.5 rounded-xl border text-xs animate-in fade-in"
+          style={{
+            backgroundColor: `${themeColors.stop1}15`,
+            borderColor: `${themeColors.stop1}40`,
+            color: themeColors.stop1,
+          }}
+        >
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-indigo-400" />
+            <Sparkles className="w-4 h-4" style={{ color: themeColors.stop1 }} />
             <span><strong>Showcase Demo Mode Active:</strong> Displaying simulated analytics data for screenshots and testing.</span>
           </div>
           <button

@@ -84,6 +84,61 @@
   .custom-scrollbar.scrollbar-hidden::-webkit-scrollbar-thumb {
     background: transparent !important;
   }
+
+  /* Global theme-reactive text selection */
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent) !important;
+    color: #ffffff !important;
+  }
+
+  /* Global theme-reactive form inputs */
+  input[type="text"]:focus,
+  input[type="search"]:focus,
+  input[type="number"]:focus,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="file"]):focus {
+    border-color: var(--color-stop-1, #6366f1) !important;
+    box-shadow: 0 0 12px color-mix(in srgb, var(--color-stop-1, #6366f1) 28%, transparent) !important;
+    outline: none !important;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--color-stop-1, #6366f1) !important;
+  }
+
+  input[type="range"] {
+    accent-color: var(--color-stop-1, #6366f1) !important;
+  }
+
+  /* Universal theme-reactive overrides for lingering utility classes */
+  .hover\:text-indigo-400:hover,
+  .hover\:text-indigo-300:hover,
+  .group-hover\:text-indigo-300:hover,
+  .group-hover\/cand\:text-indigo-300:hover {
+    color: var(--color-stop-1, #6366f1) !important;
+  }
+
+  .text-indigo-400,
+  .text-indigo-300 {
+    color: var(--color-stop-1, #6366f1);
+  }
+
+  .bg-indigo-500\/20,
+  .bg-indigo-500\/25,
+  .bg-indigo-500\/30 {
+    background-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent) !important;
+  }
+
+  .border-indigo-500\/30,
+  .border-indigo-500\/40,
+  .border-indigo-400,
+  .border-indigo-500\/60 {
+    border-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent) !important;
+  }
+
+  .ring-indigo-400\/40 {
+    --tw-ring-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent) !important;
+  }
 }
 
 /* RevoGrid Glassmorphism Theming & Native CSS Variable Overrides */

@@ -36,7 +36,36 @@ const muiDarkTheme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#6366f1', // Indigo 500
+      main: '#6366f1',
+    },
+  },
+  components: {
+    MuiSlider: {
+      styleOverrides: {
+        root: {
+          color: 'var(--color-stop-1, #6366f1)',
+          height: 6,
+        },
+        thumb: {
+          height: 18,
+          width: 18,
+          backgroundColor: '#ffffff',
+          border: '2px solid var(--color-stop-1, #6366f1)',
+          '&:focus, &:hover, &.Mui-active, &.Mui-focusVisible': {
+            boxShadow: '0 0 0 8px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+          },
+        },
+        track: {
+          height: 6,
+          borderRadius: 3,
+        },
+        rail: {
+          height: 6,
+          borderRadius: 3,
+          backgroundColor: '#27272a',
+          opacity: 0.8,
+        },
+      },
     },
   },
 });

@@ -75,7 +75,11 @@ export const Sidebar: React.FC = () => {
         {includedDirectories.length === 0 && (
           <button
             onClick={handleQuickAddDirectory}
-            className="flex items-center justify-center gap-2.5 w-full py-2.5 px-4 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 text-white font-medium text-sm transition-all duration-200 shadow-md shadow-indigo-600/30 hover:scale-[1.02] active:scale-[0.98]"
+            className="flex items-center justify-center gap-2.5 w-full py-2.5 px-4 rounded-xl text-white font-medium text-sm transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+            style={{
+              backgroundColor: 'var(--color-stop-1, #6366f1)',
+              boxShadow: '0 4px 14px color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+            }}
           >
             <FolderPlus className="w-4 h-4" />
             <span>Add Library Folder</span>
@@ -116,7 +120,10 @@ export const Sidebar: React.FC = () => {
                     <span>{item.label}</span>
                   </div>
                   {item.id === 'settings' && latestUpdateResult?.hasUpdate && (
-                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500 text-white animate-pulse">
+                    <span
+                      className="px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white animate-pulse"
+                      style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+                    >
                       Update
                     </span>
                   )}

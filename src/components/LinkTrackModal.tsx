@@ -213,15 +213,25 @@ export const LinkTrackModal: React.FC = () => {
                 }}
                 className={`group p-2.5 rounded-xl flex items-center justify-between gap-3 transition-all ${
                   isAnchor
-                    ? 'bg-white/10 border-2 border-indigo-500/60'
-                    : 'bg-white/5 border border-white/10 hover:bg-white/[0.08]'
+                    ? 'bg-white/10 border-2'
+                    : 'bg-white/5 border hover:bg-white/[0.08]'
                 } ${
                   isDragging
-                    ? 'opacity-40 scale-95 border-dashed border-indigo-400'
-                    : isOver
-                    ? 'border-indigo-400 ring-2 ring-indigo-400/40'
+                    ? 'opacity-40 scale-95 border-dashed'
                     : ''
                 }`}
+                style={{
+                  borderColor: isAnchor
+                    ? 'var(--color-stop-1, #6366f1)'
+                    : isOver || isDragging
+                    ? 'var(--color-stop-1, #6366f1)'
+                    : 'rgba(255, 255, 255, 0.1)',
+                  boxShadow: isAnchor
+                    ? '0 0 14px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)'
+                    : isOver
+                    ? '0 0 10px color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)'
+                    : undefined,
+                }}
               >
                 <div className="flex items-center gap-2 shrink-0">
                   {isSuiteLinked && (
@@ -316,6 +326,22 @@ export const LinkTrackModal: React.FC = () => {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search library tracks to add..."
               className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-9 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none transition-all"
+              style={{
+                borderColor: query.trim()
+                  ? 'var(--color-stop-1, #6366f1)'
+                  : 'rgba(255, 255, 255, 0.1)',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-stop-1, #6366f1)';
+                e.currentTarget.style.boxShadow =
+                  '0 0 12px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = query.trim()
+                  ? 'var(--color-stop-1, #6366f1)'
+                  : 'rgba(255, 255, 255, 0.1)';
+                e.currentTarget.style.boxShadow = '';
+              }}
             />
             {query && (
               <button
@@ -345,7 +371,7 @@ export const LinkTrackModal: React.FC = () => {
                   <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
                     <TrackRowArt track={track} />
                     <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-semibold text-white truncate group-hover:text-indigo-300 transition-colors">
+                      <span className="text-xs font-semibold text-white truncate group-hover:underline transition-colors">
                         {track.title}
                       </span>
                       <span className="text-[11px] text-zinc-400 truncate">

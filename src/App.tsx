@@ -507,7 +507,7 @@ export const App: React.FC = () => {
   const isLyricsActive = showLyricsFullscreen || activeTab === 'lyrics';
 
   return (
-    <div className="w-screen h-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden relative selection:bg-indigo-500/30 selection:text-indigo-200">
+    <div className="w-screen h-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden relative">
       {/* Hidden audio element for Windows Taskbar Thumbnail Toolbar & MediaSession sync */}
       <audio
         ref={silentAudioRef}

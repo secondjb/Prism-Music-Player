@@ -361,7 +361,13 @@ const TrackArtCell: React.FC<any> = ({ model }) => {
         {art ? (
           <img src={art} alt={track.title || ''} className="w-full h-full object-cover" loading="lazy" />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-indigo-950/60 to-purple-950/60 flex items-center justify-center text-indigo-400">
+          <div
+            className="w-full h-full flex items-center justify-center"
+            style={{
+              background: 'linear-gradient(135deg, color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, #18181b), color-mix(in srgb, var(--color-stop-2, #8b5cf6) 20%, #09090b))',
+              color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 75%, white)',
+            }}
+          >
             <Music className={iconClass} />
           </div>
         )}

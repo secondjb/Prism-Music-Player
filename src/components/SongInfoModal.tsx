@@ -459,13 +459,21 @@ export const SongInfoModal: React.FC = () => {
                             : 'bg-white/5 border hover:bg-white/[0.08]'
                         } ${
                           isDragging
-                            ? 'opacity-40 scale-95 border-dashed border-indigo-400'
-                            : isOver
-                            ? 'border-indigo-400 ring-2 ring-indigo-400/40'
-                            : isViewing
-                            ? 'border-indigo-500/60 shadow-lg'
-                            : 'border-white/10'
+                            ? 'opacity-40 scale-95 border-dashed'
+                            : ''
                         }`}
+                        style={{
+                          borderColor: isViewing
+                            ? 'var(--color-stop-1, #6366f1)'
+                            : isOver || isDragging
+                            ? 'var(--color-stop-1, #6366f1)'
+                            : 'rgba(255, 255, 255, 0.1)',
+                          boxShadow: isViewing
+                            ? '0 0 14px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)'
+                            : isOver
+                            ? '0 0 10px color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)'
+                            : undefined,
+                        }}
                       >
                         {/* Drag Handle & Step Order */}
                         <div className="flex items-center gap-2 shrink-0">
@@ -606,7 +614,23 @@ export const SongInfoModal: React.FC = () => {
                     setLinkSuccessMsg(null);
                   }}
                   placeholder="Type song title, artist, or album to search and add to this suite..."
-                  className="w-full pl-10 pr-10 py-2.5 bg-black/40 rounded-xl border border-white/10 text-white text-xs placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                  className="w-full pl-10 pr-10 py-2.5 bg-black/40 rounded-xl border border-white/10 text-white text-xs placeholder:text-zinc-500 focus:outline-none transition-all"
+                  style={{
+                    borderColor: searchQuery.trim()
+                      ? 'var(--color-stop-1, #6366f1)'
+                      : 'rgba(255, 255, 255, 0.1)',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-stop-1, #6366f1)';
+                    e.currentTarget.style.boxShadow =
+                      '0 0 12px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = searchQuery.trim()
+                      ? 'var(--color-stop-1, #6366f1)'
+                      : 'rgba(255, 255, 255, 0.1)';
+                    e.currentTarget.style.boxShadow = '';
+                  }}
                 />
                 {searchQuery && (
                   <button
@@ -649,7 +673,7 @@ export const SongInfoModal: React.FC = () => {
                           >
                             <LinkedTrackThumbnail track={candidate} />
                             <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
-                              <span className="text-xs font-bold text-white truncate block w-full group-hover/cand:underline group-hover/cand:text-indigo-300">
+                              <span className="text-xs font-bold text-white truncate block w-full group-hover/cand:underline">
                                 {candidate.title}
                               </span>
                               <span className="text-[11px] text-zinc-400 truncate block w-full">
@@ -664,7 +688,14 @@ export const SongInfoModal: React.FC = () => {
                             </span>
 
                             {isInChain ? (
-                              <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
+                              <span
+                                className="px-2.5 py-1 rounded-lg text-xs font-semibold border flex items-center gap-1"
+                                style={{
+                                  backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                                  borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+                                  color: 'var(--color-stop-1, #6366f1)',
+                                }}
+                              >
                                 <Check className="w-3.5 h-3.5" />
                                 <span>In Suite</span>
                               </span>

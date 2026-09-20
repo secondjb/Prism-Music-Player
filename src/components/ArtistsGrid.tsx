@@ -73,8 +73,16 @@ const ArtistCard: React.FC<{ artistName: string; artistTracks: Track[]; onPlay: 
         {art ? (
           <img src={art} alt={artistName} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-indigo-900/80 to-purple-950/80 flex items-center justify-center">
-            <User className="w-12 h-12 text-indigo-300/60" />
+          <div
+            className="w-full h-full flex items-center justify-center"
+            style={{
+              background: 'linear-gradient(135deg, color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, #18181b), color-mix(in srgb, var(--color-stop-2, #8b5cf6) 20%, #09090b))',
+            }}
+          >
+            <User
+              className="w-12 h-12"
+              style={{ color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 75%, white)' }}
+            />
           </div>
         )}
 
@@ -148,8 +156,16 @@ const ArtistListRow: React.FC<{ artistName: string; artistTracks: Track[]; onPla
           {art ? (
             <img src={art} alt={artistName} className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-indigo-900/80 to-purple-950/80 flex items-center justify-center">
-              <User className="w-5 h-5 text-indigo-300/60" />
+            <div
+              className="w-full h-full flex items-center justify-center"
+              style={{
+                background: 'linear-gradient(135deg, color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, #18181b), color-mix(in srgb, var(--color-stop-2, #8b5cf6) 20%, #09090b))',
+              }}
+            >
+              <User
+                className="w-5 h-5"
+                style={{ color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 75%, white)' }}
+              />
             </div>
           )}
           <div

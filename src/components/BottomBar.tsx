@@ -233,8 +233,16 @@ export const BottomBar: React.FC = () => {
               {trackArt ? (
                 <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover pointer-events-none" />
               ) : (
-                <div className="w-full h-full bg-gradient-to-tr from-indigo-900 to-purple-900 flex items-center justify-center pointer-events-none">
-                  <Sparkles className="w-6 h-6 text-indigo-400" />
+                <div
+                  className="w-full h-full flex items-center justify-center pointer-events-none"
+                  style={{
+                    background: 'linear-gradient(135deg, color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, #18181b), color-mix(in srgb, var(--color-stop-2, #8b5cf6) 20%, #09090b))',
+                  }}
+                >
+                  <Sparkles
+                    className="w-6 h-6"
+                    style={{ color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 75%, white)' }}
+                  />
                 </div>
               )}
             </div>
@@ -252,7 +260,7 @@ export const BottomBar: React.FC = () => {
                 </button>
               </div>
               <span 
-                className="text-xs text-zinc-400 truncate max-w-[140px] hover:underline hover:text-indigo-400 cursor-pointer" 
+                className="text-xs text-zinc-400 truncate max-w-[140px] hover:underline cursor-pointer" 
                 title={currentTrack.artist}
                 onClick={(e) => {
                   if (currentTrack.artist && currentTrack.artist !== 'Unknown Artist') {
@@ -267,7 +275,14 @@ export const BottomBar: React.FC = () => {
               {/* High-Res Audio Specs Badge */}
               {usePlayerStore.getState().showAudioSpecs && (
                 <div className="flex items-center gap-1.5 mt-1 pointer-events-none">
-                  <span className="px-1.5 py-0.2 text-[9px] font-mono font-bold rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  <span
+                    className="px-1.5 py-0.2 text-[9px] font-mono font-bold rounded border"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                      borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+                      color: 'var(--color-stop-1, #6366f1)',
+                    }}
+                  >
                     FLAC
                   </span>
                   <span className="text-[10px] font-mono text-zinc-400">

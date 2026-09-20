@@ -1343,6 +1343,10 @@ export const usePlayerStore = create<PlayerState>()(
         const { userQueue, currentIndex, queue, repeatMode, playIndex, onTrackFinished } = get();
         onTrackFinished();
 
+        if (repeatMode === 'one') {
+          set({ repeatMode: 'all' });
+        }
+
         // Priority User Queue takes precedence over context queue
         if (userQueue.length > 0) {
           const nextUserTrack = userQueue[0];
@@ -1368,9 +1372,10 @@ export const usePlayerStore = create<PlayerState>()(
 
         if (queue.length === 0) return;
 
+        const effectiveRepeatMode = repeatMode === 'one' ? 'all' : repeatMode;
         const nextIdx = currentIndex + 1;
         if (nextIdx >= queue.length) {
-          if (repeatMode === 'all' || repeatMode === 'one') {
+          if (effectiveRepeatMode === 'all') {
             playIndex(0);
           } else {
             // repeatMode === 'off': stop at end
@@ -1387,10 +1392,13 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       previousTrack: () => {
-        const { currentIndex, queue, currentTime, seek, playIndex, shuffleEnabled, shuffleHistory } = get();
+        const { currentIndex, queue, currentTime, seek, playIndex, shuffleEnabled, shuffleHistory, repeatMode } = get();
         if (currentTime > 3) {
           seek(0);
           return;
+        }
+        if (repeatMode === 'one') {
+          set({ repeatMode: 'all' });
         }
         if (queue.length === 0) return;
 

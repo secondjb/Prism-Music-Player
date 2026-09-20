@@ -3,30 +3,72 @@ import { createRoot } from 'react-dom/client';
 import { RevoGrid } from '@revolist/react-datagrid';
 import type { ColumnRegular } from '@revolist/revogrid';
 
+// Localized error boundary for the RevoGrid component
+class GridErrorBoundary extends React.Component<
+  { children: React.ReactNode; onReset?: () => void },
+  { hasError: boolean; error: Error | null }
+> {
+  state: { hasError: boolean; error: Error | null } = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('GridErrorBoundary caught error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center glass-card rounded-2xl border border-white/10 m-4 select-none">
+          <div className="w-12 h-12 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center mb-3 text-xl">
+            ⚠️
+          </div>
+          <h3 className="text-base font-semibold text-white mb-1">Track Grid Display Notice</h3>
+          <p className="text-xs text-zinc-400 max-w-md font-mono bg-zinc-900/80 p-3 rounded-lg border border-white/5 text-left overflow-auto max-h-32 mb-4">
+            {this.state.error?.message || String(this.state.error)}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              this.props.onReset?.();
+            }}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-all cursor-pointer"
+          >
+            Reload Grid View
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Custom React Cell Template adapter with dynamic entity keying.
-// By placing a unique key on the returned span (derived from the track's ID or row index),
-// Stencil's virtual DOM creates a fresh DOM element and invokes the ref callback whenever
-// the underlying track changes, preventing stale or blank cell renders when clearing searches.
 const createReactCellTemplate = (ReactComponent: React.ComponentType<any>, customProps?: any) => {
   return (h: any, p: any, addition: any) => {
-    const props = customProps ? { ...customProps, ...p } : p;
+    if (!h) return null;
+    const safeP = p || {};
+    const colProp = safeP.prop || safeP.column?.prop || '';
+    const props = customProps ? { ...customProps, ...safeP, prop: colProp } : { ...safeP, prop: colProp };
     props.addition = addition;
-    const trackId = p.model?.id || `row-${p.rowIndex || 0}`;
-    const key = `${p.prop}-${trackId}`;
+    const trackId = safeP.model?.id || `row-${safeP.rowIndex ?? 0}`;
+    const key = `${colProp}-${trackId}`;
     return h('span', {
       key,
       ref: (el: any) => {
-        if (!el) {
-          if (el?._root) {
-            el._root.unmount();
-            el._root = undefined;
+        if (el) {
+          try {
+            if (!el._root) {
+              el._root = createRoot(el);
+            }
+            const vNode = createElement(ReactComponent, { ...props, key });
+            el._root.render(vNode);
+          } catch (err) {
+            console.error('Cell render error:', err);
           }
-        } else {
-          if (!el._root) {
-            el._root = createRoot(el);
-          }
-          const vNode = createElement(ReactComponent, { ...props, key });
-          el._root.render(vNode);
         }
       },
     });
@@ -2015,25 +2057,27 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
             </div>
           </div>
         ) : (
-          <RevoGrid
-            key={gridKey}
-            ref={gridRef}
-            theme="darkMaterial"
-            source={source}
-            columns={columns}
-            rowSize={currentDensityHeight}
-            readonly={true}
-            editors={{}}
-            resize={true}
-            canFocus={true}
-            accessible={true}
-            filter={false}
-            autoSizeColumn={false}
-            range={false}
-            canMoveColumns={true}
-            rowClass="rowClass"
-            onAftercolumnresize={onAfterColumnResize}
-          />
+          <GridErrorBoundary onReset={() => setContainerWidth((w) => w + 1)}>
+            <RevoGrid
+              key={gridKey}
+              ref={gridRef}
+              theme="darkMaterial"
+              source={source}
+              columns={columns}
+              rowSize={currentDensityHeight}
+              readonly={true}
+              editors={{}}
+              resize={true}
+              canFocus={true}
+              accessible={true}
+              filter={false}
+              autoSizeColumn={false}
+              range={false}
+              canMoveColumns={true}
+              rowClass="rowClass"
+              onAftercolumnresize={onAfterColumnResize}
+            />
+          </GridErrorBoundary>
         )}
 
         {/* Floating Batch Actions Pill for Multi-Selected Songs */}

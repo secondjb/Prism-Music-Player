@@ -158,8 +158,15 @@ pub fn run() {
             commands::calculate_single_track_gain,
             stats::log_listening_event,
             stats::fetch_listening_events,
-            stats::delete_listening_history
+            stats::delete_listening_history,
+            log_frontend_message
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+#[tauri::command]
+fn log_frontend_message(level: String, message: String) {
+    eprintln!("[Frontend:{}] {}", level, message);
+}
+

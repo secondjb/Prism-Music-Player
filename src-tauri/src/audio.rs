@@ -702,8 +702,6 @@ fn run_audio_thread(
             continue;
         }
 
-        let loop_start = std::time::Instant::now();
-
         let packet = match format.next_packet() {
             Ok(packet) => packet,
             Err(_) => break, // EOF or error
@@ -766,8 +764,6 @@ fn run_audio_thread(
                     buf.copy_interleaved_ref(decoded);
                     let raw_samples = buf.samples();
 
-                    let push_start = std::time::Instant::now();
-
                     // Non-blocking sample pusher closure with lazy stall detection (avoids Instant::now syscall per-sample)
                     let push_sample = |sample: f32| -> bool {
                         let mut stall_start: Option<std::time::Instant> = None;
@@ -779,7 +775,7 @@ fn run_audio_thread(
                                 Ok(_) => return true,
                                 Err(crossbeam_channel::TrySendError::Full(_)) => {
                                     let start = stall_start.get_or_insert_with(std::time::Instant::now);
-                                    if start.elapsed() > Duration::from_millis(100) {
+                                    if start.elapsed() > Duration::from_millis(1500) {
                                         device_changed.store(true, Ordering::SeqCst);
                                         return false;
                                     }
@@ -834,17 +830,13 @@ fn run_audio_thread(
                         }
                     }
 
-                    let push_time = push_start.elapsed();
-                    let total_loop_time = loop_start.elapsed();
-
-                    // Performance telemetry: Detect CPU bottlenecks or frame delays
-                    if total_loop_time > Duration::from_millis(12) {
+                    // Performance telemetry: Only detect actual CPU bottlenecks in decoding/DSP.
+                    // (Push time is real-time playback pacing and reflects normal audio buffer drainage)
+                    if decode_time + dsp_time > Duration::from_millis(8) {
                         eprintln!(
-                            "[AudioPerf:SPIKE] Slow frame! Total: {:.2}ms (Decode: {:.2}ms, DSP: {:.2}ms, Push: {:.2}ms, Buf: {})",
-                            total_loop_time.as_secs_f64() * 1000.0,
+                            "[AudioPerf:SPIKE] Heavy processing frame! Decode: {:.2}ms, DSP: {:.2}ms (Buf: {})",
                             decode_time.as_secs_f64() * 1000.0,
                             dsp_time.as_secs_f64() * 1000.0,
-                            push_time.as_secs_f64() * 1000.0,
                             tx.len()
                         );
                     }

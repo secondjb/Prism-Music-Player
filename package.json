@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "dev:tauri": "tauri dev",
+    "dev:log": "tauri dev 2>&1 | node scripts/tee.js dev-output.log",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"

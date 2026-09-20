@@ -356,33 +356,19 @@ export const SongInfoModal: React.FC = () => {
 
           {/* Linked Songs & Segue Sequences */}
           <section className="flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
-              <div className="flex items-center gap-3" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
-                <Link2 className="w-6 h-6" />
-                <div>
-                  <div className="flex items-center gap-2.5">
-                    <h3 className="text-lg font-bold text-white">Linked Song Suite / Multi-Track Sequence</h3>
-                    {isSuiteLinked && (
-                      <span
-                        className="text-xs font-semibold px-2.5 py-0.5 rounded-full border shadow-sm"
-                        style={{
-                          backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
-                          borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
-                          color: 'var(--color-stop-1, #6366f1)',
-                        }}
-                      >
-                        {linkedChain.length} Tracks • {formatDuration(totalSuiteDuration)}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-zinc-400">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/10 pb-3">
+              <div className="flex items-start gap-3">
+                <Link2 className="w-6 h-6 shrink-0 mt-0.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                <div className="flex flex-col min-w-0">
+                  <h3 className="text-lg font-bold text-white leading-tight">Linked Song Suite / Multi-Track Sequence</h3>
+                  <p className="text-xs text-zinc-400 mt-0.5">
                     Chains can be as long as you want. Drag handles to reorder sequence, queue together when shuffling, and play gaplessly.
                   </p>
                 </div>
               </div>
 
               {isSuiteLinked && (
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 self-start md:self-auto flex-wrap">
                   <button
                     type="button"
                     onClick={() => playLinkedSuite(infoModalTrack.id)}
@@ -420,9 +406,21 @@ export const SongInfoModal: React.FC = () => {
             {/* Current Suite Ordered List with Drag Handles */}
             {isSuiteLinked ? (
               <div className="flex flex-col gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                  Sequential Playback Order (Drag handles or use arrows to rearrange)
-                </span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                    Sequential Playback Order (Drag handles or use arrows to rearrange)
+                  </span>
+                  <span
+                    className="text-xs font-semibold px-2.5 py-0.5 rounded-full border shadow-sm shrink-0"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                      borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                      color: 'var(--color-stop-1, #6366f1)',
+                    }}
+                  >
+                    {linkedChain.length} Tracks • {formatDuration(totalSuiteDuration)}
+                  </span>
+                </div>
 
                 <div className="flex flex-col gap-2">
                   {linkedChain.map((chainTrack, idx) => {
@@ -514,11 +512,8 @@ export const SongInfoModal: React.FC = () => {
                           <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
                             <div className="flex items-center gap-2 min-w-0">
                               <span
-                                className={`text-sm font-bold truncate ${
-                                  isViewing
-                                    ? 'text-indigo-300'
-                                    : 'text-white group-hover:underline group-hover:text-zinc-200'
-                                }`}
+                                className="text-sm font-bold truncate text-white group-hover:underline"
+                                style={isViewing ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
                               >
                                 {chainTrack.title}
                               </span>

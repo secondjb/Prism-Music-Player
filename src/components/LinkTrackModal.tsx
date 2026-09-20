@@ -115,39 +115,23 @@ export const LinkTrackModal: React.FC = () => {
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3">
             <div
-              className="p-2.5 rounded-xl text-white shadow-md"
+              className="p-2.5 rounded-xl text-white shadow-md shrink-0 mt-0.5"
               style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
             >
               <Link2 className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-base text-white">Linked Song Suite</h3>
-                {isSuiteLinked && (
-                  <span
-                    className="text-[11px] font-semibold px-2 py-0.5 rounded-full border"
-                    style={{
-                      backgroundColor:
-                        'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
-                      borderColor:
-                        'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
-                      color: 'var(--color-stop-1, #6366f1)',
-                    }}
-                  >
-                    {linkedChain.length} Tracks • {formatDuration(totalSuiteDuration)}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-zinc-400">
+              <h3 className="font-bold text-base text-white leading-tight">Linked Song Suite</h3>
+              <p className="text-xs text-zinc-400 mt-0.5">
                 Drag handles to reorder sequence, queue together when shuffling, and play gaplessly
               </p>
             </div>
           </div>
           <button
             onClick={() => setLinkModalTrack(null)}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -156,9 +140,23 @@ export const LinkTrackModal: React.FC = () => {
         {/* Suite Controls if Linked */}
         {isSuiteLinked && (
           <div className="flex items-center justify-between gap-2 p-1.5 bg-black/40 rounded-xl border border-white/10 text-xs">
-            <span className="text-[11px] font-medium text-zinc-400 pl-2">
-              Suite playback sequence (top to bottom):
-            </span>
+            <div className="flex items-center gap-2 pl-2">
+              <span className="text-[11px] font-medium text-zinc-400">
+                Sequence:
+              </span>
+              <span
+                className="text-[10px] font-semibold px-2 py-0.5 rounded-full border shadow-sm"
+                style={{
+                  backgroundColor:
+                    'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                  borderColor:
+                    'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                  color: 'var(--color-stop-1, #6366f1)',
+                }}
+              >
+                {linkedChain.length} Tracks • {formatDuration(totalSuiteDuration)}
+              </span>
+            </div>
             <div className="flex items-center gap-1.5">
               <button
                 type="button"

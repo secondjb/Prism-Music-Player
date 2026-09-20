@@ -52,3 +52,21 @@ windows = { version = "0.58", features = [
     "Win32_Graphics_Gdi",
 ] }
 
+# Developer profile optimized for fast incremental compilation & fast linking
+[profile.dev]
+opt-level = 0
+debug = 1
+split-debuginfo = "unpacked"
+
+# Keep audio processing, metadata parsing, and DSP dependencies fast in dev mode
+[profile.dev.package."*"]
+opt-level = 2
+
+# Production release profile: maximum runtime performance, minimal memory, stripped binary
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true
+

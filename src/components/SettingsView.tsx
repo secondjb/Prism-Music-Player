@@ -47,6 +47,7 @@ import {
 } from '../utils/updateChecker';
 import { M3Selector } from './M3Selector';
 import { WordSyncedLyricsFinder } from './WordSyncedLyricsFinder';
+import { deleteListeningHistory } from '../utils/stats';
 
 // Dark MUI Theme with custom theme-reactive Discrete Slider & Checkbox styling
 const muiDarkTheme = createTheme({
@@ -2010,7 +2011,6 @@ export const SettingsView: React.FC = () => {
                     <button
                       onClick={async () => {
                         if (window.confirm('Are you sure you want to permanently delete all your listening history?')) {
-                          const { deleteListeningHistory } = await import('../utils/stats');
                           await deleteListeningHistory();
                           alert('Listening history cleared.');
                         }

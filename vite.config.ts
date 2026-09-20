@@ -31,4 +31,47 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+
+  build: {
+    // Modern target for Tauri WebView2 (Windows 10/11)
+    target: process.env.TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
+    // Don't minify in debug builds
+    minify: !process.env.TAURI_ENV_DEBUG ? 'esbuild' : false,
+    sourcemap: !!process.env.TAURI_ENV_DEBUG,
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('@mui') || id.includes('@emotion')) {
+              return 'vendor-mui';
+            }
+            if (id.includes('@revolist')) {
+              return 'vendor-grid';
+            }
+            if (id.includes('chart.js') || id.includes('react-chartjs-2')) {
+              return 'vendor-charts';
+            }
+            if (id.includes('framer-motion')) {
+              return 'vendor-motion';
+            }
+            if (
+              id.includes('kuroshiro') ||
+              id.includes('pinyin-pro') ||
+              id.includes('lyric-romanizer') ||
+              id.includes('@romanize')
+            ) {
+              return 'vendor-romanize';
+            }
+            if (id.includes('@tauri-apps')) {
+              return 'vendor-tauri';
+            }
+            if (id.includes('lucide-react')) {
+              return 'vendor-lucide';
+            }
+          }
+        },
+      },
+    },
+  },
 }));

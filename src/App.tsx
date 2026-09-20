@@ -101,47 +101,34 @@ export const App: React.FC = () => {
           let savedTracks: Track[] = [];
 
           try {
-            // High-performance chunked library loading for smooth startup with 10,000+ tracks
-            const firstChunk: LibraryChunkResponse = await invoke('load_library_chunk', {
-              chunkIndex: 0,
-              chunkSize: 2500,
-            });
-
-            if (firstChunk && firstChunk.tracks && firstChunk.tracks.length > 0) {
-              savedTracks = [...firstChunk.tracks];
+            // High-performance direct library loading for rock-solid startup
+            const loaded: any = await invoke('load_library');
+            if (loaded && Array.isArray(loaded) && loaded.length > 0) {
+              savedTracks = loaded;
               setTracks(savedTracks);
-
-              // Stream remaining chunks asynchronously in the background so UI is interactive in <50ms
-              if (!firstChunk.is_last && firstChunk.total_chunks > 1) {
-                (async () => {
-                  let accumulated = [...savedTracks];
-                  for (let i = 1; i < firstChunk.total_chunks; i++) {
-                    try {
-                      const nextChunk: LibraryChunkResponse = await invoke('load_library_chunk', {
-                        chunkIndex: i,
-                        chunkSize: 2500,
-                      });
-                      if (nextChunk && nextChunk.tracks && nextChunk.tracks.length > 0) {
-                        accumulated = accumulated.concat(nextChunk.tracks);
-                        setTracks(accumulated);
-                      }
-                    } catch (err) {
-                      console.warn(`Error streaming library chunk ${i}:`, err);
-                    }
-                  }
-                })();
-              }
             } else {
-              savedTracks = (await invoke('load_library')) || [];
-              if (savedTracks.length > 0) {
+              // Fallback to chunked loader if library is partitioned
+              const firstChunk: LibraryChunkResponse = await invoke('load_library_chunk', {
+                chunkIndex: 0,
+                chunkSize: 5000,
+              });
+              if (firstChunk && firstChunk.tracks && firstChunk.tracks.length > 0) {
+                savedTracks = [...firstChunk.tracks];
                 setTracks(savedTracks);
               }
             }
           } catch (e) {
-            savedTracks = (await invoke('load_library')) || [];
-            if (savedTracks.length > 0) {
-              setTracks(savedTracks);
-            }
+            console.warn('Startup library hydration notice:', e);
+            try {
+              const firstChunk: LibraryChunkResponse = await invoke('load_library_chunk', {
+                chunkIndex: 0,
+                chunkSize: 5000,
+              });
+              if (firstChunk && firstChunk.tracks && firstChunk.tracks.length > 0) {
+                savedTracks = [...firstChunk.tracks];
+                setTracks(savedTracks);
+              }
+            } catch {}
           }
 
           if (savedTracks.length > 0) {

@@ -21,13 +21,40 @@ window.addEventListener("unhandledrejection", (e) => {
   reportFrontendLog("UNHANDLED_REJECTION", msg);
 });
 
+function safeFormatArg(a: any): string {
+  if (a instanceof Error) {
+    return `${a.name}: ${a.message}\n${a.stack || ""}`;
+  }
+  if (typeof HTMLElement !== "undefined" && a instanceof HTMLElement) {
+    return `<${a.tagName.toLowerCase()}${a.id ? ` id="${a.id}"` : ""}${a.className ? ` class="${a.className}"` : ""}>`;
+  }
+  if (typeof a === "object" && a !== null) {
+    try {
+      const seen = new WeakSet();
+      return JSON.stringify(a, (_k, v) => {
+        if (typeof v === "object" && v !== null) {
+          if (typeof HTMLElement !== "undefined" && v instanceof HTMLElement) {
+            return `<${v.tagName.toLowerCase()}>`;
+          }
+          if (seen.has(v)) return "[Circular]";
+          seen.add(v);
+        }
+        return v;
+      });
+    } catch {
+      return String(a);
+    }
+  }
+  return String(a);
+}
+
 const origConsoleError = console.error;
 console.error = (...args) => {
-  origConsoleError(...args);
-  const formatted = args
-    .map((a) => (typeof a === "object" ? (a instanceof Error ? `${a.message}\n${a.stack}` : JSON.stringify(a)) : String(a)))
-    .join(" ");
-  reportFrontendLog("CONSOLE_ERROR", formatted);
+  try {
+    origConsoleError(...args);
+    const formatted = args.map(safeFormatArg).join(" ");
+    reportFrontendLog("CONSOLE_ERROR", formatted);
+  } catch {}
 };
 
 interface Props {

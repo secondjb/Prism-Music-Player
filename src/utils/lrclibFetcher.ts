@@ -27,7 +27,7 @@ export interface DiscoveredLyrics {
   hasWordSync: boolean;
   hasTranslation: boolean;
   isSynced: boolean;
-  source: 'Lyrics+' | 'Unison' | 'SyncLRC' | 'NetEase' | 'Musixmatch' | 'LRCLIB';
+  source: 'Lyrics+' | 'Unison' | 'SyncLRC' | 'NetEase' | 'LRCLIB';
 }
 
 function cleanTitle(title: string): string {
@@ -106,21 +106,6 @@ function parseTimestampToMs(tag: string): number | null {
   return m * 60000 + s * 1000 + frac;
 }
 
-function formatLrcTag(timeMs: number): string {
-  const totalSec = Math.floor(timeMs / 1000);
-  const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
-  const s = (totalSec % 60).toString().padStart(2, '0');
-  const cs = Math.floor((timeMs % 1000) / 10).toString().padStart(2, '0');
-  return `[${m}:${s}.${cs}]`;
-}
-
-function formatInlineTag(timeMs: number): string {
-  const totalSec = Math.floor(timeMs / 1000);
-  const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
-  const s = (totalSec % 60).toString().padStart(2, '0');
-  const cs = Math.floor((timeMs % 1000) / 10).toString().padStart(2, '0');
-  return `<${m}:${s}.${cs}>`;
-}
 
 /**
  * Merges NetEase original lyrics and translated lyrics line-by-line based on timestamps.
@@ -581,141 +566,8 @@ export async function fetchNeteaseLyrics(
   }
 }
 
-// Musixmatch Token Cache (syncedlyrics integration)
-let musixmatchToken: string | null = null;
-let musixmatchTokenExpires = 0;
-
-async function getMusixmatchToken(signal?: AbortSignal): Promise<string | null> {
-  if (musixmatchToken && Date.now() < musixmatchTokenExpires) {
-    return musixmatchToken;
-  }
-  try {
-    const res = await fetchWithTimeout(
-      'https://apic-desktop.musixmatch.com/ws/1.1/token.get?app_id=web-desktop-app-v1.0',
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          Accept: 'application/json',
-        },
-        signal,
-      },
-      3500
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const token = data?.message?.body?.user_token;
-    if (token) {
-      musixmatchToken = token;
-      musixmatchTokenExpires = Date.now() + 10 * 60 * 1000;
-      return token;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 /**
- * Priority 5: Musixmatch / syncedlyrics provider
- * (https://github.com/moehmeni/syncedlyrics)
- */
-export async function fetchMusixmatchLyrics(
-  trackName: string,
-  artistName: string,
-  albumName?: string,
-  durationSecs?: number,
-  signal?: AbortSignal
-): Promise<string | null> {
-  if (signal?.aborted) return null;
-  const cTitle = cleanTitle(trackName);
-  const cArtist = cleanArtist(artistName);
-  if (!cTitle) return null;
-
-  try {
-    const token = await getMusixmatchToken(signal);
-    if (!token) return null;
-
-    const t = Date.now().toString();
-    const url = new URL('https://apic-desktop.musixmatch.com/ws/1.1/macro.subtitles.get');
-    url.searchParams.set('format', 'json');
-    url.searchParams.set('q_track', cTitle);
-    url.searchParams.set('q_artist', cArtist);
-    if (albumName) url.searchParams.set('q_album', albumName);
-    if (durationSecs && durationSecs > 0) url.searchParams.set('q_duration', Math.round(durationSecs).toString());
-    url.searchParams.set('usertoken', token);
-    url.searchParams.set('app_id', 'web-desktop-app-v1.0');
-    url.searchParams.set('t', t);
-
-    const res = await fetchWithTimeout(
-      url.toString(),
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          Accept: 'application/json',
-        },
-        signal,
-      },
-      3500
-    );
-
-    if (!res.ok) return null;
-    const data = await res.json();
-    const macro = data?.message?.body?.macro_calls;
-    if (!macro) return null;
-
-    // Check for richsync (word-by-word)
-    const richsyncBody = macro['track.richsync.get']?.message?.body?.richsync?.richsync_body;
-    if (richsyncBody && typeof richsyncBody === 'string') {
-      try {
-        const parsedRich = JSON.parse(richsyncBody);
-        if (Array.isArray(parsedRich) && parsedRich.length > 0) {
-          const lrcLines: string[] = [];
-          for (const item of parsedRich) {
-            const lineStartMs = Math.round((item.ts || 0) * 1000);
-            const tag = formatLrcTag(lineStartMs);
-            if (Array.isArray(item.l) && item.l.length > 0) {
-              let inlineBody = '';
-              for (const syl of item.l) {
-                const sylMs = Math.round((item.ts + (syl.o || 0)) * 1000);
-                const inlineTag = formatInlineTag(sylMs);
-                const text = decodeXmlEntities(syl.c || '').trim();
-                if (text) inlineBody += `${inlineTag}${text} `;
-              }
-              if (inlineBody.trim()) lrcLines.push(`${tag} ${inlineBody.trim()}`);
-            } else if (item.x) {
-              lrcLines.push(`${tag} ${decodeXmlEntities(item.x).trim()}`);
-            }
-          }
-          if (lrcLines.length > 0) return lrcLines.join('\n');
-        }
-      } catch {
-        // Fall back to standard subtitles
-      }
-    }
-
-    // Check for standard subtitles
-    const subtitles = macro['track.subtitles.get']?.message?.body?.subtitle_list;
-    if (Array.isArray(subtitles) && subtitles.length > 0) {
-      const subBody = subtitles[0]?.subtitle?.subtitle_body;
-      if (subBody && typeof subBody === 'string' && subBody.trim()) {
-        return decodeXmlEntities(subBody.trim());
-      }
-    }
-
-    // Check for plain lyrics
-    const plainLyrics = macro['track.lyrics.get']?.message?.body?.lyrics?.lyrics_body;
-    if (plainLyrics && typeof plainLyrics === 'string' && plainLyrics.trim()) {
-      return decodeXmlEntities(plainLyrics.trim());
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Priority 6: LRCLIB Direct
+ * Priority 4: LRCLIB Direct
  */
 export async function fetchLrclibDirect(
   trackName: string,
@@ -810,8 +662,7 @@ export async function fetchLrclibDirect(
  * 2. Unison (Synced lyrics, TTML word-sync & romanization)
  * 3. SyncLRC (Karaoke word-sync & multi-source)
  * 4. NetEase (Merged original + CJK translations)
- * 5. Musixmatch / syncedlyrics (Global synced catalog & richsync)
- * 6. LRCLIB (Standard line-synced or plain text)
+ * 5. LRCLIB (Standard line-synced or plain text)
  */
 export async function searchEnhancedLyrics(
   trackName: string,
@@ -879,31 +730,12 @@ export async function searchEnhancedLyrics(
     }
   }
 
-  // 4. Priority 4: Musixmatch (syncedlyrics) - checks for richsync word-by-word
-  const mxmLrc = await fetchMusixmatchLyrics(trackName, artistName, albumName, durationSecs, signal);
-  if (mxmLrc) {
-    const hasWordSync = isWordSyncedLrc(mxmLrc);
-    const hasTranslation = hasTranslationInLyrics(mxmLrc);
-    const isSynced = hasLrcTimestamps(mxmLrc);
-    if (hasWordSync || hasTranslation || isSynced || mxmLrc.trim().length > 0) {
-      if (!requireWordSync || hasWordSync) {
-        return {
-          lyrics: mxmLrc,
-          hasWordSync,
-          hasTranslation,
-          isSynced,
-          source: 'Musixmatch',
-        };
-      }
-    }
-  }
-
   // If user strictly requested word-sync lyrics and none of the rich tiers matched, return null
   if (requireWordSync) {
     return null;
   }
 
-  // 5. Priority 5: NetEase Cloud Music (merged with translations)
+  // 4. Priority 4: NetEase Cloud Music (merged with translations)
   const neteaseLrc = await fetchNeteaseLyrics(trackName, artistName, signal);
   if (neteaseLrc) {
     const hasWordSync = isWordSyncedLrc(neteaseLrc);
@@ -920,7 +752,7 @@ export async function searchEnhancedLyrics(
     }
   }
 
-  // 6. Priority 6: LRCLIB Direct
+  // 5. Priority 5: LRCLIB Direct
   const lrclibLrc = await fetchLrclibDirect(trackName, artistName, albumName, durationSecs, signal);
   if (lrclibLrc) {
     const hasWordSync = isWordSyncedLrc(lrclibLrc);

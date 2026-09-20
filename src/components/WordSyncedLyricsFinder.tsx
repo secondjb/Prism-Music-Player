@@ -43,7 +43,7 @@ export interface WordSyncCandidate {
   hasWordSync?: boolean;
   hasTranslation?: boolean;
   isSynced?: boolean;
-  source?: 'Lyrics+' | 'Unison' | 'SyncLRC' | 'NetEase' | 'Musixmatch' | 'LRCLIB';
+  source?: 'Lyrics+' | 'Unison' | 'SyncLRC' | 'NetEase' | 'LRCLIB';
 }
 
 export function getCandidateFeatures(c: WordSyncCandidate) {
@@ -302,23 +302,16 @@ export const WordSyncedLyricsFinder: React.FC = () => {
       endpoint: 'github.com/TharukRenuja/SyncLRC',
       status: 'idle',
     },
-    musixmatch: {
-      name: 'Musixmatch',
-      tier: 'Tier 4 (syncedlyrics)',
-      features: 'Global synced catalog & richsync word-by-word',
-      endpoint: 'apic-desktop.musixmatch.com',
-      status: 'idle',
-    },
     netease: {
       name: 'NetEase Cloud Music',
-      tier: 'Tier 5 (CJK Translations)',
+      tier: 'Tier 4 (CJK Translations)',
       features: 'Line-synced lyrics & CJK translations merge',
       endpoint: 'netease-cloud-music-api',
       status: 'idle',
     },
     lrclib: {
       name: 'LRCLIB',
-      tier: 'Tier 6 (Fallback)',
+      tier: 'Tier 5 (Fallback)',
       features: 'Standard line-synced & plain text lyrics',
       endpoint: 'lrclib.net',
       status: 'idle',
@@ -331,7 +324,6 @@ export const WordSyncedLyricsFinder: React.FC = () => {
       lyricsplus: { ...prev.lyricsplus, status: 'checking' },
       unison: { ...prev.unison, status: 'checking' },
       synclrc: { ...prev.synclrc, status: 'checking' },
-      musixmatch: { ...prev.musixmatch, status: 'checking' },
       netease: { ...prev.netease, status: 'checking' },
       lrclib: { ...prev.lrclib, status: 'checking' },
     }));
@@ -357,7 +349,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
       }
     };
 
-    const [lpStatus, unisonStatus, synclrcStatus, mxmStatus, neteaseStatus, lrclibStatus] = await Promise.all([
+    const [lpStatus, unisonStatus, synclrcStatus, neteaseStatus, lrclibStatus] = await Promise.all([
       // Lyrics+
       ping('https://lyricsplus.prjktla.my.id/v2/lyrics/get?title=test&artist=test', (r) => r.status === 200 || r.status === 404),
       // Unison
@@ -371,8 +363,6 @@ export const WordSyncedLyricsFinder: React.FC = () => {
       }),
       // SyncLRC
       ping('https://synclrc.tharuk.pro/api/v1/lyrics?track=test&artist=test', (r) => r.status === 200 || r.status === 404),
-      // Musixmatch
-      ping('https://apic-desktop.musixmatch.com/ws/1.1/token.get?app_id=web-desktop-app-v1.0', (r) => r.status === 200),
       // NetEase
       ping('https://netease-cloud-music-api-external.vercel.app/search?keywords=test&type=1', async (r) => {
         try {
@@ -390,7 +380,6 @@ export const WordSyncedLyricsFinder: React.FC = () => {
       lyricsplus: { ...prev.lyricsplus, status: lpStatus },
       unison: { ...prev.unison, status: unisonStatus },
       synclrc: { ...prev.synclrc, status: synclrcStatus },
-      musixmatch: { ...prev.musixmatch, status: mxmStatus },
       netease: { ...prev.netease, status: neteaseStatus },
       lrclib: { ...prev.lrclib, status: lrclibStatus },
     }));

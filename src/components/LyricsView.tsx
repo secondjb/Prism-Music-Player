@@ -231,7 +231,8 @@ const renderSyllableGroups = (
   line: ParsedLyricLine,
   currentTimeMs: number,
   isPast: boolean,
-  lyricsAnimationStyle: string
+  lyricsAnimationStyle: string,
+  useRomText = false
 ) => {
   return wordGroups.map((group) => (
     <span
@@ -306,7 +307,7 @@ const renderSyllableGroups = (
                 : undefined),
             }}
           >
-            {syl.text}
+            {useRomText ? (syl.romanizedText || syl.text) : syl.text}
           </span>
         );
       })}
@@ -318,15 +319,27 @@ const ActiveSyllableWords: React.FC<{
   line: ParsedLyricLine;
   showTrans: boolean;
   translationMode: string;
+  showRom: boolean;
+  romanizationMode: string;
   wordGroups: WordGroup[];
   lyricsAnimationStyle: string;
   isPast: boolean;
-}> = ({ line, showTrans, translationMode, wordGroups, lyricsAnimationStyle, isPast }) => {
+}> = ({ line, showTrans, translationMode, showRom, romanizationMode, wordGroups, lyricsAnimationStyle, isPast }) => {
   const currentTimeMs = usePlayerStore((s) => s.currentTime * 1000);
   if (showTrans && translationMode === 'replace' && line.translation) {
     const transWords = line.translation.trim().split(/\s+/).filter(Boolean);
     const wordDur = line.durationMs / Math.max(1, transWords.length);
     return <>{renderSyllableTransWords(transWords, wordDur, line, currentTimeMs, isPast, lyricsAnimationStyle)}</>;
+  }
+  if (showRom && romanizationMode === 'replace' && line.romanized) {
+    // If syllables have per-syllable romanized text, use those; otherwise split line.romanized as words
+    const hasSylRom = wordGroups.some((g) => g.syllables.some(({ syl }) => syl.romanizedText));
+    if (hasSylRom) {
+      return <>{renderSyllableGroups(wordGroups, line, currentTimeMs, isPast, lyricsAnimationStyle, true)}</>;
+    }
+    const romWords = line.romanized.trim().split(/\s+/).filter(Boolean);
+    const wordDur = line.durationMs / Math.max(1, romWords.length);
+    return <>{renderSyllableTransWords(romWords, wordDur, line, currentTimeMs, isPast, lyricsAnimationStyle)}</>;
   }
   return <>{renderSyllableGroups(wordGroups, line, currentTimeMs, isPast, lyricsAnimationStyle)}</>;
 };
@@ -335,17 +348,29 @@ const StaticSyllableWords: React.FC<{
   line: ParsedLyricLine;
   showTrans: boolean;
   translationMode: string;
+  showRom: boolean;
+  romanizationMode: string;
   wordGroups: WordGroup[];
   lyricsAnimationStyle: string;
   isPast: boolean;
-}> = ({ line, showTrans, translationMode, wordGroups, lyricsAnimationStyle, isPast }) => {
+}> = ({ line, showTrans, translationMode, showRom, romanizationMode, wordGroups, lyricsAnimationStyle, isPast }) => {
   if (showTrans && translationMode === 'replace' && line.translation) {
     const transWords = line.translation.trim().split(/\s+/).filter(Boolean);
     const wordDur = line.durationMs / Math.max(1, transWords.length);
     return <>{renderSyllableTransWords(transWords, wordDur, line, -1, isPast, lyricsAnimationStyle)}</>;
   }
+  if (showRom && romanizationMode === 'replace' && line.romanized) {
+    const hasSylRom = wordGroups.some((g) => g.syllables.some(({ syl }) => syl.romanizedText));
+    if (hasSylRom) {
+      return <>{renderSyllableGroups(wordGroups, line, -1, isPast, lyricsAnimationStyle, true)}</>;
+    }
+    const romWords = line.romanized.trim().split(/\s+/).filter(Boolean);
+    const wordDur = line.durationMs / Math.max(1, romWords.length);
+    return <>{renderSyllableTransWords(romWords, wordDur, line, -1, isPast, lyricsAnimationStyle)}</>;
+  }
   return <>{renderSyllableGroups(wordGroups, line, -1, isPast, lyricsAnimationStyle)}</>;
 };
+
 
 const renderSubRomGroups = (
   wordGroups: WordGroup[],
@@ -719,6 +744,8 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                 line={line}
                 showTrans={showTrans}
                 translationMode={translationMode}
+                showRom={showRom}
+                romanizationMode={romanizationMode}
                 wordGroups={wordGroups}
                 lyricsAnimationStyle={lyricsAnimationStyle}
                 isPast={isPast}
@@ -728,6 +755,8 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
                 line={line}
                 showTrans={showTrans}
                 translationMode={translationMode}
+                showRom={showRom}
+                romanizationMode={romanizationMode}
                 wordGroups={wordGroups}
                 lyricsAnimationStyle={lyricsAnimationStyle}
                 isPast={isPast}

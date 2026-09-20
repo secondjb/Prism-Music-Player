@@ -1994,6 +1994,45 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
                                 });
                               }
 
+                              // Romanization replace: use per-syllable romanizedText or fall back to word-split
+                              if (isRomanizationEnabled && romanizationMode === 'replace' && line.romanized) {
+                                const hasSylRom = line.syllables.some((syl) => syl.romanizedText);
+                                if (!hasSylRom) {
+                                  const romWords = line.romanized.trim().split(/\s+/).filter(Boolean);
+                                  const wordDur = line.durationMs / Math.max(1, romWords.length);
+                                  return romWords.map((word, wIdx) => {
+                                    const sylStart = line.timeMs + (wIdx * wordDur);
+                                    const sylEnd = sylStart + wordDur;
+                                    const isSylActive =
+                                      isCandidatePlayingThis &&
+                                      activeTimeMs >= sylStart &&
+                                      activeTimeMs < sylEnd;
+                                    const isSylPast =
+                                      isCandidatePlayingThis && activeTimeMs >= sylEnd;
+
+                                    return (
+                                      <span
+                                        key={`rom-syl-${wIdx}`}
+                                        className="inline-block transition-all duration-150 mr-[0.3em]"
+                                        style={{
+                                          color: isSylActive
+                                            ? '#ffffff'
+                                            : isSylPast
+                                            ? 'rgba(255, 255, 255, 0.95)'
+                                            : 'rgba(255, 255, 255, 0.45)',
+                                          transform: isSylActive ? 'scale(1.12) translateY(-2px)' : 'scale(1)',
+                                          textShadow: isSylActive
+                                            ? '0 0 14px rgba(255, 255, 255, 0.6), 0 0 24px var(--color-stop-1, #6366f1)'
+                                            : undefined,
+                                        }}
+                                      >
+                                        {word}
+                                      </span>
+                                    );
+                                  });
+                                }
+                              }
+
                               return line.syllables.map((syl, sIdx) => {
                                 const sylStart = syl.timeMs;
                                 const sylEnd = syl.timeMs + syl.durationMs;

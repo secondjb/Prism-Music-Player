@@ -83,15 +83,141 @@ function inferLineSyllables(lineText: string, lineStartMs: number, lineDurMs: nu
   return syllables;
 }
 
+export function decodeXmlEntities(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+export function isTtmlContent(text: string | null | undefined): boolean {
+  if (!text || typeof text !== 'string') return false;
+  const t = text.trim();
+  return (
+    t.startsWith('<?xml') ||
+    t.startsWith('<tt') ||
+    (t.includes('<tt ') && t.includes('xmlns')) ||
+    (t.includes('<p ') && t.includes('begin=') && (t.includes('<span') || t.includes('</p>')))
+  );
+}
+
+export function parseTtmlTime(timeStr: string): number {
+  if (!timeStr) return 0;
+  timeStr = timeStr.trim();
+  const colonParts = timeStr.split(':');
+  if (colonParts.length === 3) {
+    const h = parseFloat(colonParts[0]) || 0;
+    const m = parseFloat(colonParts[1]) || 0;
+    const s = parseFloat(colonParts[2]) || 0;
+    return Math.round((h * 3600 + m * 60 + s) * 1000);
+  } else if (colonParts.length === 2) {
+    const m = parseFloat(colonParts[0]) || 0;
+    const s = parseFloat(colonParts[1]) || 0;
+    return Math.round((m * 60 + s) * 1000);
+  } else if (timeStr.endsWith('ms')) {
+    return Math.round(parseFloat(timeStr));
+  } else if (timeStr.endsWith('s')) {
+    return Math.round(parseFloat(timeStr) * 1000);
+  } else {
+    const num = parseFloat(timeStr);
+    return isNaN(num) ? 0 : Math.round(num * 1000);
+  }
+}
+
+function formatLrcTag(timeMs: number): string {
+  const totalSec = Math.floor(timeMs / 1000);
+  const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
+  const s = (totalSec % 60).toString().padStart(2, '0');
+  const cs = Math.floor((timeMs % 1000) / 10).toString().padStart(2, '0');
+  return `[${m}:${s}.${cs}]`;
+}
+
+function formatInlineTag(timeMs: number): string {
+  const totalSec = Math.floor(timeMs / 1000);
+  const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
+  const s = (totalSec % 60).toString().padStart(2, '0');
+  const cs = Math.floor((timeMs % 1000) / 10).toString().padStart(2, '0');
+  return `<${m}:${s}.${cs}>`;
+}
+
+export function convertTtmlToLrc(ttmlStr: string): string {
+  if (!ttmlStr || typeof ttmlStr !== 'string') return '';
+  if (!isTtmlContent(ttmlStr)) return ttmlStr.trim();
+
+  const lines: string[] = [];
+  const pRegex = /<p\b([^>]*)>([\s\S]*?)<\/p>/gi;
+  let pMatch: RegExpExecArray | null;
+
+  while ((pMatch = pRegex.exec(ttmlStr)) !== null) {
+    const pAttrs = pMatch[1];
+    const pContent = pMatch[2];
+
+    const beginMatch = pAttrs.match(/\bbegin="([^"]+)"/i);
+    const lineStartMs = beginMatch ? parseTtmlTime(beginMatch[1]) : 0;
+    const lineTag = formatLrcTag(lineStartMs);
+
+    let translationText = '';
+    const transMatch = pContent.match(/<span\b[^>]*\bttm:role="translation"[^>]*>([\s\S]*?)<\/span>/i);
+    if (transMatch) {
+      translationText = decodeXmlEntities(transMatch[1].replace(/<[^>]+>/g, '').trim());
+    }
+
+    const spanRegex = /<span\b([^>]*)>([\s\S]*?)<\/span>/gi;
+    let spanMatch: RegExpExecArray | null;
+    let hasWordSpans = false;
+    let lineBody = '';
+
+    while ((spanMatch = spanRegex.exec(pContent)) !== null) {
+      const spanAttrs = spanMatch[1];
+      if (/ttm:role="translation"/i.test(spanAttrs)) continue;
+
+      const rawSpanText = spanMatch[2].replace(/<[^>]+>/g, '');
+      const spanText = decodeXmlEntities(rawSpanText).trim();
+      if (!spanText) continue;
+
+      hasWordSpans = true;
+      const spanBeginMatch = spanAttrs.match(/\bbegin="([^"]+)"/i);
+      const spanStartMs = spanBeginMatch ? parseTtmlTime(spanBeginMatch[1]) : lineStartMs;
+      const inlineTag = formatInlineTag(spanStartMs);
+
+      lineBody += `${inlineTag}${spanText} `;
+    }
+
+    const transSuffix = translationText ? ` // ${translationText}` : '';
+
+    if (hasWordSpans && lineBody.trim()) {
+      lines.push(`${lineTag} ${lineBody.trim()}${transSuffix}`);
+    } else {
+      const cleanText = decodeXmlEntities(pContent.replace(/<[^>]+>/g, '').trim());
+      if (cleanText) {
+        lines.push(`${lineTag} ${cleanText}${transSuffix}`);
+      }
+    }
+  }
+
+  if (lines.length === 0) {
+    return decodeXmlEntities(ttmlStr.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+  }
+
+  return lines.join('\n');
+}
+
 /**
- * Parses raw LRC string (standard or syllable-enhanced) into rich ParsedLyricLine array.
+ * Parses raw LRC string (standard, syllable-enhanced, or TTML XML) into rich ParsedLyricLine array.
  */
 export function parseRichLyrics(
   rawLrc: string,
   options?: { inferWordSync?: boolean }
 ): ParsedLyricLine[] {
   if (!rawLrc || !rawLrc.trim()) return [];
-  const normalizedLrc = rawLrc.normalize('NFKC');
+  const processedLrc = isTtmlContent(rawLrc) ? convertTtmlToLrc(rawLrc) : rawLrc;
+  const normalizedLrc = processedLrc.normalize('NFKC');
   const rawLines = normalizedLrc.split(/\r?\n/);
   let offsetMs = 0;
 

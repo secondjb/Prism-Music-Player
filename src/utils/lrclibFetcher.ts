@@ -1,4 +1,9 @@
-import { hasTranslationInLyrics } from './lyricsParser';
+import {
+  hasTranslationInLyrics,
+  isTtmlContent,
+  convertTtmlToLrc,
+  decodeXmlEntities,
+} from './lyricsParser';
 
 export interface LrclibResponse {
   id: number;
@@ -40,12 +45,19 @@ function cleanArtist(artist: string): string {
 }
 
 export function isWordSyncedLrc(lyrics: string | null | undefined): boolean {
-  if (!lyrics || !lyrics.includes('<')) return false;
+  if (!lyrics || typeof lyrics !== 'string') return false;
+  if (isTtmlContent(lyrics)) {
+    return /<span\b[^>]*\bbegin=/i.test(lyrics);
+  }
+  if (!lyrics.includes('<')) return false;
   return /<\d{1,2}:\d{2}(?:[.:]\d{2,3})?>/.test(lyrics);
 }
 
 export function hasLrcTimestamps(lyrics: string | null | undefined): boolean {
-  if (!lyrics) return false;
+  if (!lyrics || typeof lyrics !== 'string') return false;
+  if (isTtmlContent(lyrics)) {
+    return /<p\b[^>]*\bbegin=/i.test(lyrics);
+  }
   return /\[\d{1,2}:\d{2}/.test(lyrics);
 }
 
@@ -249,8 +261,9 @@ export async function fetchLyricsPlus(
       const cs = Math.floor((lineMs % 1000) / 10).toString().padStart(2, '0');
       const tag = `[${m}:${s}.${cs}]`;
 
-      const transText = line.translation?.text?.trim();
-      const translationSuffix = transText && transText !== line.text?.trim() ? ` // ${transText}` : '';
+      const transText = line.translation?.text ? decodeXmlEntities(line.translation.text).trim() : undefined;
+      const lineText = line.text ? decodeXmlEntities(line.text).trim() : '';
+      const translationSuffix = transText && transText !== lineText ? ` // ${transText}` : '';
 
       if (Array.isArray(line.syllabus) && line.syllabus.length > 0) {
         let inlineBody = '';
@@ -260,11 +273,18 @@ export async function fetchLyricsPlus(
           const sm = Math.floor(sylSec / 60).toString().padStart(2, '0');
           const ss = (sylSec % 60).toString().padStart(2, '0');
           const scs = Math.floor((sylMs % 1000) / 10).toString().padStart(2, '0');
-          inlineBody += `<${sm}:${ss}.${scs}>${syl.text} `;
+          const sylCleanText = decodeXmlEntities(syl.text || '').trim();
+          if (sylCleanText) {
+            inlineBody += `<${sm}:${ss}.${scs}>${sylCleanText} `;
+          }
         }
-        lrcLines.push(`${tag} ${inlineBody.trim()}${translationSuffix}`);
-      } else {
-        lrcLines.push(`${tag} ${(line.text || '').trim()}${translationSuffix}`);
+        if (inlineBody.trim()) {
+          lrcLines.push(`${tag} ${inlineBody.trim()}${translationSuffix}`);
+        } else if (lineText) {
+          lrcLines.push(`${tag} ${lineText}${translationSuffix}`);
+        }
+      } else if (lineText) {
+        lrcLines.push(`${tag} ${lineText}${translationSuffix}`);
       }
     }
 
@@ -284,7 +304,7 @@ export async function fetchLyricsPlus(
 
 /**
  * Priority 2: Unison API (https://unison.boidu.dev/lyrics)
- * Fetches community-backed synced lyrics, romanizations, and translations.
+ * Fetches community-backed synced lyrics, TTML, romanizations, and translations.
  */
 export async function fetchUnisonLyrics(
   trackName: string,
@@ -312,7 +332,7 @@ export async function fetchUnisonLyrics(
       {
         headers: {
           'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
-          Accept: 'application/json, text/plain',
+          Accept: 'application/json, text/plain, text/xml',
         },
         signal,
       },
@@ -321,60 +341,83 @@ export async function fetchUnisonLyrics(
 
     if (!resp.ok) return null;
 
-    const contentType = resp.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      const data = await resp.json();
-      if (!data || data.success === false || data.error) return null;
+    const rawText = await resp.text();
+    if (!rawText || !rawText.trim()) return null;
 
-      const direct =
-        (typeof data.lrc === 'string' && data.lrc) ||
-        (typeof data.syncedLyrics === 'string' && data.syncedLyrics) ||
-        (typeof data.lyrics === 'string' && data.lyrics) ||
-        (typeof data.plainLyrics === 'string' && data.plainLyrics) ||
-        (typeof data.data?.lrc === 'string' && data.data.lrc) ||
-        (typeof data.data?.syncedLyrics === 'string' && data.data.syncedLyrics) ||
-        (typeof data.data?.lyrics === 'string' && data.data.lyrics) ||
-        (typeof data.data === 'string' && data.data) ||
-        null;
+    let lrcString: string | null = null;
 
-      if (direct && direct.trim()) {
-        return direct.trim();
-      }
+    // Check if response is JSON or direct XML/LRC
+    if (rawText.trim().startsWith('{') || rawText.trim().startsWith('[')) {
+      try {
+        const data = JSON.parse(rawText);
+        if (data && data.success !== false && !data.error) {
+          const direct =
+            (typeof data.lrc === 'string' && data.lrc) ||
+            (typeof data.ttml === 'string' && data.ttml) ||
+            (typeof data.syncedLyrics === 'string' && data.syncedLyrics) ||
+            (typeof data.lyrics === 'string' && data.lyrics) ||
+            (typeof data.plainLyrics === 'string' && data.plainLyrics) ||
+            (typeof data.data?.lrc === 'string' && data.data.lrc) ||
+            (typeof data.data?.ttml === 'string' && data.data.ttml) ||
+            (typeof data.data?.syncedLyrics === 'string' && data.data.syncedLyrics) ||
+            (typeof data.data?.lyrics === 'string' && data.data.lyrics) ||
+            (typeof data.data === 'string' && data.data) ||
+            null;
 
-      // Handle array of line objects if present
-      const linesArray = Array.isArray(data.lyrics)
-        ? data.lyrics
-        : Array.isArray(data.lines)
-        ? data.lines
-        : Array.isArray(data.data?.lyrics)
-        ? data.data.lyrics
-        : null;
+          if (direct && direct.trim()) {
+            lrcString = direct.trim();
+          } else {
+            const linesArray = Array.isArray(data.lyrics)
+              ? data.lyrics
+              : Array.isArray(data.lines)
+              ? data.lines
+              : Array.isArray(data.data?.lyrics)
+              ? data.data.lyrics
+              : null;
 
-      if (linesArray && linesArray.length > 0) {
-        const lrcLines: string[] = [];
-        for (const line of linesArray) {
-          if (typeof line === 'string') {
-            lrcLines.push(line);
-          } else if (typeof line === 'object' && line !== null) {
-            const timeMs = typeof line.time === 'number' ? line.time : (typeof line.timeMs === 'number' ? line.timeMs : 0);
-            const totalSec = Math.floor(timeMs / 1000);
-            const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
-            const s = (totalSec % 60).toString().padStart(2, '0');
-            const cs = Math.floor((lineMsRemainder => Math.floor(lineMsRemainder / 10))(timeMs % 1000)).toString().padStart(2, '0');
-            const tag = `[${m}:${s}.${cs}]`;
-            const text = (line.text || line.content || '').trim();
-            const trans = (line.translation?.text || line.translation || '').trim();
-            const suffix = trans && trans !== text ? ` // ${trans}` : '';
-            lrcLines.push(`${tag} ${text}${suffix}`);
+            if (linesArray && linesArray.length > 0) {
+              const lrcLines: string[] = [];
+              for (const line of linesArray) {
+                if (typeof line === 'string') {
+                  lrcLines.push(line);
+                } else if (typeof line === 'object' && line !== null) {
+                  const timeMs =
+                    typeof line.time === 'number'
+                      ? line.time
+                      : typeof line.timeMs === 'number'
+                      ? line.timeMs
+                      : 0;
+                  const totalSec = Math.floor(timeMs / 1000);
+                  const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
+                  const s = (totalSec % 60).toString().padStart(2, '0');
+                  const cs = Math.floor((timeMs % 1000) / 10).toString().padStart(2, '0');
+                  const tag = `[${m}:${s}.${cs}]`;
+                  const text = decodeXmlEntities((line.text || line.content || '').trim());
+                  const trans = decodeXmlEntities((line.translation?.text || line.translation || '').trim());
+                  const suffix = trans && trans !== text ? ` // ${trans}` : '';
+                  lrcLines.push(`${tag} ${text}${suffix}`);
+                }
+              }
+              if (lrcLines.length > 0) lrcString = lrcLines.join('\n');
+            }
           }
         }
-        if (lrcLines.length > 0) return lrcLines.join('\n');
+      } catch {
+        lrcString = rawText.trim();
       }
-      return null;
     } else {
-      const text = await resp.text();
-      return text && text.trim() ? text.trim() : null;
+      lrcString = rawText.trim();
     }
+
+    if (!lrcString) return null;
+
+    if (isTtmlContent(lrcString)) {
+      lrcString = convertTtmlToLrc(lrcString);
+    } else {
+      lrcString = decodeXmlEntities(lrcString);
+    }
+
+    return lrcString && lrcString.trim() ? lrcString.trim() : null;
   } catch {
     return null;
   }
@@ -396,7 +439,9 @@ export async function fetchNeteaseLyrics(
 
   try {
     // 1. Search song ID
-    const searchUrl = `https://netease-cloud-music-api-external.vercel.app/search?keywords=${encodeURIComponent(`${cArtist} ${cTitle}`.trim())}&type=1`;
+    const searchUrl = `https://netease-cloud-music-api-external.vercel.app/search?keywords=${encodeURIComponent(
+      `${cArtist} ${cTitle}`.trim()
+    )}&type=1`;
     const searchResp = await fetchWithTimeout(
       searchUrl,
       {
@@ -436,14 +481,21 @@ export async function fetchNeteaseLyrics(
     if (!lyricResp.ok) return null;
     const lyricData = await lyricResp.json();
 
-    const rawLrc: string | undefined = lyricData?.lrc?.lyric;
-    const rawTlyric: string | undefined = lyricData?.tlyric?.lyric;
+    let rawLrc: string | undefined = lyricData?.lrc?.lyric;
+    let rawTlyric: string | undefined = lyricData?.tlyric?.lyric;
+    const rawRomalrc: string | undefined = lyricData?.romalrc?.lyric;
 
     if (!rawLrc || typeof rawLrc !== 'string' || !rawLrc.trim()) {
       return null;
     }
 
+    rawLrc = decodeXmlEntities(rawLrc);
+    if (rawTlyric) rawTlyric = decodeXmlEntities(rawTlyric);
+
     if (!rawTlyric || typeof rawTlyric !== 'string' || !rawTlyric.trim()) {
+      if (rawRomalrc && typeof rawRomalrc === 'string' && rawRomalrc.trim()) {
+        return mergeNeteaseTranslations(rawLrc, decodeXmlEntities(rawRomalrc));
+      }
       return rawLrc.trim();
     }
 
@@ -496,8 +548,15 @@ export async function fetchLrclibDirect(
 
       if (response.ok) {
         const data: LrclibResponse = await response.json();
-        if (data?.syncedLyrics) return data.syncedLyrics;
-        if (data?.plainLyrics) return data.plainLyrics;
+        let resLyrics = data?.syncedLyrics || data?.plainLyrics || null;
+        if (resLyrics) {
+          if (isTtmlContent(resLyrics)) {
+            resLyrics = convertTtmlToLrc(resLyrics);
+          } else {
+            resLyrics = decodeXmlEntities(resLyrics);
+          }
+          return resLyrics.trim();
+        }
       } else {
         // Fallback search query
         const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(`${cArtist} ${cTitle}`)}`;
@@ -515,7 +574,15 @@ export async function fetchLrclibDirect(
           const results: LrclibResponse[] = await searchRes.json();
           if (results && results.length > 0) {
             const match = results.find((r) => r.syncedLyrics) || results.find((r) => r.plainLyrics) || results[0];
-            return match.syncedLyrics || match.plainLyrics || null;
+            let resLyrics = match.syncedLyrics || match.plainLyrics || null;
+            if (resLyrics) {
+              if (isTtmlContent(resLyrics)) {
+                resLyrics = convertTtmlToLrc(resLyrics);
+              } else {
+                resLyrics = decodeXmlEntities(resLyrics);
+              }
+              return resLyrics.trim();
+            }
           }
         }
       }
@@ -532,7 +599,7 @@ export async function fetchLrclibDirect(
 /**
  * Searches across 4 tiers of lyric APIs in strict cascade order:
  * 1. LyricsPlus (Word-synced & translated)
- * 2. Unison (Synced lyrics & romanization)
+ * 2. Unison (Synced lyrics, TTML word-sync & romanization)
  * 3. NetEase (Merged original + CJK translations)
  * 4. LRCLIB (Standard line-synced or plain text)
  */
@@ -564,26 +631,28 @@ export async function searchEnhancedLyrics(
     }
   }
 
-  // If user strictly requested word-sync lyrics, stop immediately since subsequent tiers are line-synced
-  if (requireWordSync) {
-    return null;
-  }
-
-  // 2. Priority 2: Unison API
+  // 2. Priority 2: Unison API (handles TTML word-by-word sync too!)
   const unisonLrc = await fetchUnisonLyrics(trackName, artistName, albumName, durationSecs, signal);
   if (unisonLrc) {
     const hasWordSync = isWordSyncedLrc(unisonLrc);
     const hasTranslation = hasTranslationInLyrics(unisonLrc);
     const isSynced = hasLrcTimestamps(unisonLrc);
     if (hasWordSync || hasTranslation || isSynced || unisonLrc.trim().length > 0) {
-      return {
-        lyrics: unisonLrc,
-        hasWordSync,
-        hasTranslation,
-        isSynced,
-        source: 'Unison',
-      };
+      if (!requireWordSync || hasWordSync) {
+        return {
+          lyrics: unisonLrc,
+          hasWordSync,
+          hasTranslation,
+          isSynced,
+          source: 'Unison',
+        };
+      }
     }
+  }
+
+  // If user strictly requested word-sync lyrics and neither Lyrics+ nor Unison had word sync, return null
+  if (requireWordSync) {
+    return null;
   }
 
   // 3. Priority 3: NetEase Cloud Music (merged with translations)
@@ -637,7 +706,7 @@ export async function fetchLrclibLyrics(
     albumName,
     durationSecs,
     undefined,
-    preferWordSync && false // allow cascade fall-through
+    preferWordSync && false
   );
   return res?.lyrics || null;
 }

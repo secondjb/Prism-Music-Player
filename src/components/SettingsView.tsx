@@ -784,7 +784,7 @@ export const SettingsView: React.FC = () => {
 
                   <div className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-0.5">
                     <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Genre Tags</span>
-                    <span className="text-xl font-bold font-mono" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
+                    <span className="text-xl font-bold font-mono text-white">
                       {totalTracks > 0 ? `${Math.round((genreCount / totalTracks) * 100)}%` : '0%'}
                     </span>
                     <span className="text-[10px] text-zinc-500 font-mono truncate">{genreCount} / {totalTracks}</span>
@@ -792,7 +792,7 @@ export const SettingsView: React.FC = () => {
 
                   <div className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-0.5">
                     <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Year / Date</span>
-                    <span className="text-xl font-bold font-mono" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
+                    <span className="text-xl font-bold font-mono text-white">
                       {totalTracks > 0 ? `${Math.round((yearCount / totalTracks) * 100)}%` : '0%'}
                     </span>
                     <span className="text-[10px] text-zinc-500 font-mono truncate">{yearCount} / {totalTracks}</span>
@@ -800,7 +800,7 @@ export const SettingsView: React.FC = () => {
 
                   <div className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-0.5">
                     <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Key & BPM</span>
-                    <span className="text-xl font-bold font-mono" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
+                    <span className="text-xl font-bold font-mono text-white">
                       {totalTracks > 0 ? `${Math.round((keyOrBpmCount / totalTracks) * 100)}%` : '0%'}
                     </span>
                     <span className="text-[10px] text-zinc-500 font-mono truncate">Key: {keyCount} • BPM: {bpmCount}</span>
@@ -808,7 +808,7 @@ export const SettingsView: React.FC = () => {
 
                   <div className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-0.5">
                     <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">ReplayGain</span>
-                    <span className="text-xl font-bold font-mono" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
+                    <span className="text-xl font-bold font-mono text-white">
                       {totalTracks > 0 ? `${Math.round((replayGainCount / totalTracks) * 100)}%` : '0%'}
                     </span>
                     <span className="text-[10px] text-zinc-500 font-mono truncate">{replayGainCount} / {totalTracks}</span>

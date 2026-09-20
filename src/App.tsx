@@ -282,6 +282,21 @@ export const App: React.FC = () => {
       }).then((unlistenFn) => {
         unlistens.push(unlistenFn);
       });
+
+      listen('replaygain-scan-progress', (event: { payload: { current: number; total: number; path: string; replay_gain_db: number | null; replay_gain_peak: number | null; error: string | null; is_finished: boolean } }) => {
+        const { current, total, path, replay_gain_db, replay_gain_peak, is_finished } = event.payload;
+        usePlayerStore.getState().setReplayGainScanProgress({
+          current,
+          total,
+          path,
+          isFinished: is_finished,
+        });
+        if (replay_gain_db != null) {
+          usePlayerStore.getState().updateTrackReplayGain(path, replay_gain_db, replay_gain_peak);
+        }
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
     }
 
     // Global active scroll detection for auto-hiding scrollbar pills

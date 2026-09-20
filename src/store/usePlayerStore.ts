@@ -349,6 +349,12 @@ interface PlayerState {
   analyzeAndIndexAudio: () => Promise<void>;
   clearAudioAnalysis: () => Promise<void>;
   setScanStatusMessage: (msg: string | null) => void;
+  isScanningReplayGain: boolean;
+  replayGainScanProgress: { current: number; total: number; path: string; isFinished?: boolean } | null;
+  startReplayGainScan: (options?: { untaggedOnly?: boolean; writeToFiles?: boolean }) => Promise<void>;
+  cancelReplayGainScan: () => Promise<void>;
+  setReplayGainScanProgress: (progress: { current: number; total: number; path: string; isFinished?: boolean } | null) => void;
+  updateTrackReplayGain: (path: string, gain_db?: number | null, peak?: number | null) => void;
 
   // Actions
   setTracks: (tracks: Track[]) => void;
@@ -578,6 +584,8 @@ export const usePlayerStore = create<PlayerState>()(
       toggleGaplessEnabled: () => set((state) => ({ isGaplessEnabled: !state.isGaplessEnabled })),
       replayGainMode: 'track',
       setReplayGainMode: (mode) => set({ replayGainMode: mode }),
+      isScanningReplayGain: false,
+      replayGainScanProgress: null,
 
       backgroundType: 'dynamic_glow',
       customBgPath: null,
@@ -1002,6 +1010,99 @@ export const usePlayerStore = create<PlayerState>()(
           }
         } catch (e) {
           console.warn('Clear audio analysis error:', e);
+        }
+      },
+
+      setReplayGainScanProgress: (progress) => set({ replayGainScanProgress: progress }),
+
+      updateTrackReplayGain: (path, gain_db, peak) => {
+        set((state) => {
+          const updatedTracks = state.tracks.map((t) => {
+            if (t.path === path) {
+              return {
+                ...t,
+                replay_gain_db: gain_db,
+                replay_gain_peak: peak,
+              };
+            }
+            return t;
+          });
+          const updatedCurrent =
+            state.currentTrack?.path === path
+              ? { ...state.currentTrack, replay_gain_db: gain_db, replay_gain_peak: peak }
+              : state.currentTrack;
+          return { tracks: updatedTracks, currentTrack: updatedCurrent };
+        });
+      },
+
+      startReplayGainScan: async (options = {}) => {
+        const { untaggedOnly = true, writeToFiles = false } = options;
+        const allTracks = get().tracks;
+        const targetTracks = untaggedOnly
+          ? allTracks.filter((t) => t.replay_gain_db == null)
+          : allTracks;
+
+        if (targetTracks.length === 0) {
+          set({ isScanningReplayGain: false, replayGainScanProgress: null });
+          return;
+        }
+
+        const paths = targetTracks.map((t) => t.path);
+        set({
+          isScanningReplayGain: true,
+          replayGainScanProgress: { current: 0, total: paths.length, path: paths[0] },
+        });
+
+        try {
+          if (window.__TAURI_INTERNALS__) {
+            const results: Array<{
+              path: string;
+              replay_gain_db: number | null;
+              replay_gain_peak: number | null;
+              error: string | null;
+            }> = await invoke('scan_replaygain_batch', {
+              trackPaths: paths,
+              writeToFiles: Boolean(writeToFiles),
+            });
+
+            const resultMap = new Map<string, { gain: number | null; peak: number | null }>();
+            results.forEach((r) => {
+              if (r.replay_gain_db != null) {
+                resultMap.set(r.path, { gain: r.replay_gain_db, peak: r.replay_gain_peak });
+              }
+            });
+
+            const updatedTracks = get().tracks.map((t) => {
+              const res = resultMap.get(t.path);
+              if (res) {
+                return {
+                  ...t,
+                  replay_gain_db: res.gain,
+                  replay_gain_peak: res.peak,
+                };
+              }
+              return t;
+            });
+
+            set({ tracks: updatedTracks });
+            await invoke('save_library', { tracks: updatedTracks });
+          }
+        } catch (e) {
+          console.warn('ReplayGain batch scan error:', e);
+        } finally {
+          set({ isScanningReplayGain: false, replayGainScanProgress: null });
+        }
+      },
+
+      cancelReplayGainScan: async () => {
+        try {
+          if (window.__TAURI_INTERNALS__) {
+            await invoke('cancel_replaygain_scan');
+          }
+        } catch (e) {
+          console.warn('Cancel ReplayGain scan error:', e);
+        } finally {
+          set({ isScanningReplayGain: false, replayGainScanProgress: null });
         }
       },
 

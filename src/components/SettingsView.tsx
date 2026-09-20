@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Checkbox from '@mui/material/Checkbox';
 import Slider from '@mui/material/Slider';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
@@ -227,6 +228,16 @@ export const SettingsView: React.FC = () => {
   const clearAudioAnalysis = usePlayerStore((s) => s.clearAudioAnalysis);
   const wipeDataAndReset = usePlayerStore((s) => s.wipeDataAndReset);
 
+  const isScanningReplayGain = usePlayerStore((s) => s.isScanningReplayGain);
+  const replayGainScanProgress = usePlayerStore((s) => s.replayGainScanProgress);
+  const startReplayGainScan = usePlayerStore((s) => s.startReplayGainScan);
+  const cancelReplayGainScan = usePlayerStore((s) => s.cancelReplayGainScan);
+
+  const [scanUntaggedOnly, setScanUntaggedOnly] = useState(true);
+  const [writeRgTagsToFiles, setWriteRgTagsToFiles] = useState(false);
+  const [rgToastMessage, setRgToastMessage] = useState<string | null>(null);
+  const rgToastTimeoutRef = useRef<any>(null);
+
   const backgroundType = usePlayerStore((s) => s.backgroundType);
   const setBackgroundType = usePlayerStore((s) => s.setBackgroundType);
   const customBgPath = usePlayerStore((s) => s.customBgPath);
@@ -361,6 +372,7 @@ export const SettingsView: React.FC = () => {
   const keyCount = tracks.filter((t) => Boolean(t.key)).length;
   const bpmCount = tracks.filter((t) => Boolean(t.bpm)).length;
   const keyOrBpmCount = tracks.filter((t) => Boolean(t.key || t.bpm)).length;
+  const replayGainCount = tracks.filter((t) => t.replay_gain_db != null).length;
   const missingTracksCount = tracks.filter((t) => Boolean(t.missing_since)).length;
 
   const handleManualAddPath = async (pathToAdd?: string) => {
@@ -764,7 +776,7 @@ export const SettingsView: React.FC = () => {
             {!collapsedSections.has('library') && (
               <div className="p-5 pt-0 border-t border-white/5 flex flex-col gap-5 mt-1">
                 {/* Tag Indexing Stats Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-4">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-4">
                   <div className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-0.5">
                     <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Total Tracks</span>
                     <span className="text-xl font-bold font-mono text-white">{totalTracks}</span>
@@ -792,6 +804,14 @@ export const SettingsView: React.FC = () => {
                       {totalTracks > 0 ? `${Math.round((keyOrBpmCount / totalTracks) * 100)}%` : '0%'}
                     </span>
                     <span className="text-[10px] text-zinc-500 font-mono truncate">Key: {keyCount} • BPM: {bpmCount}</span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-0.5">
+                    <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">ReplayGain</span>
+                    <span className="text-xl font-bold font-mono" style={{ color: 'var(--color-stop-4, #d946ef)' }}>
+                      {totalTracks > 0 ? `${Math.round((replayGainCount / totalTracks) * 100)}%` : '0%'}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 font-mono truncate">{replayGainCount} / {totalTracks}</span>
                   </div>
                 </div>
 
@@ -851,6 +871,119 @@ export const SettingsView: React.FC = () => {
                     <RotateCcw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
                     <span>{isScanning ? 'Re-indexing...' : 'Re-index All Tags'}</span>
                   </button>
+                </div>
+
+                {/* ReplayGain Loudness Scanner Card */}
+                <div className="p-4 rounded-xl bg-white/5 border border-white/10 flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border"
+                        style={{
+                          backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                          borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+                          color: 'var(--color-stop-1, #6366f1)',
+                        }}
+                      >
+                        <Volume2 className="w-4 h-4" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-bold text-white">ReplayGain Loudness Scanner (EBU R128)</span>
+                        <span className="text-[11px] text-zinc-400">
+                          Measures integrated loudness against standard (-18.0 LUFS) for smooth consistent playback volume
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                      {isScanningReplayGain ? (
+                        <button
+                          onClick={cancelReplayGainScan}
+                          className="px-3.5 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30 text-xs font-semibold transition-colors cursor-pointer"
+                        >
+                          Cancel Scan
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => startReplayGainScan({ untaggedOnly: scanUntaggedOnly, writeToFiles: writeRgTagsToFiles })}
+                          disabled={totalTracks === 0}
+                          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          style={{
+                            backgroundColor: 'var(--color-stop-1, #6366f1)',
+                            color: 'var(--color-stop-1-text, #ffffff)',
+                          }}
+                        >
+                          <Volume2 className="w-3.5 h-3.5" />
+                          <span>
+                            {scanUntaggedOnly
+                              ? `Scan Untagged Tracks (${totalTracks - replayGainCount})`
+                              : `Recalculate All (${totalTracks})`}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Options checkboxes */}
+                  {!isScanningReplayGain && (
+                    <div className="flex flex-wrap items-center gap-4 pt-1 text-[11px] text-zinc-300 border-t border-white/5">
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                        <Checkbox
+                          checked={scanUntaggedOnly}
+                          onChange={(e) => setScanUntaggedOnly(e.target.checked)}
+                          size="small"
+                          sx={{
+                            color: 'var(--color-stop-1, #6366f1)',
+                            '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                            p: 0.25,
+                          }}
+                        />
+                        <span>Scan untagged tracks only (Skip already analyzed)</span>
+                      </label>
+
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                        <Checkbox
+                          checked={writeRgTagsToFiles}
+                          onChange={(e) => setWriteRgTagsToFiles(e.target.checked)}
+                          size="small"
+                          sx={{
+                            color: 'var(--color-stop-1, #6366f1)',
+                            '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                            p: 0.25,
+                          }}
+                        />
+                        <span>Also embed ReplayGain tags into audio files on disk</span>
+                      </label>
+                    </div>
+                  )}
+
+                  {/* Active Scan Progress */}
+                  {isScanningReplayGain && replayGainScanProgress && (
+                    <div className="flex flex-col gap-2 pt-1 border-t border-white/5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-zinc-300 font-medium truncate max-w-[70%]">
+                          Analyzing: <span className="text-white font-mono">{replayGainScanProgress.path.split(/[\\/]/).pop()}</span>
+                        </span>
+                        <span className="font-mono font-bold" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
+                          {replayGainScanProgress.current} / {replayGainScanProgress.total} (
+                          {Math.round((replayGainScanProgress.current / Math.max(1, replayGainScanProgress.total)) * 100)}%)
+                        </span>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full transition-all duration-150 rounded-full"
+                          style={{
+                            width: `${Math.round(
+                              (replayGainScanProgress.current / Math.max(1, replayGainScanProgress.total)) * 100
+                            )}%`,
+                            background: 'linear-gradient(90deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #8b5cf6))',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Missing Songs Alert */}
@@ -1103,7 +1236,24 @@ export const SettingsView: React.FC = () => {
                     <div className="w-full">
                       <M3Selector
                         value={replayGainMode}
-                        onChange={(val) => setReplayGainMode(val as any)}
+                        onChange={(val) => {
+                          const newMode = val as any;
+                          setReplayGainMode(newMode);
+                          if (newMode !== 'off') {
+                            const untagged = totalTracks - replayGainCount;
+                            if (untagged > 0) {
+                              setRgToastMessage(
+                                `ReplayGain (${newMode} mode) enabled. ${untagged} track${
+                                  untagged === 1 ? '' : 's'
+                                } lack loudness data — run the ReplayGain Scanner in Library Settings to normalize.`
+                              );
+                              if (rgToastTimeoutRef.current) clearTimeout(rgToastTimeoutRef.current);
+                              rgToastTimeoutRef.current = setTimeout(() => {
+                                setRgToastMessage(null);
+                              }, 5000);
+                            }
+                          }
+                        }}
                         options={REPLAY_GAIN_OPTIONS}
                         size="sm"
                       />
@@ -2132,6 +2282,53 @@ export const SettingsView: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Floating ReplayGain Toast Notification */}
+        <AnimatePresence>
+          {rgToastMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="fixed bottom-24 right-8 z-50 max-w-sm p-4 rounded-2xl glass-panel border shadow-2xl flex items-start justify-between gap-3 text-xs pointer-events-auto"
+              style={{
+                backgroundColor: 'rgba(18, 18, 24, 0.96)',
+                borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                boxShadow: '0 12px 36px -4px rgba(0, 0, 0, 0.6), 0 0 20px -2px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+              }}
+            >
+              <div className="flex items-start gap-2.5 min-w-0">
+                <Volume2 className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                <div className="flex flex-col gap-1.5 min-w-0">
+                  <span className="font-semibold text-white">ReplayGain Activated</span>
+                  <span className="text-[11px] text-zinc-300 leading-snug">{rgToastMessage}</span>
+                  <button
+                    onClick={() => {
+                      setSelectedCategory('library');
+                      setCollapsedSections((prev) => {
+                        const next = new Set(prev);
+                        next.delete('library');
+                        return next;
+                      });
+                      setRgToastMessage(null);
+                    }}
+                    className="self-start text-[11px] font-semibold underline underline-offset-2 hover:brightness-125 cursor-pointer"
+                    style={{ color: 'var(--color-stop-1, #6366f1)' }}
+                  >
+                    Go to Loudness Scanner →
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={() => setRgToastMessage(null)}
+                className="text-zinc-500 hover:text-white px-1.5 py-0.5 rounded text-xs shrink-0 cursor-pointer"
+              >
+                ✕
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </ThemeProvider>
   );

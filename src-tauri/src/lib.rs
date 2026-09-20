@@ -1,5 +1,6 @@
 mod audio;
 pub mod audio_analysis;
+pub mod loudness;
 mod metadata;
 mod stats;
 #[cfg(target_os = "windows")]
@@ -625,6 +626,55 @@ async fn analyze_library_batch_turbo(
     Ok(())
 }
 
+#[tauri::command]
+async fn scan_replaygain_batch(
+    app_handle: AppHandle,
+    track_paths: Vec<String>,
+    write_to_files: bool,
+) -> Result<Vec<loudness::TrackLoudnessResult>, String> {
+    tokio::task::spawn_blocking(move || {
+        loudness::scan_replaygain_batch(app_handle, track_paths, write_to_files)
+    })
+    .await
+    .map_err(|e| format!("Loudness scan failed: {}", e))
+}
+
+#[tauri::command]
+fn cancel_replaygain_scan() {
+    loudness::cancel_replaygain_scan();
+}
+
+#[tauri::command]
+async fn calculate_single_track_gain(
+    path: String,
+    write_to_file: bool,
+) -> Result<loudness::TrackLoudnessResult, String> {
+    tokio::task::spawn_blocking(move || {
+        let p = std::path::Path::new(&path);
+        match loudness::analyze_track_replaygain(p) {
+            Ok((gain, peak)) => {
+                if write_to_file {
+                    let _ = loudness::write_replaygain_to_file(&path, gain, peak);
+                }
+                Ok(loudness::TrackLoudnessResult {
+                    path: path.clone(),
+                    replay_gain_db: Some(gain),
+                    replay_gain_peak: Some(peak),
+                    error: None,
+                })
+            }
+            Err(e) => Ok(loudness::TrackLoudnessResult {
+                path: path.clone(),
+                replay_gain_db: None,
+                replay_gain_peak: None,
+                error: Some(e),
+            }),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let engine = GlobalAudioEngine::new();
@@ -729,6 +779,9 @@ pub fn run() {
             clear_library_audio_analysis,
             analyze_library_batch_turbo,
             analyze_track_audio,
+            scan_replaygain_batch,
+            cancel_replaygain_scan,
+            calculate_single_track_gain,
             stats::log_listening_event,
             stats::fetch_listening_events,
             stats::delete_listening_history

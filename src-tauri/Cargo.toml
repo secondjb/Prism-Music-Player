@@ -42,6 +42,7 @@ tokio = { version = "1", features = ["rt-multi-thread"] }
 futures = "0.3"
 num_cpus = "1.16"
 rubato = "0.12"
+ebur128 = "0.1.10"
 windows = { version = "0.58", features = [
     "Win32_Foundation",
     "Win32_UI_Shell",

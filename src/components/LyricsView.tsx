@@ -1591,15 +1591,6 @@ export const LyricsView: React.FC = () => {
     ? Math.max(...Array.from(activeLineIndices))
     : activeIndex;
 
-  // Unified seek handler that resets scroll tracking and sync state
-  const handleSeek = useCallback((secs: number) => {
-    lastScrolledMaxLineRef.current = -1;
-    lastScrollTargetRef.current = 0;
-    lastScrolledInterludeRef.current = null;
-    seek(secs);
-    setIsUserScrolled(false);
-  }, [seek]);
-
   // Smart centering target calculation: centers multi-line active groups while prioritizing current line.
   // Enforces monotonic forward scrolling during normal playback so it never bounces backwards.
   const getSmartScrollTarget = useCallback((force: boolean = false, readOnly: boolean = false) => {
@@ -1689,6 +1680,18 @@ export const LyricsView: React.FC = () => {
       }, 800);
     }
   }, [getSmartScrollTarget]);
+
+  // Unified seek handler that resets scroll tracking, sync state, and centers the lyric line
+  const handleSeek = useCallback((secs: number) => {
+    lastScrolledMaxLineRef.current = -1;
+    lastScrollTargetRef.current = 0;
+    lastScrolledInterludeRef.current = null;
+    seek(secs);
+    setIsUserScrolled(false);
+    requestAnimationFrame(() => {
+      scrollToActive(true);
+    });
+  }, [seek, scrollToActive]);
 
   // Scroll to top when track changes / skips
   useEffect(() => {

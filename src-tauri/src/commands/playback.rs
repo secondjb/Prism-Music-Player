@@ -14,7 +14,7 @@ pub fn play_audio(
 ) -> Result<(), String> {
     let gain = replay_gain_db.unwrap_or(0.0);
     audio_engine.play(path, gain, start_position_secs, crossfade_secs)?;
-    if let Ok(mut guard) = controls_state.0.lock() {
+    if let Ok(mut guard) = controls_state.0.try_lock() {
         if let Some(controls) = guard.as_mut() {
             let _ = controls.set_playback(MediaPlayback::Playing { progress: None });
         }
@@ -28,7 +28,7 @@ pub fn pause_audio(
     controls_state: State<'_, MediaControlState>,
 ) {
     audio_engine.pause();
-    if let Ok(mut guard) = controls_state.0.lock() {
+    if let Ok(mut guard) = controls_state.0.try_lock() {
         if let Some(controls) = guard.as_mut() {
             let _ = controls.set_playback(MediaPlayback::Paused { progress: None });
         }
@@ -41,7 +41,7 @@ pub fn resume_audio(
     controls_state: State<'_, MediaControlState>,
 ) {
     audio_engine.resume();
-    if let Ok(mut guard) = controls_state.0.lock() {
+    if let Ok(mut guard) = controls_state.0.try_lock() {
         if let Some(controls) = guard.as_mut() {
             let _ = controls.set_playback(MediaPlayback::Playing { progress: None });
         }
@@ -65,7 +65,9 @@ pub fn set_replay_gain(audio_engine: State<'_, GlobalAudioEngine>, gain_db: f32)
 
 #[tauri::command]
 pub fn get_playback_position(audio_engine: State<'_, GlobalAudioEngine>) -> (f64, f64) {
-    audio_engine.get_position()
+    let pos = audio_engine.current_position_ms.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1000.0;
+    let dur = audio_engine.current_duration_ms.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1000.0;
+    (pos, dur)
 }
 
 #[tauri::command]

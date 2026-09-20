@@ -41,7 +41,7 @@ pub struct AudioPlayerState {
     pub is_playing: Arc<AtomicBool>,
     pub volume: Arc<Mutex<f32>>,
     pub replay_gain_db: Arc<Mutex<f32>>,
-    pub seek_secs: Arc<Mutex<Option<f64>>>,
+    pub seek_target_ms: Arc<AtomicU64>,
     pub current_position_ms: Arc<AtomicU64>,
     pub current_duration_ms: Arc<AtomicU64>,
     pub stop_signal: Arc<AtomicBool>,
@@ -64,7 +64,7 @@ impl AudioPlayerState {
             is_playing: Arc::new(AtomicBool::new(false)),
             volume: Arc::new(Mutex::new(0.8)),
             replay_gain_db: Arc::new(Mutex::new(0.0)),
-            seek_secs: Arc::new(Mutex::new(None)),
+            seek_target_ms: Arc::new(AtomicU64::new(u64::MAX)),
             current_position_ms: Arc::new(AtomicU64::new(0)),
             current_duration_ms: Arc::new(AtomicU64::new(0)),
             stop_signal: Arc::new(AtomicBool::new(false)),
@@ -89,6 +89,7 @@ pub struct GlobalAudioEngine {
     pub thread_handle: Arc<Mutex<Option<thread::JoinHandle<()>>>>,
     pub current_position_ms: Arc<AtomicU64>,
     pub current_duration_ms: Arc<AtomicU64>,
+    pub seek_target_ms: Arc<AtomicU64>,
 }
 
 unsafe impl Send for GlobalAudioEngine {}
@@ -99,11 +100,13 @@ impl GlobalAudioEngine {
         let player_state = AudioPlayerState::new();
         let current_position_ms = Arc::clone(&player_state.current_position_ms);
         let current_duration_ms = Arc::clone(&player_state.current_duration_ms);
+        let seek_target_ms = Arc::clone(&player_state.seek_target_ms);
         Self {
             state: Arc::new(Mutex::new(player_state)),
             thread_handle: Arc::new(Mutex::new(None)),
             current_position_ms,
             current_duration_ms,
+            seek_target_ms,
         }
     }
 
@@ -140,7 +143,9 @@ impl GlobalAudioEngine {
         let volume = Arc::clone(&state_guard.volume);
         let replay_gain = Arc::new(Mutex::new(replay_gain_db));
         let initial_seek = start_position_secs.filter(|&s| s > 0.0);
-        let seek_secs = Arc::new(Mutex::new(initial_seek));
+        let initial_seek_ms = initial_seek.map(|s| (s * 1000.0) as u64).unwrap_or(u64::MAX);
+        let seek_target_ms = Arc::new(AtomicU64::new(initial_seek_ms));
+        self.seek_target_ms.store(initial_seek_ms, Ordering::Release);
         let current_position_ms = Arc::clone(&state_guard.current_position_ms);
         let current_duration_ms = Arc::clone(&state_guard.current_duration_ms);
 
@@ -165,7 +170,7 @@ impl GlobalAudioEngine {
         let is_playing_clone = Arc::clone(&is_playing);
         let volume_clone = Arc::clone(&volume);
         let replay_gain_clone = Arc::clone(&replay_gain);
-        let seek_secs_clone = Arc::clone(&seek_secs);
+        let seek_target_clone = Arc::clone(&seek_target_ms);
         let position_clone = Arc::clone(&current_position_ms);
         let duration_clone = Arc::clone(&current_duration_ms);
 
@@ -177,7 +182,7 @@ impl GlobalAudioEngine {
             state_write.fade_out_duration_secs = fade_out_duration_secs;
             state_write.fade_out_start = fade_out_start;
             state_write.is_playing = is_playing;
-            state_write.seek_secs = seek_secs;
+            state_write.seek_target_ms = seek_target_ms;
             state_write.replay_gain_db = replay_gain;
         }
 
@@ -192,7 +197,7 @@ impl GlobalAudioEngine {
                 is_playing_clone,
                 volume_clone,
                 replay_gain_clone,
-                seek_secs_clone,
+                seek_target_clone,
                 position_clone,
                 duration_clone,
                 selected_device_name,
@@ -221,10 +226,14 @@ impl GlobalAudioEngine {
         state.is_playing.store(true, Ordering::SeqCst);
     }
 
+    #[inline]
     pub fn seek(&self, position_secs: f64) {
-        self.current_position_ms.store((position_secs * 1000.0) as u64, Ordering::Relaxed);
-        let state = self.state.lock();
-        *state.seek_secs.lock() = Some(position_secs);
+        let pos_ms = (position_secs.max(0.0) * 1000.0) as u64;
+        self.current_position_ms.store(pos_ms, Ordering::Relaxed);
+        self.seek_target_ms.store(pos_ms, Ordering::Release);
+        if let Some(state) = self.state.try_lock() {
+            state.seek_target_ms.store(pos_ms, Ordering::Release);
+        }
     }
 
     pub fn set_volume(&self, vol: f32) {
@@ -455,7 +464,7 @@ fn run_audio_thread(
     is_playing: Arc<AtomicBool>,
     volume: Arc<Mutex<f32>>,
     replay_gain_db: Arc<Mutex<f32>>,
-    seek_secs: Arc<Mutex<Option<f64>>>,
+    seek_target_ms: Arc<AtomicU64>,
     current_position_ms: Arc<AtomicU64>,
     current_duration_ms: Arc<AtomicU64>,
     selected_device_name: Arc<Mutex<Option<String>>>,
@@ -697,7 +706,9 @@ fn run_audio_thread(
             break;
         }
 
-        if let Some(target_secs) = seek_secs.lock().take() {
+        let seek_req = seek_target_ms.swap(u64::MAX, Ordering::Acquire);
+        if seek_req != u64::MAX {
+            let target_secs = seek_req as f64 / 1000.0;
             let _ = format.seek(
                 symphonia::core::formats::SeekMode::Accurate,
                 symphonia::core::formats::SeekTo::Time {
@@ -705,7 +716,7 @@ fn run_audio_thread(
                     track_id: Some(track_id),
                 },
             );
-            current_position_ms.store((target_secs * 1000.0) as u64, Ordering::Relaxed);
+            current_position_ms.store(seek_req, Ordering::Relaxed);
         }
 
         if !is_playing.load(Ordering::SeqCst) {
@@ -725,9 +736,12 @@ fn run_audio_thread(
 
         let current_frame_ts = packet.ts();
         if let Some(tb) = time_base {
-            let pos_secs =
-                tb.calc_time(current_frame_ts).seconds as f64 + tb.calc_time(current_frame_ts).frac;
-            current_position_ms.store((pos_secs * 1000.0) as u64, Ordering::Relaxed);
+            // Do not overwrite position with stale in-flight packet if a seek was requested
+            if seek_target_ms.load(Ordering::Relaxed) == u64::MAX {
+                let pos_secs =
+                    tb.calc_time(current_frame_ts).seconds as f64 + tb.calc_time(current_frame_ts).frac;
+                current_position_ms.store((pos_secs * 1000.0) as u64, Ordering::Relaxed);
+            }
         }
 
         let decode_start = std::time::Instant::now();

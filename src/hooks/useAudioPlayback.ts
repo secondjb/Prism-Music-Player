@@ -58,6 +58,15 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
         if (typeof pos === 'number' && !isNaN(pos) && pos >= 0) {
           const updateStart = performance.now();
           const state = usePlayerStore.getState();
+
+          // Seek debouncing: if a manual seek occurred recently (< 650ms)
+          // and the backend hasn't caught up to within 0.8s of the target yet,
+          // ignore the stale position tick to avoid UI snapback / rubber-banding.
+          const timeSinceSeek = performance.now() - (state.lastSeekTime || 0);
+          if (timeSinceSeek < 650 && Math.abs(pos - (state.lastSeekTarget ?? state.currentTime)) > 0.8) {
+            return;
+          }
+
           const effectiveDur =
             durFromRust > 0 ? durFromRust : state.currentTrack?.duration_secs || state.duration || 0;
 

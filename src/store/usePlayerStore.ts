@@ -234,6 +234,8 @@ interface PlayerState {
   isPlaying: boolean;
   volume: number;
   currentTime: number;
+  lastSeekTime?: number;
+  lastSeekTarget?: number;
   duration: number;
   activeTab: ActiveTab;
   searchQuery: string;
@@ -554,6 +556,8 @@ export const usePlayerStore = create<PlayerState>()(
       isPlaying: false,
       volume: 0.8,
       currentTime: 0,
+      lastSeekTime: 0,
+      lastSeekTarget: 0,
       duration: 0,
       activeTab: 'home',
       searchQuery: '',
@@ -1325,7 +1329,12 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       seek: async (seconds) => {
-        set({ currentTime: seconds });
+        const now = performance.now();
+        set({
+          currentTime: seconds,
+          lastSeekTime: now,
+          lastSeekTarget: seconds,
+        });
         try {
           await invoke('seek_audio', { positionSecs: seconds });
         } catch (e) {

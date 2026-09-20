@@ -675,11 +675,22 @@ export const PlaylistView: React.FC = () => {
                     const data = JSON.parse(e.dataTransfer.getData('text/plain'));
                     if (data.type === 'tracks' && Array.isArray(data.ids)) {
                       const existingSet = new Set(pl.trackIds);
-                      data.ids.forEach((id: string) => {
-                        if (!existingSet.has(id)) {
-                          addTrackToPlaylist(pl.id, id);
+                      const duplicates = data.ids.filter((id: string) => existingSet.has(id));
+
+                      if (duplicates.length > 0) {
+                        const addDuplicates = window.confirm(
+                          `${duplicates.length} of the ${data.ids.length} selected song(s) are already in "${pl.name}".\n\nClick OK to add duplicates anyway, or Cancel to skip duplicates.`
+                        );
+
+                        if (addDuplicates) {
+                          data.ids.forEach((id: string) => addTrackToPlaylist(pl.id, id));
+                        } else {
+                          const uniqueIds = data.ids.filter((id: string) => !existingSet.has(id));
+                          uniqueIds.forEach((id: string) => addTrackToPlaylist(pl.id, id));
                         }
-                      });
+                      } else {
+                        data.ids.forEach((id: string) => addTrackToPlaylist(pl.id, id));
+                      }
                     }
                   } catch (err) {}
                 }}

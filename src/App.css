@@ -200,6 +200,26 @@ revo-grid .rgRow.is-current-playing {
   background-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent) !important;
 }
 
+/* Selected Row Highlight */
+revo-grid revogr-row.is-selected-row,
+revo-grid .row.is-selected-row,
+revo-grid .rgRow.is-selected-row {
+  background-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 24%, rgba(255, 255, 255, 0.08)) !important;
+}
+
+revo-grid revogr-row.is-selected-row:hover,
+revo-grid .row.is-selected-row:hover,
+revo-grid .rgRow.is-selected-row:hover {
+  background-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 32%, rgba(255, 255, 255, 0.12)) !important;
+}
+
+revo-grid revogr-row.is-selected-row.is-current-playing,
+revo-grid .row.is-selected-row.is-current-playing,
+revo-grid .rgRow.is-selected-row.is-current-playing {
+  background-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 36%, transparent) !important;
+}
+
+
 /* Disable RevoGrid Default Filter Buttons & Panels */
 revogr-header .rv-filter,
 revogr-header .filter-button,

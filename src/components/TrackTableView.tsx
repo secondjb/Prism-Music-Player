@@ -50,6 +50,7 @@ import {
   Plus,
   Link2,
   Unlink,
+  X,
 } from 'lucide-react';
 
 import { Track } from '../types/player';
@@ -87,9 +88,14 @@ const formatDuration = (secs: number) => {
 
 const handleTrackDragStart = (e: React.DragEvent, track: Track) => {
   if (!track || !track.id) return;
+  const store = usePlayerStore.getState();
+  const selectedTrackIds = store.selectedTrackIds || [];
+  const isMulti = selectedTrackIds.includes(track.id) && selectedTrackIds.length > 1;
+  const idsToDrag = isMulti ? selectedTrackIds : [track.id];
+
   e.dataTransfer.setData(
     'text/plain',
-    JSON.stringify({ type: 'tracks', ids: [track.id] })
+    JSON.stringify({ type: 'tracks', ids: idsToDrag })
   );
   e.dataTransfer.effectAllowed = 'copy';
 
@@ -97,9 +103,15 @@ const handleTrackDragStart = (e: React.DragEvent, track: Track) => {
   ghost.style.position = 'absolute';
   ghost.style.top = '-9999px';
   ghost.style.left = '-9999px';
-  ghost.className = 'glass-panel text-white text-xs font-semibold px-3 py-1.5 rounded-xl shadow-2xl z-50 flex items-center gap-2 border border-white/20';
-  ghost.style.background = 'rgba(20, 20, 24, 0.95)';
-  ghost.innerHTML = `<span>🎵</span> <span style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${track.title || 'Song'}</span>`;
+  ghost.className =
+    'glass-panel text-white text-xs font-semibold px-3.5 py-2 rounded-xl shadow-2xl z-50 flex items-center gap-2.5 border border-white/20';
+  ghost.style.background = 'rgba(18, 18, 24, 0.95)';
+
+  if (isMulti) {
+    ghost.innerHTML = `<span>🎵</span> <span style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;">${idsToDrag.length} Songs Selected</span>`;
+  } else {
+    ghost.innerHTML = `<span>🎵</span> <span style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${track.title || 'Song'}</span>`;
+  }
 
   document.body.appendChild(ghost);
   e.dataTransfer.setDragImage(ghost, 20, 15);
@@ -108,6 +120,50 @@ const handleTrackDragStart = (e: React.DragEvent, track: Track) => {
       document.body.removeChild(ghost);
     }
   }, 0);
+};
+
+const handleCellClick = (e: React.MouseEvent, track: Track) => {
+  if (!track || !track.id) return;
+  if ((e.target as HTMLElement)?.closest('button') || (e.target as HTMLElement)?.closest('a')) {
+    return;
+  }
+  const evt = new CustomEvent('prism-row-select', {
+    bubbles: true,
+    detail: {
+      track,
+      shiftKey: e.shiftKey,
+      ctrlKey: e.ctrlKey || e.metaKey,
+    },
+  });
+  e.currentTarget.dispatchEvent(evt);
+};
+
+const handleCellContextMenu = (e: React.MouseEvent, track: Track, openPlaylistSubmenu = false) => {
+  e.preventDefault();
+  if (!track || !track.id) return;
+  const store = usePlayerStore.getState();
+  const selectedTrackIds = store.selectedTrackIds || [];
+  const tracksList = store.tracks || [];
+
+  let contextTracks: Track[] = [track];
+  if (selectedTrackIds.includes(track.id) && selectedTrackIds.length > 1) {
+    contextTracks = selectedTrackIds
+      .map((id) => tracksList.find((t) => t.id === id) || (track.id === id ? track : null))
+      .filter((t): t is Track => Boolean(t));
+  } else if (!selectedTrackIds.includes(track.id)) {
+    store.selectSingleTrack(track.id);
+  }
+
+  const evt = new CustomEvent('prism-open-context-menu', {
+    bubbles: true,
+    detail: {
+      x: e.clientX,
+      y: e.clientY,
+      tracks: contextTracks,
+      openPlaylistSubmenu,
+    },
+  });
+  e.currentTarget.dispatchEvent(evt);
 };
 
 const PROP_TO_COL_ID: Record<string, TrackColumnId> = {
@@ -206,15 +262,9 @@ const OrderCell: React.FC<any> = ({ model, rowIndex }) => {
     <div
       draggable={Boolean(track.id)}
       onDragStart={(e) => handleTrackDragStart(e, track)}
+      onClick={(e) => handleCellClick(e, track)}
+      onContextMenu={(e) => handleCellContextMenu(e, track)}
       className="w-full h-full flex items-center justify-center font-mono text-zinc-400 cursor-grab active:cursor-grabbing"
-      onContextMenu={(e) => {
-        e.preventDefault();
-        const evt = new CustomEvent('prism-open-context-menu', {
-          bubbles: true,
-          detail: { x: e.clientX, y: e.clientY, track },
-        });
-        e.currentTarget.dispatchEvent(evt);
-      }}
       onDoubleClick={(e) => {
         if ((e.target as HTMLElement)?.closest('button')) return;
         const evt = new CustomEvent('prism-play-track', {
@@ -294,15 +344,9 @@ const TrackArtCell: React.FC<any> = ({ model }) => {
     <div
       draggable={Boolean(track.id)}
       onDragStart={(e) => handleTrackDragStart(e, track)}
+      onClick={(e) => handleCellClick(e, track)}
+      onContextMenu={(e) => handleCellContextMenu(e, track)}
       className="w-full h-full flex items-center justify-center cursor-grab active:cursor-grabbing"
-      onContextMenu={(e) => {
-        e.preventDefault();
-        const evt = new CustomEvent('prism-open-context-menu', {
-          bubbles: true,
-          detail: { x: e.clientX, y: e.clientY, track },
-        });
-        e.currentTarget.dispatchEvent(evt);
-      }}
       onDoubleClick={(e) => {
         const evt = new CustomEvent('prism-play-track', {
           bubbles: true,
@@ -369,15 +413,9 @@ const TitleCell: React.FC<any> = ({ model, value }) => {
     <div
       draggable={Boolean(track.id)}
       onDragStart={(e) => handleTrackDragStart(e, track)}
+      onClick={(e) => handleCellClick(e, track)}
+      onContextMenu={(e) => handleCellContextMenu(e, track)}
       className="flex flex-col justify-center h-full min-w-0 pr-2 w-full select-none cursor-grab active:cursor-grabbing"
-      onContextMenu={(e) => {
-        e.preventDefault();
-        const evt = new CustomEvent('prism-open-context-menu', {
-          bubbles: true,
-          detail: { x: e.clientX, y: e.clientY, track },
-        });
-        e.currentTarget.dispatchEvent(evt);
-      }}
       onDoubleClick={(e) => {
         if ((e.target as HTMLElement)?.closest('a') || (e.target as HTMLElement)?.closest('button')) return;
         const evt = new CustomEvent('prism-play-track', {
@@ -499,15 +537,9 @@ const ArtistCell: React.FC<any> = ({ model }) => {
     <div
       draggable={Boolean(track.id)}
       onDragStart={(e) => handleTrackDragStart(e, track)}
+      onClick={(e) => handleCellClick(e, track)}
+      onContextMenu={(e) => handleCellContextMenu(e, track)}
       className="flex items-center h-full w-full min-w-0 overflow-hidden cursor-grab active:cursor-grabbing"
-      onContextMenu={(e) => {
-        e.preventDefault();
-        const evt = new CustomEvent('prism-open-context-menu', {
-          bubbles: true,
-          detail: { x: e.clientX, y: e.clientY, track },
-        });
-        e.currentTarget.dispatchEvent(evt);
-      }}
       onDoubleClick={(e) => {
         if ((e.target as HTMLElement)?.closest('a') || (e.target as HTMLElement)?.closest('button')) return;
         const evt = new CustomEvent('prism-play-track', {
@@ -562,15 +594,9 @@ const AlbumCell: React.FC<any> = ({ model }) => {
     <div
       draggable={Boolean(track.id)}
       onDragStart={(e) => handleTrackDragStart(e, track)}
+      onClick={(e) => handleCellClick(e, track)}
+      onContextMenu={(e) => handleCellContextMenu(e, track)}
       className="flex items-center h-full w-full min-w-0 overflow-hidden cursor-grab active:cursor-grabbing"
-      onContextMenu={(e) => {
-        e.preventDefault();
-        const evt = new CustomEvent('prism-open-context-menu', {
-          bubbles: true,
-          detail: { x: e.clientX, y: e.clientY, track },
-        });
-        e.currentTarget.dispatchEvent(evt);
-      }}
       onDoubleClick={(e) => {
         if ((e.target as HTMLElement)?.closest('a') || (e.target as HTMLElement)?.closest('button')) return;
         const evt = new CustomEvent('prism-play-track', {
@@ -623,15 +649,9 @@ const DateCell: React.FC<any> = ({ model }) => {
     <div
       draggable={Boolean(track.id)}
       onDragStart={(e) => handleTrackDragStart(e, track)}
+      onClick={(e) => handleCellClick(e, track)}
+      onContextMenu={(e) => handleCellContextMenu(e, track)}
       className="flex items-center h-full w-full min-w-0 cursor-grab active:cursor-grabbing"
-      onContextMenu={(e) => {
-        e.preventDefault();
-        const evt = new CustomEvent('prism-open-context-menu', {
-          bubbles: true,
-          detail: { x: e.clientX, y: e.clientY, track },
-        });
-        e.currentTarget.dispatchEvent(evt);
-      }}
       onDoubleClick={() => {
         const evt = new CustomEvent('prism-play-track', {
           bubbles: true,
@@ -664,15 +684,9 @@ const GenreCell: React.FC<any> = ({ model }) => {
     <div
       draggable={Boolean(track.id)}
       onDragStart={(e) => handleTrackDragStart(e, track)}
+      onClick={(e) => handleCellClick(e, track)}
+      onContextMenu={(e) => handleCellContextMenu(e, track)}
       className="flex items-center h-full w-full min-w-0 cursor-grab active:cursor-grabbing"
-      onContextMenu={(e) => {
-        e.preventDefault();
-        const evt = new CustomEvent('prism-open-context-menu', {
-          bubbles: true,
-          detail: { x: e.clientX, y: e.clientY, track },
-        });
-        e.currentTarget.dispatchEvent(evt);
-      }}
       onDoubleClick={() => {
         const evt = new CustomEvent('prism-play-track', {
           bubbles: true,
@@ -705,15 +719,9 @@ const DurationCell: React.FC<any> = ({ model }) => {
     <div
       draggable={Boolean(track.id)}
       onDragStart={(e) => handleTrackDragStart(e, track)}
+      onClick={(e) => handleCellClick(e, track)}
+      onContextMenu={(e) => handleCellContextMenu(e, track)}
       className="flex items-center justify-end h-full w-full pr-2 cursor-grab active:cursor-grabbing"
-      onContextMenu={(e) => {
-        e.preventDefault();
-        const evt = new CustomEvent('prism-open-context-menu', {
-          bubbles: true,
-          detail: { x: e.clientX, y: e.clientY, track },
-        });
-        e.currentTarget.dispatchEvent(evt);
-      }}
       onDoubleClick={() => {
         const evt = new CustomEvent('prism-play-track', {
           bubbles: true,
@@ -746,15 +754,9 @@ const BitrateCell: React.FC<any> = ({ model }) => {
     <div
       draggable={Boolean(track.id)}
       onDragStart={(e) => handleTrackDragStart(e, track)}
+      onClick={(e) => handleCellClick(e, track)}
+      onContextMenu={(e) => handleCellContextMenu(e, track)}
       className="flex items-center h-full w-full min-w-0 cursor-grab active:cursor-grabbing"
-      onContextMenu={(e) => {
-        e.preventDefault();
-        const evt = new CustomEvent('prism-open-context-menu', {
-          bubbles: true,
-          detail: { x: e.clientX, y: e.clientY, track },
-        });
-        e.currentTarget.dispatchEvent(evt);
-      }}
       onDoubleClick={() => {
         const evt = new CustomEvent('prism-play-track', {
           bubbles: true,
@@ -787,15 +789,9 @@ const SampleRateCell: React.FC<any> = ({ model }) => {
     <div
       draggable={Boolean(track.id)}
       onDragStart={(e) => handleTrackDragStart(e, track)}
+      onClick={(e) => handleCellClick(e, track)}
+      onContextMenu={(e) => handleCellContextMenu(e, track)}
       className="flex items-center h-full w-full min-w-0 cursor-grab active:cursor-grabbing"
-      onContextMenu={(e) => {
-        e.preventDefault();
-        const evt = new CustomEvent('prism-open-context-menu', {
-          bubbles: true,
-          detail: { x: e.clientX, y: e.clientY, track },
-        });
-        e.currentTarget.dispatchEvent(evt);
-      }}
       onDoubleClick={() => {
         const evt = new CustomEvent('prism-play-track', {
           bubbles: true,
@@ -828,15 +824,9 @@ const BitDepthCell: React.FC<any> = ({ model }) => {
     <div
       draggable={Boolean(track.id)}
       onDragStart={(e) => handleTrackDragStart(e, track)}
+      onClick={(e) => handleCellClick(e, track)}
+      onContextMenu={(e) => handleCellContextMenu(e, track)}
       className="flex items-center h-full w-full min-w-0 cursor-grab active:cursor-grabbing"
-      onContextMenu={(e) => {
-        e.preventDefault();
-        const evt = new CustomEvent('prism-open-context-menu', {
-          bubbles: true,
-          detail: { x: e.clientX, y: e.clientY, track },
-        });
-        e.currentTarget.dispatchEvent(evt);
-      }}
       onDoubleClick={() => {
         const evt = new CustomEvent('prism-play-track', {
           bubbles: true,
@@ -863,7 +853,6 @@ const BitDepthCell: React.FC<any> = ({ model }) => {
 const FavoriteCell: React.FC<any> = ({ model }) => {
   const track = (model || {}) as Track;
   const isLiked = usePlayerStore((s) => s.likedTrackIds.includes(track?.id));
-  const toggleLikeTrack = usePlayerStore((s) => s.toggleLikeTrack);
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
   if (!track.id) return null;
 
@@ -875,7 +864,14 @@ const FavoriteCell: React.FC<any> = ({ model }) => {
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          toggleLikeTrack(track.id);
+          const store = usePlayerStore.getState();
+          const selectedTrackIds = store.selectedTrackIds || [];
+          if (selectedTrackIds.includes(track.id) && selectedTrackIds.length > 1) {
+            const allLiked = selectedTrackIds.every((id) => store.likedTrackIds.includes(id));
+            store.likeMultipleTracks(selectedTrackIds, !allLiked);
+          } else {
+            store.toggleLikeTrack(track.id);
+          }
         }}
         onDoubleClick={(e) => e.stopPropagation()}
         className={`${config.buttonClass} rounded-lg transition-all cursor-pointer flex items-center justify-center ${
@@ -893,7 +889,6 @@ const FavoriteCell: React.FC<any> = ({ model }) => {
 
 const PlayNextCell: React.FC<any> = ({ model }) => {
   const track = (model || {}) as Track;
-  const playNext = usePlayerStore((s) => s.playNext);
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
   if (!track.id) return null;
 
@@ -905,7 +900,17 @@ const PlayNextCell: React.FC<any> = ({ model }) => {
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          playNext(track);
+          const store = usePlayerStore.getState();
+          const selectedTrackIds = store.selectedTrackIds || [];
+          const allTracks = store.tracks || [];
+          if (selectedTrackIds.includes(track.id) && selectedTrackIds.length > 1) {
+            const selectedTracks = selectedTrackIds
+              .map((id) => allTracks.find((t) => t.id === id) || (track.id === id ? track : null))
+              .filter((t): t is Track => Boolean(t));
+            store.playNextTracks(selectedTracks);
+          } else {
+            store.playNext(track);
+          }
         }}
         onDoubleClick={(e) => e.stopPropagation()}
         className={`${config.buttonClass} rounded-lg text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10 transition-all cursor-pointer flex items-center justify-center`}
@@ -919,7 +924,6 @@ const PlayNextCell: React.FC<any> = ({ model }) => {
 
 const AddToQueueCell: React.FC<any> = ({ model }) => {
   const track = (model || {}) as Track;
-  const addToQueue = usePlayerStore((s) => s.addToQueue);
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
   if (!track.id) return null;
 
@@ -931,7 +935,17 @@ const AddToQueueCell: React.FC<any> = ({ model }) => {
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          addToQueue(track);
+          const store = usePlayerStore.getState();
+          const selectedTrackIds = store.selectedTrackIds || [];
+          const allTracks = store.tracks || [];
+          if (selectedTrackIds.includes(track.id) && selectedTrackIds.length > 1) {
+            const selectedTracks = selectedTrackIds
+              .map((id) => allTracks.find((t) => t.id === id) || (track.id === id ? track : null))
+              .filter((t): t is Track => Boolean(t));
+            store.addTracksToQueue(selectedTracks);
+          } else {
+            store.addToQueue(track);
+          }
         }}
         onDoubleClick={(e) => e.stopPropagation()}
         className={`${config.buttonClass} rounded-lg text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10 transition-all cursor-pointer flex items-center justify-center`}
@@ -957,9 +971,18 @@ const AddToPlaylistCell: React.FC<any> = ({ model }) => {
         onClick={(e) => {
           e.stopPropagation();
           const rect = e.currentTarget.getBoundingClientRect();
+          const store = usePlayerStore.getState();
+          const selectedTrackIds = store.selectedTrackIds || [];
+          const allTracks = store.tracks || [];
+          let contextTracks: Track[] = [track];
+          if (selectedTrackIds.includes(track.id) && selectedTrackIds.length > 1) {
+            contextTracks = selectedTrackIds
+              .map((id) => allTracks.find((t) => t.id === id) || (track.id === id ? track : null))
+              .filter((t): t is Track => Boolean(t));
+          }
           const evt = new CustomEvent('prism-open-context-menu', {
             bubbles: true,
-            detail: { x: rect.left, y: rect.bottom + 4, track, openPlaylistSubmenu: true },
+            detail: { x: rect.left, y: rect.bottom + 4, tracks: contextTracks, openPlaylistSubmenu: true },
           });
           e.currentTarget.dispatchEvent(evt);
         }}
@@ -986,9 +1009,19 @@ const ActionsCell: React.FC<any> = ({ model }) => {
         type="button"
         onClick={(e) => {
           e.stopPropagation();
+          const rect = e.currentTarget.getBoundingClientRect();
+          const store = usePlayerStore.getState();
+          const selectedTrackIds = store.selectedTrackIds || [];
+          const allTracks = store.tracks || [];
+          let contextTracks: Track[] = [track];
+          if (selectedTrackIds.includes(track.id) && selectedTrackIds.length > 1) {
+            contextTracks = selectedTrackIds
+              .map((id) => allTracks.find((t) => t.id === id) || (track.id === id ? track : null))
+              .filter((t): t is Track => Boolean(t));
+          }
           const evt = new CustomEvent('prism-open-context-menu', {
             bubbles: true,
-            detail: { x: e.clientX, y: e.clientY, track },
+            detail: { x: rect.left, y: rect.bottom + 4, tracks: contextTracks },
           });
           e.currentTarget.dispatchEvent(evt);
         }}
@@ -1018,11 +1051,23 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const playNext = usePlayerStore((s) => s.playNext);
   const setInfoModalTrack = usePlayerStore((s) => s.setInfoModalTrack);
   const playlists = usePlayerStore((s) => s.playlists);
-  const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
+  const addTracksToPlaylist = usePlayerStore((s) => s.addTracksToPlaylist);
   const createPlaylist = usePlayerStore((s) => s.createPlaylist);
   const activeTab = usePlayerStore((s) => s.activeTab);
   const linkTracks = usePlayerStore((s) => s.linkTracks);
   const unlinkTrack = usePlayerStore((s) => s.unlinkTrack);
+
+  // Multi-Selection state & actions
+  const selectedTrackIds = usePlayerStore((s) => s.selectedTrackIds);
+  const selectSingleTrack = usePlayerStore((s) => s.selectSingleTrack);
+  const toggleSelectTrack = usePlayerStore((s) => s.toggleSelectTrack);
+  const selectTrackRange = usePlayerStore((s) => s.selectTrackRange);
+  const selectAllTracks = usePlayerStore((s) => s.selectAllTracks);
+  const clearSelection = usePlayerStore((s) => s.clearSelection);
+  const addTracksToQueue = usePlayerStore((s) => s.addTracksToQueue);
+  const playNextTracks = usePlayerStore((s) => s.playNextTracks);
+  const likeMultipleTracks = usePlayerStore((s) => s.likeMultipleTracks);
+  const removeTracksFromPlaylistStore = usePlayerStore((s) => s.removeTracksFromPlaylist);
 
   const {
     visibleTrackColumns,
@@ -1039,11 +1084,11 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   } = useTrackTableState();
 
   const [showConfigModal, setShowConfigModal] = useState(false);
-  const [newPlaylistTrack, setNewPlaylistTrack] = useState<Track | null>(null);
+  const [newPlaylistTracks, setNewPlaylistTracks] = useState<Track[] | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
-    track: Track;
+    tracks: Track[];
     openPlaylistSubmenu?: boolean;
   } | null>(null);
   const [playlistSubmenuOpen, setPlaylistSubmenuOpen] = useState(false);
@@ -1212,12 +1257,22 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       const customEvt = e as CustomEvent<{
         x: number;
         y: number;
-        track: Track;
+        track?: Track;
+        tracks?: Track[];
         openPlaylistSubmenu?: boolean;
       }>;
       if (customEvt.detail) {
-        setContextMenu(customEvt.detail);
-        setPlaylistSubmenuOpen(Boolean(customEvt.detail.openPlaylistSubmenu));
+        const menuTracks =
+          customEvt.detail.tracks || (customEvt.detail.track ? [customEvt.detail.track] : []);
+        if (menuTracks.length > 0) {
+          setContextMenu({
+            x: customEvt.detail.x,
+            y: customEvt.detail.y,
+            tracks: menuTracks,
+            openPlaylistSubmenu: customEvt.detail.openPlaylistSubmenu,
+          });
+          setPlaylistSubmenuOpen(Boolean(customEvt.detail.openPlaylistSubmenu));
+        }
       }
     };
 
@@ -1228,14 +1283,34 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       }
     };
 
+    const handleRowSelectEvt = (e: Event) => {
+      const customEvt = e as CustomEvent<{
+        track: Track;
+        shiftKey: boolean;
+        ctrlKey: boolean;
+      }>;
+      if (customEvt.detail?.track) {
+        const { track, shiftKey, ctrlKey } = customEvt.detail;
+        if (shiftKey) {
+          selectTrackRange(track.id, tracks, ctrlKey);
+        } else if (ctrlKey) {
+          toggleSelectTrack(track.id);
+        } else {
+          selectSingleTrack(track.id);
+        }
+      }
+    };
+
     container.addEventListener('prism-open-context-menu', handleOpenMenu);
     container.addEventListener('prism-play-track', handlePlayTrackEvt);
+    container.addEventListener('prism-row-select', handleRowSelectEvt);
 
     return () => {
       container.removeEventListener('prism-open-context-menu', handleOpenMenu);
       container.removeEventListener('prism-play-track', handlePlayTrackEvt);
+      container.removeEventListener('prism-row-select', handleRowSelectEvt);
     };
-  }, [playTrack, tracks]);
+  }, [playTrack, tracks, selectTrackRange, toggleSelectTrack, selectSingleTrack]);
 
   // Toggle visibility helper
   const handleToggleColumn = useCallback(
@@ -1567,7 +1642,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       ...track,
       order: idx + 1,
       rowIndex: idx,
-      rowClass: `group/row select-none ${currentTrack?.id === track.id ? 'is-current-playing' : ''}`,
+      rowClass: `group/row select-none ${currentTrack?.id === track.id ? 'is-current-playing' : ''} ${
+        selectedTrackIds.includes(track.id) ? 'is-selected-row' : ''
+      }`,
     }));
 
     if (autoHeight) {
@@ -1606,7 +1683,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     ];
 
     return [...baseSource, ...spacerRows];
-  }, [tracks, currentTrack?.id, autoHeight]);
+  }, [tracks, currentTrack?.id, selectedTrackIds, autoHeight]);
 
   // Handle column resizing with strict "brick wall" right boundary constraint
   const onAfterColumnResize = useCallback(
@@ -1682,24 +1759,115 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     };
   }, [gridKey, columnOrder, setColumnOrder]);
 
-  // Keyboard navigation: Enter to toggle or play
+  // Selected tracks resolved from tracks array
+  const selectedTracksList = useMemo(() => {
+    return selectedTrackIds
+      .map((id) => tracks.find((t) => t.id === id))
+      .filter((t): t is Track => Boolean(t));
+  }, [selectedTrackIds, tracks]);
+
+  const allSelectedLiked = useMemo(() => {
+    if (selectedTrackIds.length === 0) return false;
+    return selectedTrackIds.every((id) => likedTrackIds.includes(id));
+  }, [selectedTrackIds, likedTrackIds]);
+
+  // Keyboard navigation & Shortcuts
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+        e.preventDefault();
+        selectAllTracks(tracks);
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        clearSelection();
+        setContextMenu(null);
+        return;
+      }
+
       if (e.key === 'Enter') {
         e.preventDefault();
-        if (currentTrack) {
+        if (selectedTracksList.length > 0) {
+          playTrack(selectedTracksList[0], tracks);
+        } else if (currentTrack) {
           togglePlay();
         } else if (tracks.length > 0) {
           playTrack(tracks[0], tracks);
         }
+        return;
+      }
+
+      if (
+        (e.key === 'Delete' || e.key === 'Backspace') &&
+        playlistId &&
+        selectedTrackIds.length > 0
+      ) {
+        e.preventDefault();
+        if (onRemoveFromPlaylist) {
+          selectedTrackIds.forEach((id) => onRemoveFromPlaylist(id));
+        } else {
+          removeTracksFromPlaylistStore(playlistId, selectedTrackIds);
+        }
+        clearSelection();
+        return;
       }
     },
-    [currentTrack, togglePlay, playTrack, tracks]
+    [
+      currentTrack,
+      togglePlay,
+      playTrack,
+      tracks,
+      selectedTracksList,
+      selectedTrackIds,
+      selectAllTracks,
+      clearSelection,
+      playlistId,
+      onRemoveFromPlaylist,
+      removeTracksFromPlaylistStore,
+    ]
   );
 
   const isLikedView = activeTab === 'liked' || playlistId === '__liked__';
   const currentDensityHeight = DENSITY_ROW_HEIGHTS[trackGridDensity] || 56;
   const calculatedHeight = autoHeight && tracks.length > 0 ? 48 + tracks.length * currentDensityHeight : undefined;
+
+  // Batch actions from floating bar
+  const handleBatchPlay = () => {
+    if (selectedTracksList.length > 0) {
+      playTrack(selectedTracksList[0], tracks);
+    }
+  };
+
+  const handleBatchAddToQueue = () => {
+    if (selectedTracksList.length > 0) {
+      addTracksToQueue(selectedTracksList);
+    }
+  };
+
+  const handleBatchPlayNext = () => {
+    if (selectedTracksList.length > 0) {
+      playNextTracks(selectedTracksList);
+    }
+  };
+
+  const handleBatchToggleLike = () => {
+    if (selectedTrackIds.length > 0) {
+      likeMultipleTracks(selectedTrackIds, !allSelectedLiked);
+    }
+  };
+
+  const handleBatchRemoveFromPlaylist = () => {
+    if (playlistId && selectedTrackIds.length > 0) {
+      if (onRemoveFromPlaylist) {
+        selectedTrackIds.forEach((id) => onRemoveFromPlaylist(id));
+      } else if (removeTracksFromPlaylistStore) {
+        removeTracksFromPlaylistStore(playlistId, selectedTrackIds);
+      }
+      clearSelection();
+    }
+  };
 
   return (
     <div className={`w-full ${autoHeight ? '' : 'h-full flex-1'} flex flex-col overflow-hidden relative select-none`}>
@@ -1713,6 +1881,26 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
             <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-white/10 text-zinc-300">
               {tracks.length}
             </span>
+            {selectedTrackIds.length > 0 && (
+              <span
+                className="px-2 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-1.5"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+                  color: 'var(--color-stop-1, #6366f1)',
+                  border: '1px solid color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                }}
+              >
+                <span>{selectedTrackIds.length} selected</span>
+                <button
+                  type="button"
+                  onClick={() => clearSelection()}
+                  className="hover:opacity-75 cursor-pointer ml-0.5"
+                  title="Clear Selection"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
           </div>
 
           <div className="relative">
@@ -1750,6 +1938,15 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         ref={containerRef}
         tabIndex={0}
         onKeyDown={onKeyDown}
+        onClick={(e) => {
+          if (
+            e.target === containerRef.current ||
+            (e.target as HTMLElement)?.classList.contains('main-viewport') ||
+            (e.target as HTMLElement)?.classList.contains('content-wrapper')
+          ) {
+            clearSelection();
+          }
+        }}
         className={autoHeight ? 'w-full relative outline-none auto-height-grid' : 'flex-1 w-full relative outline-none overflow-hidden'}
         style={calculatedHeight ? { height: `${calculatedHeight}px`, minHeight: `${calculatedHeight}px` } : { minHeight: 0 }}
       >
@@ -1794,11 +1991,120 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
             onAftercolumnresize={onAfterColumnResize}
           />
         )}
+
+        {/* Floating Batch Actions Pill for Multi-Selected Songs */}
+        {selectedTrackIds.length > 1 && (
+          <div
+            className="absolute bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 px-3.5 py-2 rounded-2xl shadow-2xl border backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-3 duration-150"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 14%, #121216)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, rgba(255, 255, 255, 0.15))',
+              boxShadow:
+                '0 12px 36px -4px rgba(0, 0, 0, 0.8), 0 0 20px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+            }}
+          >
+            <div className="flex items-center gap-2 pr-2.5 border-r border-white/10 text-xs font-bold text-white">
+              <span
+                className="w-2 h-2 rounded-full animate-pulse"
+                style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+              />
+              <span>{selectedTrackIds.length} Songs</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleBatchPlay}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer hover:scale-105 active:scale-95"
+              title="Play Selection"
+            >
+              <Play className="w-3.5 h-3.5 fill-current" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <span>Play</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleBatchAddToQueue}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer hover:scale-105 active:scale-95"
+              title="Add to Queue"
+            >
+              <ListEnd className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <span>Queue</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleBatchPlayNext}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer hover:scale-105 active:scale-95"
+              title="Play Next"
+            >
+              <ListPlus className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <span>Next</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setContextMenu({
+                  x: rect.left,
+                  y: rect.top - 8,
+                  tracks: selectedTracksList,
+                  openPlaylistSubmenu: true,
+                });
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer hover:scale-105 active:scale-95"
+              title="Add to Playlist"
+            >
+              <PlusCircle className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <span>Playlist</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleBatchToggleLike}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer hover:scale-105 active:scale-95"
+              title={allSelectedLiked ? 'Unlike Selected' : 'Like Selected'}
+            >
+              <Heart
+                className={`w-3.5 h-3.5 ${
+                  allSelectedLiked ? 'fill-pink-500 text-pink-500' : 'text-zinc-300'
+                }`}
+              />
+              <span>{allSelectedLiked ? 'Unlike' : 'Like'}</span>
+            </button>
+
+            {playlistId && (
+              <button
+                type="button"
+                onClick={handleBatchRemoveFromPlaylist}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                title="Remove Selected from Playlist"
+              >
+                <span>Remove</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => clearSelection()}
+              className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition-colors ml-0.5 cursor-pointer"
+              title="Deselect All (Esc)"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Context Menu Overlay */}
       {contextMenu && (() => {
-        const menuEstimatedHeight = playlistId && onRemoveFromPlaylist ? 360 : 310;
+        const isMulti = contextMenu.tracks.length > 1;
+        const primaryTrack = contextMenu.tracks[0];
+        const menuEstimatedHeight = isMulti
+          ? 280
+          : playlistId && onRemoveFromPlaylist
+          ? 360
+          : 310;
         const openUpward = contextMenu.y > window.innerHeight - (menuEstimatedHeight + 80);
         const left = Math.min(contextMenu.x, window.innerWidth - 250);
         const isNearRightEdge = left > window.innerWidth - 480;
@@ -1820,7 +2126,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
             : '';
         };
 
-        const isLiked = likedTrackIds.includes(contextMenu.track.id);
+        const isLiked = isMulti
+          ? contextMenu.tracks.every((t) => likedTrackIds.includes(t.id))
+          : likedTrackIds.includes(primaryTrack.id);
 
         return (
           <div
@@ -1835,7 +2143,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               style={{
                 ...posStyle,
                 backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 8%, #141416)',
-                borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, rgba(255, 255, 255, 0.12))',
+                borderColor:
+                  'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, rgba(255, 255, 255, 0.12))',
                 boxShadow:
                   '0 12px 36px -4px rgba(0, 0, 0, 0.7), 0 0 16px color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent)',
                 backdropFilter: 'blur(24px)',
@@ -1844,19 +2153,30 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               onClick={(e) => e.stopPropagation()}
             >
               <div
-                className="px-2.5 py-1 text-[11px] font-semibold text-zinc-400 border-b truncate"
+                className="px-2.5 py-1 text-[11px] font-bold text-zinc-300 border-b truncate flex items-center justify-between"
                 style={{
                   borderColor:
                     'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
                 }}
               >
-                {contextMenu.track.title}
+                <span className="truncate">
+                  {isMulti ? `${contextMenu.tracks.length} Songs Selected` : primaryTrack.title}
+                </span>
+                {isMulti && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/10 font-mono text-zinc-400">
+                    {contextMenu.tracks.length}
+                  </span>
+                )}
               </div>
 
               <button
                 type="button"
                 onClick={() => {
-                  playTrack(contextMenu.track, tracks);
+                  if (isMulti) {
+                    playTrack(contextMenu.tracks[0], tracks);
+                  } else {
+                    playTrack(primaryTrack, tracks);
+                  }
                   setContextMenu(null);
                 }}
                 onMouseEnter={(e) => handleItemHover(e, true)}
@@ -1864,13 +2184,17 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
               >
                 <Play className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                <span>Play Now</span>
+                <span>{isMulti ? 'Play Selection' : 'Play Now'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => {
-                  addToQueue(contextMenu.track);
+                  if (isMulti) {
+                    addTracksToQueue(contextMenu.tracks);
+                  } else {
+                    addToQueue(primaryTrack);
+                  }
                   setContextMenu(null);
                 }}
                 onMouseEnter={(e) => handleItemHover(e, true)}
@@ -1878,13 +2202,17 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
               >
                 <ListEnd className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                <span>Add to Queue</span>
+                <span>{isMulti ? `Add ${contextMenu.tracks.length} to Queue` : 'Add to Queue'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => {
-                  playNext(contextMenu.track);
+                  if (isMulti) {
+                    playNextTracks(contextMenu.tracks);
+                  } else {
+                    playNext(primaryTrack);
+                  }
                   setContextMenu(null);
                 }}
                 onMouseEnter={(e) => handleItemHover(e, true)}
@@ -1892,7 +2220,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                 className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
               >
                 <ListPlus className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                <span>Play Next</span>
+                <span>{isMulti ? `Play ${contextMenu.tracks.length} Next` : 'Play Next'}</span>
               </button>
 
               {/* Add to Playlist with Submenu */}
@@ -1954,13 +2282,18 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                       </div>
                     ) : (
                       playlists.map((pl) => {
-                        const inPlaylist = pl.trackIds.includes(contextMenu.track.id);
+                        const allInPlaylist = contextMenu.tracks.every((t) =>
+                          pl.trackIds.includes(t.id)
+                        );
                         return (
                           <button
                             key={pl.id}
                             type="button"
                             onClick={() => {
-                              addTrackToPlaylist(pl.id, contextMenu.track.id);
+                              addTracksToPlaylist(
+                                pl.id,
+                                contextMenu.tracks.map((t) => t.id)
+                              );
                               setContextMenu(null);
                             }}
                             onMouseEnter={(e) => handleItemHover(e, true)}
@@ -1968,7 +2301,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                             className="flex items-center justify-between w-full px-2 py-1.5 rounded-lg text-left transition-colors cursor-pointer text-zinc-200 hover:text-white"
                           >
                             <span className="truncate pr-2">{pl.name}</span>
-                            {inPlaylist && (
+                            {allInPlaylist && (
                               <span className="flex items-center justify-center shrink-0 w-4 h-4 ml-1.5 translate-y-[0.5px]">
                                 <Check
                                   className="w-3.5 h-3.5"
@@ -1992,7 +2325,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        setNewPlaylistTrack(contextMenu.track);
+                        setNewPlaylistTracks(contextMenu.tracks);
                         setContextMenu(null);
                         setPlaylistSubmenuOpen(false);
                       }}
@@ -2011,7 +2344,14 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  toggleLikeTrack(contextMenu.track.id);
+                  if (isMulti) {
+                    likeMultipleTracks(
+                      contextMenu.tracks.map((t) => t.id),
+                      !isLiked
+                    );
+                  } else {
+                    toggleLikeTrack(primaryTrack.id);
+                  }
                   setContextMenu(null);
                 }}
                 onMouseEnter={(e) => handleItemHover(e, true)}
@@ -2024,88 +2364,119 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                   }`}
                   style={!isLiked ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
                 />
-                <span>{isLiked ? 'Unlike' : 'Like'}</span>
+                <span>
+                  {isMulti
+                    ? isLiked
+                      ? 'Unlike All'
+                      : 'Like All'
+                    : isLiked
+                    ? 'Unlike'
+                    : 'Like'}
+                </span>
               </button>
 
-              {/* Song Linking */}
-              {(() => {
-                const isTrackLinked = usePlayerStore.getState().isTrackLinked;
-                const currentIdx = tracks.findIndex((t) => t.id === contextMenu.track.id);
-                const nextTrack = currentIdx >= 0 && currentIdx < tracks.length - 1 ? tracks[currentIdx + 1] : null;
-                const isLinked = isTrackLinked(contextMenu.track.id);
+              {/* Single-song actions (Details & Linking) */}
+              {!isMulti && (
+                <>
+                  {(() => {
+                    const isTrackLinked = usePlayerStore.getState().isTrackLinked;
+                    const currentIdx = tracks.findIndex((t) => t.id === primaryTrack.id);
+                    const nextTrack =
+                      currentIdx >= 0 && currentIdx < tracks.length - 1
+                        ? tracks[currentIdx + 1]
+                        : null;
+                    const isLinkedSong = isTrackLinked(primaryTrack.id);
 
-                return (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setInfoModalTrack(contextMenu.track);
-                        setContextMenu(null);
-                      }}
-                      onMouseEnter={(e) => handleItemHover(e, true)}
-                      onMouseLeave={(e) => handleItemHover(e, false)}
-                      className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
-                      title="Open track details and search any song to link"
-                    >
-                      <Link2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                      <span className="truncate">Link to Song...</span>
-                    </button>
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInfoModalTrack(primaryTrack);
+                            setContextMenu(null);
+                          }}
+                          onMouseEnter={(e) => handleItemHover(e, true)}
+                          onMouseLeave={(e) => handleItemHover(e, false)}
+                          className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+                          title="Open track details and search any song to link"
+                        >
+                          <Link2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                          <span className="truncate">Link to Song...</span>
+                        </button>
 
-                    {nextTrack && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          linkTracks(contextMenu.track.id, nextTrack.id);
-                          setContextMenu(null);
-                        }}
-                        onMouseEnter={(e) => handleItemHover(e, true)}
-                        onMouseLeave={(e) => handleItemHover(e, false)}
-                        className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
-                        title={`Link to play seamlessly before "${nextTrack.title}"`}
-                      >
-                        <Link2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                        <span className="truncate">Link to Next Song</span>
-                      </button>
-                    )}
+                        {nextTrack && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              linkTracks(primaryTrack.id, nextTrack.id);
+                              setContextMenu(null);
+                            }}
+                            onMouseEnter={(e) => handleItemHover(e, true)}
+                            onMouseLeave={(e) => handleItemHover(e, false)}
+                            className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+                            title={`Link to play seamlessly before "${nextTrack.title}"`}
+                          >
+                            <Link2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                            <span className="truncate">Link to Next Song</span>
+                          </button>
+                        )}
 
-                    {isLinked && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          unlinkTrack(contextMenu.track.id);
-                          setContextMenu(null);
-                        }}
-                        onMouseEnter={(e) => handleItemHover(e, true)}
-                        onMouseLeave={(e) => handleItemHover(e, false)}
-                        className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
-                      >
-                        <Unlink className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                        <span>Unlink Song Pair</span>
-                      </button>
-                    )}
-                  </>
-                );
-              })()}
+                        {isLinkedSong && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              unlinkTrack(primaryTrack.id);
+                              setContextMenu(null);
+                            }}
+                            onMouseEnter={(e) => handleItemHover(e, true)}
+                            onMouseLeave={(e) => handleItemHover(e, false)}
+                            className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+                          >
+                            <Unlink className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                            <span>Unlink Song Pair</span>
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
 
-              <button
-                type="button"
-                onClick={() => {
-                  setInfoModalTrack(contextMenu.track);
-                  setContextMenu(null);
-                }}
-                onMouseEnter={(e) => handleItemHover(e, true)}
-                onMouseLeave={(e) => handleItemHover(e, false)}
-                className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
-              >
-                <Info className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                <span>Song Details & Specs</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInfoModalTrack(primaryTrack);
+                      setContextMenu(null);
+                    }}
+                    onMouseEnter={(e) => handleItemHover(e, true)}
+                    onMouseLeave={(e) => handleItemHover(e, false)}
+                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+                  >
+                    <Info className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                    <span>Song Details & Specs</span>
+                  </button>
+                </>
+              )}
 
-              {playlistId && onRemoveFromPlaylist && (
+              {playlistId && (
                 <button
                   type="button"
                   onClick={() => {
-                    onRemoveFromPlaylist(contextMenu.track.id);
+                    if (isMulti) {
+                      if (onRemoveFromPlaylist) {
+                        contextMenu.tracks.forEach((t) => onRemoveFromPlaylist(t.id));
+                      } else {
+                        removeTracksFromPlaylistStore(
+                          playlistId,
+                          contextMenu.tracks.map((t) => t.id)
+                        );
+                      }
+                      clearSelection();
+                    } else {
+                      if (onRemoveFromPlaylist) {
+                        onRemoveFromPlaylist(primaryTrack.id);
+                      } else {
+                        removeTracksFromPlaylistStore(playlistId, [primaryTrack.id]);
+                      }
+                    }
                     setContextMenu(null);
                   }}
                   onMouseEnter={(e) => {
@@ -2120,7 +2491,31 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                       'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
                   }}
                 >
-                  <span>Remove from Playlist</span>
+                  <span>
+                    {isMulti
+                      ? `Remove ${contextMenu.tracks.length} from Playlist`
+                      : 'Remove from Playlist'}
+                  </span>
+                </button>
+              )}
+
+              {isMulti && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearSelection();
+                    setContextMenu(null);
+                  }}
+                  onMouseEnter={(e) => handleItemHover(e, true)}
+                  onMouseLeave={(e) => handleItemHover(e, false)}
+                  className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-400 hover:text-white border-t mt-0.5 pt-1.5"
+                  style={{
+                    borderColor:
+                      'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
+                  }}
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Deselect All</span>
                 </button>
               )}
             </div>
@@ -2130,19 +2525,20 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
 
       {/* Create Playlist Modal */}
       <CreatePlaylistModal
-        isOpen={Boolean(newPlaylistTrack)}
-        onClose={() => setNewPlaylistTrack(null)}
+        isOpen={Boolean(newPlaylistTracks && newPlaylistTracks.length > 0)}
+        onClose={() => setNewPlaylistTracks(null)}
         onConfirm={(playlistName) => {
-          if (newPlaylistTrack) {
+          if (newPlaylistTracks && newPlaylistTracks.length > 0) {
+            const trackIdsToAdd = newPlaylistTracks.map((t) => t.id);
             createPlaylist(playlistName);
             setTimeout(() => {
               const latest = usePlayerStore.getState().playlists;
               const created = latest.find((p) => p.name === playlistName);
               if (created) {
-                addTrackToPlaylist(created.id, newPlaylistTrack.id);
+                usePlayerStore.getState().addTracksToPlaylist(created.id, trackIdsToAdd);
               }
             }, 50);
-            setNewPlaylistTrack(null);
+            setNewPlaylistTracks(null);
           }
         }}
       />

@@ -251,6 +251,22 @@ interface PlayerState {
   playlists: Playlist[];
   activePlaylistId: string | null;
 
+  // Track Multi-Selection
+  selectedTrackIds: string[];
+  lastSelectedTrackId: string | null;
+  setSelectedTrackIds: (ids: string[]) => void;
+  selectSingleTrack: (trackId: string) => void;
+  toggleSelectTrack: (trackId: string) => void;
+  selectTrackRange: (targetTrackId: string, currentTrackList: Track[], isAdditive?: boolean) => void;
+  selectAllTracks: (tracks: Track[]) => void;
+  clearSelection: () => void;
+
+  // Batch actions
+  addTracksToQueue: (tracks: Track[]) => void;
+  playNextTracks: (tracks: Track[]) => void;
+  likeMultipleTracks: (trackIds: string[], like: boolean) => void;
+  removeTracksFromPlaylist: (playlistId: string, trackIds: string[]) => void;
+
   // Library folder actions
   addIncludedDirectory: (dir: string) => Promise<void>;
   removeIncludedDirectory: (dir: string) => Promise<void>;
@@ -643,6 +659,10 @@ export const usePlayerStore = create<PlayerState>()(
       // Playlists
       playlists: [],
       activePlaylistId: null,
+
+      // Track Multi-Selection
+      selectedTrackIds: [],
+      lastSelectedTrackId: null,
 
       setScanStatusMessage: (msg) => set({ scanStatusMessage: msg }),
 
@@ -1396,6 +1416,107 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       setActivePlaylistId: (id) => set({ activePlaylistId: id }),
+
+      // Track Multi-Selection actions
+      setSelectedTrackIds: (ids) => set({ selectedTrackIds: ids }),
+
+      selectSingleTrack: (trackId) =>
+        set({ selectedTrackIds: [trackId], lastSelectedTrackId: trackId }),
+
+      toggleSelectTrack: (trackId) =>
+        set((state) => {
+          const isSelected = state.selectedTrackIds.includes(trackId);
+          const next = isSelected
+            ? state.selectedTrackIds.filter((id) => id !== trackId)
+            : [...state.selectedTrackIds, trackId];
+          return { selectedTrackIds: next, lastSelectedTrackId: trackId };
+        }),
+
+      selectTrackRange: (targetTrackId, currentTrackList, isAdditive = false) =>
+        set((state) => {
+          if (!currentTrackList || currentTrackList.length === 0) return state;
+          const targetIdx = currentTrackList.findIndex((t) => t.id === targetTrackId);
+          if (targetIdx === -1) return state;
+
+          let anchorIdx = 0;
+          if (state.lastSelectedTrackId) {
+            const foundAnchor = currentTrackList.findIndex((t) => t.id === state.lastSelectedTrackId);
+            if (foundAnchor !== -1) {
+              anchorIdx = foundAnchor;
+            }
+          }
+
+          const start = Math.min(anchorIdx, targetIdx);
+          const end = Math.max(anchorIdx, targetIdx);
+          const rangeIds = currentTrackList.slice(start, end + 1).map((t) => t.id);
+
+          if (isAdditive) {
+            const combined = Array.from(new Set([...state.selectedTrackIds, ...rangeIds]));
+            return { selectedTrackIds: combined };
+          }
+
+          return {
+            selectedTrackIds: rangeIds,
+            lastSelectedTrackId: state.lastSelectedTrackId || currentTrackList[anchorIdx]?.id || targetTrackId,
+          };
+        }),
+
+      selectAllTracks: (tracks) =>
+        set({
+          selectedTrackIds: tracks.map((t) => t.id),
+          lastSelectedTrackId: tracks.length > 0 ? tracks[0].id : null,
+        }),
+
+      clearSelection: () => set({ selectedTrackIds: [], lastSelectedTrackId: null }),
+
+      // Batch actions
+      addTracksToQueue: (tracks) =>
+        set((state) => ({
+          userQueue: [...state.userQueue, ...tracks],
+        })),
+
+      playNextTracks: (tracks) =>
+        set((state) => ({
+          userQueue: [...tracks, ...state.userQueue],
+        })),
+
+      likeMultipleTracks: (trackIds, like) =>
+        set((state) => {
+          const currentSet = new Set(state.likedTrackIds);
+          if (like) {
+            trackIds.forEach((id) => currentSet.add(id));
+          } else {
+            trackIds.forEach((id) => currentSet.delete(id));
+          }
+          return { likedTrackIds: Array.from(currentSet) };
+        }),
+
+      removeTracksFromPlaylist: (playlistId, trackIds) =>
+        set((state) => {
+          const removeSet = new Set(trackIds);
+          const updatedPlaylists = state.playlists.map((p) =>
+            p.id === playlistId
+              ? { ...p, trackIds: p.trackIds.filter((id) => !removeSet.has(id)) }
+              : p
+          );
+
+          if (state.activePlaylistId === playlistId) {
+            const newOriginalQueue = state.originalQueue.filter((t) => !removeSet.has(t.id));
+            const newQueue = state.queue.filter((t) => !removeSet.has(t.id));
+            const newCurrentIndex = state.currentTrack && removeSet.has(state.currentTrack.id)
+              ? Math.min(state.currentIndex, Math.max(0, newQueue.length - 1))
+              : state.currentIndex;
+
+            return {
+              playlists: updatedPlaylists,
+              originalQueue: newOriginalQueue,
+              queue: newQueue,
+              currentIndex: newCurrentIndex,
+            };
+          }
+
+          return { playlists: updatedPlaylists };
+        }),
 
       playPlaylistNext: (playlistId) => {
         const { tracks, playlists, likedTrackIds, currentTrack, playTrack } = get();

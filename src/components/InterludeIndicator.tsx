@@ -149,6 +149,7 @@ export const InterludeIndicator: React.FC<InterludeIndicatorProps> = React.memo(
         id={id}
         onClick={() => onSeek?.(startSecs)}
         className="relative text-center cursor-pointer max-w-[90vw] w-full min-h-[44px] py-2 flex items-center justify-center transition-all duration-300 select-none group"
+        style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 44px' }}
         title={`Instrumental Break (${(endSecs - startSecs).toFixed(1)}s) - Click to seek`}
       >
         <div className="flex items-center justify-center gap-2 opacity-20 group-hover:opacity-60 transition-opacity duration-300">

@@ -202,7 +202,8 @@ const renderSyllableTransWords = (
           isSylActive ? 'drop-shadow-md' : ''
         }`}
         style={{
-          transform: `translateY(${sylLift}px) scale(${sylScale})`,
+          transform: `translate3d(0, ${sylLift}px, 0) scale(${sylScale})`,
+          willChange: isSylActive ? 'transform' : undefined,
           opacity: isSylActive ? 1 : isPast ? 0.45 : isSylPast ? 0.9 : 0.45,
           color: isSylActive
             ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, #ffffff)'
@@ -287,7 +288,8 @@ const renderSyllableGroups = (
               isSylActive ? 'drop-shadow-md' : ''
             }`}
             style={{
-              transform: `translateY(${sylLift}px) scale(${sylScale})`,
+              transform: `translate3d(0, ${sylLift}px, 0) scale(${sylScale})`,
+              willChange: isSylActive ? 'transform' : undefined,
               opacity: isSylActive ? 1 : isPast ? 0.45 : isSylPast ? 0.9 : 0.45,
               color: isSylActive
                 ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, #ffffff)'
@@ -380,7 +382,8 @@ const renderSubRomGroups = (
                 ? 'rgba(255, 255, 255, 0.85)'
                 : 'rgba(255, 255, 255, 0.45)',
               fontWeight: isSylActive ? 700 : 400,
-              transform: isSylActive ? 'scale(1.06) translateY(-1px)' : 'scale(1)',
+              transform: isSylActive ? 'translate3d(0, -1px, 0) scale(1.06)' : 'none',
+              willChange: isSylActive ? 'transform' : undefined,
               textShadow: isSylActive
                 ? '0 0 10px rgba(255, 255, 255, 0.6), 0 0 18px var(--color-stop-1, #6366f1)'
                 : undefined,
@@ -440,7 +443,8 @@ const renderSubTransWords = (
             ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, rgba(255, 255, 255, 0.85))'
             : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.45))',
           fontWeight: isSylActive ? 700 : 400,
-          transform: isSylActive ? 'scale(1.06) translateY(-1px)' : 'scale(1)',
+          transform: isSylActive ? 'translate3d(0, -1px, 0) scale(1.06)' : 'none',
+          willChange: isSylActive ? 'transform' : undefined,
           textShadow: isSylActive
             ? '0 0 10px rgba(255, 255, 255, 0.6), 0 0 18px var(--color-stop-1, #6366f1)'
             : undefined,
@@ -559,7 +563,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
           scaleTarget = isActive ? 1.065 : distance === 1 && !isPast ? 0.96 : 0.93;
           transYTarget = isActive ? 0 : isPast ? -10 : 10;
           opacityTarget = isActive ? 1 : isPast ? 0.45 : distance <= 1 ? 0.58 : 0.28;
-          blurAmount = isActive ? 'blur(0px)' : isPast ? 'blur(0px)' : distance === 1 ? 'blur(2px)' : 'blur(4px)';
+          blurAmount = isActive ? 'none' : isPast ? 'none' : distance === 1 ? 'blur(1.5px)' : 'none';
           break;
         case 'lossless_glow':
           scaleTarget = isActive ? 1.075 : distance === 1 && !isPast ? 0.99 : 0.97;
@@ -666,22 +670,10 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
         : 'min(900px, 86vw)';
 
     return (
-      <motion.div
+      <div
         id={`lyric-line-${idx}`}
         ref={isActive && !isUnsynced ? activeLineRef : null}
-        animate={{
-          opacity: opacityTarget,
-          scale: scaleTarget,
-          x: transXTarget,
-          y: transYTarget,
-          filter: blurAmount,
-        }}
-        transition={{
-          type: 'spring',
-          damping: lyricsAnimationStyle === 'karaoke_pulse' ? 16 : 22,
-          stiffness: lyricsAnimationStyle === 'karaoke_pulse' ? 140 : 170,
-        }}
-        className={`text-center cursor-pointer w-full px-6 py-3 rounded-2xl flex flex-col items-center justify-center transition-all duration-200 break-words [text-wrap:balance] ${
+        className={`text-center cursor-pointer w-full px-6 py-3 rounded-2xl flex flex-col items-center justify-center break-words [text-wrap:balance] ${
           isActive && !isUnsynced
             ? 'font-extrabold'
             : isUnsynced
@@ -689,9 +681,16 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
             : 'text-zinc-400 hover:text-zinc-200 font-medium'
         }`}
         style={{
+          contentVisibility: 'auto',
+          containIntrinsicSize: 'auto 64px',
           maxWidth: lineMaxWidth,
           fontSize: isActive && !isUnsynced ? `${activeFontSize}px` : `${inactiveFontSize}px`,
           lineHeight: 1.35,
+          opacity: opacityTarget,
+          transform: `translate3d(${transXTarget}px, ${transYTarget}px, 0) scale(${scaleTarget})`,
+          filter: blurAmount,
+          willChange: 'transform, opacity',
+          transition: 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease-out',
           ...(isCardPopActive
             ? {
                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
@@ -827,7 +826,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
             </div>
           )
         )}
-      </motion.div>
+      </div>
     );
   },
   (prev, next) => {
@@ -1902,7 +1901,10 @@ export const LyricsView: React.FC = () => {
       )}
 
       {backgroundType === 'album_art_blur' && (
-        <div className="absolute inset-0 -z-10 pointer-events-none overflow-hidden bg-[#09090b]">
+        <div
+          className="absolute inset-0 -z-10 pointer-events-none overflow-hidden bg-[#09090b]"
+          style={{ contain: 'strict', transform: 'translate3d(0, 0, 0)', willChange: 'transform' }}
+        >
           {(trackArt || bgTrackArt) && (
             <div
               className="absolute inset-0 bg-cover bg-center transition-all duration-700 scale-110"
@@ -1920,7 +1922,10 @@ export const LyricsView: React.FC = () => {
       )}
 
       {backgroundType === 'custom_photo' && (
-        <div className="absolute inset-0 -z-10 pointer-events-none overflow-hidden bg-[#09090b]">
+        <div
+          className="absolute inset-0 -z-10 pointer-events-none overflow-hidden bg-[#09090b]"
+          style={{ contain: 'strict', transform: 'translate3d(0, 0, 0)', willChange: 'transform' }}
+        >
           {customBgPath && (
             <div
               className="absolute inset-0 bg-cover bg-center transition-all duration-700 scale-105"
@@ -1938,7 +1943,10 @@ export const LyricsView: React.FC = () => {
       )}
 
       {backgroundType === 'dynamic_glow' && (
-        <div className="absolute inset-0 pointer-events-none -z-10 overflow-hidden bg-[#09090b]">
+        <div
+          className="absolute inset-0 pointer-events-none -z-10 overflow-hidden bg-[#09090b]"
+          style={{ contain: 'strict', transform: 'translate3d(0, 0, 0)', willChange: 'transform' }}
+        >
           {(bgTrackArt || trackArt) ? (
             <div
               className="absolute inset-0 pointer-events-none opacity-25 blur-[90px] scale-110 bg-cover bg-center transition-all duration-1000"

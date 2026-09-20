@@ -3,7 +3,7 @@ use cpal::{SampleFormat, StreamConfig};
 use parking_lot::Mutex;
 use std::fs::File;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -42,8 +42,8 @@ pub struct AudioPlayerState {
     pub volume: Arc<Mutex<f32>>,
     pub replay_gain_db: Arc<Mutex<f32>>,
     pub seek_secs: Arc<Mutex<Option<f64>>>,
-    pub current_position_secs: Arc<Mutex<f64>>,
-    pub current_duration_secs: Arc<Mutex<f64>>,
+    pub current_position_ms: Arc<AtomicU64>,
+    pub current_duration_ms: Arc<AtomicU64>,
     pub stop_signal: Arc<AtomicBool>,
     pub fade_out_signal: Arc<AtomicBool>,
     pub fade_out_duration_secs: Arc<Mutex<Option<f32>>>,
@@ -65,8 +65,8 @@ impl AudioPlayerState {
             volume: Arc::new(Mutex::new(0.8)),
             replay_gain_db: Arc::new(Mutex::new(0.0)),
             seek_secs: Arc::new(Mutex::new(None)),
-            current_position_secs: Arc::new(Mutex::new(0.0)),
-            current_duration_secs: Arc::new(Mutex::new(0.0)),
+            current_position_ms: Arc::new(AtomicU64::new(0)),
+            current_duration_ms: Arc::new(AtomicU64::new(0)),
             stop_signal: Arc::new(AtomicBool::new(false)),
             fade_out_signal: Arc::new(AtomicBool::new(false)),
             fade_out_duration_secs: Arc::new(Mutex::new(None)),
@@ -87,6 +87,8 @@ impl AudioPlayerState {
 pub struct GlobalAudioEngine {
     pub state: Arc<Mutex<AudioPlayerState>>,
     pub thread_handle: Arc<Mutex<Option<thread::JoinHandle<()>>>>,
+    pub current_position_ms: Arc<AtomicU64>,
+    pub current_duration_ms: Arc<AtomicU64>,
 }
 
 unsafe impl Send for GlobalAudioEngine {}
@@ -94,9 +96,14 @@ unsafe impl Sync for GlobalAudioEngine {}
 
 impl GlobalAudioEngine {
     pub fn new() -> Self {
+        let player_state = AudioPlayerState::new();
+        let current_position_ms = Arc::clone(&player_state.current_position_ms);
+        let current_duration_ms = Arc::clone(&player_state.current_duration_ms);
         Self {
-            state: Arc::new(Mutex::new(AudioPlayerState::new())),
+            state: Arc::new(Mutex::new(player_state)),
             thread_handle: Arc::new(Mutex::new(None)),
+            current_position_ms,
+            current_duration_ms,
         }
     }
 
@@ -132,11 +139,13 @@ impl GlobalAudioEngine {
         let replay_gain = Arc::new(Mutex::new(replay_gain_db));
         let initial_seek = start_position_secs.filter(|&s| s > 0.0);
         let seek_secs = Arc::new(Mutex::new(initial_seek));
-        let current_position_secs = Arc::clone(&state_guard.current_position_secs);
-        let current_duration_secs = Arc::clone(&state_guard.current_duration_secs);
+        let current_position_ms = Arc::clone(&state_guard.current_position_ms);
+        let current_duration_ms = Arc::clone(&state_guard.current_duration_ms);
 
         *state_guard.replay_gain_db.lock() = replay_gain_db;
-        *current_position_secs.lock() = initial_seek.unwrap_or(0.0);
+        let init_pos_ms = (initial_seek.unwrap_or(0.0) * 1000.0) as u64;
+        current_position_ms.store(init_pos_ms, Ordering::Relaxed);
+        current_duration_ms.store(0, Ordering::Relaxed);
         state_guard.is_playing.store(true, Ordering::SeqCst);
 
         let selected_device_name = Arc::clone(&state_guard.selected_device_name);
@@ -155,8 +164,8 @@ impl GlobalAudioEngine {
         let volume_clone = Arc::clone(&volume);
         let replay_gain_clone = Arc::clone(&replay_gain);
         let seek_secs_clone = Arc::clone(&seek_secs);
-        let position_clone = Arc::clone(&current_position_secs);
-        let duration_clone = Arc::clone(&current_duration_secs);
+        let position_clone = Arc::clone(&current_position_ms);
+        let duration_clone = Arc::clone(&current_duration_ms);
 
         drop(state_guard);
         {
@@ -211,6 +220,7 @@ impl GlobalAudioEngine {
     }
 
     pub fn seek(&self, position_secs: f64) {
+        self.current_position_ms.store((position_secs * 1000.0) as u64, Ordering::Relaxed);
         let state = self.state.lock();
         *state.seek_secs.lock() = Some(position_secs);
     }
@@ -225,10 +235,10 @@ impl GlobalAudioEngine {
         *state.replay_gain_db.lock() = gain_db;
     }
 
+    #[inline]
     pub fn get_position(&self) -> (f64, f64) {
-        let state = self.state.lock();
-        let pos = *state.current_position_secs.lock();
-        let dur = *state.current_duration_secs.lock();
+        let pos = self.current_position_ms.load(Ordering::Relaxed) as f64 / 1000.0;
+        let dur = self.current_duration_ms.load(Ordering::Relaxed) as f64 / 1000.0;
         (pos, dur)
     }
 
@@ -444,8 +454,8 @@ fn run_audio_thread(
     volume: Arc<Mutex<f32>>,
     replay_gain_db: Arc<Mutex<f32>>,
     seek_secs: Arc<Mutex<Option<f64>>>,
-    current_position_secs: Arc<Mutex<f64>>,
-    current_duration_secs: Arc<Mutex<f64>>,
+    current_position_ms: Arc<AtomicU64>,
+    current_duration_ms: Arc<AtomicU64>,
     selected_device_name: Arc<Mutex<Option<String>>>,
     active_device_name_out: Arc<Mutex<String>>,
     active_sample_rate_out: Arc<Mutex<u32>>,
@@ -482,7 +492,7 @@ fn run_audio_thread(
 
     if let Some(n_frames) = track.codec_params.n_frames {
         let duration = n_frames as f64 / input_sample_rate as f64;
-        *current_duration_secs.lock() = duration;
+        current_duration_ms.store((duration * 1000.0) as u64, Ordering::Relaxed);
     }
 
     let dec_opts: DecoderOptions = Default::default();
@@ -693,7 +703,7 @@ fn run_audio_thread(
                     track_id: Some(track_id),
                 },
             );
-            *current_position_secs.lock() = target_secs;
+            current_position_ms.store((target_secs * 1000.0) as u64, Ordering::Relaxed);
         }
 
         if !is_playing.load(Ordering::SeqCst) {
@@ -715,7 +725,7 @@ fn run_audio_thread(
         if let Some(tb) = time_base {
             let pos_secs =
                 tb.calc_time(current_frame_ts).seconds as f64 + tb.calc_time(current_frame_ts).frac;
-            *current_position_secs.lock() = pos_secs;
+            current_position_ms.store((pos_secs * 1000.0) as u64, Ordering::Relaxed);
         }
 
         let decode_start = std::time::Instant::now();
@@ -853,9 +863,9 @@ fn run_audio_thread(
     }
 
     if !stop_signal.load(Ordering::SeqCst) {
-        let dur = *current_duration_secs.lock();
-        if dur > 0.0 {
-            *current_position_secs.lock() = dur;
+        let dur_ms = current_duration_ms.load(Ordering::Relaxed);
+        if dur_ms > 0 {
+            current_position_ms.store(dur_ms, Ordering::Relaxed);
         }
     }
 

@@ -707,11 +707,13 @@ export const SettingsView: React.FC = () => {
         {/* SECTION 1: LIBRARY & FOLDERS */}
         {/* ========================================================================= */}
         {shouldShowSection('library', 'library folders indexing scan tag coverage genre year key bpm missing purge') && (
-          <div className="glass-card rounded-2xl border border-white/10 overflow-hidden shadow-xl transition-all">
+          <div className="glass-card rounded-2xl border border-white/10 shadow-xl transition-all shrink-0">
             {/* Accordion Header */}
             <div
               onClick={() => toggleSection('library')}
-              className="flex items-center justify-between p-5 cursor-pointer hover:bg-white/[0.02] transition-colors select-none"
+              className={`flex items-center justify-between p-5 cursor-pointer hover:bg-white/[0.02] transition-colors select-none ${
+                collapsedSections.has('library') ? 'rounded-2xl' : 'rounded-t-2xl'
+              }`}
             >
               <div className="flex items-center gap-3 min-w-0 pr-2">
                 <div
@@ -969,11 +971,13 @@ export const SettingsView: React.FC = () => {
         {/* SECTION 2: AUDIO ENGINE & PLAYBACK */}
         {/* ========================================================================= */}
         {shouldShowSection('audio', 'audio crossfade gapless replaygain volume normalization sound playback engine') && (
-          <div className="glass-card rounded-2xl border border-white/10 overflow-hidden shadow-xl transition-all">
+          <div className="glass-card rounded-2xl border border-white/10 shadow-xl transition-all shrink-0">
             {/* Accordion Header */}
             <div
               onClick={() => toggleSection('audio')}
-              className="flex items-center justify-between p-5 cursor-pointer hover:bg-white/[0.02] transition-colors select-none"
+              className={`flex items-center justify-between p-5 cursor-pointer hover:bg-white/[0.02] transition-colors select-none ${
+                collapsedSections.has('audio') ? 'rounded-2xl' : 'rounded-t-2xl'
+              }`}
             >
               <div className="flex items-center gap-3 min-w-0 pr-2">
                 <div
@@ -1101,11 +1105,13 @@ export const SettingsView: React.FC = () => {
         {/* SECTION 3: LYRICS BACKGROUND & ATMOSPHERE */}
         {/* ========================================================================= */}
         {shouldShowSection('lyrics_bg', 'lyrics background theme dynamic glow wallpaper solid color amoled blur dim layout split centered artwork scale') && (
-          <div className="glass-card rounded-2xl border border-white/10 overflow-hidden shadow-xl transition-all">
+          <div className="glass-card rounded-2xl border border-white/10 shadow-xl transition-all shrink-0">
             {/* Accordion Header */}
             <div
               onClick={() => toggleSection('lyrics_bg')}
-              className="flex items-center justify-between p-5 cursor-pointer hover:bg-white/[0.02] transition-colors select-none"
+              className={`flex items-center justify-between p-5 cursor-pointer hover:bg-white/[0.02] transition-colors select-none ${
+                collapsedSections.has('lyrics_bg') ? 'rounded-2xl' : 'rounded-t-2xl'
+              }`}
             >
               <div className="flex items-center gap-3 min-w-0 pr-2">
                 <div
@@ -1351,11 +1357,13 @@ export const SettingsView: React.FC = () => {
         {/* SECTION 4: LYRICS DISPLAY, TYPOGRAPHY & SYNC */}
         {/* ========================================================================= */}
         {shouldShowSection('lyrics_typo', 'lyrics typography font animation style romanization translation lrclib sync syllable word wavy seekbar specs') && (
-          <div className="glass-card rounded-2xl border border-white/10 overflow-hidden shadow-xl transition-all">
+          <div className="glass-card rounded-2xl border border-white/10 shadow-xl transition-all shrink-0">
             {/* Accordion Header */}
             <div
               onClick={() => toggleSection('lyrics_typo')}
-              className="flex items-center justify-between p-5 cursor-pointer hover:bg-white/[0.02] transition-colors select-none"
+              className={`flex items-center justify-between p-5 cursor-pointer hover:bg-white/[0.02] transition-colors select-none ${
+                collapsedSections.has('lyrics_typo') ? 'rounded-2xl' : 'rounded-t-2xl'
+              }`}
             >
               <div className="flex items-center gap-3 min-w-0 pr-2">
                 <div
@@ -1508,7 +1516,7 @@ export const SettingsView: React.FC = () => {
                     <div className="flex items-center gap-2.5">
                       <Globe className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                       <div className="flex flex-col">
-                        <span className="text-xs font-semibold text-white">AI Lyric Translation</span>
+                        <span className="text-xs font-semibold text-white">Lyric Translation</span>
                         <span className="text-[11px] text-zinc-400">English translation with synchronized timestamps</span>
                       </div>
                     </div>
@@ -1719,18 +1727,22 @@ export const SettingsView: React.FC = () => {
         {/* WORD-SYNCED LYRICS FINDER (Tool block) */}
         {/* ========================================================================= */}
         {shouldShowSection('lyrics_finder', 'word synced lyrics finder tool search download lrclib lyricsplus') && (
-          <WordSyncedLyricsFinder />
+          <div className="shrink-0">
+            <WordSyncedLyricsFinder />
+          </div>
         )}
 
         {/* ========================================================================= */}
         {/* SECTION 5: STATS & ANALYTICS */}
         {/* ========================================================================= */}
         {shouldShowSection('stats', 'stats analytics listening history demo playlists privacy anonymize clear') && (
-          <div className="glass-card rounded-2xl border border-white/10 overflow-hidden shadow-xl transition-all">
+          <div className="glass-card rounded-2xl border border-white/10 shadow-xl transition-all shrink-0">
             {/* Accordion Header */}
             <div
               onClick={() => toggleSection('stats')}
-              className="flex items-center justify-between p-5 cursor-pointer hover:bg-white/[0.02] transition-colors select-none"
+              className={`flex items-center justify-between p-5 cursor-pointer hover:bg-white/[0.02] transition-colors select-none ${
+                collapsedSections.has('stats') ? 'rounded-2xl' : 'rounded-t-2xl'
+              }`}
             >
               <div className="flex items-center gap-3 min-w-0 pr-2">
                 <div
@@ -1909,11 +1921,13 @@ export const SettingsView: React.FC = () => {
         {/* SECTION 6: SYSTEM, UPDATES & DANGER ZONE */}
         {/* ========================================================================= */}
         {shouldShowSection('system', 'system updates version github release danger reset wipe clean data app') && (
-          <div className="glass-card rounded-2xl border border-white/10 overflow-hidden shadow-xl transition-all">
+          <div className="glass-card rounded-2xl border border-white/10 shadow-xl transition-all shrink-0">
             {/* Accordion Header */}
             <div
               onClick={() => toggleSection('system')}
-              className="flex items-center justify-between p-5 cursor-pointer hover:bg-white/[0.02] transition-colors select-none"
+              className={`flex items-center justify-between p-5 cursor-pointer hover:bg-white/[0.02] transition-colors select-none ${
+                collapsedSections.has('system') ? 'rounded-2xl' : 'rounded-t-2xl'
+              }`}
             >
               <div className="flex items-center gap-3 min-w-0 pr-2">
                 <div

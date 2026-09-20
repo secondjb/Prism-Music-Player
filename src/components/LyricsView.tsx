@@ -2165,7 +2165,7 @@ export const LyricsView: React.FC = () => {
                 <div className="flex flex-col gap-1.5 p-2.5 rounded-xl bg-white/5 border border-white/5">
                   <div className="flex items-center gap-2">
                     <Globe className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                    <span className="text-white font-medium text-xs">AI Translation</span>
+                    <span className="text-white font-medium text-xs">Lyric Translation</span>
                   </div>
                   <div className="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
                     <button

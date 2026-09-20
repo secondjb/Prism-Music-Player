@@ -879,7 +879,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
   };
 
   return (
-    <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-5">
+    <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-5 shrink-0">
       {/* Header & Description */}
       <div className="flex flex-col gap-3 border-b border-white/10 pb-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

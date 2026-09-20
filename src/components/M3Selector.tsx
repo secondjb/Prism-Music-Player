@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -47,7 +47,7 @@ export const M3Selector = <T extends string>({
   }, [isOpen]);
 
   return (
-    <div ref={containerRef} className={`relative flex flex-col gap-1.5 ${className}`}>
+    <div ref={containerRef} className={`relative flex flex-col gap-1.5 ${isOpen ? 'z-40' : 'z-10'} ${className}`}>
       {label && (
         <span className="text-zinc-300 font-semibold flex items-center gap-1.5 text-xs">
           {icon && <span style={{ color: 'var(--color-stop-1, #6366f1)' }}>{icon}</span>}

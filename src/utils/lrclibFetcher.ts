@@ -27,7 +27,7 @@ export interface DiscoveredLyrics {
   hasWordSync: boolean;
   hasTranslation: boolean;
   isSynced: boolean;
-  source: 'Lyrics+' | 'Unison' | 'NetEase' | 'LRCLIB';
+  source: 'Lyrics+' | 'Unison' | 'SyncLRC' | 'NetEase' | 'Musixmatch' | 'LRCLIB';
 }
 
 function cleanTitle(title: string): string {
@@ -104,6 +104,22 @@ function parseTimestampToMs(tag: string): number | null {
     else if (match[3].length === 1) frac = parseInt(match[3], 10) * 100;
   }
   return m * 60000 + s * 1000 + frac;
+}
+
+function formatLrcTag(timeMs: number): string {
+  const totalSec = Math.floor(timeMs / 1000);
+  const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
+  const s = (totalSec % 60).toString().padStart(2, '0');
+  const cs = Math.floor((timeMs % 1000) / 10).toString().padStart(2, '0');
+  return `[${m}:${s}.${cs}]`;
+}
+
+function formatInlineTag(timeMs: number): string {
+  const totalSec = Math.floor(timeMs / 1000);
+  const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
+  const s = (totalSec % 60).toString().padStart(2, '0');
+  const cs = Math.floor((timeMs % 1000) / 10).toString().padStart(2, '0');
+  return `<${m}:${s}.${cs}>`;
 }
 
 /**
@@ -189,7 +205,6 @@ export function resetLyricsPlusCircuitBreaker(): void {
 
 /**
  * Priority 1: Attempt to fetch rich word-by-word / syllable lyrics from LyricsPlus API
- * Includes progressive retry on 429 Too Many Requests and parses syllable timestamps + dual-language translations.
  */
 export async function fetchLyricsPlus(
   trackName: string,
@@ -198,7 +213,6 @@ export async function fetchLyricsPlus(
   durationSecs?: number,
   signal?: AbortSignal
 ): Promise<string | null> {
-  // If circuit is broken (server dead/timed out), bypass immediately
   if (Date.now() < lyricsPlusCircuitBrokenUntil) {
     return null;
   }
@@ -209,7 +223,6 @@ export async function fetchLyricsPlus(
 
   if (!cTitle || signal?.aborted) return null;
 
-  // Respect active rate limit window across all workers
   const waitMs = lyricsPlusRateLimitUntil - Date.now();
   if (waitMs > 0) {
     await new Promise((r) => setTimeout(r, Math.min(waitMs, 2000)));
@@ -244,13 +257,11 @@ export async function fetchLyricsPlus(
       return null;
     }
 
-    // Success! Reset failure count
     lyricsPlusConsecutiveFailures = 0;
 
     const data = await resp.json();
     if (!data || !Array.isArray(data.lyrics) || data.lyrics.length === 0) return null;
 
-    // Convert LyricsPlus structure to Enhanced LRC with <mm:ss.xx> inline timestamps and // translations
     const lrcLines: string[] = [];
 
     for (const line of data.lyrics) {
@@ -295,7 +306,6 @@ export async function fetchLyricsPlus(
   } catch {
     lyricsPlusConsecutiveFailures++;
     if (lyricsPlusConsecutiveFailures >= 2) {
-      // Break circuit for 5 minutes
       lyricsPlusCircuitBrokenUntil = Date.now() + 5 * 60 * 1000;
     }
     return null;
@@ -346,7 +356,6 @@ export async function fetchUnisonLyrics(
 
     let lrcString: string | null = null;
 
-    // Check if response is JSON or direct XML/LRC
     if (rawText.trim().startsWith('{') || rawText.trim().startsWith('[')) {
       try {
         const data = JSON.parse(rawText);
@@ -424,7 +433,76 @@ export async function fetchUnisonLyrics(
 }
 
 /**
- * Priority 3: NetEase Cloud Music (via public proxy)
+ * Priority 3: SyncLRC API (https://github.com/TharukRenuja/SyncLRC)
+ * Multi-source karaoke word-sync, TTML, and synced lyrics provider
+ */
+export async function fetchSyncLrcLyrics(
+  trackName: string,
+  artistName: string,
+  albumName?: string,
+  durationSecs?: number,
+  signal?: AbortSignal
+): Promise<string | null> {
+  if (signal?.aborted) return null;
+  const cTitle = cleanTitle(trackName);
+  const cArtist = cleanArtist(artistName);
+  if (!cTitle) return null;
+
+  const params = new URLSearchParams();
+  params.set('track', cTitle);
+  params.set('artist', cArtist);
+  if (albumName) params.set('album', albumName);
+  if (durationSecs && durationSecs > 0) params.set('duration', Math.round(durationSecs).toString());
+
+  const endpoints = [
+    `https://synclrc.tharuk.pro/api/v1/lyrics?${params.toString()}`,
+    `https://synclrc.workers.dev/api/lyrics?${params.toString()}`,
+  ];
+
+  for (const ep of endpoints) {
+    if (signal?.aborted) return null;
+    try {
+      const res = await fetchWithTimeout(
+        ep,
+        {
+          headers: {
+            'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
+            Accept: 'application/json, text/plain',
+          },
+          signal,
+        },
+        3000
+      );
+
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (!data) continue;
+
+      const raw =
+        (typeof data.karaoke === 'string' && data.karaoke) ||
+        (typeof data.synced === 'string' && data.synced) ||
+        (typeof data.ttml === 'string' && data.ttml) ||
+        (typeof data.lrc === 'string' && data.lrc) ||
+        (typeof data.plain === 'string' && data.plain) ||
+        (typeof data.lyrics === 'string' && data.lyrics) ||
+        null;
+
+      if (raw && raw.trim()) {
+        if (isTtmlContent(raw)) {
+          return convertTtmlToLrc(raw);
+        }
+        return decodeXmlEntities(raw.trim());
+      }
+    } catch {
+      // Continue to next endpoint
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Priority 4: NetEase Cloud Music (via public proxy)
  * Search endpoint + Lyric endpoint with line-by-line translation merge.
  */
 export async function fetchNeteaseLyrics(
@@ -438,7 +516,6 @@ export async function fetchNeteaseLyrics(
   if (!cTitle) return null;
 
   try {
-    // 1. Search song ID
     const searchUrl = `https://netease-cloud-music-api-external.vercel.app/search?keywords=${encodeURIComponent(
       `${cArtist} ${cTitle}`.trim()
     )}&type=1`;
@@ -464,7 +541,6 @@ export async function fetchNeteaseLyrics(
     const songId = songs[0].id;
     if (signal?.aborted) return null;
 
-    // 2. Fetch lyrics
     const lyricUrl = `https://netease-cloud-music-api-external.vercel.app/lyric?id=${songId}`;
     const lyricResp = await fetchWithTimeout(
       lyricUrl,
@@ -505,8 +581,141 @@ export async function fetchNeteaseLyrics(
   }
 }
 
+// Musixmatch Token Cache (syncedlyrics integration)
+let musixmatchToken: string | null = null;
+let musixmatchTokenExpires = 0;
+
+async function getMusixmatchToken(signal?: AbortSignal): Promise<string | null> {
+  if (musixmatchToken && Date.now() < musixmatchTokenExpires) {
+    return musixmatchToken;
+  }
+  try {
+    const res = await fetchWithTimeout(
+      'https://apic-desktop.musixmatch.com/ws/1.1/token.get?app_id=web-desktop-app-v1.0',
+      {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          Accept: 'application/json',
+        },
+        signal,
+      },
+      3500
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const token = data?.message?.body?.user_token;
+    if (token) {
+      musixmatchToken = token;
+      musixmatchTokenExpires = Date.now() + 10 * 60 * 1000;
+      return token;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Priority 4: LRCLIB Direct
+ * Priority 5: Musixmatch / syncedlyrics provider
+ * (https://github.com/moehmeni/syncedlyrics)
+ */
+export async function fetchMusixmatchLyrics(
+  trackName: string,
+  artistName: string,
+  albumName?: string,
+  durationSecs?: number,
+  signal?: AbortSignal
+): Promise<string | null> {
+  if (signal?.aborted) return null;
+  const cTitle = cleanTitle(trackName);
+  const cArtist = cleanArtist(artistName);
+  if (!cTitle) return null;
+
+  try {
+    const token = await getMusixmatchToken(signal);
+    if (!token) return null;
+
+    const t = Date.now().toString();
+    const url = new URL('https://apic-desktop.musixmatch.com/ws/1.1/macro.subtitles.get');
+    url.searchParams.set('format', 'json');
+    url.searchParams.set('q_track', cTitle);
+    url.searchParams.set('q_artist', cArtist);
+    if (albumName) url.searchParams.set('q_album', albumName);
+    if (durationSecs && durationSecs > 0) url.searchParams.set('q_duration', Math.round(durationSecs).toString());
+    url.searchParams.set('usertoken', token);
+    url.searchParams.set('app_id', 'web-desktop-app-v1.0');
+    url.searchParams.set('t', t);
+
+    const res = await fetchWithTimeout(
+      url.toString(),
+      {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          Accept: 'application/json',
+        },
+        signal,
+      },
+      3500
+    );
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    const macro = data?.message?.body?.macro_calls;
+    if (!macro) return null;
+
+    // Check for richsync (word-by-word)
+    const richsyncBody = macro['track.richsync.get']?.message?.body?.richsync?.richsync_body;
+    if (richsyncBody && typeof richsyncBody === 'string') {
+      try {
+        const parsedRich = JSON.parse(richsyncBody);
+        if (Array.isArray(parsedRich) && parsedRich.length > 0) {
+          const lrcLines: string[] = [];
+          for (const item of parsedRich) {
+            const lineStartMs = Math.round((item.ts || 0) * 1000);
+            const tag = formatLrcTag(lineStartMs);
+            if (Array.isArray(item.l) && item.l.length > 0) {
+              let inlineBody = '';
+              for (const syl of item.l) {
+                const sylMs = Math.round((item.ts + (syl.o || 0)) * 1000);
+                const inlineTag = formatInlineTag(sylMs);
+                const text = decodeXmlEntities(syl.c || '').trim();
+                if (text) inlineBody += `${inlineTag}${text} `;
+              }
+              if (inlineBody.trim()) lrcLines.push(`${tag} ${inlineBody.trim()}`);
+            } else if (item.x) {
+              lrcLines.push(`${tag} ${decodeXmlEntities(item.x).trim()}`);
+            }
+          }
+          if (lrcLines.length > 0) return lrcLines.join('\n');
+        }
+      } catch {
+        // Fall back to standard subtitles
+      }
+    }
+
+    // Check for standard subtitles
+    const subtitles = macro['track.subtitles.get']?.message?.body?.subtitle_list;
+    if (Array.isArray(subtitles) && subtitles.length > 0) {
+      const subBody = subtitles[0]?.subtitle?.subtitle_body;
+      if (subBody && typeof subBody === 'string' && subBody.trim()) {
+        return decodeXmlEntities(subBody.trim());
+      }
+    }
+
+    // Check for plain lyrics
+    const plainLyrics = macro['track.lyrics.get']?.message?.body?.lyrics?.lyrics_body;
+    if (plainLyrics && typeof plainLyrics === 'string' && plainLyrics.trim()) {
+      return decodeXmlEntities(plainLyrics.trim());
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Priority 6: LRCLIB Direct
  */
 export async function fetchLrclibDirect(
   trackName: string,
@@ -558,7 +767,6 @@ export async function fetchLrclibDirect(
           return resLyrics.trim();
         }
       } else {
-        // Fallback search query
         const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(`${cArtist} ${cTitle}`)}`;
         const searchRes = await fetchWithTimeout(
           searchUrl,
@@ -597,11 +805,13 @@ export async function fetchLrclibDirect(
 }
 
 /**
- * Searches across 4 tiers of lyric APIs in strict cascade order:
+ * Searches across lyric APIs in strict cascade order:
  * 1. LyricsPlus (Word-synced & translated)
  * 2. Unison (Synced lyrics, TTML word-sync & romanization)
- * 3. NetEase (Merged original + CJK translations)
- * 4. LRCLIB (Standard line-synced or plain text)
+ * 3. SyncLRC (Karaoke word-sync & multi-source)
+ * 4. NetEase (Merged original + CJK translations)
+ * 5. Musixmatch / syncedlyrics (Global synced catalog & richsync)
+ * 6. LRCLIB (Standard line-synced or plain text)
  */
 export async function searchEnhancedLyrics(
   trackName: string,
@@ -650,12 +860,50 @@ export async function searchEnhancedLyrics(
     }
   }
 
-  // If user strictly requested word-sync lyrics and neither Lyrics+ nor Unison had word sync, return null
+  // 3. Priority 3: SyncLRC
+  const syncLrc = await fetchSyncLrcLyrics(trackName, artistName, albumName, durationSecs, signal);
+  if (syncLrc) {
+    const hasWordSync = isWordSyncedLrc(syncLrc);
+    const hasTranslation = hasTranslationInLyrics(syncLrc);
+    const isSynced = hasLrcTimestamps(syncLrc);
+    if (hasWordSync || hasTranslation || isSynced || syncLrc.trim().length > 0) {
+      if (!requireWordSync || hasWordSync) {
+        return {
+          lyrics: syncLrc,
+          hasWordSync,
+          hasTranslation,
+          isSynced,
+          source: 'SyncLRC',
+        };
+      }
+    }
+  }
+
+  // 4. Priority 4: Musixmatch (syncedlyrics) - checks for richsync word-by-word
+  const mxmLrc = await fetchMusixmatchLyrics(trackName, artistName, albumName, durationSecs, signal);
+  if (mxmLrc) {
+    const hasWordSync = isWordSyncedLrc(mxmLrc);
+    const hasTranslation = hasTranslationInLyrics(mxmLrc);
+    const isSynced = hasLrcTimestamps(mxmLrc);
+    if (hasWordSync || hasTranslation || isSynced || mxmLrc.trim().length > 0) {
+      if (!requireWordSync || hasWordSync) {
+        return {
+          lyrics: mxmLrc,
+          hasWordSync,
+          hasTranslation,
+          isSynced,
+          source: 'Musixmatch',
+        };
+      }
+    }
+  }
+
+  // If user strictly requested word-sync lyrics and none of the rich tiers matched, return null
   if (requireWordSync) {
     return null;
   }
 
-  // 3. Priority 3: NetEase Cloud Music (merged with translations)
+  // 5. Priority 5: NetEase Cloud Music (merged with translations)
   const neteaseLrc = await fetchNeteaseLyrics(trackName, artistName, signal);
   if (neteaseLrc) {
     const hasWordSync = isWordSyncedLrc(neteaseLrc);
@@ -672,7 +920,7 @@ export async function searchEnhancedLyrics(
     }
   }
 
-  // 4. Priority 4: LRCLIB Direct
+  // 6. Priority 6: LRCLIB Direct
   const lrclibLrc = await fetchLrclibDirect(trackName, artistName, albumName, durationSecs, signal);
   if (lrclibLrc) {
     const hasWordSync = isWordSyncedLrc(lrclibLrc);
@@ -691,7 +939,7 @@ export async function searchEnhancedLyrics(
 }
 
 /**
- * Backward compatibility wrapper for fetching lyrics with full 4-tier cascade support.
+ * Backward compatibility wrapper for fetching lyrics with cascade support.
  */
 export async function fetchLrclibLyrics(
   trackName: string,

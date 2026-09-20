@@ -208,6 +208,52 @@ const handleCellContextMenu = (e: React.MouseEvent, track: Track, openPlaylistSu
   e.currentTarget.dispatchEvent(evt);
 };
 
+// Ultra-fast native Stencil VNode template for pure text/metadata cells.
+// Eliminates hundreds of React 18 Roots, DOM allocations, and render queues during table scrolling.
+const createTextCellTemplate = (
+  getText: (track: Track) => string,
+  options?: { alignRight?: boolean; isMono?: boolean }
+) => {
+  return (h: any, p: any) => {
+    if (!h) return null;
+    const track = (p?.model || {}) as Track;
+    if (!track.id) return null;
+    const text = getText(track);
+    const density = usePlayerStore.getState().trackGridDensity;
+    const fontSizeClass =
+      density === 'massive' ? 'text-base' : density === 'huge' ? 'text-sm' : 'text-xs';
+    const fontClass = options?.isMono ? 'font-mono' : '';
+    const justifyClass = options?.alignRight ? 'justify-end pr-2 text-right' : 'justify-start';
+
+    return h(
+      'div',
+      {
+        class: `flex items-center h-full w-full min-w-0 ${justifyClass} cursor-grab active:cursor-grabbing`,
+        draggable: true,
+        onDragStart: (e: any) => handleTrackDragStart(e, track),
+        onClick: (e: any) => handleCellClick(e, track),
+        onContextMenu: (e: any) => handleCellContextMenu(e, track),
+        onDblClick: () => {
+          const evt = new CustomEvent('prism-play-track', {
+            bubbles: true,
+            detail: { track },
+          });
+          window.dispatchEvent(evt);
+        },
+      },
+      [
+        h(
+          'span',
+          {
+            class: `truncate text-zinc-400 ${fontSizeClass} ${fontClass} ${options?.alignRight ? 'text-right' : ''}`,
+          },
+          text
+        ),
+      ]
+    );
+  };
+};
+
 const PROP_TO_COL_ID: Record<string, TrackColumnId> = {
   order: 'order',
   art: 'art',
@@ -684,216 +730,6 @@ const AlbumCell: React.FC<any> = ({ model }) => {
           {track.album || '—'}
         </span>
       )}
-    </div>
-  );
-};
-
-const DateCell: React.FC<any> = ({ model }) => {
-  const track = (model || {}) as Track;
-  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  if (!track.id) return null;
-
-  return (
-    <div
-      draggable={Boolean(track.id)}
-      onDragStart={(e) => handleTrackDragStart(e, track)}
-      onClick={(e) => handleCellClick(e, track)}
-      onContextMenu={(e) => handleCellContextMenu(e, track)}
-      className="flex items-center h-full w-full min-w-0 cursor-grab active:cursor-grabbing"
-      onDoubleClick={() => {
-        const evt = new CustomEvent('prism-play-track', {
-          bubbles: true,
-          detail: { track },
-        });
-        window.dispatchEvent(evt);
-      }}
-    >
-      <span
-        className={`font-mono text-zinc-400 truncate ${
-          trackGridDensity === 'massive'
-            ? 'text-base'
-            : trackGridDensity === 'huge'
-            ? 'text-sm'
-            : 'text-xs'
-        }`}
-      >
-        {track.year || '—'}
-      </span>
-    </div>
-  );
-};
-
-const GenreCell: React.FC<any> = ({ model }) => {
-  const track = (model || {}) as Track;
-  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  if (!track.id) return null;
-
-  return (
-    <div
-      draggable={Boolean(track.id)}
-      onDragStart={(e) => handleTrackDragStart(e, track)}
-      onClick={(e) => handleCellClick(e, track)}
-      onContextMenu={(e) => handleCellContextMenu(e, track)}
-      className="flex items-center h-full w-full min-w-0 cursor-grab active:cursor-grabbing"
-      onDoubleClick={() => {
-        const evt = new CustomEvent('prism-play-track', {
-          bubbles: true,
-          detail: { track },
-        });
-        window.dispatchEvent(evt);
-      }}
-    >
-      <span
-        className={`truncate text-zinc-400 ${
-          trackGridDensity === 'massive'
-            ? 'text-base'
-            : trackGridDensity === 'huge'
-            ? 'text-sm'
-            : 'text-xs'
-        }`}
-      >
-        {track.genre || '—'}
-      </span>
-    </div>
-  );
-};
-
-const DurationCell: React.FC<any> = ({ model }) => {
-  const track = (model || {}) as Track;
-  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  if (!track.id) return null;
-
-  return (
-    <div
-      draggable={Boolean(track.id)}
-      onDragStart={(e) => handleTrackDragStart(e, track)}
-      onClick={(e) => handleCellClick(e, track)}
-      onContextMenu={(e) => handleCellContextMenu(e, track)}
-      className="flex items-center justify-end h-full w-full pr-2 cursor-grab active:cursor-grabbing"
-      onDoubleClick={() => {
-        const evt = new CustomEvent('prism-play-track', {
-          bubbles: true,
-          detail: { track },
-        });
-        window.dispatchEvent(evt);
-      }}
-    >
-      <span
-        className={`font-mono text-zinc-400 text-right ${
-          trackGridDensity === 'massive'
-            ? 'text-base'
-            : trackGridDensity === 'huge'
-            ? 'text-sm'
-            : 'text-xs'
-        }`}
-      >
-        {formatDuration(track.duration_secs)}
-      </span>
-    </div>
-  );
-};
-
-const BitrateCell: React.FC<any> = ({ model }) => {
-  const track = (model || {}) as Track;
-  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  if (!track.id) return null;
-
-  return (
-    <div
-      draggable={Boolean(track.id)}
-      onDragStart={(e) => handleTrackDragStart(e, track)}
-      onClick={(e) => handleCellClick(e, track)}
-      onContextMenu={(e) => handleCellContextMenu(e, track)}
-      className="flex items-center h-full w-full min-w-0 cursor-grab active:cursor-grabbing"
-      onDoubleClick={() => {
-        const evt = new CustomEvent('prism-play-track', {
-          bubbles: true,
-          detail: { track },
-        });
-        window.dispatchEvent(evt);
-      }}
-    >
-      <span
-        className={`font-mono text-zinc-400 truncate ${
-          trackGridDensity === 'massive'
-            ? 'text-base'
-            : trackGridDensity === 'huge'
-            ? 'text-sm'
-            : 'text-xs'
-        }`}
-      >
-        {track.bit_rate_kbps ? `${track.bit_rate_kbps} kbps` : '—'}
-      </span>
-    </div>
-  );
-};
-
-const SampleRateCell: React.FC<any> = ({ model }) => {
-  const track = (model || {}) as Track;
-  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  if (!track.id) return null;
-
-  return (
-    <div
-      draggable={Boolean(track.id)}
-      onDragStart={(e) => handleTrackDragStart(e, track)}
-      onClick={(e) => handleCellClick(e, track)}
-      onContextMenu={(e) => handleCellContextMenu(e, track)}
-      className="flex items-center h-full w-full min-w-0 cursor-grab active:cursor-grabbing"
-      onDoubleClick={() => {
-        const evt = new CustomEvent('prism-play-track', {
-          bubbles: true,
-          detail: { track },
-        });
-        window.dispatchEvent(evt);
-      }}
-    >
-      <span
-        className={`font-mono text-zinc-400 truncate ${
-          trackGridDensity === 'massive'
-            ? 'text-base'
-            : trackGridDensity === 'huge'
-            ? 'text-sm'
-            : 'text-xs'
-        }`}
-      >
-        {track.sample_rate ? `${(track.sample_rate / 1000).toFixed(1)} kHz` : '—'}
-      </span>
-    </div>
-  );
-};
-
-const BitDepthCell: React.FC<any> = ({ model }) => {
-  const track = (model || {}) as Track;
-  const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  if (!track.id) return null;
-
-  return (
-    <div
-      draggable={Boolean(track.id)}
-      onDragStart={(e) => handleTrackDragStart(e, track)}
-      onClick={(e) => handleCellClick(e, track)}
-      onContextMenu={(e) => handleCellContextMenu(e, track)}
-      className="flex items-center h-full w-full min-w-0 cursor-grab active:cursor-grabbing"
-      onDoubleClick={() => {
-        const evt = new CustomEvent('prism-play-track', {
-          bubbles: true,
-          detail: { track },
-        });
-        window.dispatchEvent(evt);
-      }}
-    >
-      <span
-        className={`font-mono text-zinc-400 truncate ${
-          trackGridDensity === 'massive'
-            ? 'text-base'
-            : trackGridDensity === 'huge'
-            ? 'text-sm'
-            : 'text-xs'
-        }`}
-      >
-        {track.bit_depth ? `${track.bit_depth}-bit` : '—'}
-      </span>
     </div>
   );
 };
@@ -1416,12 +1252,12 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const titleCellTemplate = useMemo(() => createReactCellTemplate(TitleCell), []);
   const artistCellTemplate = useMemo(() => createReactCellTemplate(ArtistCell), []);
   const albumCellTemplate = useMemo(() => createReactCellTemplate(AlbumCell), []);
-  const dateCellTemplate = useMemo(() => createReactCellTemplate(DateCell), []);
-  const genreCellTemplate = useMemo(() => createReactCellTemplate(GenreCell), []);
-  const durationCellTemplate = useMemo(() => createReactCellTemplate(DurationCell), []);
-  const bitrateCellTemplate = useMemo(() => createReactCellTemplate(BitrateCell), []);
-  const sampleRateCellTemplate = useMemo(() => createReactCellTemplate(SampleRateCell), []);
-  const bitDepthCellTemplate = useMemo(() => createReactCellTemplate(BitDepthCell), []);
+  const dateCellTemplate = useMemo(() => createTextCellTemplate((t) => (t.year ? String(t.year) : '—'), { isMono: true }), []);
+  const genreCellTemplate = useMemo(() => createTextCellTemplate((t) => t.genre || '—'), []);
+  const durationCellTemplate = useMemo(() => createTextCellTemplate((t) => formatDuration(t.duration_secs), { alignRight: true, isMono: true }), []);
+  const bitrateCellTemplate = useMemo(() => createTextCellTemplate((t) => (t.bit_rate_kbps ? `${t.bit_rate_kbps} kbps` : '—'), { isMono: true }), []);
+  const sampleRateCellTemplate = useMemo(() => createTextCellTemplate((t) => (t.sample_rate ? `${(t.sample_rate / 1000).toFixed(1)} kHz` : '—'), { isMono: true }), []);
+  const bitDepthCellTemplate = useMemo(() => createTextCellTemplate((t) => (t.bit_depth ? `${t.bit_depth}-bit` : '—'), { isMono: true }), []);
   const columnHeaderTemplate = useMemo(() => createReactCellTemplate(ColumnHeader), [sortState]);
   const favoriteCellTemplate = useMemo(() => createReactCellTemplate(FavoriteCell), []);
   const playNextCellTemplate = useMemo(() => createReactCellTemplate(PlayNextCell), []);
@@ -2034,7 +1870,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
           }
         }}
         className={autoHeight ? 'w-full relative outline-none auto-height-grid' : 'flex-1 w-full relative outline-none overflow-hidden'}
-        style={calculatedHeight ? { height: `${calculatedHeight}px`, minHeight: `${calculatedHeight}px` } : { minHeight: 0 }}
+        style={calculatedHeight ? { height: `${calculatedHeight}px`, minHeight: `${calculatedHeight}px`, contain: 'layout paint' } : { minHeight: 0, contain: 'layout paint' }}
       >
         {tracks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center gap-3 glass-card rounded-2xl border border-dashed border-white/10 my-4 select-none">

@@ -206,12 +206,12 @@ const renderSyllableTransWords = (
           willChange: isSylActive ? 'transform' : undefined,
           opacity: isSylActive ? 1 : isPast ? 0.45 : isSylPast ? 0.9 : 0.45,
           color: isSylActive
-            ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, #ffffff)'
+            ? '#ffffff'
             : isPast
-            ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 14%, rgba(255, 255, 255, 0.45))'
+            ? 'rgba(255, 255, 255, 0.45)'
             : isSylPast
-            ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, rgba(255, 255, 255, 0.92))'
-            : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 14%, rgba(255, 255, 255, 0.45))',
+            ? 'rgba(255, 255, 255, 0.90)'
+            : 'rgba(255, 255, 255, 0.45)',
           ...(isSylActive && lyricsAnimationStyle === 'lossless_glow'
             ? {
                 textShadow:
@@ -292,12 +292,12 @@ const renderSyllableGroups = (
               willChange: isSylActive ? 'transform' : undefined,
               opacity: isSylActive ? 1 : isPast ? 0.45 : isSylPast ? 0.9 : 0.45,
               color: isSylActive
-                ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, #ffffff)'
+                ? '#ffffff'
                 : isPast
-                ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 14%, rgba(255, 255, 255, 0.45))'
+                ? 'rgba(255, 255, 255, 0.45)'
                 : isSylPast
-                ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, rgba(255, 255, 255, 0.92))'
-                : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 14%, rgba(255, 255, 255, 0.45))',
+                ? 'rgba(255, 255, 255, 0.90)'
+                : 'rgba(255, 255, 255, 0.45)',
               ...(isSylActive && lyricsAnimationStyle === 'lossless_glow'
                 ? {
                     textShadow:
@@ -2844,6 +2844,7 @@ export const LyricsView: React.FC = () => {
           {/* Right Column (50%): Scrolling Lyrics shifted left towards album art */}
           <div
             ref={containerRef}
+            style={{ willChange: 'scroll-position' }}
             className={`h-full w-full min-w-0 overflow-y-auto custom-scrollbar ${
               !isScrollbarVisible ? 'scrollbar-hidden' : ''
             } flex flex-col items-center justify-start gap-6 pt-[16vh] pb-[22vh] pl-2 sm:pl-4 pr-[8%] lg:pr-[10%] z-10 relative`}
@@ -2901,13 +2902,14 @@ export const LyricsView: React.FC = () => {
                   ((activeInterlude && idx < activeInterlude.insertIndex) ||
                     (!activeInterlude && activeIndex >= 0 && idx < activeIndex) ||
                     (idx === activeIndex && !isActive && isCurrentLinePassed));
-                const distance = isActive
+                const rawDistance = isActive
                   ? 0
                   : activeInterlude
                   ? idx < activeInterlude.insertIndex
                     ? Math.abs(activeInterlude.insertIndex - idx)
                     : Math.abs(idx - activeInterlude.insertIndex + 1)
                   : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0));
+                const distance = Math.min(2, rawDistance);
 
                 const interludeBefore = !isUnsynced
                   ? interludeList.find((item) => item.insertIndex === idx)
@@ -2927,7 +2929,7 @@ export const LyricsView: React.FC = () => {
                         distance={
                           activeInterlude?.key === interludeBefore.key
                             ? 0
-                            : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0))
+                            : Math.min(2, Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0)))
                         }
                         lyricsFontSizePreset={lyricsFontSizePreset}
                         activeFontSize={splitActiveFontSize}
@@ -2964,6 +2966,7 @@ export const LyricsView: React.FC = () => {
           {/* Main Lyrics Display Area */}
           <div
             ref={containerRef}
+            style={{ willChange: 'scroll-position' }}
             className={`flex-1 overflow-y-auto my-4 px-4 custom-scrollbar ${
               !isScrollbarVisible ? 'scrollbar-hidden' : ''
             } flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-10 relative`}
@@ -3021,13 +3024,14 @@ export const LyricsView: React.FC = () => {
                   ((activeInterlude && idx < activeInterlude.insertIndex) ||
                     (!activeInterlude && activeIndex >= 0 && idx < activeIndex) ||
                     (idx === activeIndex && !isActive && isCurrentLinePassed));
-                const distance = isActive
+                const rawDistance = isActive
                   ? 0
                   : activeInterlude
                   ? idx < activeInterlude.insertIndex
                     ? Math.abs(activeInterlude.insertIndex - idx)
                     : Math.abs(idx - activeInterlude.insertIndex + 1)
                   : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0));
+                const distance = Math.min(2, rawDistance);
 
                 const interludeBefore = !isUnsynced
                   ? interludeList.find((item) => item.insertIndex === idx)
@@ -3047,7 +3051,7 @@ export const LyricsView: React.FC = () => {
                         distance={
                           activeInterlude?.key === interludeBefore.key
                             ? 0
-                            : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0))
+                            : Math.min(2, Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0)))
                         }
                         lyricsFontSizePreset={lyricsFontSizePreset}
                         activeFontSize={activeFontSize}

@@ -45,10 +45,6 @@ export const TrackProgressBar: React.FC<TrackProgressBarProps> = memo(({ isLyric
     const renderDuration = renderEndTime - renderStartTime;
     perfRef.current.accumulatedRenderMs += renderDuration;
 
-    if (renderDuration > 5) {
-      console.warn(`[Perf:TrackProgressBar:SPIKE] Heavy render: ${renderDuration.toFixed(2)}ms`);
-    }
-
     const elapsedSecs = (renderEndTime - perfRef.current.windowStart) / 1000;
     if (elapsedSecs >= 5) {
       const fps = (perfRef.current.renderCount / elapsedSecs).toFixed(1);

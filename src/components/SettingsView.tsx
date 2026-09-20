@@ -201,6 +201,15 @@ const SETTINGS_COLLAPSE_STORAGE_KEY = 'prism_settings_collapsed_sections';
 
 let savedSettingsScrollTop = 0;
 
+export const toTitleCase = (str: string): string => {
+  if (!str) return '';
+  return str
+    .replace(/_/g, ' ')
+    .split(' ')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+};
+
 export const SettingsView: React.FC = () => {
   const tracks = usePlayerStore((s) => s.tracks);
   const includedDirectories = usePlayerStore((s) => s.includedDirectories);
@@ -230,8 +239,6 @@ export const SettingsView: React.FC = () => {
   const setBgDimOpacity = usePlayerStore((s) => s.setBgDimOpacity);
   const lyricsLayoutMode = usePlayerStore((s) => s.lyricsLayoutMode);
   const setLyricsLayoutMode = usePlayerStore((s) => s.setLyricsLayoutMode);
-  const lyricsArtSize = usePlayerStore((s) => s.lyricsArtSize);
-  const setLyricsArtSize = usePlayerStore((s) => s.setLyricsArtSize);
 
   const lrclibAutoFetch = usePlayerStore((s) => s.lrclibAutoFetch);
   const setLrclibAutoFetch = usePlayerStore((s) => s.setLrclibAutoFetch);
@@ -1134,7 +1141,7 @@ export const SettingsView: React.FC = () => {
 
               <div className="flex items-center gap-3 shrink-0">
                 <span className="hidden sm:inline-flex px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-white/5 border border-white/10 text-zinc-300">
-                  {backgroundType.replace('_', ' ')} • {lyricsLayoutMode}
+                  {toTitleCase(backgroundType)} • {toTitleCase(lyricsLayoutMode)}
                 </span>
                 <ChevronDown
                   className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${
@@ -1272,7 +1279,6 @@ export const SettingsView: React.FC = () => {
                           step={0.05}
                           onChange={(_, val) => setBgDimOpacity(val as number)}
                           valueLabelDisplay="auto"
-                          valueLabelFormat={(v) => `${Math.round(v * 100)}%`}
                         />
                       </div>
                     </>
@@ -1309,41 +1315,6 @@ export const SettingsView: React.FC = () => {
                         style={lyricsLayoutMode === 'split' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
                       >
                         Side-by-Side Split
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Split Artwork Sizing */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3 col-span-1 md:col-span-2">
-                    <div className="flex items-center gap-2.5">
-                      <ImageIcon className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                      <div className="flex flex-col">
-                        <span className="text-xs font-semibold text-white">Split Mode Artwork Scale</span>
-                        <span className="text-[11px] text-zinc-400">Cover artwork size in Split view</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10 shrink-0">
-                      <button
-                        onClick={() => setLyricsArtSize('compact')}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                          lyricsArtSize === 'compact'
-                            ? 'text-white shadow-md'
-                            : 'text-zinc-400 hover:text-zinc-200'
-                        }`}
-                        style={lyricsArtSize === 'compact' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
-                      >
-                        Standard (256px)
-                      </button>
-                      <button
-                        onClick={() => setLyricsArtSize('expanded')}
-                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                          lyricsArtSize === 'expanded'
-                            ? 'text-white shadow-md'
-                            : 'text-zinc-400 hover:text-zinc-200'
-                        }`}
-                        style={lyricsArtSize === 'expanded' ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
-                      >
-                        Large (384px)
                       </button>
                     </div>
                   </div>
@@ -1386,7 +1357,7 @@ export const SettingsView: React.FC = () => {
 
               <div className="flex items-center gap-3 shrink-0">
                 <span className="hidden sm:inline-flex px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-white/5 border border-white/10 text-zinc-300">
-                  {lyricsFontSizePreset} • {lyricsAnimationStyle.replace('_', ' ')}
+                  {toTitleCase(lyricsFontSizePreset)} • {toTitleCase(lyricsAnimationStyle)}
                 </span>
                 <ChevronDown
                   className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${
@@ -1563,7 +1534,7 @@ export const SettingsView: React.FC = () => {
                       <Mic2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                       <div className="flex flex-col">
                         <span className="text-xs font-semibold text-white">Auto-fetch Online Lyrics</span>
-                        <span className="text-[10px] text-zinc-400">Search LRCLIB if embedded is missing</span>
+                        <span className="text-[10px] text-zinc-400">Search online providers if embedded is missing</span>
                       </div>
                     </div>
                     <Checkbox
@@ -1638,17 +1609,18 @@ export const SettingsView: React.FC = () => {
                     />
                   </div>
 
+                  {/* Prefer Online moved to slot 5 */}
                   <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
                     <div className="flex items-center gap-2.5">
-                      <Waves className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                      <Mic2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                       <div className="flex flex-col">
-                        <span className="text-xs font-semibold text-white">Wavy Seekbar</span>
-                        <span className="text-[10px] text-zinc-400">Dynamic 3-layer frosted waveform seekbar</span>
+                        <span className="text-xs font-semibold text-white">Prefer Online Over Embedded</span>
+                        <span className="text-[10px] text-zinc-400">Check online providers before embedded tags</span>
                       </div>
                     </div>
                     <Checkbox
-                      checked={isWavySeekbarEnabled}
-                      onChange={toggleWavySeekbar}
+                      checked={preferOnlineLyrics}
+                      onChange={(e) => setPreferOnlineLyrics(e.target.checked)}
                       size="small"
                       sx={{
                         color: 'var(--color-stop-1, #6366f1)',
@@ -1698,17 +1670,18 @@ export const SettingsView: React.FC = () => {
                     />
                   </div>
 
+                  {/* Wavy Seekbar moved to slot 8 */}
                   <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
                     <div className="flex items-center gap-2.5">
-                      <Mic2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                      <Waves className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                       <div className="flex flex-col">
-                        <span className="text-xs font-semibold text-white">Prefer Online Over Embedded</span>
-                        <span className="text-[10px] text-zinc-400">Check online LRCLIB before embedded tags</span>
+                        <span className="text-xs font-semibold text-white">Wavy Seekbar</span>
+                        <span className="text-[10px] text-zinc-400">Dynamic 3-layer frosted waveform seekbar</span>
                       </div>
                     </div>
                     <Checkbox
-                      checked={preferOnlineLyrics}
-                      onChange={(e) => setPreferOnlineLyrics(e.target.checked)}
+                      checked={isWavySeekbarEnabled}
+                      onChange={toggleWavySeekbar}
                       size="small"
                       sx={{
                         color: 'var(--color-stop-1, #6366f1)',
@@ -1727,9 +1700,10 @@ export const SettingsView: React.FC = () => {
         {/* WORD-SYNCED LYRICS FINDER (Tool block) */}
         {/* ========================================================================= */}
         {shouldShowSection('lyrics_finder', 'word synced lyrics finder tool search download lrclib lyricsplus') && (
-          <div className="shrink-0">
-            <WordSyncedLyricsFinder />
-          </div>
+          <WordSyncedLyricsFinder
+            isCollapsed={collapsedSections.has('lyrics_finder')}
+            onToggleCollapse={() => toggleSection('lyrics_finder')}
+          />
         )}
 
         {/* ========================================================================= */}

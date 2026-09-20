@@ -13,4 +13,5 @@ echo   Logging output to: %LOG_FILE%
 echo ===================================================
 echo.
 
+call node scripts\patch-revogrid.js
 call npm run tauri dev 2>&1 | node scripts\tee.js "%LOG_FILE%"

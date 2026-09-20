@@ -19,10 +19,8 @@ process.stdin.on('data', (chunk) => {
 
 // Handle graceful exit
 process.on('SIGINT', () => {
-  logStream.end();
   process.exit(0);
 });
 process.on('SIGTERM', () => {
-  logStream.end();
   process.exit(0);
 });

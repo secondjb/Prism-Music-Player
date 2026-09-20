@@ -10,7 +10,8 @@
     "dev:log": "tauri dev 2>&1 | node scripts/tee.js dev-output.log",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "postinstall": "node scripts/patch-revogrid.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

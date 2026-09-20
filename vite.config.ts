@@ -1,6 +1,37 @@
-import { defineConfig } from "vite";
+import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+
+function revolistStencilPlugin(): Plugin {
+  return {
+    name: "revolist-stencil-plugin",
+    enforce: "pre",
+    transform(code, id) {
+      if (id.includes("@revolist") || id.includes("revogrid")) {
+        let modified = code;
+        if (modified.includes("var isHost = (node) => node && node.$tag$ === Host;")) {
+          modified = modified.replace(
+            /var isHost = \(node\) => node && node\.\$tag\$ === Host;/g,
+            'var isHost = (node) => Boolean(node && (node.$tag$ === Host || (typeof node.$tag$ === "object" && node.$tag$ !== null) || ((node.$flags$ & 4) !== 0)));'
+          );
+        }
+        if (modified.includes('? "slot-fb" : newVNode2.$tag$')) {
+          modified = modified.replace(
+            /\? "slot-fb" : newVNode2\.\$tag\$/g,
+            '? "slot-fb" : (typeof newVNode2.$tag$ === "string" && newVNode2.$tag$ ? newVNode2.$tag$ : "div")'
+          );
+        }
+        if (modified.includes('const elm = newVnode.$elm$.nodeType') && !modified.includes('if (!newVnode || !newVnode.$elm$) return;')) {
+          modified = modified.replace(
+            /const elm = newVnode\.\$elm\$\.nodeType === 11/g,
+            'if (!newVnode || !newVnode.$elm$) return;\n  const elm = newVnode.$elm$.nodeType === 11'
+          );
+        }
+        return modified !== code ? { code: modified, map: null } : null;
+      }
+    },
+  };
+}
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
@@ -8,7 +39,7 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   base: "./",
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), revolistStencilPlugin()],
 
   optimizeDeps: {
     include: [

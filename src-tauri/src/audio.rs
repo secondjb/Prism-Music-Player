@@ -220,6 +220,11 @@ impl GlobalAudioEngine {
         *state.volume.lock() = vol.clamp(0.0, 1.0);
     }
 
+    pub fn set_replay_gain(&self, gain_db: f32) {
+        let state = self.state.lock();
+        *state.replay_gain_db.lock() = gain_db;
+    }
+
     pub fn get_position(&self) -> (f64, f64) {
         let state = self.state.lock();
         let pos = *state.current_position_secs.lock();

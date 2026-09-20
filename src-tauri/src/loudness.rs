@@ -11,7 +11,7 @@ use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 static CANCEL_SIGNAL: AtomicBool = AtomicBool::new(false);
 
@@ -241,6 +241,8 @@ pub fn scan_replaygain_batch(
     });
 
     let final_results = results.lock().clone();
-    // Sort final results in matching order or return
+    if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
+        let _ = crate::metadata::update_replaygain_in_library(&app_data_dir, &final_results);
+    }
     final_results
 }

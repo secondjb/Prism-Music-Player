@@ -79,7 +79,12 @@ export const SongInfoModal: React.FC = () => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  const trackArt = useTrackArt(infoModalTrack);
+  const activeTrack = useMemo(() => {
+    if (!infoModalTrack) return null;
+    return tracks.find((t) => t.id === infoModalTrack.id || t.path === infoModalTrack.path) || infoModalTrack;
+  }, [tracks, infoModalTrack]);
+
+  const trackArt = useTrackArt(activeTrack || infoModalTrack);
 
   useEffect(() => {
     if (!infoModalTrack) {
@@ -221,33 +226,33 @@ export const SongInfoModal: React.FC = () => {
           </div>
 
           <div className="flex flex-col gap-1 min-w-0 flex-1 w-full text-center sm:text-left">
-            <h2 className="text-2xl sm:text-3xl xl:text-4xl font-black text-white drop-shadow-sm truncate">{infoModalTrack.title}</h2>
+            <h2 className="text-2xl sm:text-3xl xl:text-4xl font-black text-white drop-shadow-sm truncate">{(activeTrack || infoModalTrack).title}</h2>
             <p 
               className="text-lg sm:text-xl xl:text-2xl font-bold mt-0.5 sm:mt-1 cursor-pointer hover:underline truncate"
               style={{ color: 'var(--color-stop-1, #6366f1)' }}
               onClick={() => {
-                if (infoModalTrack.artist && infoModalTrack.artist !== 'Unknown Artist') {
-                  usePlayerStore.getState().navigateToArtist(infoModalTrack.artist);
+                if ((activeTrack || infoModalTrack).artist && (activeTrack || infoModalTrack).artist !== 'Unknown Artist') {
+                  usePlayerStore.getState().navigateToArtist((activeTrack || infoModalTrack).artist);
                   setInfoModalTrack(null);
                 }
               }}
             >
-              {infoModalTrack.artist}
+              {(activeTrack || infoModalTrack).artist}
             </p>
             <p 
               className="text-sm sm:text-base text-zinc-400 mt-0.5 sm:mt-1 cursor-pointer hover:underline hover:text-white truncate"
               onClick={() => {
-                if (infoModalTrack.album && infoModalTrack.album !== 'Unknown Album') {
-                  usePlayerStore.getState().navigateToAlbum(infoModalTrack.album);
+                if ((activeTrack || infoModalTrack).album && (activeTrack || infoModalTrack).album !== 'Unknown Album') {
+                  usePlayerStore.getState().navigateToAlbum((activeTrack || infoModalTrack).album);
                   setInfoModalTrack(null);
                 }
               }}
             >
-              {infoModalTrack.album || 'Unknown Album'}
+              {(activeTrack || infoModalTrack).album || 'Unknown Album'}
             </p>
 
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2 text-xs font-mono text-zinc-300">
-              {infoModalTrack.bit_rate_kbps && (
+              {(activeTrack || infoModalTrack).bit_rate_kbps && (
                 <span
                   className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-lg border font-bold"
                   style={{
@@ -256,10 +261,10 @@ export const SongInfoModal: React.FC = () => {
                     color: 'var(--color-stop-1, #6366f1)',
                   }}
                 >
-                  {infoModalTrack.bit_rate_kbps} kbps
+                  {(activeTrack || infoModalTrack).bit_rate_kbps} kbps
                 </span>
               )}
-              {infoModalTrack.sample_rate && (
+              {(activeTrack || infoModalTrack).sample_rate && (
                 <span
                   className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-lg border font-bold"
                   style={{
@@ -268,17 +273,17 @@ export const SongInfoModal: React.FC = () => {
                     color: 'var(--color-stop-3, #ec4899)',
                   }}
                 >
-                  {(infoModalTrack.sample_rate / 1000).toFixed(1)} kHz
+                  {((activeTrack || infoModalTrack).sample_rate / 1000).toFixed(1)} kHz
                 </span>
               )}
-              {infoModalTrack.bit_depth && (
+              {(activeTrack || infoModalTrack).bit_depth && (
                 <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-lg bg-white/10 border border-white/10">
-                  {infoModalTrack.bit_depth}-bit
+                  {(activeTrack || infoModalTrack).bit_depth}-bit
                 </span>
               )}
-              {infoModalTrack.channels && (
+              {(activeTrack || infoModalTrack).channels && (
                 <span className="px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-lg bg-white/10 border border-white/10">
-                  {infoModalTrack.channels} ch
+                  {(activeTrack || infoModalTrack).channels} ch
                 </span>
               )}
             </div>
@@ -300,44 +305,44 @@ export const SongInfoModal: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Local Genre</span>
-                <span className="text-xl font-medium text-white">{infoModalTrack.genre || 'N/A'}</span>
+                <span className="text-xl font-medium text-white">{(activeTrack || infoModalTrack).genre || 'N/A'}</span>
               </div>
 
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Local Release Year / Date</span>
                 <span className="text-xl font-mono text-white">
-                  {infoModalTrack.date || (infoModalTrack.year ? String(infoModalTrack.year) : 'N/A')}
+                  {(activeTrack || infoModalTrack).date || ((activeTrack || infoModalTrack).year ? String((activeTrack || infoModalTrack).year) : 'N/A')}
                 </span>
               </div>
 
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Musical Key</span>
                 <span className="text-xl font-mono font-bold" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
-                  {infoModalTrack.key || 'N/A'}
+                  {(activeTrack || infoModalTrack).key || 'N/A'}
                 </span>
               </div>
 
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">BPM (Beats Per Minute)</span>
                 <span className="text-xl font-mono font-bold" style={{ color: 'var(--color-stop-3, #ec4899)' }}>
-                  {infoModalTrack.bpm ? `${infoModalTrack.bpm} BPM` : 'N/A'}
+                  {(activeTrack || infoModalTrack).bpm ? `${(activeTrack || infoModalTrack).bpm} BPM` : 'N/A'}
                 </span>
               </div>
 
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Duration</span>
-                <span className="text-xl font-mono text-white">{formatDuration(infoModalTrack.duration_secs)}</span>
+                <span className="text-xl font-mono text-white">{formatDuration((activeTrack || infoModalTrack).duration_secs)}</span>
               </div>
 
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">ReplayGain (Track / Album)</span>
                 <span className="text-xl font-mono text-white">
-                  {typeof infoModalTrack.replay_gain_db === 'number'
-                    ? `${infoModalTrack.replay_gain_db > 0 ? '+' : ''}${infoModalTrack.replay_gain_db.toFixed(2)} dB`
-                    : (typeof infoModalTrack.replay_gain_album_db === 'number' ? 'None (Track)' : 'None')}
-                  {typeof infoModalTrack.replay_gain_album_db === 'number' && (
+                  {typeof (activeTrack || infoModalTrack).replay_gain_db === 'number'
+                    ? `${(activeTrack || infoModalTrack).replay_gain_db! > 0 ? '+' : ''}${(activeTrack || infoModalTrack).replay_gain_db!.toFixed(2)} dB`
+                    : (typeof (activeTrack || infoModalTrack).replay_gain_album_db === 'number' ? 'None (Track)' : 'None')}
+                  {typeof (activeTrack || infoModalTrack).replay_gain_album_db === 'number' && (
                     <span className="text-sm text-zinc-400 ml-2 font-normal">
-                      [Album: {infoModalTrack.replay_gain_album_db > 0 ? '+' : ''}${infoModalTrack.replay_gain_album_db.toFixed(2)} dB]
+                      [Album: {(activeTrack || infoModalTrack).replay_gain_album_db! > 0 ? '+' : ''}${(activeTrack || infoModalTrack).replay_gain_album_db!.toFixed(2)} dB]
                     </span>
                   )}
                 </span>
@@ -349,7 +354,7 @@ export const SongInfoModal: React.FC = () => {
                 <FileText className="w-4 h-4" /> Full File Path
               </span>
               <p className="text-sm font-mono text-zinc-300 bg-black/40 p-4 rounded-xl break-all border border-white/5 select-all">
-                {infoModalTrack.path}
+                {(activeTrack || infoModalTrack).path}
               </p>
             </div>
           </section>

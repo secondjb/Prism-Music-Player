@@ -931,6 +931,42 @@ pub fn load_library_from_disk(app_data_path: &Path) -> Result<Vec<TrackMetadata>
     Ok(tracks)
 }
 
+pub fn update_replaygain_in_library(
+    app_data_path: &Path,
+    results: &[crate::loudness::TrackLoudnessResult],
+) -> Result<(), String> {
+    if results.is_empty() {
+        return Ok(());
+    }
+    let mut tracks = load_library_from_disk(app_data_path).unwrap_or_default();
+    if tracks.is_empty() {
+        return Ok(());
+    }
+
+    use std::collections::HashMap;
+    let mut map: HashMap<String, (Option<f32>, Option<f32>)> = HashMap::new();
+    for r in results {
+        if r.replay_gain_db.is_some() {
+            map.insert(r.path.clone(), (r.replay_gain_db, r.replay_gain_peak));
+        }
+    }
+
+    let mut modified = false;
+    for t in tracks.iter_mut() {
+        if let Some((gain, peak)) = map.get(&t.path) {
+            t.replay_gain_db = *gain;
+            t.replay_gain_peak = *peak;
+            modified = true;
+        }
+    }
+
+    if modified {
+        save_library_to_disk(app_data_path, &tracks)?;
+    }
+    Ok(())
+}
+
+
 pub fn embed_track_lyrics(path_str: &str, lyrics: &str) -> Result<(), String> {
     let path = Path::new(path_str);
     // 1. Try metaflac for FLAC Vorbis comments

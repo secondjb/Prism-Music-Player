@@ -27,14 +27,31 @@ export type TrackGridDensity = 'compact' | 'normal' | 'large' | 'extra-large' | 
 
 export type ReplayGainMode = 'track' | 'album' | 'off';
 
-export function getEffectiveReplayGain(track?: Track | null, mode: ReplayGainMode = 'track'): number {
+export function getEffectiveReplayGain(
+  track?: Track | null,
+  mode: ReplayGainMode = 'track',
+  allTracks?: Track[]
+): number {
   if (!track || mode === 'off') return 0;
+
+  // If track object lacks replay gain properties, attempt lookup in allTracks
+  let effectiveTrack = track;
+  if (
+    effectiveTrack.replay_gain_db == null &&
+    effectiveTrack.replay_gain_album_db == null &&
+    allTracks &&
+    allTracks.length > 0
+  ) {
+    const found = allTracks.find((t) => t.id === track.id || t.path === track.path);
+    if (found) effectiveTrack = found;
+  }
+
   if (mode === 'album') {
-    if (typeof track.replay_gain_album_db === 'number') return track.replay_gain_album_db;
-    if (typeof track.replay_gain_db === 'number') return track.replay_gain_db;
+    if (typeof effectiveTrack.replay_gain_album_db === 'number') return effectiveTrack.replay_gain_album_db;
+    if (typeof effectiveTrack.replay_gain_db === 'number') return effectiveTrack.replay_gain_db;
     return 0;
   }
-  return typeof track.replay_gain_db === 'number' ? track.replay_gain_db : 0;
+  return typeof effectiveTrack.replay_gain_db === 'number' ? effectiveTrack.replay_gain_db : 0;
 }
 
 export function getLinkedChainTracks(
@@ -583,7 +600,14 @@ export const usePlayerStore = create<PlayerState>()(
       isGaplessEnabled: true,
       toggleGaplessEnabled: () => set((state) => ({ isGaplessEnabled: !state.isGaplessEnabled })),
       replayGainMode: 'track',
-      setReplayGainMode: (mode) => set({ replayGainMode: mode }),
+      setReplayGainMode: (mode) => {
+        set({ replayGainMode: mode });
+        const { currentTrack, tracks, isPlaying } = get();
+        if (currentTrack && isPlaying && window.__TAURI_INTERNALS__) {
+          const gain = getEffectiveReplayGain(currentTrack, mode, tracks);
+          invoke('set_replay_gain', { gainDb: gain }).catch(() => {});
+        }
+      },
       isScanningReplayGain: false,
       replayGainScanProgress: null,
 
@@ -1017,21 +1041,27 @@ export const usePlayerStore = create<PlayerState>()(
 
       updateTrackReplayGain: (path, gain_db, peak) => {
         set((state) => {
-          const updatedTracks = state.tracks.map((t) => {
-            if (t.path === path) {
-              return {
-                ...t,
-                replay_gain_db: gain_db,
-                replay_gain_peak: peak,
-              };
-            }
-            return t;
-          });
+          const enrich = (t: Track) =>
+            t.path === path ? { ...t, replay_gain_db: gain_db, replay_gain_peak: peak } : t;
+          const updatedTracks = state.tracks.map(enrich);
           const updatedCurrent =
             state.currentTrack?.path === path
               ? { ...state.currentTrack, replay_gain_db: gain_db, replay_gain_peak: peak }
               : state.currentTrack;
-          return { tracks: updatedTracks, currentTrack: updatedCurrent };
+          const updatedQueue = state.queue.map(enrich);
+          const updatedUserQueue = state.userQueue.map(enrich);
+
+          if (state.currentTrack?.path === path && state.isPlaying && window.__TAURI_INTERNALS__) {
+            const gain = getEffectiveReplayGain(updatedCurrent, state.replayGainMode, updatedTracks);
+            invoke('set_replay_gain', { gainDb: gain }).catch(() => {});
+          }
+
+          return {
+            tracks: updatedTracks,
+            currentTrack: updatedCurrent,
+            queue: updatedQueue,
+            userQueue: updatedUserQueue,
+          };
         });
       },
 
@@ -1072,20 +1102,30 @@ export const usePlayerStore = create<PlayerState>()(
               }
             });
 
-            const updatedTracks = get().tracks.map((t) => {
-              const res = resultMap.get(t.path);
-              if (res) {
-                return {
-                  ...t,
-                  replay_gain_db: res.gain,
-                  replay_gain_peak: res.peak,
-                };
+            set((state) => {
+              const enrich = (t: Track) => {
+                const res = resultMap.get(t.path);
+                return res ? { ...t, replay_gain_db: res.gain, replay_gain_peak: res.peak } : t;
+              };
+              const updatedTracks = state.tracks.map(enrich);
+              const updatedCurrent = state.currentTrack ? enrich(state.currentTrack) : state.currentTrack;
+              const updatedQueue = state.queue.map(enrich);
+              const updatedUserQueue = state.userQueue.map(enrich);
+
+              if (updatedCurrent && state.isPlaying && window.__TAURI_INTERNALS__) {
+                const gain = getEffectiveReplayGain(updatedCurrent, state.replayGainMode, updatedTracks);
+                invoke('set_replay_gain', { gainDb: gain }).catch(() => {});
               }
-              return t;
+
+              return {
+                tracks: updatedTracks,
+                currentTrack: updatedCurrent,
+                queue: updatedQueue,
+                userQueue: updatedUserQueue,
+              };
             });
 
-            set({ tracks: updatedTracks });
-            await invoke('save_library', { tracks: updatedTracks });
+            await invoke('save_library', { tracks: get().tracks });
           }
         } catch (e) {
           console.warn('ReplayGain batch scan error:', e);
@@ -1156,7 +1196,7 @@ export const usePlayerStore = create<PlayerState>()(
             await invoke('set_volume', { volume: get().volume });
             await invoke('play_audio', {
               path: track.path,
-              replayGainDb: getEffectiveReplayGain(track, get().replayGainMode),
+              replayGainDb: getEffectiveReplayGain(track, get().replayGainMode, get().tracks),
               crossfadeSecs: get().crossfadeDuration > 0 ? get().crossfadeDuration : null,
             });
           }
@@ -1181,7 +1221,7 @@ export const usePlayerStore = create<PlayerState>()(
               await invoke('set_volume', { volume: get().volume });
               await invoke('play_audio', {
                 path: track.path,
-                replayGainDb: getEffectiveReplayGain(track, get().replayGainMode),
+                replayGainDb: getEffectiveReplayGain(track, get().replayGainMode, get().tracks),
                 crossfadeSecs: get().crossfadeDuration > 0 ? get().crossfadeDuration : null,
               });
             }
@@ -1207,7 +1247,7 @@ export const usePlayerStore = create<PlayerState>()(
               await invoke('set_volume', { volume: get().volume });
               await invoke('play_audio', {
                 path: currentTrack.path,
-                replayGainDb: getEffectiveReplayGain(currentTrack, get().replayGainMode),
+                replayGainDb: getEffectiveReplayGain(currentTrack, get().replayGainMode, get().tracks),
                 startPositionSecs: currentTime > 0 ? currentTime : null,
               });
             }
@@ -1298,7 +1338,7 @@ export const usePlayerStore = create<PlayerState>()(
           try {
             await invoke('play_audio', {
               path: nextUserTrack.path,
-              replayGainDb: getEffectiveReplayGain(nextUserTrack, get().replayGainMode),
+              replayGainDb: getEffectiveReplayGain(nextUserTrack, get().replayGainMode, get().tracks),
               crossfadeSecs: get().crossfadeDuration > 0 ? get().crossfadeDuration : null,
             });
           } catch (e) {

@@ -340,22 +340,41 @@ export const App: React.FC = () => {
           if (savedTracks && Array.isArray(savedTracks) && savedTracks.length > 0) {
             setTracks(savedTracks);
 
-            // Re-enrich hydrated store tracks with their full lyrics from disk library
+            // Re-enrich hydrated store tracks with their full metadata (lyrics, replaygain, key, bpm) from disk library
             const trackMap = new Map<string, Track>(savedTracks.map((t: Track) => [t.id, t]));
             const state = usePlayerStore.getState();
             let needsUpdate = false;
             let enrichedCurrentTrack = state.currentTrack;
-            if (state.currentTrack && !state.currentTrack.unsynced_lyrics) {
-              const full = trackMap.get(state.currentTrack.id);
-              if (full?.unsynced_lyrics) {
-                enrichedCurrentTrack = { ...state.currentTrack, unsynced_lyrics: full.unsynced_lyrics };
+            if (state.currentTrack) {
+              const full = trackMap.get(state.currentTrack.id) || trackMap.get(state.currentTrack.path);
+              if (full) {
+                enrichedCurrentTrack = {
+                  ...state.currentTrack,
+                  unsynced_lyrics: full.unsynced_lyrics ?? state.currentTrack.unsynced_lyrics,
+                  replay_gain_db: full.replay_gain_db ?? state.currentTrack.replay_gain_db,
+                  replay_gain_peak: full.replay_gain_peak ?? state.currentTrack.replay_gain_peak,
+                  replay_gain_album_db: full.replay_gain_album_db ?? state.currentTrack.replay_gain_album_db,
+                  replay_gain_album_peak: full.replay_gain_album_peak ?? state.currentTrack.replay_gain_album_peak,
+                  key: full.key ?? state.currentTrack.key,
+                  bpm: full.bpm ?? state.currentTrack.bpm,
+                };
                 needsUpdate = true;
               }
             }
             const enrichedQueue = state.queue.map((t) => {
-              if (!t.unsynced_lyrics && trackMap.has(t.id)) {
+              const full = trackMap.get(t.id) || trackMap.get(t.path);
+              if (full) {
                 needsUpdate = true;
-                return { ...t, unsynced_lyrics: trackMap.get(t.id)!.unsynced_lyrics };
+                return {
+                  ...t,
+                  unsynced_lyrics: full.unsynced_lyrics ?? t.unsynced_lyrics,
+                  replay_gain_db: full.replay_gain_db ?? t.replay_gain_db,
+                  replay_gain_peak: full.replay_gain_peak ?? t.replay_gain_peak,
+                  replay_gain_album_db: full.replay_gain_album_db ?? t.replay_gain_album_db,
+                  replay_gain_album_peak: full.replay_gain_album_peak ?? t.replay_gain_album_peak,
+                  key: full.key ?? t.key,
+                  bpm: full.bpm ?? t.bpm,
+                };
               }
               return t;
             });
@@ -397,7 +416,7 @@ export const App: React.FC = () => {
             // Pre-load track in rust backend and seek to saved time
             await invoke('play_audio', { 
               path: store.currentTrack.path, 
-              replayGainDb: getEffectiveReplayGain(store.currentTrack, store.replayGainMode) 
+              replayGainDb: getEffectiveReplayGain(store.currentTrack, store.replayGainMode, savedTracks) 
             });
             await invoke('pause_audio');
             if (store.currentTime > 0) {

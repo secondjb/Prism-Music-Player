@@ -238,6 +238,11 @@ fn set_volume(audio_engine: State<'_, GlobalAudioEngine>, volume: f32) {
 }
 
 #[tauri::command]
+fn set_replay_gain(audio_engine: State<'_, GlobalAudioEngine>, gain_db: f32) {
+    audio_engine.set_replay_gain(gain_db);
+}
+
+#[tauri::command]
 fn get_playback_position(audio_engine: State<'_, GlobalAudioEngine>) -> (f64, f64) {
     audio_engine.get_position()
 }
@@ -771,6 +776,7 @@ pub fn run() {
             update_media_controls_metadata,
             seek_audio,
             set_volume,
+            set_replay_gain,
             get_playback_position,
             get_audio_output_details,
             set_audio_output_device,

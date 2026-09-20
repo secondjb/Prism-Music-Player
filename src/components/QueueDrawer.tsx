@@ -286,7 +286,11 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
       });
       invoke('play_audio', {
         path: targetTrack.path,
-        replayGainDb: getEffectiveReplayGain(targetTrack, usePlayerStore.getState().replayGainMode),
+        replayGainDb: getEffectiveReplayGain(
+          targetTrack,
+          usePlayerStore.getState().replayGainMode,
+          usePlayerStore.getState().tracks
+        ),
       });
     }
   };

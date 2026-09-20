@@ -22,7 +22,7 @@ export interface DiscoveredLyrics {
   hasWordSync: boolean;
   hasTranslation: boolean;
   isSynced: boolean;
-  source: 'Lyrics+' | 'LRCLIB';
+  source: 'Lyrics+' | 'Unison' | 'NetEase' | 'LRCLIB';
 }
 
 function cleanTitle(title: string): string {
@@ -49,6 +49,117 @@ export function hasLrcTimestamps(lyrics: string | null | undefined): boolean {
   return /\[\d{1,2}:\d{2}/.test(lyrics);
 }
 
+/**
+ * Shared fetch utility with timeout and AbortSignal support
+ */
+async function fetchWithTimeout(url: string | URL, options?: RequestInit, timeoutMs = 3500): Promise<Response> {
+  const controller = new AbortController();
+  const parentSignal = options?.signal;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  const onParentAbort = () => controller.abort();
+  if (parentSignal) {
+    if (parentSignal.aborted) {
+      clearTimeout(timeoutId);
+      controller.abort();
+    } else {
+      parentSignal.addEventListener('abort', onParentAbort);
+    }
+  }
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+    if (parentSignal) {
+      parentSignal.removeEventListener('abort', onParentAbort);
+    }
+  }
+}
+
+function parseTimestampToMs(tag: string): number | null {
+  const match = tag.match(/\[(\d{1,2}):(\d{2})(?:[.:](\d{2,3}))?\]/);
+  if (!match) return null;
+  const m = parseInt(match[1], 10) || 0;
+  const s = parseInt(match[2], 10) || 0;
+  let frac = 0;
+  if (match[3]) {
+    if (match[3].length === 2) frac = parseInt(match[3], 10) * 10;
+    else if (match[3].length === 3) frac = parseInt(match[3], 10);
+    else if (match[3].length === 1) frac = parseInt(match[3], 10) * 100;
+  }
+  return m * 60000 + s * 1000 + frac;
+}
+
+/**
+ * Merges NetEase original lyrics and translated lyrics line-by-line based on timestamps.
+ */
+function mergeNeteaseTranslations(originalLrc: string, translatedLrc: string): string {
+  const transMap = new Map<number, string>();
+  const transEntries: { timeMs: number; text: string }[] = [];
+
+  for (const tLine of translatedLrc.split(/\r?\n/)) {
+    const trimmed = tLine.trim();
+    if (!trimmed) continue;
+    const timeMatch = trimmed.match(/^\[(\d{1,2}:\d{2}(?:[.:]\d{2,3})?)\](.*)$/);
+    if (timeMatch) {
+      const ms = parseTimestampToMs(`[${timeMatch[1]}]`);
+      const text = timeMatch[2].trim();
+      if (ms !== null && text) {
+        if (!/^(作词|作曲|编曲|制作|翻译|贡献|Lyricist|Composer|Arranger)/i.test(text)) {
+          transMap.set(ms, text);
+          transEntries.push({ timeMs: ms, text });
+        }
+      }
+    }
+  }
+
+  if (transEntries.length === 0) {
+    return originalLrc.trim();
+  }
+
+  const mergedLines: string[] = [];
+
+  for (const oLine of originalLrc.split(/\r?\n/)) {
+    const trimmed = oLine.trim();
+    if (!trimmed) continue;
+
+    const timeMatch = trimmed.match(/^(\[\d{1,2}:\d{2}(?:[.:]\d{2,3})?\])(.*)$/);
+    if (!timeMatch) {
+      mergedLines.push(trimmed);
+      continue;
+    }
+
+    const tag = timeMatch[1];
+    const text = timeMatch[2].trim();
+    const ms = parseTimestampToMs(tag);
+
+    if (ms === null || !text) {
+      mergedLines.push(trimmed);
+      continue;
+    }
+
+    let matchingTrans = transMap.get(ms);
+    if (!matchingTrans) {
+      const nearest = transEntries.find((entry) => Math.abs(entry.timeMs - ms) <= 250);
+      if (nearest) {
+        matchingTrans = nearest.text;
+      }
+    }
+
+    if (matchingTrans && matchingTrans !== text && !text.includes('//')) {
+      mergedLines.push(`${tag} ${text} // ${matchingTrans}`);
+    } else {
+      mergedLines.push(trimmed);
+    }
+  }
+
+  return mergedLines.join('\n');
+}
+
 // Shared rate limit coordinator to avoid hammering LyricsPlus when 429 is encountered
 let lyricsPlusRateLimitUntil = 0;
 // Circuit breaker to avoid hanging on a dead or unreachable server
@@ -65,10 +176,10 @@ export function resetLyricsPlusCircuitBreaker(): void {
 }
 
 /**
- * Attempt to fetch rich word-by-word / syllable lyrics from LyricsPlus API (LastWave-native source)
+ * Priority 1: Attempt to fetch rich word-by-word / syllable lyrics from LyricsPlus API
  * Includes progressive retry on 429 Too Many Requests and parses syllable timestamps + dual-language translations.
  */
-async function fetchLyricsPlus(
+export async function fetchLyricsPlus(
   trackName: string,
   artistName: string,
   albumName?: string,
@@ -84,7 +195,7 @@ async function fetchLyricsPlus(
   const cTitle = cleanTitle(trackName);
   const cArtist = cleanArtist(artistName);
 
-  if (signal?.aborted) return null;
+  if (!cTitle || signal?.aborted) return null;
 
   // Respect active rate limit window across all workers
   const waitMs = lyricsPlusRateLimitUntil - Date.now();
@@ -100,24 +211,17 @@ async function fetchLyricsPlus(
     if (albumName) url.searchParams.set('album', albumName);
     if (durationSecs && durationSecs > 0) url.searchParams.set('duration', Math.round(durationSecs).toString());
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
-    const onParentAbort = () => controller.abort();
-    signal?.addEventListener('abort', onParentAbort);
-
-    let resp: Response;
-    try {
-      resp = await fetch(url.toString(), {
+    const resp = await fetchWithTimeout(
+      url.toString(),
+      {
         headers: {
           'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
           Accept: 'application/json',
         },
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeoutId);
-      signal?.removeEventListener('abort', onParentAbort);
-    }
+        signal,
+      },
+      3000
+    );
 
     if (resp.status === 429) {
       lyricsPlusRateLimitUntil = Date.now() + 5000;
@@ -169,7 +273,6 @@ async function fetchLyricsPlus(
     }
     return null;
   } catch {
-    // Network failure / timeout
     lyricsPlusConsecutiveFailures++;
     if (lyricsPlusConsecutiveFailures >= 2) {
       // Break circuit for 5 minutes
@@ -179,7 +282,181 @@ async function fetchLyricsPlus(
   }
 }
 
-async function fetchLrclibDirect(
+/**
+ * Priority 2: Unison API (https://unison.boidu.dev/lyrics)
+ * Fetches community-backed synced lyrics, romanizations, and translations.
+ */
+export async function fetchUnisonLyrics(
+  trackName: string,
+  artistName: string,
+  albumName?: string,
+  durationSecs?: number,
+  signal?: AbortSignal
+): Promise<string | null> {
+  if (signal?.aborted) return null;
+  const cTitle = cleanTitle(trackName);
+  const cArtist = cleanArtist(artistName);
+  if (!cTitle || !cArtist) return null;
+
+  try {
+    const url = new URL('https://unison.boidu.dev/lyrics');
+    url.searchParams.set('song', cTitle);
+    url.searchParams.set('artist', cArtist);
+    if (albumName) url.searchParams.set('album', albumName);
+    if (durationSecs && durationSecs > 0) {
+      url.searchParams.set('duration', Math.round(durationSecs * 1000).toString());
+    }
+
+    const resp = await fetchWithTimeout(
+      url.toString(),
+      {
+        headers: {
+          'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
+          Accept: 'application/json, text/plain',
+        },
+        signal,
+      },
+      3500
+    );
+
+    if (!resp.ok) return null;
+
+    const contentType = resp.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data = await resp.json();
+      if (!data || data.success === false || data.error) return null;
+
+      const direct =
+        (typeof data.lrc === 'string' && data.lrc) ||
+        (typeof data.syncedLyrics === 'string' && data.syncedLyrics) ||
+        (typeof data.lyrics === 'string' && data.lyrics) ||
+        (typeof data.plainLyrics === 'string' && data.plainLyrics) ||
+        (typeof data.data?.lrc === 'string' && data.data.lrc) ||
+        (typeof data.data?.syncedLyrics === 'string' && data.data.syncedLyrics) ||
+        (typeof data.data?.lyrics === 'string' && data.data.lyrics) ||
+        (typeof data.data === 'string' && data.data) ||
+        null;
+
+      if (direct && direct.trim()) {
+        return direct.trim();
+      }
+
+      // Handle array of line objects if present
+      const linesArray = Array.isArray(data.lyrics)
+        ? data.lyrics
+        : Array.isArray(data.lines)
+        ? data.lines
+        : Array.isArray(data.data?.lyrics)
+        ? data.data.lyrics
+        : null;
+
+      if (linesArray && linesArray.length > 0) {
+        const lrcLines: string[] = [];
+        for (const line of linesArray) {
+          if (typeof line === 'string') {
+            lrcLines.push(line);
+          } else if (typeof line === 'object' && line !== null) {
+            const timeMs = typeof line.time === 'number' ? line.time : (typeof line.timeMs === 'number' ? line.timeMs : 0);
+            const totalSec = Math.floor(timeMs / 1000);
+            const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
+            const s = (totalSec % 60).toString().padStart(2, '0');
+            const cs = Math.floor((lineMsRemainder => Math.floor(lineMsRemainder / 10))(timeMs % 1000)).toString().padStart(2, '0');
+            const tag = `[${m}:${s}.${cs}]`;
+            const text = (line.text || line.content || '').trim();
+            const trans = (line.translation?.text || line.translation || '').trim();
+            const suffix = trans && trans !== text ? ` // ${trans}` : '';
+            lrcLines.push(`${tag} ${text}${suffix}`);
+          }
+        }
+        if (lrcLines.length > 0) return lrcLines.join('\n');
+      }
+      return null;
+    } else {
+      const text = await resp.text();
+      return text && text.trim() ? text.trim() : null;
+    }
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Priority 3: NetEase Cloud Music (via public proxy)
+ * Search endpoint + Lyric endpoint with line-by-line translation merge.
+ */
+export async function fetchNeteaseLyrics(
+  trackName: string,
+  artistName: string,
+  signal?: AbortSignal
+): Promise<string | null> {
+  if (signal?.aborted) return null;
+  const cTitle = cleanTitle(trackName);
+  const cArtist = cleanArtist(artistName);
+  if (!cTitle) return null;
+
+  try {
+    // 1. Search song ID
+    const searchUrl = `https://netease-cloud-music-api-external.vercel.app/search?keywords=${encodeURIComponent(`${cArtist} ${cTitle}`.trim())}&type=1`;
+    const searchResp = await fetchWithTimeout(
+      searchUrl,
+      {
+        headers: {
+          'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
+          Accept: 'application/json',
+        },
+        signal,
+      },
+      3000
+    );
+
+    if (!searchResp.ok) return null;
+    const searchData = await searchResp.json();
+    const songs = searchData?.result?.songs || searchData?.songs;
+    if (!Array.isArray(songs) || songs.length === 0 || !songs[0]?.id) {
+      return null;
+    }
+
+    const songId = songs[0].id;
+    if (signal?.aborted) return null;
+
+    // 2. Fetch lyrics
+    const lyricUrl = `https://netease-cloud-music-api-external.vercel.app/lyric?id=${songId}`;
+    const lyricResp = await fetchWithTimeout(
+      lyricUrl,
+      {
+        headers: {
+          'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
+          Accept: 'application/json',
+        },
+        signal,
+      },
+      3000
+    );
+
+    if (!lyricResp.ok) return null;
+    const lyricData = await lyricResp.json();
+
+    const rawLrc: string | undefined = lyricData?.lrc?.lyric;
+    const rawTlyric: string | undefined = lyricData?.tlyric?.lyric;
+
+    if (!rawLrc || typeof rawLrc !== 'string' || !rawLrc.trim()) {
+      return null;
+    }
+
+    if (!rawTlyric || typeof rawTlyric !== 'string' || !rawTlyric.trim()) {
+      return rawLrc.trim();
+    }
+
+    return mergeNeteaseTranslations(rawLrc, rawTlyric);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Priority 4: LRCLIB Direct
+ */
+export async function fetchLrclibDirect(
   trackName: string,
   artistName: string,
   albumName?: string,
@@ -199,28 +476,21 @@ async function fetchLrclibDirect(
       if (albumName) params.set('album_name', albumName);
       if (durationSecs && durationSecs > 0) params.set('duration', Math.round(durationSecs).toString());
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6500);
-      const onParentAbort = () => controller.abort();
-      signal?.addEventListener('abort', onParentAbort);
-
       const url = `https://lrclib.net/api/get?${params.toString()}`;
-      let response: Response;
-      try {
-        response = await fetch(url, {
+      const response = await fetchWithTimeout(
+        url,
+        {
           headers: {
             'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
             Accept: 'application/json',
           },
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(timeoutId);
-        signal?.removeEventListener('abort', onParentAbort);
-      }
+          signal,
+        },
+        3500
+      );
 
       if (response.status === 429 || response.status === 503) {
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 1000));
         continue;
       }
 
@@ -229,14 +499,18 @@ async function fetchLrclibDirect(
         if (data?.syncedLyrics) return data.syncedLyrics;
         if (data?.plainLyrics) return data.plainLyrics;
       } else {
-        // Fallback search
+        // Fallback search query
         const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(`${cArtist} ${cTitle}`)}`;
-        const searchRes = await fetch(searchUrl, {
-          headers: {
-            'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
+        const searchRes = await fetchWithTimeout(
+          searchUrl,
+          {
+            headers: {
+              'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
+            },
+            signal,
           },
-          signal,
-        });
+          3500
+        );
         if (searchRes.ok) {
           const results: LrclibResponse[] = await searchRes.json();
           if (results && results.length > 0) {
@@ -248,78 +522,19 @@ async function fetchLrclibDirect(
       return null;
     } catch {
       if (attempt === 0) {
-        await new Promise((r) => setTimeout(r, 500));
+        await new Promise((r) => setTimeout(r, 400));
       }
     }
   }
   return null;
 }
 
-export async function fetchLrclibLyrics(
-  trackName: string,
-  artistName: string,
-  albumName?: string,
-  durationSecs?: number,
-  preferWordSync: boolean = false
-): Promise<string | null> {
-  // 1. If preferWordSync, try LyricsPlus word sync first
-  if (preferWordSync) {
-    try {
-      const wordLrc = await fetchLyricsPlus(trackName, artistName, albumName, durationSecs);
-      if (wordLrc && isWordSyncedLrc(wordLrc)) {
-        return wordLrc;
-      }
-    } catch {
-      // Fallback to LRCLIB
-    }
-  }
-
-  // 2. Query LRCLIB
-  try {
-    const params = new URLSearchParams();
-    params.set('track_name', trackName);
-    params.set('artist_name', artistName);
-    if (albumName) params.set('album_name', albumName);
-    if (durationSecs && durationSecs > 0) params.set('duration', Math.round(durationSecs).toString());
-
-    const url = `https://lrclib.net/api/get?${params.toString()}`;
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
-      },
-    });
-
-    if (!response.ok) {
-      const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(`${cleanArtist(artistName)} ${cleanTitle(trackName)}`)}`;
-      const searchRes = await fetch(searchUrl, {
-        headers: {
-          'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
-        },
-      });
-      if (searchRes.ok) {
-        const results: LrclibResponse[] = await searchRes.json();
-        if (results && results.length > 0) {
-          const match = results.find((r) => r.syncedLyrics) || results.find((r) => r.plainLyrics) || results[0];
-          return match.syncedLyrics || match.plainLyrics || null;
-        }
-      }
-      return null;
-    }
-
-    const data: LrclibResponse = await response.json();
-    return data.syncedLyrics || data.plainLyrics || null;
-  } catch (e) {
-    console.warn('LRCLIB fetch error:', e);
-    return null;
-  }
-}
-
 /**
- * Searches across LyricsPlus and LRCLIB to find the highest-tier lyrics available:
- * 1. Word-synced + translated (LyricsPlus)
- * 2. Word-synced (LyricsPlus)
- * 3. Translated synced (LyricsPlus / LRCLIB)
- * 4. Synced lyrics (LRCLIB)
+ * Searches across 4 tiers of lyric APIs in strict cascade order:
+ * 1. LyricsPlus (Word-synced & translated)
+ * 2. Unison (Synced lyrics & romanization)
+ * 3. NetEase (Merged original + CJK translations)
+ * 4. LRCLIB (Standard line-synced or plain text)
  */
 export async function searchEnhancedLyrics(
   trackName: string,
@@ -332,7 +547,7 @@ export async function searchEnhancedLyrics(
   if (signal?.aborted) return null;
   if (!trackName || !trackName.trim()) return null;
 
-  // 1. Try LyricsPlus first for rich word sync & translation
+  // 1. Priority 1: LyricsPlus
   const lpLrc = await fetchLyricsPlus(trackName, artistName, albumName, durationSecs, signal);
   if (lpLrc) {
     const hasWordSync = isWordSyncedLrc(lpLrc);
@@ -349,12 +564,46 @@ export async function searchEnhancedLyrics(
     }
   }
 
-  // If user strictly requested word-sync lyrics, don't fall back to line-synced LRCLIB
+  // If user strictly requested word-sync lyrics, stop immediately since subsequent tiers are line-synced
   if (requireWordSync) {
     return null;
   }
 
-  // 2. Fallback to LRCLIB
+  // 2. Priority 2: Unison API
+  const unisonLrc = await fetchUnisonLyrics(trackName, artistName, albumName, durationSecs, signal);
+  if (unisonLrc) {
+    const hasWordSync = isWordSyncedLrc(unisonLrc);
+    const hasTranslation = hasTranslationInLyrics(unisonLrc);
+    const isSynced = hasLrcTimestamps(unisonLrc);
+    if (hasWordSync || hasTranslation || isSynced || unisonLrc.trim().length > 0) {
+      return {
+        lyrics: unisonLrc,
+        hasWordSync,
+        hasTranslation,
+        isSynced,
+        source: 'Unison',
+      };
+    }
+  }
+
+  // 3. Priority 3: NetEase Cloud Music (merged with translations)
+  const neteaseLrc = await fetchNeteaseLyrics(trackName, artistName, signal);
+  if (neteaseLrc) {
+    const hasWordSync = isWordSyncedLrc(neteaseLrc);
+    const hasTranslation = hasTranslationInLyrics(neteaseLrc);
+    const isSynced = hasLrcTimestamps(neteaseLrc);
+    if (hasWordSync || hasTranslation || isSynced || neteaseLrc.trim().length > 0) {
+      return {
+        lyrics: neteaseLrc,
+        hasWordSync,
+        hasTranslation,
+        isSynced,
+        source: 'NetEase',
+      };
+    }
+  }
+
+  // 4. Priority 4: LRCLIB Direct
   const lrclibLrc = await fetchLrclibDirect(trackName, artistName, albumName, durationSecs, signal);
   if (lrclibLrc) {
     const hasWordSync = isWordSyncedLrc(lrclibLrc);
@@ -370,6 +619,27 @@ export async function searchEnhancedLyrics(
   }
 
   return null;
+}
+
+/**
+ * Backward compatibility wrapper for fetching lyrics with full 4-tier cascade support.
+ */
+export async function fetchLrclibLyrics(
+  trackName: string,
+  artistName: string,
+  albumName?: string,
+  durationSecs?: number,
+  preferWordSync: boolean = false
+): Promise<string | null> {
+  const res = await searchEnhancedLyrics(
+    trackName,
+    artistName,
+    albumName,
+    durationSecs,
+    undefined,
+    preferWordSync && false // allow cascade fall-through
+  );
+  return res?.lyrics || null;
 }
 
 /**

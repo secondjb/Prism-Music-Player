@@ -27,6 +27,9 @@ import {
   Globe,
   Languages,
   List,
+  ChevronDown,
+  Activity,
+  Server,
 } from 'lucide-react';
 
 import { enrichLineWithRomanization } from '../utils/japaneseRomanizer';
@@ -40,7 +43,7 @@ export interface WordSyncCandidate {
   hasWordSync?: boolean;
   hasTranslation?: boolean;
   isSynced?: boolean;
-  source?: 'Lyrics+' | 'LRCLIB';
+  source?: 'Lyrics+' | 'Unison' | 'NetEase' | 'LRCLIB';
 }
 
 export function getCandidateFeatures(c: WordSyncCandidate) {
@@ -262,6 +265,121 @@ export const WordSyncedLyricsFinder: React.FC = () => {
 
   // Enriched lines for preview (with syllables, romanization, and translation)
   const [enrichedLines, setEnrichedLines] = useState<ParsedLyricLine[]>([]);
+
+  // Advanced settings & live service status state
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [isCheckingServices, setIsCheckingServices] = useState(false);
+  const [serviceStatuses, setServiceStatuses] = useState<
+    Record<
+      string,
+      {
+        name: string;
+        tier: string;
+        features: string;
+        endpoint: string;
+        status: 'online' | 'offline' | 'checking' | 'idle';
+      }
+    >
+  >({
+    lyricsplus: {
+      name: 'Lyrics+',
+      tier: 'Tier 1 (Primary)',
+      features: 'Word-by-word syllables (<mm:ss.xx>) & translations',
+      endpoint: 'lyricsplus.prjktla.my.id',
+      status: 'idle',
+    },
+    unison: {
+      name: 'Unison',
+      tier: 'Tier 2 (Secondary)',
+      features: 'Community-synced lyrics & romanizations',
+      endpoint: 'unison.boidu.dev',
+      status: 'idle',
+    },
+    netease: {
+      name: 'NetEase Cloud Music',
+      tier: 'Tier 3 (Tertiary)',
+      features: 'Line-synced lyrics & CJK translations merge',
+      endpoint: 'netease-cloud-music-api',
+      status: 'idle',
+    },
+    lrclib: {
+      name: 'LRCLIB',
+      tier: 'Tier 4 (Fallback)',
+      features: 'Standard line-synced & plain text lyrics',
+      endpoint: 'lrclib.net',
+      status: 'idle',
+    },
+  });
+
+  const checkAllServices = useCallback(async () => {
+    setIsCheckingServices(true);
+    setServiceStatuses((prev) => ({
+      lyricsplus: { ...prev.lyricsplus, status: 'checking' },
+      unison: { ...prev.unison, status: 'checking' },
+      netease: { ...prev.netease, status: 'checking' },
+      lrclib: { ...prev.lrclib, status: 'checking' },
+    }));
+
+    const ping = async (
+      url: string,
+      validator: (res: Response) => Promise<boolean> | boolean,
+      timeoutMs = 3000
+    ): Promise<'online' | 'offline'> => {
+      const c = new AbortController();
+      const t = setTimeout(() => c.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, {
+          signal: c.signal,
+          headers: { 'User-Agent': 'PrismMusicPlayer/1.0.0' },
+        });
+        clearTimeout(t);
+        const ok = await validator(res);
+        return ok ? 'online' : 'offline';
+      } catch {
+        clearTimeout(t);
+        return 'offline';
+      }
+    };
+
+    const [lpStatus, unisonStatus, neteaseStatus, lrclibStatus] = await Promise.all([
+      // Lyrics+
+      ping('https://lyricsplus.prjktla.my.id/v2/lyrics/get?title=test&artist=test', (r) => r.status === 200 || r.status === 404),
+      // Unison
+      ping('https://unison.boidu.dev/lyrics?song=test&artist=test', async (r) => {
+        try {
+          const text = await r.text();
+          return text.includes('Lyrics not found') || text.includes('success') || r.status === 200;
+        } catch {
+          return false;
+        }
+      }),
+      // NetEase
+      ping('https://netease-cloud-music-api-external.vercel.app/search?keywords=test&type=1', async (r) => {
+        try {
+          const text = await r.text();
+          return r.status === 200 && !text.includes('DEPLOYMENT_NOT_FOUND');
+        } catch {
+          return false;
+        }
+      }),
+      // LRCLIB
+      ping('https://lrclib.net/api/get?track_name=test&artist_name=test', (r) => r.status === 200 || r.status === 404),
+    ]);
+
+    setServiceStatuses((prev) => ({
+      lyricsplus: { ...prev.lyricsplus, status: lpStatus },
+      unison: { ...prev.unison, status: unisonStatus },
+      netease: { ...prev.netease, status: neteaseStatus },
+      lrclib: { ...prev.lrclib, status: lrclibStatus },
+    }));
+    setIsCheckingServices(false);
+  }, []);
+
+  useEffect(() => {
+    if (showAdvancedSettings && Object.values(serviceStatuses).every((s) => s.status === 'idle')) {
+      checkAllServices();
+    }
+  }, [showAdvancedSettings, checkAllServices, serviceStatuses]);
 
   useEffect(() => {
     if (!activeCandidate?.lyrics) {
@@ -769,16 +887,6 @@ export const WordSyncedLyricsFinder: React.FC = () => {
               <h3 className="text-base font-bold text-white whitespace-nowrap">
                 Word-Synced Lyrics & Translation Finder
               </h3>
-              <span
-                className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border shrink-0"
-                style={{
-                  backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
-                  borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
-                  color: 'var(--color-stop-1, #6366f1)',
-                }}
-              >
-                LRCLIB & LyricsPlus
-              </span>
             </div>
           </div>
 
@@ -868,7 +976,7 @@ export const WordSyncedLyricsFinder: React.FC = () => {
           <div className="flex items-center gap-2.5">
             <span className="text-base">⚠️</span>
             <span>
-              <strong>Lyrics+ Server Offline / Unreachable:</strong> Word-by-word lyrics server is currently not responding. Searches will fall back to LRCLIB (line-synced lyrics), or you can enable <em>Strict Mode</em> below to pause/retry later.
+              <strong>Lyrics+ Server Offline / Unreachable:</strong> Word-by-word lyrics server is currently not responding. Searches will automatically cascade to Unison, NetEase, and LRCLIB.
             </span>
           </div>
           <button
@@ -998,6 +1106,103 @@ export const WordSyncedLyricsFinder: React.FC = () => {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Advanced Settings & Service Status (Bottom Right Toggle) */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-end">
+          <button
+            onClick={() => setShowAdvancedSettings((prev) => !prev)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer"
+          >
+            <Server className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Advanced Settings & Service Status</span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                showAdvancedSettings ? 'rotate-180 text-white' : ''
+              }`}
+            />
+          </button>
+        </div>
+
+        {showAdvancedSettings && (
+          <div className="p-4 rounded-xl bg-black/30 border border-white/10 flex flex-col gap-3.5 animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-indigo-400" />
+                <span className="text-xs font-bold text-white">
+                  Lyric Engine Status (4-Tier Fallback Cascade)
+                </span>
+              </div>
+              <button
+                onClick={checkAllServices}
+                disabled={isCheckingServices}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-zinc-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3 h-3 ${isCheckingServices ? 'animate-spin' : ''}`} />
+                <span>{isCheckingServices ? 'Checking...' : 'Check All Status'}</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {Object.entries(serviceStatuses).map(([key, service]) => {
+                const isOnline = service.status === 'online';
+                const isOffline = service.status === 'offline';
+                const isChecking = service.status === 'checking';
+
+                return (
+                  <div
+                    key={key}
+                    className="p-3 rounded-xl bg-white/[0.03] border border-white/5 flex flex-col gap-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`w-2 h-2 rounded-full shrink-0 ${
+                            isOnline
+                              ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
+                              : isOffline
+                              ? 'bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.6)]'
+                              : isChecking
+                              ? 'bg-amber-400 animate-pulse'
+                              : 'bg-zinc-500'
+                          }`}
+                        />
+                        <span className="text-xs font-bold text-white">{service.name}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-zinc-500 font-mono">{service.tier}</span>
+                        <span
+                          className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${
+                            isOnline
+                              ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                              : isOffline
+                              ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                              : isChecking
+                              ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                              : 'bg-zinc-500/10 text-zinc-400 border-zinc-500/30'
+                          }`}
+                        >
+                          {isOnline
+                            ? 'Online'
+                            : isOffline
+                            ? 'Offline'
+                            : isChecking
+                            ? 'Checking...'
+                            : 'Standby'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-zinc-400 flex items-center justify-between gap-2">
+                      <span className="truncate">{service.features}</span>
+                      <span className="text-[10px] font-mono text-zinc-500 shrink-0">{service.endpoint}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Live Scanning Progress Bar */}

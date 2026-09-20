@@ -2321,7 +2321,8 @@ export const LyricsView: React.FC = () => {
           {currentTrack && (
             <div className="h-full w-full min-w-0 flex flex-col justify-center items-center px-8 lg:px-14 shrink-0 my-auto">
               <div
-                className="relative rounded-[clamp(1rem,2vw,1.5rem)] overflow-hidden shadow-2xl border border-white/15 shrink-0 w-[clamp(240px,38vw,640px)] max-w-[min(94%,60vh)] aspect-square select-none cursor-default"
+                onClick={() => setLyricsLayoutMode('centered')}
+                className="relative rounded-[clamp(1rem,2vw,1.5rem)] overflow-hidden shadow-2xl border border-white/15 shrink-0 w-[clamp(240px,38vw,640px)] max-w-[min(94%,60vh)] aspect-square select-none cursor-pointer group transition-all"
               >
                 {trackArt ? (
                   <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
@@ -2330,6 +2331,21 @@ export const LyricsView: React.FC = () => {
                     <Mic2 className="w-[clamp(3rem,6vw,5rem)] h-[clamp(3rem,6vw,5rem)]" />
                   </div>
                 )}
+                {/* Center button allowing minimize back to Fullscreen / Centered View */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity bg-black/25">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLyricsLayoutMode('centered');
+                    }}
+                    className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-full bg-black/80 hover:bg-black/95 text-white text-xs font-semibold shadow-2xl border border-white/25 hover:scale-105 active:scale-95 transition-all backdrop-blur-md cursor-pointer group/btn"
+                    title="Minimize back to Fullscreen View"
+                  >
+                    <Minimize2 className="w-4 h-4 text-indigo-400 group-hover/btn:text-white transition-colors" />
+                    <span>Fullscreen View</span>
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-col min-w-0 w-full mt-[clamp(1rem,3vh,1.5rem)] max-w-[clamp(240px,38vw,640px)]">
@@ -2731,8 +2747,8 @@ export const LyricsView: React.FC = () => {
                 )}
                 {artExpanded ? (
                   <>
-                    {/* Center button allowing switch to Immersive View */}
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    {/* Center button allowing switch to Immersive View (Only on hover) */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
                       <button
                         type="button"
                         onClick={(e) => {

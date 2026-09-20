@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useDeferredValue, lazy, Suspense } from 'react';
 import { usePlayerStore, getEffectiveReplayGain } from './store/usePlayerStore';
-import { Track } from './types/player';
+import { Track, LibraryChunkResponse } from './types/player';
 import { useTrackArt } from './utils/useTrackArt';
 import { useAudioPlayback } from './hooks/useAudioPlayback';
 import { Sidebar } from './components/Sidebar';
@@ -98,10 +98,53 @@ export const App: React.FC = () => {
           // Instantly sync stored volume level to Rust audio engine on startup
           await invoke('set_volume', { volume: store.volume });
 
-          const savedTracks: any = await invoke('load_library');
-          if (savedTracks && Array.isArray(savedTracks) && savedTracks.length > 0) {
-            setTracks(savedTracks);
+          let savedTracks: Track[] = [];
 
+          try {
+            // High-performance chunked library loading for smooth startup with 10,000+ tracks
+            const firstChunk: LibraryChunkResponse = await invoke('load_library_chunk', {
+              chunkIndex: 0,
+              chunkSize: 2500,
+            });
+
+            if (firstChunk && firstChunk.tracks && firstChunk.tracks.length > 0) {
+              savedTracks = [...firstChunk.tracks];
+              setTracks(savedTracks);
+
+              // Stream remaining chunks asynchronously in the background so UI is interactive in <50ms
+              if (!firstChunk.is_last && firstChunk.total_chunks > 1) {
+                (async () => {
+                  let accumulated = [...savedTracks];
+                  for (let i = 1; i < firstChunk.total_chunks; i++) {
+                    try {
+                      const nextChunk: LibraryChunkResponse = await invoke('load_library_chunk', {
+                        chunkIndex: i,
+                        chunkSize: 2500,
+                      });
+                      if (nextChunk && nextChunk.tracks && nextChunk.tracks.length > 0) {
+                        accumulated = accumulated.concat(nextChunk.tracks);
+                        setTracks(accumulated);
+                      }
+                    } catch (err) {
+                      console.warn(`Error streaming library chunk ${i}:`, err);
+                    }
+                  }
+                })();
+              }
+            } else {
+              savedTracks = (await invoke('load_library')) || [];
+              if (savedTracks.length > 0) {
+                setTracks(savedTracks);
+              }
+            }
+          } catch (e) {
+            savedTracks = (await invoke('load_library')) || [];
+            if (savedTracks.length > 0) {
+              setTracks(savedTracks);
+            }
+          }
+
+          if (savedTracks.length > 0) {
             // Re-enrich hydrated store tracks with their full metadata (lyrics, replaygain, key, bpm) from disk library
             const trackMap = new Map<string, Track>(savedTracks.map((t: Track) => [t.id, t]));
             const state = usePlayerStore.getState();

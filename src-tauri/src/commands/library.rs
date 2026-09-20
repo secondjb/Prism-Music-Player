@@ -121,6 +121,27 @@ pub async fn load_library(app_handle: AppHandle) -> Result<Vec<TrackMetadata>, S
 }
 
 #[tauri::command]
+pub async fn load_library_chunk(
+    app_handle: AppHandle,
+    chunk_index: usize,
+    chunk_size: Option<usize>,
+) -> Result<metadata::LibraryChunkResponse, String> {
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+
+    let size = chunk_size.unwrap_or(2000);
+
+    tokio::task::spawn_blocking(move || {
+        metadata::load_library_chunk_from_disk(&app_data_dir, chunk_index, size)
+    })
+    .await
+    .map_err(|e| format!("Task execution failed: {}", e))?
+}
+
+
+#[tauri::command]
 pub async fn get_track_art(path: String) -> Option<String> {
     tokio::task::spawn_blocking(move || extract_track_art(&path))
         .await

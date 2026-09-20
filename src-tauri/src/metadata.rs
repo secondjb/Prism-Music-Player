@@ -931,6 +931,56 @@ pub fn load_library_from_disk(app_data_path: &Path) -> Result<Vec<TrackMetadata>
     Ok(tracks)
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LibraryChunkResponse {
+    pub tracks: Vec<TrackMetadata>,
+    pub chunk_index: usize,
+    pub total_chunks: usize,
+    pub total_tracks: usize,
+    pub is_last: bool,
+}
+
+pub fn load_library_chunk_from_disk(
+    app_data_path: &Path,
+    chunk_index: usize,
+    chunk_size: usize,
+) -> Result<LibraryChunkResponse, String> {
+    let all_tracks = load_library_from_disk(app_data_path)?;
+    let total_tracks = all_tracks.len();
+
+    if total_tracks == 0 {
+        return Ok(LibraryChunkResponse {
+            tracks: Vec::new(),
+            chunk_index: 0,
+            total_chunks: 0,
+            total_tracks: 0,
+            is_last: true,
+        });
+    }
+
+    let effective_chunk_size = chunk_size.max(1);
+    let total_chunks = (total_tracks + effective_chunk_size - 1) / effective_chunk_size;
+
+    let start = (chunk_index * effective_chunk_size).min(total_tracks);
+    let end = ((chunk_index + 1) * effective_chunk_size).min(total_tracks);
+
+    let chunk_tracks = if start < end {
+        all_tracks[start..end].to_vec()
+    } else {
+        Vec::new()
+    };
+    let is_last = chunk_index + 1 >= total_chunks;
+
+    Ok(LibraryChunkResponse {
+        tracks: chunk_tracks,
+        chunk_index,
+        total_chunks,
+        total_tracks,
+        is_last,
+    })
+}
+
+
 pub fn update_replaygain_in_library(
     app_data_path: &Path,
     results: &[crate::loudness::TrackLoudnessResult],

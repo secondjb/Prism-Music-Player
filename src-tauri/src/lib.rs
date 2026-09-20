@@ -132,6 +132,7 @@ pub fn run() {
             commands::scan_sample_folder,
             commands::save_library,
             commands::load_library,
+            commands::load_library_chunk,
             commands::get_track_art,
             commands::get_track_lyrics,
             commands::embed_lyrics,

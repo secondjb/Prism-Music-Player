@@ -126,7 +126,9 @@ impl GlobalAudioEngine {
             // Instant stop on previous stream
             state_guard.stop_signal.store(true, Ordering::SeqCst);
             if let Some(handle) = self.thread_handle.lock().take() {
-                let _ = handle.join();
+                thread::spawn(move || {
+                    let _ = handle.join();
+                });
             }
         }
 

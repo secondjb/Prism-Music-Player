@@ -1901,6 +1901,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               source={source}
               columns={columns}
               rowSize={currentDensityHeight}
+              frameSize={10}
               readonly={true}
               editors={{}}
               resize={true}

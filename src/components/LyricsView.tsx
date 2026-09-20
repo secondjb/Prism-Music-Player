@@ -540,53 +540,54 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
     let blurAmount = 'none';
 
     if (!isUnsynced) {
+      const isFar = distance >= 2;
       switch (lyricsAnimationStyle) {
         case 'apple_fluid':
           scaleTarget = isActive ? 1.085 : distance === 1 && !isPast ? 0.99 : 0.975;
-          transXTarget = isActive ? 4 : isPast ? 0 : -6;
-          transYTarget = isActive ? -2 : isPast ? -1 : 3;
-          opacityTarget = isActive ? 1 : isPast ? 0.45 : distance === 1 ? 0.64 : 0.43;
+          transXTarget = isActive ? 4 : isFar ? 0 : isPast ? 0 : -6;
+          transYTarget = isActive ? -2 : isFar ? 0 : isPast ? -1 : 3;
+          opacityTarget = isActive ? 1 : isFar ? 0.45 : isPast ? 0.45 : distance === 1 ? 0.64 : 0.43;
           break;
         case 'karaoke_pulse':
           scaleTarget = isActive ? 1.1 : distance === 1 && !isPast ? 0.99 : 0.97;
           transXTarget = isActive ? 4 : 0;
-          transYTarget = isActive ? -3 : 1;
-          opacityTarget = isActive ? 1 : isPast ? 0.45 : distance === 1 ? 0.60 : 0.49;
+          transYTarget = isActive ? -3 : isFar ? 0 : 1;
+          opacityTarget = isActive ? 1 : isFar ? 0.45 : isPast ? 0.45 : distance === 1 ? 0.60 : 0.49;
           break;
         case 'kinetic_slide':
-          scaleTarget = isActive ? 1.045 : isPast ? 0.99 : 0.975;
-          transXTarget = isActive ? 0 : isPast ? 14 : -24;
-          transYTarget = isActive ? -1 : 1;
-          opacityTarget = isActive ? 1 : isPast ? 0.45 : 0.42;
+          scaleTarget = isActive ? 1.045 : isFar ? 0.975 : isPast ? 0.99 : 0.975;
+          transXTarget = isActive ? 0 : isFar ? 0 : isPast ? 14 : -24;
+          transYTarget = isActive ? -1 : isFar ? 0 : 1;
+          opacityTarget = isActive ? 1 : isFar ? 0.45 : isPast ? 0.45 : 0.42;
           break;
         case 'cinematic_blur':
           scaleTarget = isActive ? 1.065 : distance === 1 && !isPast ? 0.96 : 0.93;
-          transYTarget = isActive ? 0 : isPast ? -10 : 10;
-          opacityTarget = isActive ? 1 : isPast ? 0.45 : distance <= 1 ? 0.58 : 0.28;
-          blurAmount = isActive ? 'none' : isPast ? 'none' : distance === 1 ? 'blur(1.5px)' : 'none';
+          transYTarget = isActive ? 0 : isFar ? 0 : isPast ? -10 : 10;
+          opacityTarget = isActive ? 1 : isFar ? 0.35 : isPast ? 0.45 : distance <= 1 ? 0.58 : 0.28;
+          blurAmount = isActive ? 'none' : isFar ? 'none' : isPast ? 'none' : distance === 1 ? 'blur(1.5px)' : 'none';
           break;
         case 'lossless_glow':
           scaleTarget = isActive ? 1.075 : distance === 1 && !isPast ? 0.99 : 0.97;
           transXTarget = isActive ? 3 : 0;
-          transYTarget = isActive ? -2 : 1;
-          opacityTarget = isActive ? 1 : isPast ? 0.45 : distance === 1 ? 0.66 : 0.46;
+          transYTarget = isActive ? -2 : isFar ? 0 : 1;
+          opacityTarget = isActive ? 1 : isFar ? 0.45 : isPast ? 0.45 : distance === 1 ? 0.66 : 0.46;
           break;
         case 'card_pop':
           scaleTarget = isActive ? 1.065 : 0.985;
-          transYTarget = isActive ? -5 : 2;
-          opacityTarget = isActive ? 1 : isPast ? 0.45 : distance === 1 ? 0.60 : 0.48;
+          transYTarget = isActive ? -5 : isFar ? 0 : 2;
+          opacityTarget = isActive ? 1 : isFar ? 0.45 : isPast ? 0.45 : distance === 1 ? 0.60 : 0.48;
           break;
         case 'apple_zoom':
           scaleTarget = isActive ? 1.18 : distance === 1 && !isPast ? 0.94 : 0.88;
-          transYTarget = isActive ? -4 : isPast ? -1 : 2;
-          opacityTarget = isActive ? 1 : isPast ? 0.45 : distance === 1 ? 0.55 : 0.32;
+          transYTarget = isActive ? -4 : isFar ? 0 : isPast ? -1 : 2;
+          opacityTarget = isActive ? 1 : isFar ? 0.35 : isPast ? 0.45 : distance === 1 ? 0.55 : 0.32;
           break;
         case 'minimal_wave':
         default:
           scaleTarget = 1;
-          transXTarget = isActive ? 2 : isPast ? 0 : -2;
+          transXTarget = isActive ? 2 : 0;
           transYTarget = isPast ? -1 : isActive ? 0 : 1;
-          opacityTarget = isActive ? 1 : isPast ? 0.45 : distance === 1 ? 0.58 : 0.38;
+          opacityTarget = isActive ? 1 : isFar ? 0.45 : isPast ? 0.45 : distance === 1 ? 0.58 : 0.38;
           break;
       }
     }
@@ -830,6 +831,19 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
     );
   },
   (prev, next) => {
+    if (!prev.isActive && !next.isActive && prev.distance >= 2 && next.distance >= 2) {
+      return (
+        prev.activeFontSize === next.activeFontSize &&
+        prev.inactiveFontSize === next.inactiveFontSize &&
+        prev.lyricsAnimationStyle === next.lyricsAnimationStyle &&
+        prev.lyricsFontSizePreset === next.lyricsFontSizePreset &&
+        prev.line === next.line &&
+        prev.isRomanizationEnabled === next.isRomanizationEnabled &&
+        prev.romanizationMode === next.romanizationMode &&
+        prev.isTranslationEnabled === next.isTranslationEnabled &&
+        prev.translationMode === next.translationMode
+      );
+    }
     return (
       prev.isActive === next.isActive &&
       prev.isPast === next.isPast &&
@@ -1665,9 +1679,10 @@ export const LyricsView: React.FC = () => {
       }
       isProgrammaticScrollRef.current = true;
       setIsScrollbarVisible(false);
+      const isFarJump = Math.abs(containerEl.scrollTop - targetTop) > 650;
       containerEl.scrollTo({
         top: targetTop,
-        behavior: 'smooth',
+        behavior: isFarJump ? 'auto' : 'smooth',
       });
       programmaticScrollTimerRef.current = setTimeout(() => {
         isProgrammaticScrollRef.current = false;
@@ -1687,7 +1702,7 @@ export const LyricsView: React.FC = () => {
       isProgrammaticScrollRef.current = true;
       containerRef.current.scrollTo({
         top: 0,
-        behavior: 'smooth',
+        behavior: 'auto',
       });
       programmaticScrollTimerRef.current = setTimeout(() => {
         isProgrammaticScrollRef.current = false;
@@ -2870,7 +2885,7 @@ export const LyricsView: React.FC = () => {
               </button>
             )}
 
-            {isLoading ? (
+            {isLoading && lines.length === 0 ? (
               <div className="flex flex-col items-center gap-3 my-auto mx-auto">
                 <RefreshCw
                   className="w-8 h-8 animate-spin"
@@ -2992,7 +3007,7 @@ export const LyricsView: React.FC = () => {
               </button>
             )}
 
-            {isLoading ? (
+            {isLoading && lines.length === 0 ? (
               <div className="flex flex-col items-center gap-3 my-auto">
                 <RefreshCw
                   className="w-8 h-8 animate-spin"

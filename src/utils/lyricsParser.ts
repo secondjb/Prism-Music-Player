@@ -208,6 +208,9 @@ export function convertTtmlToLrc(ttmlStr: string): string {
   return lines.join('\n');
 }
 
+const PARSED_LYRICS_CACHE = new Map<string, ParsedLyricLine[]>();
+const MAX_PARSED_CACHE_SIZE = 120;
+
 /**
  * Parses raw LRC string (standard, syllable-enhanced, or TTML XML) into rich ParsedLyricLine array.
  */
@@ -216,6 +219,15 @@ export function parseRichLyrics(
   options?: { inferWordSync?: boolean }
 ): ParsedLyricLine[] {
   if (!rawLrc || !rawLrc.trim()) return [];
+
+  const cacheKey = `${options?.inferWordSync ? 1 : 0}_${rawLrc.length}_${rawLrc.slice(0, 100)}`;
+  const cached = PARSED_LYRICS_CACHE.get(cacheKey);
+  if (cached) {
+    PARSED_LYRICS_CACHE.delete(cacheKey);
+    PARSED_LYRICS_CACHE.set(cacheKey, cached);
+    return cached;
+  }
+
   const processedLrc = isTtmlContent(rawLrc) ? convertTtmlToLrc(rawLrc) : rawLrc;
   const normalizedLrc = processedLrc.normalize('NFKC');
   const rawLines = normalizedLrc.split(/\r?\n/);
@@ -420,6 +432,12 @@ export function parseRichLyrics(
       translation,
     });
   }
+
+  if (PARSED_LYRICS_CACHE.size >= MAX_PARSED_CACHE_SIZE) {
+    const oldestKey = PARSED_LYRICS_CACHE.keys().next().value;
+    if (oldestKey) PARSED_LYRICS_CACHE.delete(oldestKey);
+  }
+  PARSED_LYRICS_CACHE.set(cacheKey, result);
 
   return result;
 }

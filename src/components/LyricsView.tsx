@@ -491,7 +491,7 @@ interface LyricLineRowProps {
   activeFontSize: number;
   inactiveFontSize: number;
   activeLineRef: React.Ref<HTMLDivElement> | null;
-  onSeek: (secs: number) => void;
+  onSeek: (secs: number, targetIdx?: number) => void;
 }
 
 const LyricLineRow = React.memo<LyricLineRowProps>(
@@ -682,8 +682,6 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
             : 'text-zinc-400 hover:text-zinc-200 font-medium'
         }`}
         style={{
-          contentVisibility: 'auto',
-          containIntrinsicSize: 'auto 64px',
           maxWidth: lineMaxWidth,
           fontSize: isActive && !isUnsynced ? `${activeFontSize}px` : `${inactiveFontSize}px`,
           lineHeight: 1.35,
@@ -709,7 +707,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
         }}
         onClick={() => {
           if (typeof line.startSecs === 'number' && !isNaN(line.startSecs) && !isUnsynced) {
-            onSeek(line.startSecs);
+            onSeek(line.startSecs, idx);
           }
         }}
       >
@@ -1682,16 +1680,46 @@ export const LyricsView: React.FC = () => {
   }, [getSmartScrollTarget]);
 
   // Unified seek handler that resets scroll tracking, sync state, and centers the lyric line
-  const handleSeek = useCallback((secs: number) => {
-    lastScrolledMaxLineRef.current = -1;
-    lastScrollTargetRef.current = 0;
-    lastScrolledInterludeRef.current = null;
-    seek(secs);
-    setIsUserScrolled(false);
-    requestAnimationFrame(() => {
-      scrollToActive(true);
-    });
-  }, [seek, scrollToActive]);
+  const handleSeek = useCallback(
+    (secs: number, targetIdx?: number) => {
+      isProgrammaticScrollRef.current = true;
+      userInteractingRef.current = false;
+      setIsUserScrolled(false);
+      seek(secs);
+
+      const containerEl = containerRef.current;
+      if (containerEl && typeof targetIdx === 'number') {
+        const targetEl = document.getElementById(`lyric-line-${targetIdx}`);
+        if (targetEl) {
+          const targetTop = Math.max(
+            0,
+            targetEl.offsetTop - containerEl.clientHeight / 2 + targetEl.clientHeight / 2
+          );
+          lastScrollTargetRef.current = targetTop;
+          lastScrolledMaxLineRef.current = targetIdx;
+          lastScrolledInterludeRef.current = null;
+          const isFarJump = Math.abs(containerEl.scrollTop - targetTop) > 650;
+          containerEl.scrollTo({
+            top: targetTop,
+            behavior: isFarJump ? 'auto' : 'smooth',
+          });
+        }
+      } else {
+        lastScrolledMaxLineRef.current = -1;
+        lastScrollTargetRef.current = 0;
+        lastScrolledInterludeRef.current = null;
+        requestAnimationFrame(() => {
+          scrollToActive(true);
+        });
+      }
+
+      if (programmaticScrollTimerRef.current) clearTimeout(programmaticScrollTimerRef.current);
+      programmaticScrollTimerRef.current = setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 800);
+    },
+    [seek, scrollToActive]
+  );
 
   // Scroll to top when track changes / skips
   useEffect(() => {
@@ -1712,22 +1740,6 @@ export const LyricsView: React.FC = () => {
       }, 800);
     }
   }, [currentTrack?.id]);
-
-  // Keep at top if lyrics load and song is at intro (activeIndex === -1 and no interlude)
-  useEffect(() => {
-    if (activeIndex === -1 && !activeInterlude && !isUserScrolled && containerRef.current) {
-      if (programmaticScrollTimerRef.current) clearTimeout(programmaticScrollTimerRef.current);
-      isProgrammaticScrollRef.current = true;
-      setIsScrollbarVisible(false);
-      containerRef.current.scrollTo({
-        top: 0,
-        behavior: 'smooth',
-      });
-      programmaticScrollTimerRef.current = setTimeout(() => {
-        isProgrammaticScrollRef.current = false;
-      }, 600);
-    }
-  }, [lines, activeIndex, activeInterlude?.key, isUserScrolled]);
 
   // 5. Detect genuine user scrolling (wheel/touch/drag) away from current lyric line or interlude
   useEffect(() => {

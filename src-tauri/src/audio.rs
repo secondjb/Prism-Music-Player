@@ -511,6 +511,29 @@ fn run_audio_thread(
         .make(&track.codec_params, &dec_opts)
         .map_err(|e| format!("Decoder creation error: {}", e))?;
 
+    let initial_seek_req = seek_target_ms.swap(u64::MAX, Ordering::Acquire);
+    if initial_seek_req != u64::MAX && initial_seek_req > 0 {
+        let target_secs = initial_seek_req as f64 / 1000.0;
+        let seek_res = format.seek(
+            symphonia::core::formats::SeekMode::Accurate,
+            symphonia::core::formats::SeekTo::Time {
+                time: symphonia::core::units::Time::from(target_secs),
+                track_id: Some(track_id),
+            },
+        );
+        if seek_res.is_err() {
+            let _ = format.seek(
+                symphonia::core::formats::SeekMode::Coarse,
+                symphonia::core::formats::SeekTo::Time {
+                    time: symphonia::core::units::Time::from(target_secs),
+                    track_id: Some(track_id),
+                },
+            );
+        }
+        decoder.reset();
+        current_position_ms.store(initial_seek_req, Ordering::Relaxed);
+    }
+
     // Helper to create stream and channel
     let create_stream_fn = || -> Result<(cpal::Stream, crossbeam_channel::Sender<f32>, Arc<AtomicBool>, String, u32, usize), String> {
         let host = cpal::default_host();
@@ -709,13 +732,23 @@ fn run_audio_thread(
         let seek_req = seek_target_ms.swap(u64::MAX, Ordering::Acquire);
         if seek_req != u64::MAX {
             let target_secs = seek_req as f64 / 1000.0;
-            let _ = format.seek(
+            let seek_res = format.seek(
                 symphonia::core::formats::SeekMode::Accurate,
                 symphonia::core::formats::SeekTo::Time {
                     time: symphonia::core::units::Time::from(target_secs),
                     track_id: Some(track_id),
                 },
             );
+            if seek_res.is_err() {
+                let _ = format.seek(
+                    symphonia::core::formats::SeekMode::Coarse,
+                    symphonia::core::formats::SeekTo::Time {
+                        time: symphonia::core::units::Time::from(target_secs),
+                        track_id: Some(track_id),
+                    },
+                );
+            }
+            decoder.reset();
             current_position_ms.store(seek_req, Ordering::Relaxed);
         }
 

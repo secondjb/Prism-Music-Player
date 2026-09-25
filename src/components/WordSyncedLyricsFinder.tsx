@@ -46,11 +46,12 @@ export interface WordSyncCandidate {
   source?: 'Lyrics+' | 'Unison' | 'SyncLRC' | 'NetEase' | 'LRCLIB';
 }
 
-export function getCandidateFeatures(c: WordSyncCandidate) {
-  const hasWordSync = c.hasWordSync !== undefined ? c.hasWordSync : isWordSyncedLrc(c.lyrics);
-  const hasTranslation = c.hasTranslation !== undefined ? c.hasTranslation : hasTranslationInLyrics(c.lyrics);
+export function getCandidateFeatures(c: WordSyncCandidate, inferWordSync?: boolean) {
+  const hasNativeWordSync = c.hasWordSync !== undefined ? c.hasWordSync : isWordSyncedLrc(c.lyrics);
   const isSynced = c.isSynced !== undefined ? c.isSynced : hasLrcTimestamps(c.lyrics);
-  return { hasWordSync, hasTranslation, isSynced, source: c.source || (hasWordSync ? 'Lyrics+' : 'LRCLIB') };
+  const hasWordSync = hasNativeWordSync || Boolean(inferWordSync && isSynced);
+  const hasTranslation = c.hasTranslation !== undefined ? c.hasTranslation : hasTranslationInLyrics(c.lyrics);
+  return { hasWordSync, hasNativeWordSync, hasTranslation, isSynced, source: c.source || (hasWordSync ? 'Lyrics+' : 'LRCLIB') };
 }
 
 function formatTime(secs: number): string {
@@ -142,6 +143,7 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
   const romanizationMode = usePlayerStore((s) => s.romanizationMode);
   const isTranslationEnabled = usePlayerStore((s) => s.isTranslationEnabled);
   const translationMode = usePlayerStore((s) => s.translationMode);
+  const inferWordSyncedLyrics = usePlayerStore((s) => s.inferWordSyncedLyrics);
 
   const [onlyMissingWordSync, setOnlyMissingWordSync] = useState(true);
   const [onlyMissingTranslation, setOnlyMissingTranslation] = useState(false);
@@ -238,18 +240,19 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
 
   const isEligibleTrack = useCallback(
     (t: Track) => {
+      const trackHasWordSync = isWordSyncedLrc(t.unsynced_lyrics) || Boolean(inferWordSyncedLyrics && hasLrcTimestamps(t.unsynced_lyrics));
       if (onlyMissingWordSync && onlyMissingTranslation) {
-        return !isWordSyncedLrc(t.unsynced_lyrics) || !hasTranslationInLyrics(t.unsynced_lyrics);
+        return !trackHasWordSync || !hasTranslationInLyrics(t.unsynced_lyrics);
       }
       if (onlyMissingWordSync) {
-        return !isWordSyncedLrc(t.unsynced_lyrics);
+        return !trackHasWordSync;
       }
       if (onlyMissingTranslation) {
         return !hasTranslationInLyrics(t.unsynced_lyrics);
       }
       return true;
     },
-    [onlyMissingWordSync, onlyMissingTranslation]
+    [onlyMissingWordSync, onlyMissingTranslation, inferWordSyncedLyrics]
   );
 
   // Unscanned remaining tracks count (for "Continue Search")
@@ -265,8 +268,8 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
 
   // Counts for each category
   const wordSyncCount = useMemo(
-    () => candidates.filter((c) => (c.hasWordSync !== undefined ? c.hasWordSync : isWordSyncedLrc(c.lyrics))).length,
-    [candidates]
+    () => candidates.filter((c) => getCandidateFeatures(c, inferWordSyncedLyrics).hasWordSync).length,
+    [candidates, inferWordSyncedLyrics]
   );
   const translationCount = useMemo(
     () => candidates.filter((c) => (c.hasTranslation !== undefined ? c.hasTranslation : hasTranslationInLyrics(c.lyrics))).length,
@@ -289,7 +292,7 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
   const filteredCandidates = useMemo(() => {
     switch (candidateFilter) {
       case 'wordsync':
-        return candidates.filter((c) => (c.hasWordSync !== undefined ? c.hasWordSync : isWordSyncedLrc(c.lyrics)));
+        return candidates.filter((c) => getCandidateFeatures(c, inferWordSyncedLyrics).hasWordSync);
       case 'translation':
         return candidates.filter((c) => (c.hasTranslation !== undefined ? c.hasTranslation : hasTranslationInLyrics(c.lyrics)));
       case 'synced':
@@ -302,14 +305,14 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
       default:
         return candidates;
     }
-  }, [candidates, candidateFilter]);
+  }, [candidates, candidateFilter, inferWordSyncedLyrics]);
 
   const activeCandidate: WordSyncCandidate | undefined =
     filteredCandidates[activeCandidateIdx] || filteredCandidates[0];
 
   const activeFeatures = useMemo(
-    () => (activeCandidate ? getCandidateFeatures(activeCandidate) : { hasWordSync: false, hasTranslation: false, isSynced: false, source: 'Lyrics+' }),
-    [activeCandidate]
+    () => (activeCandidate ? getCandidateFeatures(activeCandidate, inferWordSyncedLyrics) : { hasWordSync: false, hasNativeWordSync: false, hasTranslation: false, isSynced: false, source: 'Lyrics+' }),
+    [activeCandidate, inferWordSyncedLyrics]
   );
 
   // Enriched lines for preview (with syllables, romanization, and translation)
@@ -447,7 +450,7 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
       return;
     }
 
-    const formatted = parseRichLyrics(activeCandidate.lyrics);
+    const formatted = parseRichLyrics(activeCandidate.lyrics, { inferWordSync: inferWordSyncedLyrics });
     setEnrichedLines(formatted);
 
     let isMounted = true;
@@ -470,7 +473,7 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [activeCandidate?.lyrics, isRomanizationEnabled]);
+  }, [activeCandidate?.lyrics, isRomanizationEnabled, inferWordSyncedLyrics]);
 
   // Is the currently reviewed candidate also the active player track?
   const isCandidatePlayingThis = currentTrack?.id === activeCandidate?.track.id;
@@ -768,11 +771,12 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
 
           if (discovered && discovered.lyrics?.trim()) {
             const trackHasSynced = hasLrcTimestamps(track.unsynced_lyrics);
-            const trackHasWordSync = isWordSyncedLrc(track.unsynced_lyrics);
+            const trackHasWordSync = isWordSyncedLrc(track.unsynced_lyrics) || Boolean(inferWordSyncedLyrics && trackHasSynced);
             const trackHasTranslation = hasTranslationInLyrics(track.unsynced_lyrics);
+            const discoveredHasWordSync = discovered.hasWordSync || Boolean(inferWordSyncedLyrics && discovered.isSynced);
 
             const isUpgrade =
-              (discovered.hasWordSync && !trackHasWordSync) ||
+              (discoveredHasWordSync && !trackHasWordSync) ||
               (discovered.hasTranslation && !trackHasTranslation) ||
               (discovered.isSynced && !trackHasSynced);
 
@@ -781,7 +785,7 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
                 track,
                 lyrics: discovered.lyrics,
                 status: 'found',
-                hasWordSync: discovered.hasWordSync,
+                hasWordSync: discoveredHasWordSync,
                 hasTranslation: discovered.hasTranslation,
                 isSynced: discovered.isSynced,
                 source: discovered.source,
@@ -1514,7 +1518,7 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
                 </div>
               ) : (
                 filteredCandidates.map((c, idx) => {
-                  const feats = getCandidateFeatures(c);
+                  const feats = getCandidateFeatures(c, inferWordSyncedLyrics);
                   const isCurrent = idx === activeCandidateIdx;
                   return (
                     <button
@@ -1542,7 +1546,7 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
                         {feats.hasWordSync ? (
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-0.5">
                             <Zap className="w-2.5 h-2.5" />
-                            Word
+                            {feats.hasNativeWordSync ? 'Word' : 'Inferred'}
                           </span>
                         ) : feats.isSynced ? (
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30 flex items-center gap-0.5">
@@ -1634,7 +1638,7 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
               {activeFeatures.hasWordSync ? (
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/25 text-indigo-300 border border-indigo-500/40 flex items-center gap-1 shadow-sm">
                   <Zap className="w-3 h-3 text-indigo-400" />
-                  Word-by-Word Sync
+                  {activeFeatures.hasNativeWordSync ? 'Word-by-Word Sync' : 'Inferred Word-Sync'}
                 </span>
               ) : activeFeatures.isSynced ? (
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-sky-500/20 text-sky-300 border border-sky-500/30 flex items-center gap-1">
@@ -1703,7 +1707,7 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
                   <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                     {activeFeatures.hasWordSync ? (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                        <Zap className="w-2.5 h-2.5 text-indigo-400" /> Word-Synced
+                        <Zap className="w-2.5 h-2.5 text-indigo-400" /> {activeFeatures.hasNativeWordSync ? 'Word-Synced' : 'Inferred Word-Sync'}
                       </span>
                     ) : activeFeatures.isSynced ? (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
@@ -1877,7 +1881,7 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
                   {activeFeatures.hasWordSync ? (
                     <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
                       <Zap className="w-2.5 h-2.5 text-indigo-400" />
-                      Word-by-Word
+                      {activeFeatures.hasNativeWordSync ? 'Word-by-Word' : 'Inferred Word-Sync'}
                     </span>
                   ) : (
                     <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-zinc-800 text-zinc-400 border border-white/10">

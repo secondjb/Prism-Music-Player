@@ -22,7 +22,9 @@ import {
   Play,
   Unlink,
   Check,
+  Activity,
 } from 'lucide-react';
+import { fetchListeningEvents } from '../utils/stats';
 
 const LinkedTrackThumbnail: React.FC<{ track: Track }> = ({ track }) => {
   const art = useTrackArt(track);
@@ -42,6 +44,117 @@ const formatDuration = (seconds: number): string => {
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
+
+const formatListeningTime = (seconds: number): string => {
+  if (!seconds || seconds <= 0) return '0 mins';
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  if (hrs > 0) {
+    return `${hrs}h ${mins}m`;
+  }
+  if (mins > 0) {
+    return `${mins}m ${secs}s`;
+  }
+  return `${secs}s`;
+};
+
+export function formatRelativeReleaseDate(rawDate: string | number | undefined | null): string | null {
+  if (!rawDate) return null;
+  const str = String(rawDate).trim();
+  if (!str || str.toLowerCase() === 'n/a' || str.toLowerCase() === 'unknown') return null;
+
+  const isYearOnly = /^\d{4}$/.test(str);
+  let targetDate: Date;
+  if (isYearOnly) {
+    targetDate = new Date(parseInt(str, 10), 0, 1);
+  } else {
+    targetDate = new Date(str);
+  }
+
+  if (isNaN(targetDate.getTime())) return null;
+
+  const now = new Date();
+  const diffMs = now.getTime() - targetDate.getTime();
+  if (diffMs < 0) {
+    return 'Upcoming release';
+  }
+
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffYears = diffDays / 365.25;
+
+  if (diffYears > 3) {
+    const roundedYears = Math.floor(diffYears);
+    return `${roundedYears} year${roundedYears === 1 ? '' : 's'} ago`;
+  }
+
+  if (isYearOnly) {
+    const roundedYears = Math.floor(diffYears);
+    if (roundedYears <= 0) return 'This year';
+    return `${roundedYears} year${roundedYears === 1 ? '' : 's'} ago`;
+  }
+
+  // Under 3 years: include months, weeks, days
+  if (diffYears >= 1) {
+    const years = Math.floor(diffYears);
+    const remMonths = Math.floor((diffDays - years * 365.25) / 30.4375);
+    if (remMonths > 0) {
+      return `${years} yr${years === 1 ? '' : 's'}, ${remMonths} mo${remMonths === 1 ? '' : 's'} ago`;
+    }
+    return `${years} year${years === 1 ? '' : 's'} ago`;
+  }
+
+  if (diffDays >= 30) {
+    const months = Math.floor(diffDays / 30.4375);
+    const remWeeks = Math.floor((diffDays - months * 30.4375) / 7);
+    if (remWeeks > 0) {
+      return `${months} mo${months === 1 ? '' : 's'}, ${remWeeks} wk${remWeeks === 1 ? '' : 's'} ago`;
+    }
+    return `${months} month${months === 1 ? '' : 's'} ago`;
+  }
+
+  if (diffDays >= 7) {
+    const weeks = Math.floor(diffDays / 7);
+    const remDays = diffDays % 7;
+    if (remDays > 0) {
+      return `${weeks} wk${weeks === 1 ? '' : 's'}, ${remDays} day${remDays === 1 ? '' : 's'} ago`;
+    }
+    return `${weeks} week${weeks === 1 ? '' : 's'} ago`;
+  }
+
+  if (diffDays > 1) {
+    return `${diffDays} days ago`;
+  }
+
+  if (diffDays === 1) {
+    return 'Yesterday';
+  }
+
+  return 'Today';
+}
+
+export function formatRelativeEventDate(dateInput: string | Date | undefined | null): string {
+  if (!dateInput) return 'Never';
+  const targetDate = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(targetDate.getTime())) return 'Unknown';
+
+  const now = new Date();
+  const diffMs = now.getTime() - targetDate.getTime();
+  const diffSecs = Math.floor(Math.max(0, diffMs) / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSecs < 60) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
+  const y = Math.floor(diffDays / 365);
+  return `${y}y ago`;
+}
 
 interface ITunesResult {
   trackName?: string;
@@ -85,6 +198,74 @@ export const SongInfoModal: React.FC = () => {
   }, [tracks, infoModalTrack]);
 
   const trackArt = useTrackArt(activeTrack || infoModalTrack);
+
+  const [statsLoaded, setStatsLoaded] = useState(false);
+  const [songStats, setSongStats] = useState<{
+    playCount: number;
+    totalListeningSeconds: number;
+    firstPlayed: string | null;
+    lastPlayed: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!activeTrack) {
+      setSongStats(null);
+      setStatsLoaded(false);
+      return;
+    }
+
+    let isMounted = true;
+    (async () => {
+      try {
+        const events = await fetchListeningEvents();
+        if (!isMounted) return;
+        const normTrackTitle = activeTrack.title.trim().toLowerCase();
+        const normTrackArtist = (activeTrack.artist || '').trim().toLowerCase();
+
+        const matching = events.filter((e) => {
+          const matchTitle = (e.song_title || '').trim().toLowerCase() === normTrackTitle;
+          if (!matchTitle) return false;
+          if (!normTrackArtist || normTrackArtist === 'unknown artist') return true;
+          return (e.artist_name || '').trim().toLowerCase() === normTrackArtist;
+        });
+
+        if (matching.length === 0) {
+          setSongStats({
+            playCount: 0,
+            totalListeningSeconds: 0,
+            firstPlayed: null,
+            lastPlayed: null,
+          });
+        } else {
+          matching.sort((a, b) => new Date(a.played_at).getTime() - new Date(b.played_at).getTime());
+          const totalMs = matching.reduce((acc, cur) => acc + (cur.duration_ms || (activeTrack.duration_secs * 1000)), 0);
+          setSongStats({
+            playCount: matching.length,
+            totalListeningSeconds: Math.floor(totalMs / 1000),
+            firstPlayed: matching[0].played_at,
+            lastPlayed: matching[matching.length - 1].played_at,
+          });
+        }
+        setStatsLoaded(true);
+      } catch (err) {
+        console.warn('Failed to load listening stats for song info:', err);
+        if (isMounted) setStatsLoaded(true);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTrack?.id, activeTrack?.title, activeTrack?.artist]);
+
+  const localRelativeDate = useMemo(() => {
+    const raw = (activeTrack || infoModalTrack)?.date || (activeTrack || infoModalTrack)?.year;
+    return formatRelativeReleaseDate(raw);
+  }, [activeTrack, infoModalTrack]);
+
+  const onlineRelativeDate = useMemo(() => {
+    return formatRelativeReleaseDate(onlineData?.releaseDate);
+  }, [onlineData?.releaseDate]);
 
   useEffect(() => {
     if (!infoModalTrack) {
@@ -310,8 +491,13 @@ export const SongInfoModal: React.FC = () => {
 
               <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Local Release Year / Date</span>
-                <span className="text-xl font-mono text-white">
-                  {(activeTrack || infoModalTrack).date || ((activeTrack || infoModalTrack).year ? String((activeTrack || infoModalTrack).year) : 'N/A')}
+                <span className="text-xl font-mono text-white flex items-baseline gap-2 flex-wrap">
+                  <span>{(activeTrack || infoModalTrack).date || ((activeTrack || infoModalTrack).year ? String((activeTrack || infoModalTrack).year) : 'N/A')}</span>
+                  {localRelativeDate && (
+                    <span className="text-xs font-sans font-medium text-zinc-400">
+                      • {localRelativeDate}
+                    </span>
+                  )}
                 </span>
               </div>
 
@@ -356,6 +542,63 @@ export const SongInfoModal: React.FC = () => {
               <p className="text-sm font-mono text-zinc-300 bg-black/40 p-4 rounded-xl break-all border border-white/5 select-all">
                 {(activeTrack || infoModalTrack).path}
               </p>
+            </div>
+          </section>
+
+          {/* Individual Song Listening Statistics */}
+          <section className="flex flex-col gap-4">
+            <div
+              className="flex items-center gap-3 border-b border-white/10 pb-3"
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+            >
+              <Activity className="w-6 h-6" />
+              <h3 className="text-lg font-bold text-white">Listening Statistics</h3>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
+                <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Total Plays</span>
+                <span className="text-2xl font-mono font-bold text-white">
+                  {statsLoaded ? (songStats?.playCount ?? 0) : '...'}
+                </span>
+                <span className="text-[11px] text-zinc-500">
+                  {songStats?.playCount === 1 ? '1 play recorded' : `${songStats?.playCount ?? 0} plays recorded`}
+                </span>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
+                <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Time Listened</span>
+                <span className="text-2xl font-mono font-bold text-white">
+                  {statsLoaded ? formatListeningTime(songStats?.totalListeningSeconds ?? 0) : '...'}
+                </span>
+                <span className="text-[11px] text-zinc-500">
+                  {songStats?.totalListeningSeconds ? `${Math.floor(songStats.totalListeningSeconds / 60)} minutes total` : 'No listening history'}
+                </span>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
+                <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">First Played</span>
+                <span className="text-base font-medium text-white truncate" title={songStats?.firstPlayed ? new Date(songStats.firstPlayed).toLocaleString() : undefined}>
+                  {statsLoaded ? (songStats?.firstPlayed ? new Date(songStats.firstPlayed).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Never') : '...'}
+                </span>
+                {songStats?.firstPlayed && (
+                  <span className="text-[11px] text-zinc-400">
+                    {formatRelativeEventDate(songStats.firstPlayed)}
+                  </span>
+                )}
+              </div>
+
+              <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
+                <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Last Played</span>
+                <span className="text-base font-medium text-white truncate" title={songStats?.lastPlayed ? new Date(songStats.lastPlayed).toLocaleString() : undefined}>
+                  {statsLoaded ? (songStats?.lastPlayed ? new Date(songStats.lastPlayed).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Never') : '...'}
+                </span>
+                {songStats?.lastPlayed && (
+                  <span className="text-[11px] text-zinc-400">
+                    {formatRelativeEventDate(songStats.lastPlayed)}
+                  </span>
+                )}
+              </div>
             </div>
           </section>
 
@@ -802,8 +1045,15 @@ export const SongInfoModal: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
                   <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Official Release Date</span>
-                  <span className="text-lg text-white font-medium">
-                    {onlineData.releaseDate ? new Date(onlineData.releaseDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'Unknown'}
+                  <span className="text-lg text-white font-medium flex items-baseline gap-2 flex-wrap">
+                    <span>
+                      {onlineData.releaseDate ? new Date(onlineData.releaseDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'Unknown'}
+                    </span>
+                    {onlineRelativeDate && (
+                      <span className="text-xs text-zinc-400 font-normal">
+                        • {onlineRelativeDate}
+                      </span>
+                    )}
                   </span>
                 </div>
                 

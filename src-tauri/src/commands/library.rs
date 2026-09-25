@@ -158,8 +158,26 @@ pub async fn get_track_lyrics(path: String) -> Option<String> {
 }
 
 #[tauri::command]
-pub async fn embed_lyrics(path: String, lyrics: String) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || metadata::embed_track_lyrics(&path, &lyrics))
-        .await
-        .map_err(|e| format!("Task execution failed: {}", e))?
+pub async fn embed_lyrics(app_handle: AppHandle, path: String, lyrics: String) -> Result<(), String> {
+    let app_data_dir = app_handle.path().app_data_dir().ok();
+    tokio::task::spawn_blocking(move || {
+        metadata::embed_track_lyrics(&path, &lyrics)?;
+        if let Some(dir) = app_data_dir {
+            if let Ok(mut tracks) = load_library_from_disk(&dir) {
+                let mut changed = false;
+                for t in tracks.iter_mut() {
+                    if t.path == path {
+                        t.unsynced_lyrics = Some(lyrics.clone());
+                        changed = true;
+                    }
+                }
+                if changed {
+                    let _ = save_library_to_disk(&dir, &tracks);
+                }
+            }
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Task execution failed: {}", e))?
 }

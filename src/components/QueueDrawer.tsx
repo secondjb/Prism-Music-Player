@@ -3,7 +3,24 @@ import { usePlayerStore, getEffectiveReplayGain } from '../store/usePlayerStore'
 import { useTrackArt } from '../utils/useTrackArt';
 import { Track } from '../types/player';
 import { invoke } from '@tauri-apps/api/core';
-import { ListMusic, X, Trash2, GripVertical, Play, ChevronDown, ChevronRight, History } from 'lucide-react';
+import {
+  ListMusic,
+  X,
+  Trash2,
+  GripVertical,
+  Play,
+  ChevronDown,
+  ChevronRight,
+  History,
+  ListEnd,
+  ListPlus,
+  Heart,
+  Info,
+  PlusCircle,
+  Check,
+  Plus,
+} from 'lucide-react';
+import { CreatePlaylistModal } from './CreatePlaylistModal';
 
 interface QueueDrawerProps {
   isOpen: boolean;
@@ -25,6 +42,7 @@ const QueueItemRow: React.FC<{
   isPlaying: boolean;
   onPlay: () => void;
   onRemove: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
   onDragStart?: (idx: number) => void;
   onDragEnter?: (idx: number) => void;
   onDragEnd?: () => void;
@@ -37,6 +55,7 @@ const QueueItemRow: React.FC<{
   isPlaying,
   onPlay,
   onRemove,
+  onContextMenu,
   onDragStart,
   onDragEnter,
   onDragEnd,
@@ -109,6 +128,11 @@ const QueueItemRow: React.FC<{
         onDrop={handleDrop}
         onDragEnd={handleDragEnd}
         onClick={onPlay}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onContextMenu?.(e);
+        }}
         className={`group flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
           isDragging ? 'opacity-30 border-dashed' : ''
         } ${
@@ -211,6 +235,42 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
   const removeFromUserQueue = usePlayerStore((s) => s.removeFromUserQueue);
   const reorderUserQueue = usePlayerStore((s) => s.reorderUserQueue);
   const reorderContextQueue = usePlayerStore((s) => s.reorderContextQueue);
+  const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
+  const toggleLikeTrack = usePlayerStore((s) => s.toggleLikeTrack);
+  const addToQueue = usePlayerStore((s) => s.addToQueue);
+  const playNext = usePlayerStore((s) => s.playNext);
+  const playlists = usePlayerStore((s) => s.playlists);
+  const addTracksToPlaylist = usePlayerStore((s) => s.addTracksToPlaylist);
+  const createPlaylist = usePlayerStore((s) => s.createPlaylist);
+  const setInfoModalTrack = usePlayerStore((s) => s.setInfoModalTrack);
+
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    track: Track;
+    source: 'nowPlaying' | 'userQueue' | 'contextQueue' | 'history';
+    index?: number;
+  } | null>(null);
+  const [playlistSubmenuOpen, setPlaylistSubmenuOpen] = useState(false);
+  const [newPlaylistTrack, setNewPlaylistTrack] = useState<Track | null>(null);
+
+  const handleContextMenu = (
+    e: React.MouseEvent,
+    track: Track,
+    source: 'nowPlaying' | 'userQueue' | 'contextQueue' | 'history',
+    index?: number
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      track,
+      source,
+      index,
+    });
+    setPlaylistSubmenuOpen(false);
+  };
 
   // User Queue drag state
   const [userDraggedIdx, setUserDraggedIdx] = useState<number | null>(null);
@@ -356,6 +416,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
               isPlaying={true}
               onPlay={() => {}}
               onRemove={() => {}}
+              onContextMenu={(e) => handleContextMenu(e, currentTrack, 'nowPlaying')}
             />
           </div>
         )}
@@ -383,6 +444,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                   isPlaying={false}
                   onPlay={() => handlePlayUserQueueIndex(idx)}
                   onRemove={() => removeFromUserQueue(idx)}
+                  onContextMenu={(e) => handleContextMenu(e, track, 'userQueue', idx)}
                   onDragStart={handleUserDragStart}
                   onDragEnter={handleUserDragEnter}
                   onDrop={handleUserDrop}
@@ -416,6 +478,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                             const newQ = queue.filter((_, i) => i !== actualIdx);
                             usePlayerStore.setState({ queue: newQ });
                           }}
+                          onContextMenu={(e) => handleContextMenu(e, track, 'contextQueue', idx)}
                           onDragStart={handleCtxDragStart}
                           onDragEnter={handleCtxDragEnter}
                           onDrop={handleCtxDrop}
@@ -454,6 +517,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                   <div
                     key={`prev-${track.id}-${idx}`}
                     onClick={() => playIndex(idx)}
+                    onContextMenu={(e) => handleContextMenu(e, track, 'history', idx)}
                     className="flex items-center justify-between p-2 rounded-lg hover:bg-white/10 cursor-pointer text-zinc-400 hover:text-white transition-colors"
                   >
                     <div className="flex items-center gap-2 min-w-0">
@@ -485,6 +549,308 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
           </div>
         )}
       </div>
+
+      {/* Track Context Menu */}
+      {contextMenu && (() => {
+        const menuEstimatedHeight =
+          contextMenu.source === 'userQueue' || contextMenu.source === 'contextQueue' ? 320 : 270;
+        const openUpward = contextMenu.y > window.innerHeight - (menuEstimatedHeight + 60);
+        const left = Math.max(16, Math.min(contextMenu.x, window.innerWidth - 240));
+        const posStyle: React.CSSProperties = openUpward
+          ? {
+              bottom: Math.max(16, window.innerHeight - contextMenu.y),
+              left,
+              transformOrigin: 'bottom left',
+            }
+          : {
+              top: Math.min(contextMenu.y, window.innerHeight - 100),
+              left,
+              transformOrigin: 'top left',
+            };
+
+        const handleItemHover = (e: React.MouseEvent<HTMLElement>, isHover: boolean) => {
+          e.currentTarget.style.backgroundColor = isHover
+            ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)'
+            : '';
+        };
+
+        const isLiked = likedTrackIds.includes(contextMenu.track.id);
+
+        return (
+          <div
+            className="fixed inset-0 z-[60] pointer-events-auto"
+            onClick={() => setContextMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setContextMenu(null);
+            }}
+          >
+            <div
+              style={{
+                ...posStyle,
+                backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 8%, #141416)',
+                borderColor:
+                  'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, rgba(255, 255, 255, 0.12))',
+                boxShadow:
+                  '0 12px 36px -4px rgba(0, 0, 0, 0.7), 0 0 16px color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent)',
+                backdropFilter: 'blur(24px)',
+              }}
+              className="fixed z-[60] w-56 border rounded-xl p-1.5 flex flex-col gap-1 text-xs text-zinc-300 animate-in fade-in zoom-in-95 duration-100"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className="px-2.5 py-1 text-[11px] font-bold text-zinc-300 border-b truncate"
+                style={{
+                  borderColor:
+                    'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
+                }}
+              >
+                <span className="truncate">{contextMenu.track.title}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (contextMenu.source === 'userQueue' && typeof contextMenu.index === 'number') {
+                    handlePlayUserQueueIndex(contextMenu.index);
+                  } else if (contextMenu.source === 'contextQueue' && typeof contextMenu.index === 'number') {
+                    handlePlayUpcomingIndex(contextMenu.index);
+                  } else if (contextMenu.source === 'history' && typeof contextMenu.index === 'number') {
+                    playIndex(contextMenu.index);
+                  } else {
+                    usePlayerStore.getState().playTrack(contextMenu.track, queue);
+                  }
+                  setContextMenu(null);
+                }}
+                onMouseEnter={(e) => handleItemHover(e, true)}
+                onMouseLeave={(e) => handleItemHover(e, false)}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+              >
+                <Play className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                <span>Play Now</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  playNext(contextMenu.track);
+                  setContextMenu(null);
+                }}
+                onMouseEnter={(e) => handleItemHover(e, true)}
+                onMouseLeave={(e) => handleItemHover(e, false)}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+              >
+                <ListPlus className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                <span>Play Next</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  addToQueue(contextMenu.track);
+                  setContextMenu(null);
+                }}
+                onMouseEnter={(e) => handleItemHover(e, true)}
+                onMouseLeave={(e) => handleItemHover(e, false)}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+              >
+                <ListEnd className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                <span>Add to Queue</span>
+              </button>
+
+              {/* Add to Playlist with Submenu */}
+              <div
+                className="relative"
+                onMouseEnter={() => setPlaylistSubmenuOpen(true)}
+                onMouseLeave={() => setPlaylistSubmenuOpen(false)}
+              >
+                <button
+                  type="button"
+                  onClick={() => setPlaylistSubmenuOpen((p) => !p)}
+                  onMouseEnter={(e) => handleItemHover(e, true)}
+                  onMouseLeave={(e) => handleItemHover(e, false)}
+                  className="flex items-center justify-between w-full px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <PlusCircle
+                      className="w-4 h-4"
+                      style={{ color: 'var(--color-stop-1, #6366f1)' }}
+                    />
+                    <span>Add to Playlist</span>
+                  </div>
+                  <ChevronDown className="w-3.5 h-3.5 rotate-90 text-zinc-400" />
+                </button>
+
+                {playlistSubmenuOpen && (
+                  <div
+                    style={{
+                      backgroundColor:
+                        'color-mix(in srgb, var(--color-stop-1, #6366f1) 10%, #141416)',
+                      borderColor:
+                        'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, rgba(255, 255, 255, 0.12))',
+                      boxShadow:
+                        '0 12px 36px -4px rgba(0, 0, 0, 0.7), 0 0 16px color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent)',
+                      backdropFilter: 'blur(24px)',
+                    }}
+                    className="absolute top-0 right-full mr-1 w-48 border rounded-xl p-1.5 flex flex-col gap-0.5 text-xs text-zinc-300 z-50 shadow-2xl max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div
+                      className="px-2 py-1 text-[10px] font-semibold text-zinc-400 border-b uppercase tracking-wider"
+                      style={{
+                        borderColor:
+                          'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
+                      }}
+                    >
+                      Your Playlists
+                    </div>
+
+                    {playlists.length === 0 ? (
+                      <div className="px-2 py-2 text-zinc-500 italic text-[11px]">
+                        No playlists yet
+                      </div>
+                    ) : (
+                      playlists.map((pl) => {
+                        const inPlaylist = pl.trackIds.includes(contextMenu.track.id);
+                        return (
+                          <button
+                            key={pl.id}
+                            type="button"
+                            onClick={() => {
+                              addTracksToPlaylist(pl.id, [contextMenu.track.id]);
+                              setContextMenu(null);
+                            }}
+                            onMouseEnter={(e) => handleItemHover(e, true)}
+                            onMouseLeave={(e) => handleItemHover(e, false)}
+                            className="flex items-center justify-between w-full px-2 py-1.5 rounded-lg text-left transition-colors cursor-pointer text-zinc-200 hover:text-white"
+                          >
+                            <span className="truncate pr-2">{pl.name}</span>
+                            {inPlaylist && (
+                              <span className="flex items-center justify-center shrink-0 w-4 h-4 ml-1.5 translate-y-[0.5px]">
+                                <Check
+                                  className="w-3.5 h-3.5"
+                                  style={{ color: 'var(--color-stop-1, #6366f1)' }}
+                                />
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
+
+                    <div
+                      className="border-t my-0.5"
+                      style={{
+                        borderColor:
+                          'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
+                      }}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewPlaylistTrack(contextMenu.track);
+                        setContextMenu(null);
+                        setPlaylistSubmenuOpen(false);
+                      }}
+                      onMouseEnter={(e) => handleItemHover(e, true)}
+                      onMouseLeave={(e) => handleItemHover(e, false)}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors cursor-pointer font-medium"
+                      style={{ color: 'var(--color-stop-1, #6366f1)' }}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>New Playlist...</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  toggleLikeTrack(contextMenu.track.id);
+                  setContextMenu(null);
+                }}
+                onMouseEnter={(e) => handleItemHover(e, true)}
+                onMouseLeave={(e) => handleItemHover(e, false)}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+              >
+                <Heart
+                  className={`w-4 h-4 ${
+                    isLiked ? 'fill-pink-500 text-pink-500' : 'text-zinc-400'
+                  }`}
+                  style={!isLiked ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
+                />
+                <span>{isLiked ? 'Unlike' : 'Like'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setInfoModalTrack(contextMenu.track);
+                  setContextMenu(null);
+                }}
+                onMouseEnter={(e) => handleItemHover(e, true)}
+                onMouseLeave={(e) => handleItemHover(e, false)}
+                className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
+              >
+                <Info className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                <span>Song Details & Specs</span>
+              </button>
+
+              {(contextMenu.source === 'userQueue' || contextMenu.source === 'contextQueue') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (contextMenu.source === 'userQueue' && typeof contextMenu.index === 'number') {
+                      removeFromUserQueue(contextMenu.index);
+                    } else if (contextMenu.source === 'contextQueue' && typeof contextMenu.index === 'number') {
+                      const actualIdx = currentIndex + 1 + contextMenu.index;
+                      const newQ = queue.filter((_, i) => i !== actualIdx);
+                      usePlayerStore.setState({ queue: newQ });
+                    }
+                    setContextMenu(null);
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '';
+                  }}
+                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-red-400 border-t mt-1 pt-2"
+                  style={{
+                    borderColor:
+                      'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 text-red-400" />
+                  <span>Remove from Queue</span>
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Create Playlist Modal */}
+      <CreatePlaylistModal
+        isOpen={Boolean(newPlaylistTrack)}
+        onClose={() => setNewPlaylistTrack(null)}
+        onConfirm={(playlistName) => {
+          if (newPlaylistTrack) {
+            const trackId = newPlaylistTrack.id;
+            createPlaylist(playlistName);
+            setTimeout(() => {
+              const latest = usePlayerStore.getState().playlists;
+              const created = latest.find((p) => p.name === playlistName);
+              if (created) {
+                usePlayerStore.getState().addTracksToPlaylist(created.id, [trackId]);
+              }
+            }, 50);
+            setNewPlaylistTrack(null);
+          }
+        }}
+      />
     </div>
   );
 };

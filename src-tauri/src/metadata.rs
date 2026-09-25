@@ -135,6 +135,19 @@ pub fn extract_track_lyrics(path_str: &str) -> Option<String> {
         }
     }
 
+    // Secondary: Read via Lofty
+    if let Ok(tagged_file) = lofty::probe::Probe::open(path).and_then(|p| p.read()) {
+        use lofty::file::TaggedFileExt;
+        for tag in tagged_file.tags() {
+            if let Some(lyrics) = tag.get_string(&lofty::tag::ItemKey::Lyrics) {
+                let cleaned = lyrics.trim_matches('\0').trim();
+                if !cleaned.is_empty() {
+                    return Some(cleaned.to_string());
+                }
+            }
+        }
+    }
+
     // Fallback: Probe via Symphonia for ID3v2 / embedded metadata
     if let Ok(file) = std::fs::File::open(path) {
         let mss = symphonia::core::io::MediaSourceStream::new(Box::new(file), Default::default());
@@ -516,9 +529,17 @@ pub fn parse_audio_file(path: &Path) -> Option<TrackMetadata> {
     let mut replay_gain_peak = None;
     let mut replay_gain_album_db = None;
     let mut replay_gain_album_peak = None;
-    let unsynced_lyrics = None;
+    let mut unsynced_lyrics = None;
 
     for tag in tagged_file.tags() {
+        if unsynced_lyrics.is_none() {
+            if let Some(l) = tag.get_string(&lofty::tag::ItemKey::Lyrics) {
+                let cleaned = l.trim_matches('\0').trim();
+                if !cleaned.is_empty() {
+                    unsynced_lyrics = Some(cleaned.to_string());
+                }
+            }
+        }
         if let Some(t) = tag.title() {
             let cleaned = t.trim();
             if !cleaned.is_empty() { title = cleaned.to_string(); }
@@ -605,6 +626,10 @@ pub fn parse_audio_file(path: &Path) -> Option<TrackMetadata> {
                 }
             }
         }
+    }
+
+    if unsynced_lyrics.is_none() {
+        unsynced_lyrics = extract_track_lyrics(&path_str);
     }
 
     let id = format!("{:x}", md5_hash(&path_str));
@@ -763,6 +788,10 @@ pub struct RefreshLibraryResult {
     pub restored_count: usize,
     pub removed_count: usize,
     pub total_count: usize,
+    #[serde(default)]
+    pub added_track_names: Vec<String>,
+    #[serde(default)]
+    pub removed_track_names: Vec<String>,
 }
 
 pub fn refresh_configured_directories(
@@ -798,6 +827,7 @@ pub fn refresh_configured_directories(
     let mut restored_count = 0;
     let mut missing_count = 0;
     let mut removed_count = 0;
+    let mut removed_track_names: Vec<String> = Vec::new();
 
     // Check existing tracks
     for mut track in existing_tracks {
@@ -826,6 +856,12 @@ pub fn refresh_configured_directories(
                 if now.saturating_sub(first_missing) >= one_day_secs {
                     // Has been missing for at least 24 hours -> purge from index
                     removed_count += 1;
+                    let display_name = if track.artist.is_empty() || track.artist == "Unknown Artist" {
+                        track.title.clone()
+                    } else {
+                        format!("{} - {}", track.artist, track.title)
+                    };
+                    removed_track_names.push(display_name);
                 } else {
                     // Retain in library for the 24-hour grace period
                     track.missing_since = Some(first_missing);
@@ -864,6 +900,17 @@ pub fn refresh_configured_directories(
         }
     });
 
+    let added_track_names: Vec<String> = new_tracks
+        .iter()
+        .map(|t| {
+            if t.artist.is_empty() || t.artist == "Unknown Artist" {
+                t.title.clone()
+            } else {
+                format!("{} - {}", t.artist, t.title)
+            }
+        })
+        .collect();
+
     final_tracks.extend(new_tracks);
 
     // Save updated library to disk
@@ -878,15 +925,30 @@ pub fn refresh_configured_directories(
         restored_count,
         removed_count,
         total_count,
+        added_track_names,
+        removed_track_names,
     })
 }
 
 pub fn purge_missing_from_library(app_data_path: &Path) -> Result<RefreshLibraryResult, String> {
     let existing_tracks = load_library_from_disk(app_data_path).unwrap_or_default();
     let before_count = existing_tracks.len();
+    let mut removed_track_names: Vec<String> = Vec::new();
     let final_tracks: Vec<TrackMetadata> = existing_tracks
         .into_iter()
-        .filter(|t| t.missing_since.is_none())
+        .filter(|t| {
+            if t.missing_since.is_some() {
+                let display_name = if t.artist.is_empty() || t.artist == "Unknown Artist" {
+                    t.title.clone()
+                } else {
+                    format!("{} - {}", t.artist, t.title)
+                };
+                removed_track_names.push(display_name);
+                false
+            } else {
+                true
+            }
+        })
         .collect();
     let removed_count = before_count.saturating_sub(final_tracks.len());
 
@@ -899,6 +961,8 @@ pub fn purge_missing_from_library(app_data_path: &Path) -> Result<RefreshLibrary
         restored_count: 0,
         removed_count,
         total_count: final_tracks.len(),
+        added_track_names: Vec::new(),
+        removed_track_names,
     })
 }
 
@@ -1026,6 +1090,7 @@ pub fn embed_track_lyrics(path_str: &str, lyrics: &str) -> Result<(), String> {
         comments.comments.remove("LYRICS");
         comments.comments.remove("UNSYNCEDLYRICS");
         comments.comments.insert("SYNCEDLYRICS".to_string(), vec![lyrics.to_string()]);
+        comments.comments.insert("LYRICS".to_string(), vec![lyrics.to_string()]);
         if tag.save().is_ok() {
             return Ok(());
         }
@@ -1048,6 +1113,7 @@ pub fn embed_track_lyrics(path_str: &str, lyrics: &str) -> Result<(), String> {
             }
         };
 
+        tag.remove_key(&lofty::tag::ItemKey::Lyrics);
         tag.insert_text(lofty::tag::ItemKey::Lyrics, lyrics.to_string());
         tag.save_to_path(path, lofty::config::WriteOptions::default()).map_err(|e| e.to_string())?;
         return Ok(());

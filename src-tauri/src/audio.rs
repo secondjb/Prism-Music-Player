@@ -475,9 +475,28 @@ fn run_audio_thread(
     device_switch_requested: Arc<AtomicBool>,
 ) -> Result<(), String> {
     let fade_in_start = std::time::Instant::now();
-    let file = File::open(Path::new(path_str))
-        .map_err(|e| format!("Failed to open file '{}': {}", path_str, e))?;
-    let mss = MediaSourceStream::new(Box::new(file), Default::default());
+    let source_box: Box<dyn symphonia::core::io::MediaSource> = {
+        let p = Path::new(path_str);
+        let metadata = std::fs::metadata(p).ok();
+        let file_len = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
+        // If file is under 150MB, read into memory Cursor so the file handle is NOT held open on disk.
+        // This allows tag editing (embedding lyrics, updating artwork/metadata) during active playback on Windows.
+        if file_len > 0 && file_len <= 150 * 1024 * 1024 {
+            match std::fs::read(p) {
+                Ok(bytes) => Box::new(std::io::Cursor::new(bytes)),
+                Err(_) => {
+                    let file = File::open(p)
+                        .map_err(|e| format!("Failed to open file '{}': {}", path_str, e))?;
+                    Box::new(file)
+                }
+            }
+        } else {
+            let file = File::open(p)
+                .map_err(|e| format!("Failed to open file '{}': {}", path_str, e))?;
+            Box::new(file)
+        }
+    };
+    let mss = MediaSourceStream::new(source_box, Default::default());
 
     let mut hint = Hint::new();
     if let Some(ext) = Path::new(path_str).extension() {

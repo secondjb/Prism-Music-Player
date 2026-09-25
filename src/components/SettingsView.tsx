@@ -587,7 +587,7 @@ export const SettingsView: React.FC = () => {
               {/* Refresh Results Dropdown */}
               {showRefreshDropdown && lastRefreshResult && (
                 <div
-                  className="absolute right-0 top-full mt-2 w-80 glass-panel border rounded-2xl p-4 shadow-2xl z-50 flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-150"
+                  className="absolute right-0 top-full mt-2 w-88 max-w-[90vw] glass-panel border rounded-2xl p-4 shadow-2xl z-50 flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-150"
                   style={{ borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)' }}
                 >
                   <div className="flex items-center justify-between border-b border-white/10 pb-2">
@@ -597,7 +597,7 @@ export const SettingsView: React.FC = () => {
                     </span>
                     <button
                       onClick={() => setShowRefreshDropdown(false)}
-                      className="text-zinc-500 hover:text-zinc-300 text-xs px-1.5 py-0.5 rounded"
+                      className="text-zinc-500 hover:text-zinc-300 text-xs px-1.5 py-0.5 rounded cursor-pointer"
                     >
                       ✕
                     </button>
@@ -607,6 +607,16 @@ export const SettingsView: React.FC = () => {
                       <span>Newly Added Songs:</span>
                       <strong className="text-emerald-400 font-mono">+{lastRefreshResult.added_count}</strong>
                     </div>
+                    {lastRefreshResult.added_track_names && lastRefreshResult.added_track_names.length > 0 && (
+                      <div className="flex flex-col gap-1 my-1 max-h-32 overflow-y-auto custom-scrollbar bg-black/40 rounded-xl p-2.5 border border-white/5">
+                        <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Added Songs:</span>
+                        {lastRefreshResult.added_track_names.map((name, i) => (
+                          <span key={i} className="text-[11px] text-zinc-200 truncate font-medium" title={name}>
+                            • {name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span>Missing from Disk:</span>
                       <strong className="text-amber-400 font-mono">{lastRefreshResult.missing_count}</strong>
@@ -615,6 +625,16 @@ export const SettingsView: React.FC = () => {
                       <span>Purged Tracks:</span>
                       <strong className="text-rose-400 font-mono">{lastRefreshResult.removed_count}</strong>
                     </div>
+                    {lastRefreshResult.removed_track_names && lastRefreshResult.removed_track_names.length > 0 && (
+                      <div className="flex flex-col gap-1 my-1 max-h-32 overflow-y-auto custom-scrollbar bg-black/40 rounded-xl p-2.5 border border-white/5">
+                        <span className="text-[10px] uppercase font-bold text-rose-400 tracking-wider">Purged Songs:</span>
+                        {lastRefreshResult.removed_track_names.map((name, i) => (
+                          <span key={i} className="text-[11px] text-zinc-300 truncate font-medium" title={name}>
+                            • {name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex justify-between pt-1 border-t border-white/5 font-semibold">
                       <span>Total Active Tracks:</span>
                       <strong className="text-white font-mono">{lastRefreshResult.total_count}</strong>
@@ -627,7 +647,7 @@ export const SettingsView: React.FC = () => {
                         await handlePurgeMissing();
                         setShowRefreshDropdown(false);
                       }}
-                      className="mt-1 w-full py-1.5 rounded-xl text-xs font-semibold text-rose-300 bg-rose-950/40 border border-rose-500/30 hover:bg-rose-900/50 transition-colors"
+                      className="mt-1 w-full py-1.5 rounded-xl text-xs font-semibold text-rose-300 bg-rose-950/40 border border-rose-500/30 hover:bg-rose-900/50 transition-colors cursor-pointer"
                     >
                       Purge Missing Songs Now
                     </button>

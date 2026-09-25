@@ -38,6 +38,8 @@ export interface RefreshLibraryResult {
   restored_count: number;
   removed_count: number;
   total_count: number;
+  added_track_names?: string[];
+  removed_track_names?: string[];
 }
 
 export interface AudioDeviceInfo {

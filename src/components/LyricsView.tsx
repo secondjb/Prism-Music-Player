@@ -42,6 +42,7 @@ import {
   Globe,
   Palette,
   Columns2,
+  Check,
 } from 'lucide-react';
 
 const romanizer = createRomanizer({ japaneseDictPath: '/dict' });
@@ -204,6 +205,8 @@ const renderSyllableTransWords = (
         style={{
           transform: `translate3d(0, ${sylLift}px, 0) scale(${sylScale})`,
           willChange: isSylActive ? 'transform' : undefined,
+          position: isSylActive ? 'relative' : undefined,
+          zIndex: isSylActive ? 35 : undefined,
           opacity: isSylActive ? 1 : isPast ? 0.45 : isSylPast ? 0.9 : 0.45,
           color: isSylActive
             ? '#ffffff'
@@ -291,6 +294,8 @@ const renderSyllableGroups = (
             style={{
               transform: `translate3d(0, ${sylLift}px, 0) scale(${sylScale})`,
               willChange: isSylActive ? 'transform' : undefined,
+              position: isSylActive ? 'relative' : undefined,
+              zIndex: isSylActive ? 35 : undefined,
               opacity: isSylActive ? 1 : isPast ? 0.45 : isSylPast ? 0.9 : 0.45,
               color: isSylActive
                 ? '#ffffff'
@@ -699,7 +704,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
       <div
         id={`lyric-line-${idx}`}
         ref={isActive && !isUnsynced ? activeLineRef : null}
-        className={`text-center cursor-pointer w-full px-6 py-3 rounded-2xl flex flex-col items-center justify-center break-words [text-wrap:balance] ${
+        className={`text-center cursor-pointer w-full px-6 py-3 rounded-2xl flex flex-col items-center justify-center break-words [text-wrap:balance] overflow-visible ${
           isActive && !isUnsynced
             ? 'font-extrabold'
             : isUnsynced
@@ -715,6 +720,8 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
           filter: blurAmount,
           willChange: 'transform, opacity',
           transition: 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease-out',
+          position: 'relative',
+          zIndex: isLosslessGlowActive ? 30 : isActive && !isUnsynced ? 25 : 1,
           ...(isCardPopActive
             ? {
                 backgroundColor: 'rgba(255, 255, 255, 0.08)',
@@ -738,7 +745,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
       >
         {/* Granular Syllable / Word rendering with Jumping text */}
         {line.hasSyllables && !isUnsynced ? (
-          <div className="inline-flex flex-wrap justify-center items-baseline text-center max-w-full">
+          <div className="inline-flex flex-wrap justify-center items-baseline text-center max-w-full overflow-visible relative">
             {isActive ? (
               <ActiveSyllableWords
                 line={line}
@@ -1145,6 +1152,7 @@ export const LyricsView: React.FC = () => {
   const [lines, setLines] = useState<ParsedLyricLine[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isEmbedding, setIsEmbedding] = useState(false);
+  const [embedSuccess, setEmbedSuccess] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'atmosphere' | 'typography' | 'sync'>('atmosphere');
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -1851,6 +1859,40 @@ export const LyricsView: React.FC = () => {
     }
   }, [maxActiveLine, activeInterlude?.key, isUserScrolled, scrollToActive]);
 
+  // Swap lyrics view layout effect (Centered <-> Split / Immersive):
+  // When swapped: if already synced, jump to current line; if unsynced, keep sync button enabled
+  const prevLayoutModeRef = useRef(lyricsLayoutMode);
+  const prevCompactRef = useRef(isCompact);
+  useEffect(() => {
+    if (prevLayoutModeRef.current !== lyricsLayoutMode || prevCompactRef.current !== isCompact) {
+      prevLayoutModeRef.current = lyricsLayoutMode;
+      prevCompactRef.current = isCompact;
+      lastScrolledMaxLineRef.current = -1;
+      lastScrollTargetRef.current = 0;
+      lastScrolledInterludeRef.current = null;
+      if (!isUserScrolled) {
+        // If it was synced already, jump to current line in the newly active container
+        const timer = setTimeout(() => {
+          scrollToActive(true);
+        }, 50);
+        return () => clearTimeout(timer);
+      } else {
+        // If it was unsynced, keep sync button enabled so user can re-sync
+        setIsUserScrolled(true);
+      }
+    }
+  }, [lyricsLayoutMode, isCompact, isUserScrolled, scrollToActive]);
+
+  // When lyrics lines load or update: if already synced, auto-scroll to current line
+  useEffect(() => {
+    if (lines.length > 0 && !isUserScrolled) {
+      const timer = setTimeout(() => {
+        scrollToActive(true);
+      }, 60);
+      return () => clearTimeout(timer);
+    }
+  }, [lines, isUserScrolled, scrollToActive]);
+
   const handleClose = async () => {
     setShowLyricsFullscreen(false);
     if (activeTab === 'lyrics') {
@@ -1897,6 +1939,17 @@ export const LyricsView: React.FC = () => {
       if (window.__TAURI_INTERNALS__) {
         await invoke('embed_lyrics', { path: currentTrack.path, lyrics: rawLrc });
       }
+      const { currentTrack: ct, tracks, setTracks } = usePlayerStore.getState();
+      if (ct && ct.id === currentTrack.id) {
+        usePlayerStore.setState({
+          currentTrack: { ...ct, unsynced_lyrics: rawLrc }
+        });
+      }
+      if (tracks) {
+        setTracks(tracks.map(t => t.id === currentTrack.id ? { ...t, unsynced_lyrics: rawLrc } : t));
+      }
+      setEmbedSuccess(true);
+      setTimeout(() => setEmbedSuccess(false), 2200);
     } catch (e) {
       console.warn('Embed lyrics error:', e);
     } finally {
@@ -2209,7 +2262,7 @@ export const LyricsView: React.FC = () => {
             <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
               <button
                 onClick={() => setSettingsTab('atmosphere')}
-                className={`flex-1 py-1 px-1.5 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 h-8 py-0 px-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer leading-none ${
                   settingsTab === 'atmosphere'
                     ? 'shadow-md'
                     : 'text-zinc-400 hover:text-zinc-200'
@@ -2220,12 +2273,12 @@ export const LyricsView: React.FC = () => {
                     : undefined
                 }
               >
-                <Palette className="w-3 h-3" />
-                <span>Atmosphere</span>
+                <Palette className="w-3.5 h-3.5 shrink-0" />
+                <span className="leading-none flex items-center">Atmosphere</span>
               </button>
               <button
                 onClick={() => setSettingsTab('typography')}
-                className={`flex-1 py-1 px-1.5 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 h-8 py-0 px-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer leading-none ${
                   settingsTab === 'typography'
                     ? 'shadow-md'
                     : 'text-zinc-400 hover:text-zinc-200'
@@ -2236,12 +2289,12 @@ export const LyricsView: React.FC = () => {
                     : undefined
                 }
               >
-                <TypeIcon className="w-3 h-3" />
-                <span>Typography</span>
+                <TypeIcon className="w-3.5 h-3.5 shrink-0" />
+                <span className="leading-none flex items-center">Typography</span>
               </button>
               <button
                 onClick={() => setSettingsTab('sync')}
-                className={`flex-1 py-1 px-1.5 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 h-8 py-0 px-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer leading-none ${
                   settingsTab === 'sync'
                     ? 'shadow-md'
                     : 'text-zinc-400 hover:text-zinc-200'
@@ -2252,8 +2305,8 @@ export const LyricsView: React.FC = () => {
                     : undefined
                 }
               >
-                <Languages className="w-3 h-3" />
-                <span>Sync & Lang</span>
+                <Languages className="w-3.5 h-3.5 shrink-0" />
+                <span className="leading-none flex items-center">Sync & Lang</span>
               </button>
             </div>
 
@@ -2738,13 +2791,22 @@ export const LyricsView: React.FC = () => {
                     onClick={handleEmbedLyrics}
                     disabled={isEmbedding || !rawLrc.trim()}
                     style={{
-                      backgroundColor: 'var(--color-stop-2, #818cf8)',
-                      color: 'var(--color-stop-2-text, #ffffff)',
+                      backgroundColor: embedSuccess ? '#10b981' : 'var(--color-stop-1, #6366f1)',
+                      color: 'var(--color-stop-1-text, #ffffff)',
                     }}
                     className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-semibold transition-colors hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
-                    <Save className={`w-3.5 h-3.5 ${isEmbedding ? 'animate-pulse' : ''}`} />
-                    {isEmbedding ? 'Embedding...' : 'Embed Lyrics to File'}
+                    {embedSuccess ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        Embedded to File!
+                      </>
+                    ) : (
+                      <>
+                        <Save className={`w-3.5 h-3.5 ${isEmbedding ? 'animate-pulse' : ''}`} />
+                        {isEmbedding ? 'Embedding...' : 'Embed Lyrics to File'}
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -2906,7 +2968,7 @@ export const LyricsView: React.FC = () => {
             style={{ willChange: 'scroll-position' }}
             className={`h-full w-full min-w-0 overflow-y-auto custom-scrollbar ${
               !isScrollbarVisible ? 'scrollbar-hidden' : ''
-            } flex flex-col items-center justify-start gap-6 pt-[16vh] pb-[22vh] pl-2 sm:pl-4 pr-[8%] lg:pr-[10%] z-10 relative`}
+            } flex flex-col items-center justify-start gap-6 pt-[16vh] pb-[22vh] pl-2 sm:pl-4 pr-[8%] lg:pr-[10%] z-20 relative`}
           >
             {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
               <button
@@ -3028,7 +3090,7 @@ export const LyricsView: React.FC = () => {
             style={{ willChange: 'scroll-position' }}
             className={`flex-1 overflow-y-auto my-4 px-4 custom-scrollbar ${
               !isScrollbarVisible ? 'scrollbar-hidden' : ''
-            } flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-10 relative`}
+            } flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-20 relative`}
           >
             {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
               <button

@@ -774,6 +774,7 @@ const FavoriteCell: React.FC<any> = ({ model }) => {
 const PlayNextCell: React.FC<any> = ({ model }) => {
   const track = (model || {}) as Track;
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
+  const [justAdded, setJustAdded] = useState(false);
   if (!track.id) return null;
 
   const config = ACTION_DENSITY_CONFIG[trackGridDensity] || ACTION_DENSITY_CONFIG.normal;
@@ -795,12 +796,22 @@ const PlayNextCell: React.FC<any> = ({ model }) => {
           } else {
             store.playNext(track);
           }
+          setJustAdded(true);
+          setTimeout(() => setJustAdded(false), 1200);
         }}
         onDoubleClick={(e) => e.stopPropagation()}
-        className={`${config.buttonClass} rounded-lg text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10 transition-all cursor-pointer flex items-center justify-center`}
-        title="Play Next"
+        className={`${config.buttonClass} rounded-lg ${
+          justAdded
+            ? 'opacity-100 text-emerald-400 bg-emerald-500/15'
+            : 'text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10'
+        } transition-all cursor-pointer flex items-center justify-center`}
+        title={justAdded ? 'Added Next!' : 'Play Next'}
       >
-        <ListPlus className={config.iconClass} />
+        {justAdded ? (
+          <Check className={`${config.iconClass} stroke-[2.5]`} />
+        ) : (
+          <ListPlus className={config.iconClass} />
+        )}
       </button>
     </div>
   );
@@ -809,6 +820,7 @@ const PlayNextCell: React.FC<any> = ({ model }) => {
 const AddToQueueCell: React.FC<any> = ({ model }) => {
   const track = (model || {}) as Track;
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
+  const [justAdded, setJustAdded] = useState(false);
   if (!track.id) return null;
 
   const config = ACTION_DENSITY_CONFIG[trackGridDensity] || ACTION_DENSITY_CONFIG.normal;
@@ -830,12 +842,22 @@ const AddToQueueCell: React.FC<any> = ({ model }) => {
           } else {
             store.addToQueue(track);
           }
+          setJustAdded(true);
+          setTimeout(() => setJustAdded(false), 1200);
         }}
         onDoubleClick={(e) => e.stopPropagation()}
-        className={`${config.buttonClass} rounded-lg text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10 transition-all cursor-pointer flex items-center justify-center`}
-        title="Add to Queue"
+        className={`${config.buttonClass} rounded-lg ${
+          justAdded
+            ? 'opacity-100 text-emerald-400 bg-emerald-500/15'
+            : 'text-zinc-400 opacity-0 group-hover/row:opacity-100 hover:text-white hover:bg-white/10'
+        } transition-all cursor-pointer flex items-center justify-center`}
+        title={justAdded ? 'Added to Queue!' : 'Add to Queue'}
       >
-        <ListEnd className={config.iconClass} />
+        {justAdded ? (
+          <Check className={`${config.iconClass} stroke-[2.5]`} />
+        ) : (
+          <ListEnd className={config.iconClass} />
+        )}
       </button>
     </div>
   );
@@ -1756,6 +1778,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const calculatedHeight = autoHeight && tracks.length > 0 ? 48 + tracks.length * currentDensityHeight : undefined;
 
   // Batch actions from floating bar
+  const [batchQueueAdded, setBatchQueueAdded] = useState(false);
+  const [batchNextAdded, setBatchNextAdded] = useState(false);
+
   const handleBatchPlay = () => {
     if (selectedTracksList.length > 0) {
       playTrack(selectedTracksList[0], tracks);
@@ -1765,12 +1790,16 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const handleBatchAddToQueue = () => {
     if (selectedTracksList.length > 0) {
       addTracksToQueue(selectedTracksList);
+      setBatchQueueAdded(true);
+      setTimeout(() => setBatchQueueAdded(false), 1200);
     }
   };
 
   const handleBatchPlayNext = () => {
     if (selectedTracksList.length > 0) {
       playNextTracks(selectedTracksList);
+      setBatchNextAdded(true);
+      setTimeout(() => setBatchNextAdded(false), 1200);
     }
   };
 
@@ -1949,21 +1978,37 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
             <button
               type="button"
               onClick={handleBatchAddToQueue}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer hover:scale-105 active:scale-95"
-              title="Add to Queue"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold ${
+                batchQueueAdded
+                  ? 'bg-emerald-500/20 text-emerald-300'
+                  : 'bg-white/10 hover:bg-white/20 text-white'
+              } transition-all cursor-pointer hover:scale-105 active:scale-95`}
+              title={batchQueueAdded ? 'Queued!' : 'Add to Queue'}
             >
-              <ListEnd className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-              <span>Queue</span>
+              {batchQueueAdded ? (
+                <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
+              ) : (
+                <ListEnd className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              )}
+              <span>{batchQueueAdded ? 'Queued!' : 'Queue'}</span>
             </button>
 
             <button
               type="button"
               onClick={handleBatchPlayNext}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer hover:scale-105 active:scale-95"
-              title="Play Next"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold ${
+                batchNextAdded
+                  ? 'bg-emerald-500/20 text-emerald-300'
+                  : 'bg-white/10 hover:bg-white/20 text-white'
+              } transition-all cursor-pointer hover:scale-105 active:scale-95`}
+              title={batchNextAdded ? 'Added Next!' : 'Play Next'}
             >
-              <ListPlus className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-              <span>Next</span>
+              {batchNextAdded ? (
+                <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
+              ) : (
+                <ListPlus className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              )}
+              <span>{batchNextAdded ? 'Next!' : 'Next'}</span>
             </button>
 
             <button

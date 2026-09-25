@@ -39,6 +39,9 @@ const muiDarkTheme = createTheme({
       main: '#6366f1',
     },
   },
+  typography: {
+    fontFamily: 'inherit',
+  },
   components: {
     MuiSlider: {
       styleOverrides: {
@@ -47,23 +50,42 @@ const muiDarkTheme = createTheme({
           height: 6,
         },
         thumb: {
-          height: 18,
-          width: 18,
+          height: 16,
+          width: 16,
           backgroundColor: '#ffffff',
-          border: '2px solid var(--color-stop-1, #6366f1)',
+          border: '2px solid currentColor',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.5)',
+          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
           '&:focus, &:hover, &.Mui-active, &.Mui-focusVisible': {
-            boxShadow: '0 0 0 8px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+            boxShadow: '0 0 0 8px color-mix(in srgb, currentColor 25%, transparent)',
+            transform: 'scale(1.15)',
           },
         },
         track: {
           height: 6,
           borderRadius: 3,
+          border: 'none',
         },
         rail: {
           height: 6,
           borderRadius: 3,
-          backgroundColor: '#27272a',
-          opacity: 0.8,
+          backgroundColor: 'rgba(255, 255, 255, 0.15)',
+          opacity: 1,
+        },
+        valueLabel: {
+          fontSize: 11,
+          fontWeight: 700,
+          fontFamily: 'inherit',
+          lineHeight: 1.2,
+          padding: '4px 8px',
+          borderRadius: 8,
+          backgroundColor: '#18181b',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          color: '#ffffff',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.6)',
+          '&:before': {
+            display: 'none',
+          },
         },
       },
     },
@@ -1244,12 +1266,14 @@ let savedFilterScrollTop = 0;
                     '& .MuiSlider-thumb': {
                       width: 16,
                       height: 16,
+                      border: '2px solid var(--color-stop-1, #6366f1)',
                       '&:hover, &.Mui-focusVisible': {
                         boxShadow: '0px 0px 0px 8px color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
                       },
                     },
                     '& .MuiSlider-rail': {
-                      opacity: 0.2,
+                      backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                      opacity: 1,
                     },
                   }}
                 />
@@ -1296,12 +1320,14 @@ let savedFilterScrollTop = 0;
                     '& .MuiSlider-thumb': {
                       width: 16,
                       height: 16,
+                      border: '2px solid var(--color-stop-3, #ec4899)',
                       '&:hover, &.Mui-focusVisible': {
                         boxShadow: '0px 0px 0px 8px color-mix(in srgb, var(--color-stop-3, #ec4899) 20%, transparent)',
                       },
                     },
                     '& .MuiSlider-rail': {
-                      opacity: 0.2,
+                      backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                      opacity: 1,
                     },
                   }}
                 />
@@ -1348,12 +1374,14 @@ let savedFilterScrollTop = 0;
                     '& .MuiSlider-thumb': {
                       width: 16,
                       height: 16,
+                      border: '2px solid var(--color-stop-4, #d946ef)',
                       '&:hover, &.Mui-focusVisible': {
                         boxShadow: '0px 0px 0px 8px color-mix(in srgb, var(--color-stop-4, #d946ef) 20%, transparent)',
                       },
                     },
                     '& .MuiSlider-rail': {
-                      opacity: 0.2,
+                      backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                      opacity: 1,
                     },
                   }}
                 />

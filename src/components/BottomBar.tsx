@@ -179,7 +179,7 @@ export const BottomBar: React.FC = () => {
     <footer className="fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/95 backdrop-blur-2xl border-t border-white/10 z-30 flex items-center justify-between px-6 select-none">
       {/* 1. Track Info (Left) */}
       <div 
-        className="flex items-center gap-4 w-1/4 min-w-[180px] shrink relative"
+        className="flex items-center gap-4 flex-1 min-w-[180px] max-w-[32%] relative"
         onContextMenu={(e) => {
           if (currentTrack) {
             e.preventDefault();
@@ -231,20 +231,20 @@ export const BottomBar: React.FC = () => {
               )}
             </div>
 
-            <div className="flex flex-col min-w-0 cursor-context-menu">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm text-white truncate max-w-[140px]" title={currentTrack.title}>
+            <div className="flex flex-col min-w-0 flex-1 cursor-context-menu">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-semibold text-sm text-white truncate max-w-[clamp(140px,22vw,480px)]" title={currentTrack.title}>
                   {currentTrack.title}
                 </span>
                 <button
                   onClick={() => toggleLikeTrack(currentTrack.id)}
-                  className="text-zinc-400 hover:text-red-500 transition-colors p-0.5"
+                  className="text-zinc-400 hover:text-red-500 transition-colors p-0.5 shrink-0"
                 >
                   <Heart className={`w-4 h-4 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
                 </button>
               </div>
               <span 
-                className="text-xs text-zinc-400 truncate max-w-[140px] hover:underline cursor-pointer" 
+                className="text-xs text-zinc-400 truncate max-w-[clamp(140px,22vw,480px)] hover:underline cursor-pointer" 
                 title={currentTrack.artist}
                 onClick={(e) => {
                   if (currentTrack.artist && currentTrack.artist !== 'Unknown Artist') {
@@ -517,7 +517,7 @@ export const BottomBar: React.FC = () => {
       </div>
 
       {/* 2. Audio Controls & Material 3 Expressive Seek Bar (Center) */}
-      <div className="flex flex-col items-center gap-0.5 w-2/4 max-w-2xl px-4 min-w-0 shrink">
+      <div className="flex flex-col items-center gap-0.5 flex-1 max-w-2xl px-4 min-w-[320px] shrink">
         {/* Playback Buttons */}
         <div className="flex items-center gap-4">
           {/* Shuffle */}
@@ -586,7 +586,7 @@ export const BottomBar: React.FC = () => {
       </div>
 
       {/* 3. Volume & Extra Controls (Right - Responsive & Auto-Shrinking) */}
-      <div className="flex items-center justify-end gap-1.5 sm:gap-2.5 w-1/4 shrink min-w-0">
+      <div className="flex items-center justify-end gap-1.5 sm:gap-2.5 flex-1 min-w-[200px] max-w-[32%] shrink-0">
         {/* Queue Drawer Button */}
         <button
           onClick={() => usePlayerStore.setState((s) => ({ isQueueOpen: !s.isQueueOpen }))}

@@ -240,7 +240,7 @@ const renderSyllableGroups = (
   return wordGroups.map((group) => (
     <span
       key={`${line.id}-word-${group.wordIndex}`}
-      className={`inline-flex items-baseline whitespace-nowrap ${
+      className={`inline-flex items-baseline whitespace-nowrap overflow-visible relative ${
         group.hasTrailingSpace ? 'mr-[0.28em]' : ''
       }`}
     >
@@ -704,7 +704,7 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
       <div
         id={`lyric-line-${idx}`}
         ref={isActive && !isUnsynced ? activeLineRef : null}
-        className={`text-center cursor-pointer w-full px-6 py-3 rounded-2xl flex flex-col items-center justify-center break-words [text-wrap:balance] overflow-visible ${
+        className={`text-center cursor-pointer w-full px-8 sm:px-12 py-3.5 rounded-2xl flex flex-col items-center justify-center break-words [text-wrap:balance] overflow-visible relative ${
           isActive && !isUnsynced
             ? 'font-extrabold'
             : isUnsynced
@@ -722,14 +722,6 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
           transition: 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease-out',
           position: 'relative',
           zIndex: isLosslessGlowActive ? 30 : isActive && !isUnsynced ? 25 : 1,
-          ...(isCardPopActive
-            ? {
-                backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                backdropFilter: 'blur(20px)',
-                boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.5)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-              }
-            : {}),
           ...(isLosslessGlowActive
             ? {
                 filter:
@@ -743,6 +735,19 @@ const LyricLineRow = React.memo<LyricLineRowProps>(
           }
         }}
       >
+        {/* Floating Card Pop Background Layer (Placed on a child layer so backdropFilter doesn't clip child text-shadows/glows) */}
+        {isCardPopActive && (
+          <div
+            className="absolute inset-0 rounded-2xl pointer-events-none -z-10"
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+              backdropFilter: 'blur(20px)',
+              boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.5)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+            }}
+          />
+        )}
+
         {/* Granular Syllable / Word rendering with Jumping text */}
         {line.hasSyllables && !isUnsynced ? (
           <div className="inline-flex flex-wrap justify-center items-baseline text-center max-w-full overflow-visible relative">
@@ -2968,7 +2973,7 @@ export const LyricsView: React.FC = () => {
             style={{ willChange: 'scroll-position' }}
             className={`h-full w-full min-w-0 overflow-y-auto custom-scrollbar ${
               !isScrollbarVisible ? 'scrollbar-hidden' : ''
-            } flex flex-col items-center justify-start gap-6 pt-[16vh] pb-[22vh] pl-2 sm:pl-4 pr-[8%] lg:pr-[10%] z-20 relative`}
+            } flex flex-col items-center justify-start gap-6 pt-[16vh] pb-[22vh] px-8 sm:px-12 lg:px-16 z-20 relative`}
           >
             {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
               <button
@@ -3088,7 +3093,7 @@ export const LyricsView: React.FC = () => {
           <div
             ref={containerRef}
             style={{ willChange: 'scroll-position' }}
-            className={`flex-1 overflow-y-auto my-4 px-4 custom-scrollbar ${
+            className={`flex-1 overflow-y-auto my-4 px-8 sm:px-16 lg:px-24 custom-scrollbar ${
               !isScrollbarVisible ? 'scrollbar-hidden' : ''
             } flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-20 relative`}
           >
@@ -3381,7 +3386,7 @@ export const LyricsView: React.FC = () => {
                 />
                 <span
                   style={{ color: 'var(--color-stop-1, #6366f1)' }}
-                  className="text-[10px] font-mono font-bold min-w-[28px] text-right"
+                  className="text-[10px] font-mono font-bold w-8 shrink-0 text-right tabular-nums select-none"
                 >
                   {Math.round(volume * 100)}%
                 </span>

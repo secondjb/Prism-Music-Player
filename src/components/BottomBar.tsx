@@ -646,39 +646,41 @@ export const BottomBar: React.FC = () => {
             />
 
             {/* Integer Volume Percentage Display / Direct Input */}
-            {isEditingVol ? (
-              <input
-                type="number"
-                min={0}
-                max={100}
-                step={1}
-                autoFocus
-                value={volInputText}
-                onChange={(e) => setVolInputText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleVolInputSubmit();
-                  if (e.key === 'Escape') setIsEditingVol(false);
-                }}
-                onBlur={handleVolInputSubmit}
-                style={{
-                  color: 'var(--color-stop-1, #6366f1)',
-                  borderColor: 'var(--color-stop-1, #6366f1)',
-                }}
-                className="w-12 px-1 py-1 text-xs font-mono font-bold text-center bg-zinc-800/80 border-b-2 rounded-t outline-none focus:bg-zinc-800 shrink-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none shadow-inner"
-              />
-            ) : (
-              <button
-                onClick={() => {
-                  setVolInputText(Math.round(effectiveVol * 100).toString());
-                  setIsEditingVol(true);
-                }}
-                style={{ color: 'var(--color-stop-1, #6366f1)' }}
-                className="px-1 py-0.5 text-xs font-mono font-bold hover:brightness-125 rounded transition-all min-w-[28px] text-right shrink-0"
-                title="Click to type volume"
-              >
-                {Math.round(effectiveVol * 100)}%
-              </button>
-            )}
+            <div className="w-10 shrink-0 flex items-center justify-end">
+              {isEditingVol ? (
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  autoFocus
+                  value={volInputText}
+                  onChange={(e) => setVolInputText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleVolInputSubmit();
+                    if (e.key === 'Escape') setIsEditingVol(false);
+                  }}
+                  onBlur={handleVolInputSubmit}
+                  style={{
+                    color: 'var(--color-stop-1, #6366f1)',
+                    borderColor: 'var(--color-stop-1, #6366f1)',
+                  }}
+                  className="w-full px-0.5 py-0.5 text-xs font-mono font-bold text-center bg-zinc-800/80 border-b-2 rounded-t outline-none focus:bg-zinc-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none shadow-inner"
+                />
+              ) : (
+                <button
+                  onClick={() => {
+                    setVolInputText(Math.round(effectiveVol * 100).toString());
+                    setIsEditingVol(true);
+                  }}
+                  style={{ color: 'var(--color-stop-1, #6366f1)' }}
+                  className="w-full px-0.5 py-0.5 text-xs font-mono font-bold hover:brightness-125 rounded transition-all text-right select-none tabular-nums"
+                  title="Click to type volume"
+                >
+                  {Math.round(effectiveVol * 100)}%
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Audio Output Devices & Quality Modal Button */}

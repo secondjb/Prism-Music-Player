@@ -30,7 +30,6 @@ import {
   Globe,
   Volume2,
   Radio,
-  FastForward,
   Image as ImageIcon,
   Palette,
   Layers,
@@ -144,16 +143,6 @@ const REPLAY_GAIN_OPTIONS = [
   { id: 'album', name: 'Album Gain', desc: 'Preserves dynamic volume balance across album tracks' },
   { id: 'off', name: 'Disabled', desc: 'Play raw unadjusted source volume' },
 ] as const;
-
-const CROSSFADE_MARKS = [
-  { value: 0, label: 'Off' },
-  { value: 1, label: '1s' },
-  { value: 2, label: '2s' },
-  { value: 3, label: '3s' },
-  { value: 5, label: '5s' },
-  { value: 7, label: '7s' },
-  { value: 10, label: '10s' },
-];
 
 const FONT_OPTIONS = [
   { id: 'system-ui, -apple-system, sans-serif', name: 'System Default', desc: 'Native OS typeface' },
@@ -290,8 +279,6 @@ export const SettingsView: React.FC = () => {
   const inferWordSyncedLyrics = usePlayerStore((s) => s.inferWordSyncedLyrics);
   const toggleInferWordSyncedLyrics = usePlayerStore((s) => s.toggleInferWordSyncedLyrics);
 
-  const crossfadeDuration = usePlayerStore((s) => s.crossfadeDuration);
-  const setCrossfadeDuration = usePlayerStore((s) => s.setCrossfadeDuration);
   const isGaplessEnabled = usePlayerStore((s) => s.isGaplessEnabled);
   const toggleGaplessEnabled = usePlayerStore((s) => s.toggleGaplessEnabled);
   const replayGainMode = usePlayerStore((s) => s.replayGainMode);
@@ -666,7 +653,7 @@ export const SettingsView: React.FC = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search settings (e.g. crossfade, font, romaji)..."
+                placeholder="Search settings (e.g. gapless, font, romaji)..."
                 className="w-full bg-zinc-900/80 border border-white/10 rounded-xl pl-9 pr-8 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-white/20 transition-colors"
               />
               {searchQuery && (
@@ -1138,7 +1125,7 @@ export const SettingsView: React.FC = () => {
         {/* ========================================================================= */}
         {/* SECTION 2: AUDIO ENGINE & PLAYBACK */}
         {/* ========================================================================= */}
-        {shouldShowSection('audio', 'audio crossfade gapless replaygain volume normalization sound playback engine') && (
+        {shouldShowSection('audio', 'audio gapless replaygain volume normalization sound playback engine') && (
           <div className="glass-card rounded-2xl border border-white/10 shadow-xl transition-all shrink-0">
             {/* Accordion Header */}
             <div
@@ -1161,14 +1148,14 @@ export const SettingsView: React.FC = () => {
                 <div className="flex flex-col min-w-0">
                   <h3 className="text-sm font-bold text-white">Audio Engine & Playback</h3>
                   <p className="text-xs text-zinc-400 truncate">
-                    Crossfading, gapless audio transitions, and ReplayGain volume normalization
+                    Gapless audio transitions and ReplayGain volume normalization
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
                 <span className="hidden sm:inline-flex px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-white/5 border border-white/10 text-zinc-300">
-                  {crossfadeDuration === 0 ? 'Crossfade Off' : `${crossfadeDuration}s Fade`} • {isGaplessEnabled ? 'Gapless On' : 'Gapless Off'}
+                  {isGaplessEnabled ? 'Gapless On' : 'Gapless Off'}
                 </span>
                 <ChevronDown
                   className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${
@@ -1182,43 +1169,6 @@ export const SettingsView: React.FC = () => {
             {!collapsedSections.has('audio') && (
               <div className="p-5 pt-0 border-t border-white/5 flex flex-col gap-4 mt-1">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3">
-                  {/* Crossfade Duration Slider */}
-                  <div className="flex flex-col gap-2 p-3.5 rounded-xl bg-white/5 border border-white/5 col-span-1 md:col-span-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <FastForward className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-white">Crossfade & Mix Duration</span>
-                          <span className="text-[11px] text-zinc-400">
-                            Seamlessly blend and crossfade outgoing songs into incoming tracks
-                          </span>
-                        </div>
-                      </div>
-                      <span
-                        className="font-mono text-xs font-bold px-2 py-0.5 rounded-lg border"
-                        style={{
-                          backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
-                          borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
-                          color: 'var(--color-stop-1, #6366f1)',
-                        }}
-                      >
-                        {crossfadeDuration === 0 ? 'Off (0.0s)' : `${crossfadeDuration.toFixed(1)}s`}
-                      </span>
-                    </div>
-                    <div className="px-3 pt-2 pb-1">
-                      <Slider
-                        aria-label="Crossfade Duration"
-                        value={crossfadeDuration}
-                        onChange={(_, val) => setCrossfadeDuration(val as number)}
-                        min={0}
-                        max={10}
-                        step={0.5}
-                        marks={CROSSFADE_MARKS}
-                        valueLabelDisplay="auto"
-                        valueLabelFormat={(v) => (v === 0 ? 'Off' : `${v}s`)}
-                      />
-                    </div>
-                  </div>
 
                   {/* Gapless Playback Toggle */}
                   <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 gap-2">

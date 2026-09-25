@@ -64,10 +64,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          EXE_PATH="src-tauri/target/release/Prism Music Player.exe"
-          if [ -f "$EXE_PATH" ]; then
-            gh release upload "${{ github.ref_name }}" "$EXE_PATH#Prism.Music.Player.exe" --clobber
+          EXE_PATH=""
+          if [ -f "src-tauri/target/release/prism_music_player.exe" ]; then
+            EXE_PATH="src-tauri/target/release/prism_music_player.exe"
+          elif [ -f "src-tauri/target/release/Prism Music Player.exe" ]; then
+            EXE_PATH="src-tauri/target/release/Prism Music Player.exe"
+          elif [ -f "src-tauri/target/x86_64-pc-windows-msvc/release/prism_music_player.exe" ]; then
+            EXE_PATH="src-tauri/target/x86_64-pc-windows-msvc/release/prism_music_player.exe"
+          elif [ -f "src-tauri/target/x86_64-pc-windows-msvc/release/Prism Music Player.exe" ]; then
+            EXE_PATH="src-tauri/target/x86_64-pc-windows-msvc/release/Prism Music Player.exe"
           else
-            echo "Standalone binary not found at $EXE_PATH"
+            EXE_PATH=$(find src-tauri/target -type f \( -name "prism_music_player.exe" -o -name "Prism Music Player.exe" \) | grep -E "release[/\\\\]" | head -n 1)
+          fi
+
+          if [ -n "$EXE_PATH" ] && [ -f "$EXE_PATH" ]; then
+            echo "Found standalone binary at: $EXE_PATH"
+            cp "$EXE_PATH" "Prism.Music.Player.exe"
+            gh release upload "${{ github.ref_name }}" "Prism.Music.Player.exe" --clobber
+            echo "Successfully uploaded Prism.Music.Player.exe to release ${{ github.ref_name }}"
+          else
+            echo "::error::Standalone binary not found! Available executables:"
+            find src-tauri/target -name "*.exe" || true
+            exit 1
           fi
 

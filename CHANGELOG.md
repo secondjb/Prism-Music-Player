@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] - 2026-09-25
+
+### Overview
+
+Prism Music Player **v0.3.0** introduces gapless audio playback, a built-in high-performance EBU R128 / ReplayGain loudness scanner, song linking to group continuous track suites, multi-song selection and batch actions, a 5-tier lyrics discovery cascade with an immersive split lyrics view, Windows taskbar controls, and extensive architectural performance optimizations.
+
+---
+
+### Key Highlights & Changes
+
+#### 🔀 Gapless Playback & Seamless Transitions
+- **Gapless Transitions:** True gapless audio playback across consecutive tracks without pauses or clicks.
+- **Robust Repeat Modes:** Polished repeat-one and repeat-all transitions that advance cleanly without infinite skip loops.
+
+#### 🎚️ EBU R128 ReplayGain Loudness Scanner
+- **Built-in Loudness Scanner:** High-performance background audio scanner adhering to ITU-R BS.1770 / EBU R128 standards.
+- **Real-Time Normalization:** Live volume scaling for both track and album gain modes.
+- **Hybrid Storage:** Automatically parses embedded Vorbis and ID3 ReplayGain tags and persists scanner calculations in SQLite for untagged tracks.
+
+#### 🔗 Song Linking & Linked Suites
+- **Track Suites:** Link consecutive songs (concept albums, movements, overtures) into uninterrupted continuous sequences.
+- **Sequence Reordering:** Reorder linked tracks using drag handles with dedicated suite header counters and track pills.
+- **Song Info Integration:** Search and link related songs directly from within the Song Info modal.
+
+#### 🖱️ Multi-Song Selection & Batch Operations
+- **Range & Multi-Select:** Select multiple songs using Shift+Click (range) and Ctrl/Cmd+Click (toggle).
+- **Batch Actions:** Batch play, add to queue, or drag-and-drop multiple selected tracks directly into playlists.
+- **Context Menus:** Added queue drawer context menus for quick actions (play next, remove, view info).
+
+#### 📜 5-Tier Lyrics Discovery & Immersive View
+- **Discovery Cascade:** 5-tier multi-provider waterfall (Unison, NetEase, LRCLIB, SyncLRC) with automatic fallback and service status indicator.
+- **Immersive Split Lyrics View:** Fluid full-window layout pairing large album art with centered lyrics and hover action shortcuts.
+- **Customizable Themes:** Dynamic mesh gradients, blurred album artwork, solid tints, and customizable opacity.
+- **Global Lyrics Search:** Search tracks across your entire library by lyric snippets with match preview snippets.
+- **Direct Tag Embedding:** Write accepted synchronized lyrics directly to audio file tags (`SYNCEDLYRICS`).
+- **Karaoke Refinements:** Hardware-accelerated lyric rendering, pure white word highlights, past lyric line dimming during interludes, and romanization text replacement support in syllable view.
+
+#### 🎨 Dynamic Theming & Windows Taskbar Controls
+- **Adaptive Contrast Theming:** WCAG-aware dynamic text contrast calculations; search inputs, borders, and accents react to album art palettes.
+- **Windows Taskbar Integration:** Thumbnail toolbar preview transport buttons (Play/Pause, Next, Previous) and SMTC integration.
+- **Settings Redesign:** Collapsible accordion categories, search filter, and 3-state toggle buttons.
+
+#### ⚡ Performance & Architectural Overhaul
+- **Modular Rust Backend:** Separated Tauri commands into dedicated domain handlers (`analysis`, `filter`, `library`, `loudness`, `media`, `playback`).
+- **Lock-Free Atomic IPC:** Sub-millisecond playback position and seeking IPC, debounced frontend seek operations, and zero thread contention.
+- **React 19 Re-render Isolation:** High-frequency playback updates isolated in `TrackProgressBar` and `useAudioPlayback` hook; code-splitting for heavy views.
+- **Virtualized Grid Optimization:** Native Stencil metadata cells in RevoGrid, frame overscanning, persistent Stencil Host detection, and eliminated circular console errors.
+
+---
+
 ## [0.2.0] - 2026-09-11
 
 ### Overview

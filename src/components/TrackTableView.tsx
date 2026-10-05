@@ -1090,8 +1090,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   }, [sortState]);
 
   const handleSelectSortOption = (opt: (typeof SORT_OPTIONS)[number]) => {
-    if (sortState?.prop === opt.prop) {
-      const nextOrder: 'asc' | 'desc' = sortState.order === 'desc' ? 'asc' : 'desc';
+    const current = isMainGrid ? usePlayerStore.getState().mainGridSortState : localSortState;
+    if (current?.prop === opt.prop) {
+      const nextOrder: 'asc' | 'desc' = current.order === 'desc' ? 'asc' : 'desc';
       setSortState({ prop: opt.prop, order: nextOrder });
     } else {
       setSortState({ prop: opt.prop, order: opt.defaultOrder });
@@ -1199,8 +1200,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const isSearchActive = Boolean(searchQuery && searchQuery.trim());
 
   const gridKey = useMemo(() => {
-    return `rg-${containerWidth}-${trackGridDensity}-${visibleTrackColumns.length}-${columnOrder.join(',')}-${isSearchActive ? 'search' : 'all'}`;
-  }, [containerWidth, trackGridDensity, visibleTrackColumns.length, columnOrder, isSearchActive]);
+    return `rg-${containerWidth}-${trackGridDensity}-${visibleTrackColumns.length}-${columnOrder.join(',')}-${isSearchActive ? 'search' : 'all'}-${sortState?.prop ?? 'none'}-${sortState?.order ?? 'none'}`;
+  }, [containerWidth, trackGridDensity, visibleTrackColumns.length, columnOrder, isSearchActive, sortState]);
 
   // Synchronize RevoGrid sorting lifecycle with React state cleanly without feedback loops
   useEffect(() => {

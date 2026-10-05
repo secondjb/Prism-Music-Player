@@ -789,7 +789,11 @@ pub struct RefreshLibraryResult {
     pub removed_count: usize,
     pub total_count: usize,
     #[serde(default)]
+    pub updated_count: usize,
+    #[serde(default)]
     pub added_track_names: Vec<String>,
+    #[serde(default)]
+    pub updated_track_names: Vec<String>,
     #[serde(default)]
     pub removed_track_names: Vec<String>,
 }
@@ -807,6 +811,8 @@ pub fn refresh_configured_directories(
     }
 
     use std::collections::{HashMap, HashSet};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Mutex;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     let mut disk_paths_map: HashMap<String, PathBuf> = HashMap::new();
@@ -821,7 +827,108 @@ pub fn refresh_configured_directories(
 
     let one_day_secs: u64 = 24 * 60 * 60; // 86400 seconds (1 day)
 
-    let mut final_tracks: Vec<TrackMetadata> = Vec::with_capacity(existing_tracks.len() + 32);
+    let mut updated_tracks: Vec<TrackMetadata> = existing_tracks;
+    let updated_count = AtomicUsize::new(0);
+    let updated_track_names: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+    // Update metadata for existing tracks present on disk in parallel (e.g. edited artist, title, album, etc.)
+    updated_tracks.par_iter_mut().for_each(|track| {
+        let key = normalize_key(Path::new(&track.path));
+        let exists = disk_paths_map.contains_key(&key) || Path::new(&track.path).exists();
+        if exists {
+            let p = Path::new(&track.path);
+            if let Some(parsed) = parse_audio_file(p) {
+                let mut changed = false;
+
+                if track.title != parsed.title {
+                    track.title = parsed.title;
+                    changed = true;
+                }
+                if track.artist != parsed.artist {
+                    track.artist = parsed.artist;
+                    changed = true;
+                }
+                if track.album != parsed.album {
+                    track.album = parsed.album;
+                    changed = true;
+                }
+                if track.genre != parsed.genre {
+                    track.genre = parsed.genre;
+                    changed = true;
+                }
+                if track.year != parsed.year {
+                    track.year = parsed.year;
+                    changed = true;
+                }
+                if track.date != parsed.date {
+                    track.date = parsed.date;
+                    changed = true;
+                }
+                if (track.duration_secs - parsed.duration_secs).abs() > 0.05 {
+                    track.duration_secs = parsed.duration_secs;
+                    changed = true;
+                }
+                if track.sample_rate != parsed.sample_rate {
+                    track.sample_rate = parsed.sample_rate;
+                    changed = true;
+                }
+                if track.bit_depth != parsed.bit_depth {
+                    track.bit_depth = parsed.bit_depth;
+                    changed = true;
+                }
+                if track.channels != parsed.channels {
+                    track.channels = parsed.channels;
+                    changed = true;
+                }
+                if track.bit_rate_kbps != parsed.bit_rate_kbps {
+                    track.bit_rate_kbps = parsed.bit_rate_kbps;
+                    changed = true;
+                }
+                if parsed.unsynced_lyrics.is_some() && track.unsynced_lyrics != parsed.unsynced_lyrics {
+                    track.unsynced_lyrics = parsed.unsynced_lyrics;
+                    changed = true;
+                }
+                if parsed.replay_gain_db.is_some() && track.replay_gain_db != parsed.replay_gain_db {
+                    track.replay_gain_db = parsed.replay_gain_db;
+                    changed = true;
+                }
+                if parsed.replay_gain_peak.is_some() && track.replay_gain_peak != parsed.replay_gain_peak {
+                    track.replay_gain_peak = parsed.replay_gain_peak;
+                    changed = true;
+                }
+                if parsed.replay_gain_album_db.is_some() && track.replay_gain_album_db != parsed.replay_gain_album_db {
+                    track.replay_gain_album_db = parsed.replay_gain_album_db;
+                    changed = true;
+                }
+                if parsed.replay_gain_album_peak.is_some() && track.replay_gain_album_peak != parsed.replay_gain_album_peak {
+                    track.replay_gain_album_peak = parsed.replay_gain_album_peak;
+                    changed = true;
+                }
+                if parsed.key.is_some() && track.key != parsed.key {
+                    track.key = parsed.key;
+                    changed = true;
+                }
+                if parsed.bpm.is_some() && track.bpm != parsed.bpm {
+                    track.bpm = parsed.bpm;
+                    changed = true;
+                }
+
+                if changed {
+                    updated_count.fetch_add(1, Ordering::Relaxed);
+                    let display_name = if track.artist.is_empty() || track.artist == "Unknown Artist" {
+                        track.title.clone()
+                    } else {
+                        format!("{} - {}", track.artist, track.title)
+                    };
+                    if let Ok(mut names) = updated_track_names.lock() {
+                        names.push(display_name);
+                    }
+                }
+            }
+        }
+    });
+
+    let mut final_tracks: Vec<TrackMetadata> = Vec::with_capacity(updated_tracks.len() + 32);
     let mut processed_keys: HashSet<String> = HashSet::new();
 
     let mut restored_count = 0;
@@ -830,7 +937,7 @@ pub fn refresh_configured_directories(
     let mut removed_track_names: Vec<String> = Vec::new();
 
     // Check existing tracks
-    for mut track in existing_tracks {
+    for mut track in updated_tracks {
         let key = normalize_key(Path::new(&track.path));
         processed_keys.insert(key.clone());
 
@@ -845,6 +952,10 @@ pub fn refresh_configured_directories(
             // File is not in the currently scanned paths
             let file_exists = Path::new(&track.path).exists();
             if file_exists {
+                if track.missing_since.is_some() {
+                    track.missing_since = None;
+                    restored_count += 1;
+                }
                 final_tracks.push(track);
             } else {
                 // File does not exist on disk
@@ -917,6 +1028,8 @@ pub fn refresh_configured_directories(
     save_library_to_disk(app_data_path, &final_tracks)?;
 
     let total_count = final_tracks.len();
+    let updated_count_val = updated_count.load(Ordering::Relaxed);
+    let updated_track_names_val = updated_track_names.into_inner().unwrap_or_default();
 
     Ok(RefreshLibraryResult {
         tracks: final_tracks,
@@ -925,7 +1038,9 @@ pub fn refresh_configured_directories(
         restored_count,
         removed_count,
         total_count,
+        updated_count: updated_count_val,
         added_track_names,
+        updated_track_names: updated_track_names_val,
         removed_track_names,
     })
 }
@@ -961,7 +1076,9 @@ pub fn purge_missing_from_library(app_data_path: &Path) -> Result<RefreshLibrary
         restored_count: 0,
         removed_count,
         total_count: final_tracks.len(),
+        updated_count: 0,
         added_track_names: Vec::new(),
+        updated_track_names: Vec::new(),
         removed_track_names,
     })
 }

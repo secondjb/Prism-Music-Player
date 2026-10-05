@@ -569,6 +569,7 @@ export const SettingsView: React.FC = () => {
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>
                     +{lastRefreshResult.added_count} / -{lastRefreshResult.removed_count}
+                    {Boolean(lastRefreshResult.updated_count) && ` / ~${lastRefreshResult.updated_count}`}
                   </span>
                   <ChevronDown
                     className={`w-3.5 h-3.5 transition-transform ${showRefreshDropdown ? 'rotate-180' : ''}`}
@@ -608,6 +609,24 @@ export const SettingsView: React.FC = () => {
                           </span>
                         ))}
                       </div>
+                    )}
+                    {typeof lastRefreshResult.updated_count === 'number' && lastRefreshResult.updated_count > 0 && (
+                      <>
+                        <div className="flex justify-between">
+                          <span>Metadata Updated:</span>
+                          <strong className="text-blue-400 font-mono">~{lastRefreshResult.updated_count}</strong>
+                        </div>
+                        {lastRefreshResult.updated_track_names && lastRefreshResult.updated_track_names.length > 0 && (
+                          <div className="flex flex-col gap-1 my-1 max-h-32 overflow-y-auto custom-scrollbar bg-black/40 rounded-xl p-2.5 border border-white/5">
+                            <span className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">Updated Songs:</span>
+                            {lastRefreshResult.updated_track_names.map((name, i) => (
+                              <span key={i} className="text-[11px] text-zinc-200 truncate font-medium" title={name}>
+                                • {name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </>
                     )}
                     <div className="flex justify-between">
                       <span>Missing from Disk:</span>

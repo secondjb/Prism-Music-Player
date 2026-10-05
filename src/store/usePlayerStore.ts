@@ -1143,10 +1143,11 @@ export const usePlayerStore = create<PlayerState>()(
             });
 
             setTracks(res.tracks);
+            const updatedInfo = res.updated_count ? `${res.updated_count} metadata updated, ` : '';
             set({
               isRefreshingLibrary: false,
               lastRefreshResult: res,
-              scanStatusMessage: `Refresh complete: +${res.added_count} new song(s) indexed (Key & BPM detected), ${res.missing_count} missing, ${res.removed_count} purged.`,
+              scanStatusMessage: `Refresh complete: +${res.added_count} new song(s) indexed, ${updatedInfo}${res.missing_count} missing, ${res.removed_count} purged.`,
             });
             return res;
           } else {
@@ -1318,7 +1319,27 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
-      setTracks: (tracks) => set({ tracks: Array.isArray(tracks) ? tracks : [] }),
+      setTracks: (tracks) => {
+        const safeTracks = Array.isArray(tracks) ? tracks : [];
+        const trackMap = new Map<string, Track>();
+        safeTracks.forEach((t) => trackMap.set(t.id, t));
+
+        set((state) => {
+          let updatedCurrent = state.currentTrack;
+          if (updatedCurrent && trackMap.has(updatedCurrent.id)) {
+            updatedCurrent = { ...updatedCurrent, ...trackMap.get(updatedCurrent.id)! };
+          }
+          const updatedQueue = state.queue.map((t) => trackMap.get(t.id) || t);
+          const updatedUserQueue = state.userQueue.map((t) => trackMap.get(t.id) || t);
+
+          return {
+            tracks: safeTracks,
+            currentTrack: updatedCurrent,
+            queue: updatedQueue,
+            userQueue: updatedUserQueue,
+          };
+        });
+      },
 
       playTrack: async (track, contextTracks) => {
         try {

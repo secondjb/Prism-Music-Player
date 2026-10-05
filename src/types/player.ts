@@ -38,7 +38,9 @@ export interface RefreshLibraryResult {
   restored_count: number;
   removed_count: number;
   total_count: number;
+  updated_count?: number;
   added_track_names?: string[];
+  updated_track_names?: string[];
   removed_track_names?: string[];
 }
 

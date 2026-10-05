@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo, useDeferredValue, lazy, Suspense } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, useDeferredValue, lazy, Suspense } from 'react';
 import { usePlayerStore, getEffectiveReplayGain } from './store/usePlayerStore';
 import { Track, LibraryChunkResponse } from './types/player';
 import { useTrackArt } from './utils/useTrackArt';
@@ -7,6 +7,7 @@ import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { TrackList } from './components/TrackList';
 import { BottomBar } from './components/BottomBar';
+import { BatchActionPill } from './components/BatchActionPill';
 import { LyricsView } from './components/LyricsView';
 import { QueueDrawer } from './components/QueueDrawer';
 import { invoke } from '@tauri-apps/api/core';
@@ -65,6 +66,7 @@ export const App: React.FC = () => {
   const isQueueOpen = usePlayerStore((s) => s.isQueueOpen);
   const infoModalTrack = usePlayerStore((s) => s.infoModalTrack);
   const isStatsCollectionEnabled = usePlayerStore((s) => s.isStatsCollectionEnabled);
+  const trackFinishCount = usePlayerStore((s) => s.trackFinishCount);
 
   const silentAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -263,6 +265,16 @@ export const App: React.FC = () => {
   const listeningMsRef = useRef(0);
   const currentTrackRef = useRef(currentTrack);
 
+  const commitListeningEvent = useCallback((track: Track | null, ms: number) => {
+    if (!track || !isStatsCollectionEnabled) return;
+    const durSecs = track.duration_secs || 0;
+    // 30 seconds or half the track, minimum 5s, fallback 15s if duration unknown
+    const threshold = durSecs > 0 ? Math.min(30000, Math.max(5000, (durSecs * 1000) / 2)) : 15000;
+    if (ms >= threshold) {
+      logListeningEvent(track.title, track.artist, track.album, track.genre || null, ms);
+    }
+  }, [isStatsCollectionEnabled]);
+
   // Accumulate actual listening time when playing
   useEffect(() => {
     let interval: number;
@@ -274,23 +286,36 @@ export const App: React.FC = () => {
     return () => window.clearInterval(interval);
   }, [isPlaying, isStatsCollectionEnabled]);
 
-  // Log listening event when current track changes if sufficient time was spent
+  // When a track completes naturally or loops via repeat-one
+  useEffect(() => {
+    if (trackFinishCount > 0 && currentTrackRef.current) {
+      commitListeningEvent(currentTrackRef.current, listeningMsRef.current);
+      listeningMsRef.current = 0;
+    }
+  }, [trackFinishCount, commitListeningEvent]);
+
+  // Log listening event when current track changes (e.g. manual skip) if sufficient time was spent
   useEffect(() => {
     if (
       currentTrackRef.current &&
-      currentTrackRef.current.id !== currentTrack?.id &&
-      isStatsCollectionEnabled
+      currentTrackRef.current.id !== currentTrack?.id
     ) {
-      const track = currentTrackRef.current;
-      const ms = listeningMsRef.current;
-      const threshold = Math.min(30000, (track.duration_secs * 1000) / 2);
-      if (ms >= threshold && threshold > 0) {
-        logListeningEvent(track.title, track.artist, track.album, track.genre || null, ms);
-      }
+      commitListeningEvent(currentTrackRef.current, listeningMsRef.current);
       listeningMsRef.current = 0;
     }
     currentTrackRef.current = currentTrack;
-  }, [currentTrack?.id, isStatsCollectionEnabled]);
+  }, [currentTrack?.id, commitListeningEvent]);
+
+  // Flush in-progress play on window close / unload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (currentTrackRef.current) {
+        commitListeningEvent(currentTrackRef.current, listeningMsRef.current);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [commitListeningEvent]);
 
   const renderContent = () => {
     if (infoModalTrack) {
@@ -407,6 +432,9 @@ export const App: React.FC = () => {
           </div>
         </main>
       </div>
+
+      {/* Floating Batch Actions Bar for Multi-Selected Songs */}
+      {!isLyricsActive && <BatchActionPill />}
 
       {/* Bottom Audio Player Bar */}
       <div className={`z-20 ${isLyricsActive ? 'hidden' : ''}`}>

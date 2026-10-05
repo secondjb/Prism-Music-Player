@@ -25,6 +25,11 @@ export type TrackColumnId =
 
 export type TrackGridDensity = 'compact' | 'normal' | 'large' | 'extra-large' | 'huge' | 'massive';
 
+export interface GridSortState {
+  prop: string;
+  order: 'asc' | 'desc';
+}
+
 export type ReplayGainMode = 'track' | 'album' | 'off';
 
 export function getEffectiveReplayGain(
@@ -224,6 +229,26 @@ export function shuffleLinkedClusters(clusters: Track[][], currentTrackId?: stri
   return finalClusters.flat();
 }
 
+export const getEffectiveCrossfadeSecs = (
+  targetTrack: Track | null,
+  currentTrack: Track | null,
+  crossfadeDuration: number,
+  alwaysGaplessForLinkedSongs: boolean,
+  alwaysGaplessSongIds: string[] = [],
+  linkedTracks: Record<string, string[]> = {}
+): number | null => {
+  if (!targetTrack || crossfadeDuration <= 0) return null;
+  if (alwaysGaplessSongIds.includes(targetTrack.id)) return null;
+  if (
+    alwaysGaplessForLinkedSongs &&
+    currentTrack &&
+    linkedTracks[currentTrack.id]?.includes(targetTrack.id)
+  ) {
+    return null;
+  }
+  return crossfadeDuration;
+};
+
 interface PlayerState {
   audioAnalysisProgress: { current: number; total: number } | null;
   tracks: Track[];
@@ -243,6 +268,13 @@ interface PlayerState {
   setCrossfadeDuration: (dur: number) => void;
   isGaplessEnabled: boolean;
   toggleGaplessEnabled: () => void;
+  alwaysGaplessForLinkedSongs: boolean;
+  toggleAlwaysGaplessForLinkedSongs: () => void;
+  alwaysGaplessSongIds: string[];
+  toggleSongAlwaysGapless: (songId: string) => void;
+  isSongAlwaysGapless: (songId: string) => boolean;
+  syncNextTrackToBackend: () => void;
+  onTrackTransitioned: () => void;
   replayGainMode: ReplayGainMode;
   setReplayGainMode: (mode: ReplayGainMode) => void;
   backgroundType: BackgroundType;
@@ -328,6 +360,8 @@ interface PlayerState {
   // Track Grid View Customization
   visibleTrackColumns: TrackColumnId[];
   trackGridDensity: TrackGridDensity;
+  mainGridSortState: GridSortState | null;
+  setMainGridSortState: (sort: GridSortState | null) => void;
 
   // Shuffle & Repeat
   shuffleEnabled: boolean;
@@ -464,6 +498,7 @@ interface PlayerState {
   cancelSleepTimer: () => void;
   tickSleepTimerSecond: () => void;
   onTrackFinished: () => void;
+  trackFinishCount: number;
 
   selectedArtist: string | null;
   selectedAlbum: string | null;
@@ -568,6 +603,7 @@ export const usePlayerStore = create<PlayerState>()(
         remainingSeconds: 0,
         remainingTracks: 0,
       },
+      trackFinishCount: 0,
       showLyricsFullscreen: false,
       isQueueOpen: false,
       lrclibAutoFetch: true,
@@ -601,9 +637,138 @@ export const usePlayerStore = create<PlayerState>()(
       anonymizeStats: false,
 
       crossfadeDuration: 0,
-      setCrossfadeDuration: (dur) => set({ crossfadeDuration: Math.max(0, Math.min(10, dur)) }),
+      setCrossfadeDuration: (dur) => {
+        set({ crossfadeDuration: Math.max(0, Math.min(12, dur)) });
+        get().syncNextTrackToBackend();
+      },
       isGaplessEnabled: true,
-      toggleGaplessEnabled: () => set((state) => ({ isGaplessEnabled: !state.isGaplessEnabled })),
+      toggleGaplessEnabled: () => {
+        set((state) => ({ isGaplessEnabled: !state.isGaplessEnabled }));
+        get().syncNextTrackToBackend();
+      },
+      alwaysGaplessForLinkedSongs: true,
+      toggleAlwaysGaplessForLinkedSongs: () => {
+        set((state) => ({ alwaysGaplessForLinkedSongs: !state.alwaysGaplessForLinkedSongs }));
+        get().syncNextTrackToBackend();
+      },
+      alwaysGaplessSongIds: [],
+      toggleSongAlwaysGapless: (songId: string) => {
+        set((state) => {
+          const exists = state.alwaysGaplessSongIds.includes(songId);
+          return {
+            alwaysGaplessSongIds: exists
+              ? state.alwaysGaplessSongIds.filter((id) => id !== songId)
+              : [...state.alwaysGaplessSongIds, songId],
+          };
+        });
+        get().syncNextTrackToBackend();
+      },
+      isSongAlwaysGapless: (songId: string) => {
+        return (get().alwaysGaplessSongIds || []).includes(songId);
+      },
+
+      syncNextTrackToBackend: async () => {
+        if (typeof window === 'undefined' || !(window as any).__TAURI_INTERNALS__) return;
+        const {
+          currentTrack,
+          queue,
+          userQueue,
+          currentIndex,
+          repeatMode,
+          linkedTracks,
+          alwaysGaplessForLinkedSongs,
+          alwaysGaplessSongIds,
+          tracks,
+          replayGainMode,
+        } = get();
+
+        if (!currentTrack) {
+          invoke('set_next_track', { path: null, replayGainDb: null, forceGapless: false }).catch(() => {});
+          return;
+        }
+
+        let nextTrack: Track | null = null;
+        if (userQueue.length > 0) {
+          nextTrack = userQueue[0];
+        } else if (repeatMode === 'one') {
+          nextTrack = currentTrack;
+        } else if (currentIndex + 1 < queue.length) {
+          nextTrack = queue[currentIndex + 1];
+        } else if (repeatMode === 'all' && queue.length > 0) {
+          nextTrack = queue[0];
+        }
+
+        if (!nextTrack) {
+          invoke('set_next_track', { path: null, replayGainDb: null, forceGapless: false }).catch(() => {});
+          return;
+        }
+
+        const isNextMarkedAlwaysGapless = (alwaysGaplessSongIds || []).includes(nextTrack.id);
+        const isLinkedToNext = Boolean(linkedTracks[currentTrack.id]?.includes(nextTrack.id));
+        const isLinkedGapless = alwaysGaplessForLinkedSongs && isLinkedToNext;
+        const forceGapless = isNextMarkedAlwaysGapless || isLinkedGapless;
+        const gain = getEffectiveReplayGain(nextTrack, replayGainMode, tracks);
+
+        try {
+          await invoke('set_next_track', {
+            path: nextTrack.path,
+            replayGainDb: gain,
+            forceGapless,
+          });
+        } catch (e) {
+          console.warn('[usePlayerStore] set_next_track error:', e);
+        }
+      },
+
+      onTrackTransitioned: () => {
+        const { userQueue, currentIndex, queue, repeatMode, onTrackFinished } = get();
+        onTrackFinished();
+
+        if (userQueue.length > 0) {
+          const nextUserTrack = userQueue[0];
+          const remainingUserQueue = userQueue.slice(1);
+          set({
+            userQueue: remainingUserQueue,
+            currentTrack: nextUserTrack,
+            duration: nextUserTrack.duration_secs,
+            currentTime: 0,
+            isPlaying: true,
+          });
+          get().syncNextTrackToBackend();
+          return;
+        }
+
+        if (repeatMode === 'one') {
+          set({ currentTime: 0 });
+          get().syncNextTrackToBackend();
+          return;
+        }
+
+        const nextIdx = currentIndex + 1;
+        if (nextIdx < queue.length) {
+          const nextTrack = queue[nextIdx];
+          set({
+            currentIndex: nextIdx,
+            currentTrack: nextTrack,
+            duration: nextTrack.duration_secs,
+            currentTime: 0,
+            isPlaying: true,
+          });
+          get().syncNextTrackToBackend();
+        } else if (repeatMode === 'all' && queue.length > 0) {
+          const nextTrack = queue[0];
+          set({
+            currentIndex: 0,
+            currentTrack: nextTrack,
+            duration: nextTrack.duration_secs,
+            currentTime: 0,
+            isPlaying: true,
+          });
+          get().syncNextTrackToBackend();
+        } else {
+          set({ isPlaying: false, currentTime: 0 });
+        }
+      },
       replayGainMode: 'track',
       setReplayGainMode: (mode) => {
         set({ replayGainMode: mode });
@@ -801,6 +966,8 @@ export const usePlayerStore = create<PlayerState>()(
         'actions',
       ],
       trackGridDensity: 'normal',
+      mainGridSortState: null,
+      setMainGridSortState: (sort) => set({ mainGridSortState: sort }),
 
       setVisibleTrackColumns: (cols) => set({ visibleTrackColumns: cols }),
       toggleTrackColumn: (col) =>
@@ -1198,12 +1365,21 @@ export const usePlayerStore = create<PlayerState>()(
 
         try {
           if (window.__TAURI_INTERNALS__) {
+            const crossfade = getEffectiveCrossfadeSecs(
+              track,
+              get().currentTrack,
+              get().crossfadeDuration,
+              get().alwaysGaplessForLinkedSongs,
+              get().alwaysGaplessSongIds,
+              get().linkedTracks
+            );
             await invoke('set_volume', { volume: get().volume });
             await invoke('play_audio', {
               path: track.path,
               replayGainDb: getEffectiveReplayGain(track, get().replayGainMode, get().tracks),
-              crossfadeSecs: get().crossfadeDuration > 0 ? get().crossfadeDuration : null,
+              crossfadeSecs: crossfade,
             });
+            get().syncNextTrackToBackend();
           }
         } catch (e) {
           console.warn('Rust play_audio error:', e);
@@ -1223,12 +1399,21 @@ export const usePlayerStore = create<PlayerState>()(
           });
           try {
             if (window.__TAURI_INTERNALS__) {
+              const crossfade = getEffectiveCrossfadeSecs(
+                track,
+                get().currentTrack,
+                get().crossfadeDuration,
+                get().alwaysGaplessForLinkedSongs,
+                get().alwaysGaplessSongIds,
+                get().linkedTracks
+              );
               await invoke('set_volume', { volume: get().volume });
               await invoke('play_audio', {
                 path: track.path,
                 replayGainDb: getEffectiveReplayGain(track, get().replayGainMode, get().tracks),
-                crossfadeSecs: get().crossfadeDuration > 0 ? get().crossfadeDuration : null,
+                crossfadeSecs: crossfade,
               });
+              get().syncNextTrackToBackend();
             }
           } catch (e) {
             console.warn('Rust play_audio call pending:', e);
@@ -1306,7 +1491,17 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       replayCurrentTrack: async () => {
-        const { currentTrack, tracks, replayGainMode, crossfadeDuration, onTrackFinished, volume } = get();
+        const {
+          currentTrack,
+          tracks,
+          replayGainMode,
+          crossfadeDuration,
+          alwaysGaplessForLinkedSongs,
+          alwaysGaplessSongIds,
+          linkedTracks,
+          onTrackFinished,
+          volume,
+        } = get();
         if (!currentTrack) return;
         onTrackFinished();
         set({
@@ -1316,12 +1511,21 @@ export const usePlayerStore = create<PlayerState>()(
         });
         try {
           if (window.__TAURI_INTERNALS__) {
+            const crossfade = getEffectiveCrossfadeSecs(
+              currentTrack,
+              currentTrack,
+              crossfadeDuration,
+              alwaysGaplessForLinkedSongs,
+              alwaysGaplessSongIds,
+              linkedTracks
+            );
             await invoke('set_volume', { volume });
             await invoke('play_audio', {
               path: currentTrack.path,
               replayGainDb: getEffectiveReplayGain(currentTrack, replayGainMode, tracks),
-              crossfadeSecs: crossfadeDuration > 0 ? crossfadeDuration : null,
+              crossfadeSecs: crossfade,
             });
+            get().syncNextTrackToBackend();
           }
         } catch (e) {
           console.warn('Rust play_audio replay error:', e);
@@ -1368,11 +1572,20 @@ export const usePlayerStore = create<PlayerState>()(
             isPlaying: true,
           });
           try {
+            const crossfade = getEffectiveCrossfadeSecs(
+              nextUserTrack,
+              get().currentTrack,
+              get().crossfadeDuration,
+              get().alwaysGaplessForLinkedSongs,
+              get().alwaysGaplessSongIds,
+              get().linkedTracks
+            );
             await invoke('play_audio', {
               path: nextUserTrack.path,
               replayGainDb: getEffectiveReplayGain(nextUserTrack, get().replayGainMode, get().tracks),
-              crossfadeSecs: get().crossfadeDuration > 0 ? get().crossfadeDuration : null,
+              crossfadeSecs: crossfade,
             });
+            get().syncNextTrackToBackend();
           } catch (e) {
             console.warn('Rust play_audio error:', e);
           }
@@ -2010,6 +2223,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       onTrackFinished: () => {
+        set((state) => ({ trackFinishCount: state.trackFinishCount + 1 }));
         const { sleepTimer, pause } = get();
         if (!sleepTimer.active || sleepTimer.mode !== 'tracks') return;
         if (sleepTimer.remainingTracks <= 1) {
@@ -2105,6 +2319,8 @@ export const usePlayerStore = create<PlayerState>()(
         playlists: state.playlists,
         crossfadeDuration: state.crossfadeDuration,
         isGaplessEnabled: state.isGaplessEnabled,
+        alwaysGaplessForLinkedSongs: state.alwaysGaplessForLinkedSongs,
+        alwaysGaplessSongIds: state.alwaysGaplessSongIds,
         replayGainMode: state.replayGainMode,
         backgroundType: state.backgroundType,
         customBgPath: state.customBgPath,
@@ -2118,12 +2334,21 @@ export const usePlayerStore = create<PlayerState>()(
         trackGridDensity: state.trackGridDensity,
         columnOrder: state.columnOrder,
         showSubArtistUnderTitle: state.showSubArtistUnderTitle,
+        mainGridSortState: state.mainGridSortState,
       }),
     }
   )
 );
 
 if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+  listen('track-transitioned', () => {
+    usePlayerStore.getState().onTrackTransitioned();
+  });
+
+  listen('track-finished', () => {
+    usePlayerStore.setState({ isPlaying: false, currentTime: 0 });
+  });
+
   listen<{ current: number; total: number; track_id: string; bpm?: number; key?: string }>(
     'audio_analysis_progress',
     (e) => {

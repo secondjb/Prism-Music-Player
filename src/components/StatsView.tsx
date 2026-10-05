@@ -12,6 +12,8 @@ import {
 } from '../utils/statsAggregation';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { BarChart2, AlertCircle, Clock, Sparkles } from 'lucide-react';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import ToggleButton from '@mui/material/ToggleButton';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -72,6 +74,7 @@ export const StatsView: React.FC = () => {
   const [events, setEvents] = useState<ListeningEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [timePeriod, setTimePeriod] = useState<'day' | 'week' | 'month'>('day');
+  const [leaderboardMetric, setLeaderboardMetric] = useState<'time' | 'plays'>('time');
   
   const isStatsCollectionEnabled = usePlayerStore((s) => s.isStatsCollectionEnabled);
   const showDemoStats = usePlayerStore((s) => s.showDemoStats);
@@ -102,14 +105,14 @@ export const StatsView: React.FC = () => {
 
   const stats = useMemo(() => {
     return {
-      topArtists: getTopArtists(events, 5),
-      topSongs: getTopSongs(events, 5),
-      topGenres: getTopGenres(events, 5),
+      topArtists: getTopArtists(events, 5, leaderboardMetric),
+      topSongs: getTopSongs(events, 5, leaderboardMetric),
+      topGenres: getTopGenres(events, 5, leaderboardMetric),
       listeningHabits: getListeningHabits(events),
       totalListeningTime: getTotalListeningTime(events),
       timeByPeriod: getListeningTimeByPeriod(events, timePeriod)
     };
-  }, [events, timePeriod]);
+  }, [events, timePeriod, leaderboardMetric]);
 
   // Anonymized display names (real counts/times preserved)
   const displayStats = useMemo(() => {
@@ -371,10 +374,74 @@ export const StatsView: React.FC = () => {
         </div>
       </div>
 
+      {/* Leaderboard Section Header with Material UI Selector */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
+        <div className="flex flex-col">
+          <h3 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <span>Leaderboards</span>
+            <span className="text-xs font-normal normal-case text-zinc-400">
+              (Ranked by {leaderboardMetric === 'time' ? 'Total Time' : 'Total Plays'})
+            </span>
+          </h3>
+        </div>
+        <ToggleButtonGroup
+          value={leaderboardMetric}
+          exclusive
+          onChange={(_, newVal) => {
+            if (newVal) setLeaderboardMetric(newVal);
+          }}
+          size="small"
+          sx={{
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '12px',
+            p: '3px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            '& .MuiToggleButton-root': {
+              color: '#a1a1aa',
+              border: 'none',
+              borderRadius: '8px !important',
+              px: 1.75,
+              py: 0.5,
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              textTransform: 'none',
+              transition: 'all 0.2s',
+              '&.Mui-selected': {
+                color: '#ffffff',
+                backgroundColor: 'var(--color-stop-1, #6366f1)',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                '&:hover': {
+                  backgroundColor: 'var(--color-stop-1, #6366f1)',
+                  filter: 'brightness(1.1)',
+                },
+              },
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                color: '#ffffff',
+              },
+            },
+          }}
+        >
+          <ToggleButton value="time">
+            <Clock className="w-3.5 h-3.5 mr-1.5" />
+            Time
+          </ToggleButton>
+          <ToggleButton value="plays">
+            <BarChart2 className="w-3.5 h-3.5 mr-1.5" />
+            Plays
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Songs */}
         <div className="glass-card rounded-2xl p-5 border border-white/10 flex flex-col gap-4">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Top Songs</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Top Songs</h3>
+            <span className="text-[11px] text-zinc-400 font-medium">
+              Sorted by {leaderboardMetric === 'time' ? 'Time Listened' : 'Plays'}
+            </span>
+          </div>
           {displayStats.topSongs.length === 0 ? (
             <p className="text-sm text-zinc-500">Not enough data.</p>
           ) : (
@@ -383,16 +450,30 @@ export const StatsView: React.FC = () => {
                 <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
                   <div className="flex items-center gap-3 truncate pr-2">
                     <span 
-                      className="text-xs font-bold w-4"
+                      className="text-xs font-bold w-4 shrink-0"
                       style={{ color: i === 0 ? themeColors.stop1 : i === 1 ? themeColors.stop2 : themeColors.stop3 }}
                     >
                       {i + 1}
                     </span>
-                    <span className="text-sm font-medium text-zinc-200 truncate">{song.name}</span>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-medium text-zinc-200 truncate">{song.name}</span>
+                      {song.artist && !anonymizeStats && (
+                        <span className="text-[11px] text-zinc-400 truncate">{song.artist}</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end shrink-0">
-                    <span className="text-xs font-bold text-white">{formatDuration(song.listened_ms)}</span>
-                    <span className="text-[10px] text-zinc-400 font-mono">{song.count} plays</span>
+                  <div className="flex flex-col items-end shrink-0 pl-2">
+                    {leaderboardMetric === 'time' ? (
+                      <>
+                        <span className="text-xs font-bold text-white">{formatDuration(song.listened_ms)}</span>
+                        <span className="text-[10px] text-zinc-400 font-mono">{song.count} plays</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xs font-bold text-white">{song.count} plays</span>
+                        <span className="text-[10px] text-zinc-400 font-mono">{formatDuration(song.listened_ms)}</span>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -402,7 +483,12 @@ export const StatsView: React.FC = () => {
 
         {/* Top Artists */}
         <div className="glass-card rounded-2xl p-5 border border-white/10 flex flex-col gap-4">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Top Artists</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Top Artists</h3>
+            <span className="text-[11px] text-zinc-400 font-medium">
+              Sorted by {leaderboardMetric === 'time' ? 'Time Listened' : 'Plays'}
+            </span>
+          </div>
           {displayStats.topArtists.length === 0 ? (
             <p className="text-sm text-zinc-500">Not enough data.</p>
           ) : (
@@ -411,7 +497,7 @@ export const StatsView: React.FC = () => {
                 <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
                   <div className="flex items-center gap-3 truncate pr-2">
                     <span 
-                      className="text-xs font-bold w-4"
+                      className="text-xs font-bold w-4 shrink-0"
                       style={{ color: i === 0 ? themeColors.stop2 : i === 1 ? themeColors.stop3 : themeColors.stop4 }}
                     >
                       {i + 1}
@@ -427,9 +513,18 @@ export const StatsView: React.FC = () => {
                       {artist.name}
                     </span>
                   </div>
-                  <div className="flex flex-col items-end shrink-0">
-                    <span className="text-xs font-bold text-white">{formatDuration(artist.listened_ms)}</span>
-                    <span className="text-[10px] text-zinc-400 font-mono">{artist.count} plays</span>
+                  <div className="flex flex-col items-end shrink-0 pl-2">
+                    {leaderboardMetric === 'time' ? (
+                      <>
+                        <span className="text-xs font-bold text-white">{formatDuration(artist.listened_ms)}</span>
+                        <span className="text-[10px] text-zinc-400 font-mono">{artist.count} plays</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xs font-bold text-white">{artist.count} plays</span>
+                        <span className="text-[10px] text-zinc-400 font-mono">{formatDuration(artist.listened_ms)}</span>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}

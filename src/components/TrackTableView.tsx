@@ -93,10 +93,13 @@ import {
   Link2,
   Unlink,
   X,
+  ArrowUpDown,
+  ArrowDown,
+  ArrowUp,
 } from 'lucide-react';
 
 import { Track } from '../types/player';
-import { usePlayerStore, TrackColumnId } from '../store/usePlayerStore';
+import { usePlayerStore, TrackColumnId, GridSortState } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
@@ -127,6 +130,13 @@ const formatDuration = (secs: number) => {
   const s = Math.floor(secs % 60);
   return `${m}:${s < 10 ? '0' : ''}${s}`;
 };
+
+const SORT_OPTIONS: { id: string; label: string; prop: string; defaultOrder: 'asc' | 'desc' }[] = [
+  { id: 'title', label: 'Title', prop: 'title', defaultOrder: 'asc' },
+  { id: 'order', label: 'Recently added', prop: 'order', defaultOrder: 'desc' },
+  { id: 'artist', label: 'Artist', prop: 'artist', defaultOrder: 'asc' },
+  { id: 'album', label: 'Album', prop: 'album', defaultOrder: 'asc' },
+];
 
 const handleTrackDragStart = (e: React.DragEvent, track: Track) => {
   if (!track || !track.id) return;
@@ -337,10 +347,8 @@ const OrderCell: React.FC<any> = ({ model, rowIndex }) => {
   const track = (model || {}) as Track;
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
-  const playTrack = usePlayerStore((s) => s.playTrack);
   const togglePlay = usePlayerStore((s) => s.togglePlay);
   const trackGridDensity = usePlayerStore((s) => s.trackGridDensity);
-  const tracks = usePlayerStore((s) => s.tracks);
 
   if (!track.id || (model as any)?.__isSpacer) return null;
   const isCurrentPlaying = currentTrack?.id === track.id;
@@ -369,7 +377,11 @@ const OrderCell: React.FC<any> = ({ model, rowIndex }) => {
           if (isCurrentPlaying) {
             togglePlay();
           } else {
-            playTrack(track, tracks);
+            const evt = new CustomEvent('prism-play-track', {
+              bubbles: true,
+              detail: { track },
+            });
+            e.currentTarget.dispatchEvent(evt);
           }
         }}
         onDoubleClick={(e) => e.stopPropagation()}
@@ -1032,7 +1044,103 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     }
     return 1200;
   });
-  const [sortState, setSortState] = useState<{ prop: string; order: 'asc' | 'desc' } | null>(null);
+  const isMainGrid = !hideControls && !playlistId;
+  const mainGridSortState = usePlayerStore((s) => s.mainGridSortState);
+  const setMainGridSortState = usePlayerStore((s) => s.setMainGridSortState);
+  const [localSortState, setLocalSortState] = useState<GridSortState | null>(null);
+
+  const sortState = isMainGrid ? mainGridSortState : localSortState;
+  const setSortState = useCallback(
+    (newSort: GridSortState | null) => {
+      const current = isMainGrid ? usePlayerStore.getState().mainGridSortState : localSortState;
+      if (!current && !newSort) return;
+      if (current && newSort && current.prop === newSort.prop && current.order === newSort.order) return;
+      if (isMainGrid) {
+        setMainGridSortState(newSort);
+      } else {
+        setLocalSortState(newSort);
+      }
+    },
+    [isMainGrid, setMainGridSortState, localSortState]
+  );
+
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showSortMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(e.target as Node)) {
+        setShowSortMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showSortMenu]);
+
+  const currentSortLabel = useMemo(() => {
+    if (!sortState) return 'Sort';
+    const match = SORT_OPTIONS.find((opt) => opt.prop === sortState.prop);
+    if (match) return match.label;
+    if (sortState.prop === 'year') return 'Date';
+    if (sortState.prop === 'duration_secs') return 'Duration';
+    return 'Sorted';
+  }, [sortState]);
+
+  const handleSelectSortOption = (opt: (typeof SORT_OPTIONS)[number]) => {
+    if (sortState?.prop === opt.prop) {
+      const nextOrder: 'asc' | 'desc' = sortState.order === 'desc' ? 'asc' : 'desc';
+      setSortState({ prop: opt.prop, order: nextOrder });
+    } else {
+      setSortState({ prop: opt.prop, order: opt.defaultOrder });
+    }
+    setShowSortMenu(false);
+    gridRef.current?.scrollToCoordinate?.({ y: 0 });
+    lastScrollYRef.current = 0;
+  };
+
+  const originalIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    tracks.forEach((t, i) => map.set(t.id, i + 1));
+    return map;
+  }, [tracks]);
+
+  const sortedTracks = useMemo(() => {
+    if (!sortState) return tracks;
+    const { prop, order } = sortState;
+    const isDesc = order === 'desc';
+
+    return [...tracks].sort((a, b) => {
+      let aVal: any;
+      let bVal: any;
+
+      if (prop === 'order') {
+        aVal = originalIndexMap.get(a.id) ?? 0;
+        bVal = originalIndexMap.get(b.id) ?? 0;
+      } else if (prop === 'duration' || prop === 'duration_secs') {
+        aVal = a.duration_secs ?? 0;
+        bVal = b.duration_secs ?? 0;
+      } else if (prop === 'date' || prop === 'year') {
+        aVal = a.year ?? 0;
+        bVal = b.year ?? 0;
+      } else {
+        aVal = (a as any)[prop];
+        bVal = (b as any)[prop];
+      }
+
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return isDesc ? bVal - aVal : aVal - bVal;
+      }
+
+      const strA = String(aVal ?? '').toLowerCase();
+      const strB = String(bVal ?? '').toLowerCase();
+      const cmp = strA.localeCompare(strB, undefined, { numeric: true });
+      return isDesc ? -cmp : cmp;
+    });
+  }, [tracks, sortState, originalIndexMap]);
+
+  const sortedTracksRef = useRef<Track[]>(sortedTracks);
+  sortedTracksRef.current = sortedTracks;
 
   const searchQuery = usePlayerStore((s) => s.searchQuery);
   const isSearchActive = Boolean(searchQuery && searchQuery.trim());
@@ -1084,7 +1192,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       gridEl.removeEventListener('aftersortingapply', handleAfterSortingApply);
       gridEl.removeEventListener('viewportscroll', handleViewportScroll);
     };
-  }, [gridKey]);
+  }, [gridKey, setSortState]);
 
   // Restore vertical scroll position after grid remounts on window/container resize
   useEffect(() => {
@@ -1183,7 +1291,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     const handlePlayTrackEvt = (e: Event) => {
       const customEvt = e as CustomEvent<{ track: Track }>;
       if (customEvt.detail?.track) {
-        playTrack(customEvt.detail.track, tracks);
+        playTrack(customEvt.detail.track, sortedTracksRef.current);
       }
     };
 
@@ -1196,7 +1304,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       if (customEvt.detail?.track) {
         const { track, shiftKey, ctrlKey } = customEvt.detail;
         if (shiftKey) {
-          selectTrackRange(track.id, tracks, ctrlKey);
+          selectTrackRange(track.id, sortedTracksRef.current, ctrlKey);
         } else if (ctrlKey) {
           toggleSelectTrack(track.id);
         } else {
@@ -1581,10 +1689,10 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
 
   // Data source for RevoGrid with current-playing row classes and bottom padding spacer rows
   const source = useMemo(() => {
-    if (tracks.length === 0) return [];
-    const baseSource = tracks.map((track, idx) => ({
+    if (sortedTracks.length === 0) return [];
+    const baseSource = sortedTracks.map((track, idx) => ({
       ...track,
-      order: idx + 1,
+      order: originalIndexMap.get(track.id) ?? (idx + 1),
       rowIndex: idx,
       rowClass: `group/row select-none ${currentTrack?.id === track.id ? 'is-current-playing' : ''} ${
         selectedTrackIds.includes(track.id) ? 'is-selected-row' : ''
@@ -1627,7 +1735,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     ];
 
     return [...baseSource, ...spacerRows];
-  }, [tracks, currentTrack?.id, selectedTrackIds, autoHeight]);
+  }, [sortedTracks, originalIndexMap, tracks.length, currentTrack?.id, selectedTrackIds, autoHeight]);
 
   // Handle column resizing with strict "brick wall" right boundary constraint
   const onAfterColumnResize = useCallback(
@@ -1710,10 +1818,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       .filter((t): t is Track => Boolean(t));
   }, [selectedTrackIds, tracks]);
 
-  const allSelectedLiked = useMemo(() => {
-    if (selectedTrackIds.length === 0) return false;
-    return selectedTrackIds.every((id) => likedTrackIds.includes(id));
-  }, [selectedTrackIds, likedTrackIds]);
 
   // Keyboard navigation & Shortcuts
   const onKeyDown = useCallback(
@@ -1734,11 +1838,11 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       if (e.key === 'Enter') {
         e.preventDefault();
         if (selectedTracksList.length > 0) {
-          playTrack(selectedTracksList[0], tracks);
+          playTrack(selectedTracksList[0], sortedTracksRef.current);
         } else if (currentTrack) {
           togglePlay();
-        } else if (tracks.length > 0) {
-          playTrack(tracks[0], tracks);
+        } else if (sortedTracksRef.current.length > 0) {
+          playTrack(sortedTracksRef.current[0], sortedTracksRef.current);
         }
         return;
       }
@@ -1777,48 +1881,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const currentDensityHeight = DENSITY_ROW_HEIGHTS[trackGridDensity] || 56;
   const calculatedHeight = autoHeight && tracks.length > 0 ? 48 + tracks.length * currentDensityHeight : undefined;
 
-  // Batch actions from floating bar
-  const [batchQueueAdded, setBatchQueueAdded] = useState(false);
-  const [batchNextAdded, setBatchNextAdded] = useState(false);
 
-  const handleBatchPlay = () => {
-    if (selectedTracksList.length > 0) {
-      playTrack(selectedTracksList[0], tracks);
-    }
-  };
-
-  const handleBatchAddToQueue = () => {
-    if (selectedTracksList.length > 0) {
-      addTracksToQueue(selectedTracksList);
-      setBatchQueueAdded(true);
-      setTimeout(() => setBatchQueueAdded(false), 1200);
-    }
-  };
-
-  const handleBatchPlayNext = () => {
-    if (selectedTracksList.length > 0) {
-      playNextTracks(selectedTracksList);
-      setBatchNextAdded(true);
-      setTimeout(() => setBatchNextAdded(false), 1200);
-    }
-  };
-
-  const handleBatchToggleLike = () => {
-    if (selectedTrackIds.length > 0) {
-      likeMultipleTracks(selectedTrackIds, !allSelectedLiked);
-    }
-  };
-
-  const handleBatchRemoveFromPlaylist = () => {
-    if (playlistId && selectedTrackIds.length > 0) {
-      if (onRemoveFromPlaylist) {
-        selectedTrackIds.forEach((id) => onRemoveFromPlaylist(id));
-      } else if (removeTracksFromPlaylistStore) {
-        removeTracksFromPlaylistStore(playlistId, selectedTrackIds);
-      }
-      clearSelection();
-    }
-  };
 
   return (
     <div className={`w-full ${autoHeight ? '' : 'h-full flex-1'} flex flex-col overflow-hidden relative select-none`}>
@@ -1854,10 +1917,60 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
             )}
           </div>
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowConfigModal((p) => !p)}
+          <div className="flex items-center gap-2">
+            {/* Material 3 Sort Dropdown */}
+            <div className="relative" ref={sortDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setShowSortMenu((p) => !p)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer shadow-sm active:scale-95 bg-white/5 hover:bg-white/10 border-white/10 text-zinc-300 hover:text-white"
+                title="Sort songs"
+              >
+                <ArrowUpDown className="w-3.5 h-3.5 text-zinc-400" />
+                <span>{currentSortLabel}</span>
+                <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform duration-200 ${showSortMenu ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showSortMenu && (
+                <div
+                  className="absolute right-0 mt-1.5 w-44 rounded-xl bg-[#18181b]/95 border border-white/10 shadow-2xl p-1 z-50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
+                >
+                  <div className="px-3 py-1.5 text-xs font-semibold text-zinc-400 select-none">
+                    Sort by
+                  </div>
+                  {SORT_OPTIONS.map((opt) => {
+                    const isActive = sortState?.prop === opt.prop;
+                    const currentOrder = isActive ? sortState.order : opt.defaultOrder;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => handleSelectSortOption(opt)}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors text-left cursor-pointer select-none ${
+                          isActive
+                            ? 'text-[#22c55e] bg-white/5 font-semibold'
+                            : 'text-zinc-300 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        <span>{opt.label}</span>
+                        {isActive && (
+                          currentOrder === 'desc' ? (
+                            <ArrowDown className="w-3.5 h-3.5 text-[#22c55e] stroke-[2.5]" />
+                          ) : (
+                            <ArrowUp className="w-3.5 h-3.5 text-[#22c55e] stroke-[2.5]" />
+                          )
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowConfigModal((p) => !p)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer shadow-sm active:scale-95"
               style={{
                 backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
@@ -1882,7 +1995,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
             />
           </div>
         </div>
-      )}
+      </div>
+    )}
 
       {/* Main RevoGrid Container with strict boundary constraints */}
       <div
@@ -1946,124 +2060,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
           </GridErrorBoundary>
         )}
 
-        {/* Floating Batch Actions Pill for Multi-Selected Songs */}
-        {selectedTrackIds.length > 1 && (
-          <div
-            className="absolute bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 px-3.5 py-2 rounded-2xl shadow-2xl border backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-3 duration-150"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 14%, #121216)',
-              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, rgba(255, 255, 255, 0.15))',
-              boxShadow:
-                '0 12px 36px -4px rgba(0, 0, 0, 0.8), 0 0 20px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
-            }}
-          >
-            <div className="flex items-center gap-2 pr-2.5 border-r border-white/10 text-xs font-bold text-white">
-              <span
-                className="w-2 h-2 rounded-full animate-pulse"
-                style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-              />
-              <span>{selectedTrackIds.length} Songs</span>
-            </div>
 
-            <button
-              type="button"
-              onClick={handleBatchPlay}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer hover:scale-105 active:scale-95"
-              title="Play Selection"
-            >
-              <Play className="w-3.5 h-3.5 fill-current" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-              <span>Play</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleBatchAddToQueue}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold ${
-                batchQueueAdded
-                  ? 'bg-emerald-500/20 text-emerald-300'
-                  : 'bg-white/10 hover:bg-white/20 text-white'
-              } transition-all cursor-pointer hover:scale-105 active:scale-95`}
-              title={batchQueueAdded ? 'Queued!' : 'Add to Queue'}
-            >
-              {batchQueueAdded ? (
-                <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
-              ) : (
-                <ListEnd className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-              )}
-              <span>{batchQueueAdded ? 'Queued!' : 'Queue'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleBatchPlayNext}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold ${
-                batchNextAdded
-                  ? 'bg-emerald-500/20 text-emerald-300'
-                  : 'bg-white/10 hover:bg-white/20 text-white'
-              } transition-all cursor-pointer hover:scale-105 active:scale-95`}
-              title={batchNextAdded ? 'Added Next!' : 'Play Next'}
-            >
-              {batchNextAdded ? (
-                <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
-              ) : (
-                <ListPlus className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-              )}
-              <span>{batchNextAdded ? 'Next!' : 'Next'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                setContextMenu({
-                  x: rect.left,
-                  y: rect.top - 8,
-                  tracks: selectedTracksList,
-                  openPlaylistSubmenu: true,
-                });
-              }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer hover:scale-105 active:scale-95"
-              title="Add to Playlist"
-            >
-              <PlusCircle className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-              <span>Playlist</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleBatchToggleLike}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer hover:scale-105 active:scale-95"
-              title={allSelectedLiked ? 'Unlike Selected' : 'Like Selected'}
-            >
-              <Heart
-                className={`w-3.5 h-3.5 ${
-                  allSelectedLiked ? 'fill-pink-500 text-pink-500' : 'text-zinc-300'
-                }`}
-              />
-              <span>{allSelectedLiked ? 'Unlike' : 'Like'}</span>
-            </button>
-
-            {playlistId && (
-              <button
-                type="button"
-                onClick={handleBatchRemoveFromPlaylist}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-all cursor-pointer hover:scale-105 active:scale-95"
-                title="Remove Selected from Playlist"
-              >
-                <span>Remove</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => clearSelection()}
-              className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition-colors ml-0.5 cursor-pointer"
-              title="Deselect All (Esc)"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Context Menu Overlay */}
@@ -2143,9 +2140,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                 type="button"
                 onClick={() => {
                   if (isMulti) {
-                    playTrack(contextMenu.tracks[0], tracks);
+                    playTrack(contextMenu.tracks[0], sortedTracksRef.current);
                   } else {
-                    playTrack(primaryTrack, tracks);
+                    playTrack(primaryTrack, sortedTracksRef.current);
                   }
                   setContextMenu(null);
                 }}

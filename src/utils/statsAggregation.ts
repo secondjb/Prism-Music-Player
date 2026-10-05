@@ -4,6 +4,7 @@ export interface TopItem {
   name: string;
   count: number;
   listened_ms: number;
+  artist?: string;
 }
 
 export function formatDuration(ms: number): string {
@@ -24,7 +25,11 @@ export function getTotalListeningTime(events: ListeningEvent[]): number {
   return events.reduce((acc, e) => acc + (e.duration_ms || 0), 0);
 }
 
-export function getTopArtists(events: ListeningEvent[], limit: number = 10): TopItem[] {
+export function getTopArtists(
+  events: ListeningEvent[],
+  limit: number = 10,
+  sortBy: 'time' | 'plays' = 'time'
+): TopItem[] {
   const map: Record<string, TopItem> = {};
   events.forEach((e) => {
     if (e.artist_name) {
@@ -33,23 +38,44 @@ export function getTopArtists(events: ListeningEvent[], limit: number = 10): Top
       map[e.artist_name].listened_ms += (e.duration_ms || 0);
     }
   });
-  return Object.values(map).sort((a, b) => b.count - a.count).slice(0, limit);
+  return Object.values(map)
+    .sort((a, b) =>
+      sortBy === 'time'
+        ? (b.listened_ms - a.listened_ms || b.count - a.count)
+        : (b.count - a.count || b.listened_ms - a.listened_ms)
+    )
+    .slice(0, limit);
 }
 
-export function getTopSongs(events: ListeningEvent[], limit: number = 10): TopItem[] {
+export function getTopSongs(
+  events: ListeningEvent[],
+  limit: number = 10,
+  sortBy: 'time' | 'plays' = 'time'
+): TopItem[] {
   const map: Record<string, TopItem> = {};
   events.forEach((e) => {
     if (e.song_title) {
-      const key = `${e.song_title} - ${e.artist_name}`;
-      if (!map[key]) map[key] = { name: key, count: 0, listened_ms: 0 };
+      const artist = e.artist_name || 'Unknown Artist';
+      const key = `${e.song_title} - ${artist}`;
+      if (!map[key]) map[key] = { name: e.song_title, count: 0, listened_ms: 0, artist };
       map[key].count += 1;
       map[key].listened_ms += (e.duration_ms || 0);
     }
   });
-  return Object.values(map).sort((a, b) => b.count - a.count).slice(0, limit);
+  return Object.values(map)
+    .sort((a, b) =>
+      sortBy === 'time'
+        ? (b.listened_ms - a.listened_ms || b.count - a.count)
+        : (b.count - a.count || b.listened_ms - a.listened_ms)
+    )
+    .slice(0, limit);
 }
 
-export function getTopGenres(events: ListeningEvent[], limit: number = 5): TopItem[] {
+export function getTopGenres(
+  events: ListeningEvent[],
+  limit: number = 5,
+  sortBy: 'time' | 'plays' = 'time'
+): TopItem[] {
   const map: Record<string, TopItem> = {};
   events.forEach((e) => {
     if (e.genre) {
@@ -58,7 +84,13 @@ export function getTopGenres(events: ListeningEvent[], limit: number = 5): TopIt
       map[e.genre].listened_ms += (e.duration_ms || 0);
     }
   });
-  return Object.values(map).sort((a, b) => b.count - a.count).slice(0, limit);
+  return Object.values(map)
+    .sort((a, b) =>
+      sortBy === 'time'
+        ? (b.listened_ms - a.listened_ms || b.count - a.count)
+        : (b.count - a.count || b.listened_ms - a.listened_ms)
+    )
+    .slice(0, limit);
 }
 
 export function getListeningHabits(events: ListeningEvent[]): number[] {

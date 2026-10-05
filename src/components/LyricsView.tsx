@@ -11,6 +11,7 @@ import { InterludeIndicator } from './InterludeIndicator';
 import { parseRichLyrics, ParsedLyricLine, LyricSyllable, hasExplicitWordSync, isIdenticalLyricText } from '../utils/lyricsParser';
 import { createRomanizer, detectScript } from 'lyric-romanizer';
 import { enrichLineWithRomanization } from '../utils/japaneseRomanizer';
+import { MarqueeText } from './MarqueeText';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -98,7 +99,7 @@ const LyricsSeekbar = React.memo<LyricsSeekbarProps>(({
   duration,
   isWavySeekbarEnabled,
   onSeek,
-  className = "w-full max-w-[clamp(240px,38vw,640px)] flex items-center gap-[clamp(0.5rem,1vw,0.75rem)] text-[clamp(0.65rem,1vw,0.75rem)] font-mono text-zinc-400 mt-[clamp(1rem,2.5vh,1.25rem)]",
+  className = "w-full max-w-[clamp(240px,38vw,640px)] flex items-center gap-[clamp(0.5rem,1vw,0.75rem)] text-[clamp(0.65rem,1vw,0.75rem)] font-mono text-zinc-400 mt-[clamp(0.4rem,1.4vh,0.875rem)]",
   active = true,
 }) => {
   const currentTime = usePlayerStore((s) => s.currentTime);
@@ -2823,144 +2824,153 @@ export const LyricsView: React.FC = () => {
       {/* RENDER MODE: SIDE-BY-SIDE SPLIT VIEW */}
       {lyricsLayoutMode === 'split' && !isCompact ? (
         <div className="flex-1 grid grid-cols-2 min-h-0 w-full h-full overflow-hidden z-10">
-          {/* Left Column (50%): Big Album Art, Track Info, Seekbar & Fading Controls */}
+          {/* Left Column (50%): Dynamic Album Art, Track Info, Seekbar & Controls that never overflow */}
           {currentTrack && (
-            <div className="h-full w-full min-w-0 flex flex-col justify-center items-center px-8 lg:px-14 shrink-0 my-auto">
-              <div
-                onClick={() => setLyricsLayoutMode('centered')}
-                className="relative rounded-[clamp(1rem,2vw,1.5rem)] overflow-hidden shadow-2xl border border-white/15 shrink-0 w-[clamp(240px,38vw,640px)] max-w-[min(94%,60vh)] aspect-square select-none cursor-pointer group transition-all"
-              >
-                {trackArt ? (
-                  <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
-                    <Mic2 className="w-[clamp(3rem,6vw,5rem)] h-[clamp(3rem,6vw,5rem)]" />
-                  </div>
-                )}
-                {/* Center button allowing minimize back to Fullscreen / Centered View */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity bg-black/25">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setLyricsLayoutMode('centered');
-                    }}
-                    className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-full bg-black/80 hover:bg-black/95 text-white text-xs font-semibold shadow-2xl border border-white/25 hover:scale-105 active:scale-95 transition-all backdrop-blur-md cursor-pointer group/btn"
-                    title="Minimize back to Fullscreen View"
-                  >
-                    <Minimize2 className="w-4 h-4 text-indigo-400 group-hover/btn:text-white transition-colors" />
-                    <span>Fullscreen View</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex flex-col min-w-0 w-full mt-[clamp(1rem,3vh,1.5rem)] max-w-[clamp(240px,38vw,640px)]">
-                <span className="font-extrabold text-white text-[clamp(1.5rem,3.5vw,3rem)] truncate drop-shadow-md leading-tight">
-                  {currentTrack.title}
-                </span>
-                <span
-                  className="font-semibold text-zinc-300 text-[clamp(1rem,1.8vw,1.25rem)] truncate mt-1 cursor-pointer hover:underline hover:text-indigo-400"
-                  onClick={() => {
-                    if (currentTrack.artist && currentTrack.artist !== 'Unknown Artist') {
-                      setShowLyricsFullscreen(false);
-                      usePlayerStore.getState().navigateToArtist(currentTrack.artist);
-                    }
+            <div className="h-full w-full min-w-0 min-h-0 flex flex-col justify-center items-center px-6 lg:px-12 py-2 overflow-hidden">
+              <div className="flex flex-col items-center justify-center w-full max-w-[min(540px,94%)] max-h-full min-h-0">
+                <div
+                  onClick={() => setLyricsLayoutMode('centered')}
+                  className="relative rounded-[clamp(1rem,2vw,1.5rem)] overflow-hidden shadow-2xl border border-white/15 aspect-square select-none cursor-pointer group transition-all shrink min-h-[140px]"
+                  style={{
+                    width: 'min(38vw, calc(100vh - 350px), 520px)',
+                    height: 'min(38vw, calc(100vh - 350px), 520px)',
+                    maxWidth: 'min(100%, calc(100vh - 350px))',
+                    maxHeight: 'min(100%, calc(100vh - 350px))',
                   }}
                 >
-                  {currentTrack.artist}
-                </span>
-                {currentTrack.album && (
+                  {trackArt ? (
+                    <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
+                      <Mic2 className="w-[clamp(3rem,6vw,5rem)] h-[clamp(3rem,6vw,5rem)]" />
+                    </div>
+                  )}
+                  {/* Center button allowing minimize back to Fullscreen / Centered View */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity bg-black/25">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLyricsLayoutMode('centered');
+                      }}
+                      className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-full bg-black/80 hover:bg-black/95 text-white text-xs font-semibold shadow-2xl border border-white/25 hover:scale-105 active:scale-95 transition-all backdrop-blur-md cursor-pointer group/btn"
+                      title="Minimize back to Fullscreen View"
+                    >
+                      <Minimize2 className="w-4 h-4 text-indigo-400 group-hover/btn:text-white transition-colors" />
+                      <span>Fullscreen View</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col min-w-0 w-full mt-[clamp(0.6rem,1.8vh,1.25rem)]">
+                  <MarqueeText
+                    text={currentTrack.title}
+                    className="font-extrabold text-white text-[clamp(1.4rem,3vw,2.5rem)] drop-shadow-md leading-tight"
+                  />
                   <span
-                    className="text-[clamp(0.75rem,1.2vw,0.875rem)] text-zinc-400 truncate mt-1 cursor-pointer hover:underline hover:text-indigo-400"
+                    className="font-semibold text-zinc-300 text-[clamp(0.9rem,1.5vw,1.15rem)] truncate mt-0.5 cursor-pointer hover:underline hover:text-indigo-400"
                     onClick={() => {
-                      if (currentTrack.album && currentTrack.album !== 'Unknown Album') {
+                      if (currentTrack.artist && currentTrack.artist !== 'Unknown Artist') {
                         setShowLyricsFullscreen(false);
-                        usePlayerStore.getState().navigateToAlbum(currentTrack.album);
+                        usePlayerStore.getState().navigateToArtist(currentTrack.artist);
                       }
                     }}
                   >
-                    {currentTrack.album} {currentTrack.year ? `• ${currentTrack.year}` : ''}
+                    {currentTrack.artist}
                   </span>
-                )}
-              </div>
+                  {currentTrack.album && (
+                    <span
+                      className="text-[clamp(0.75rem,1.1vw,0.85rem)] text-zinc-400 truncate mt-0.5 cursor-pointer hover:underline hover:text-indigo-400"
+                      onClick={() => {
+                        if (currentTrack.album && currentTrack.album !== 'Unknown Album') {
+                          setShowLyricsFullscreen(false);
+                          usePlayerStore.getState().navigateToAlbum(currentTrack.album);
+                        }
+                      }}
+                    >
+                      {currentTrack.album} {currentTrack.year ? `• ${currentTrack.year}` : ''}
+                    </span>
+                  )}
+                </div>
 
-              {/* Seekbar - ALWAYS VISIBLE */}
-              <LyricsSeekbar
-                duration={duration}
-                isWavySeekbarEnabled={isWavySeekbarEnabled}
-                onSeek={handleSeek}
-              />
+                {/* Seekbar - ALWAYS VISIBLE */}
+                <LyricsSeekbar
+                  duration={duration}
+                  isWavySeekbarEnabled={isWavySeekbarEnabled}
+                  onSeek={handleSeek}
+                />
 
-              {/* Fading Controls Container (Transport Buttons & Volume Slider) */}
-              <div
-                className={`w-full max-w-[clamp(240px,38vw,640px)] flex flex-col transition-opacity duration-300 ${
-                  controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-                }`}
-              >
-                {/* Transport Buttons & Volume Slider */}
-                <div className="w-full flex items-center justify-between mt-[clamp(0.5rem,1.5vh,1rem)] pt-[clamp(0.5rem,1.5vh,0.875rem)] border-t border-white/10">
-                  <div className="flex items-center gap-[clamp(0.25rem,1vw,1rem)]">
-                    <button
-                      onClick={toggleShuffle}
-                      style={shuffleEnabled ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-                      className={`p-[clamp(0.4rem,1vw,0.75rem)] rounded-2xl transition-colors hover:bg-white/10 ${
-                        shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
-                      }`}
-                      title="Shuffle"
-                    >
-                      <Shuffle className="w-[clamp(1.2rem,2vw,1.5rem)] h-[clamp(1.2rem,2vw,1.5rem)]" />
-                    </button>
-                    <button
-                      onClick={previousTrack}
-                      className="p-[clamp(0.4rem,1vw,0.75rem)] text-zinc-400 hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
-                      title="Previous"
-                    >
-                      <SkipBack className="w-[clamp(1.5rem,2.5vw,1.75rem)] h-[clamp(1.5rem,2.5vw,1.75rem)]" />
-                    </button>
-                    <button
-                      onClick={togglePlay}
-                      style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-                      className="w-[clamp(3rem,5.5vw,4.5rem)] h-[clamp(3rem,5.5vw,4.5rem)] rounded-full text-white flex items-center justify-center shadow-2xl transition-transform active:scale-95 cursor-pointer shrink-0 hover:scale-105"
-                      title={isPlaying ? 'Pause' : 'Play'}
-                    >
-                      {isPlaying ? <Pause className="w-[clamp(1.5rem,2.5vw,2rem)] h-[clamp(1.5rem,2.5vw,2rem)] fill-white" /> : <Play className="w-[clamp(1.5rem,2.5vw,2rem)] h-[clamp(1.5rem,2.5vw,2rem)] fill-white ml-[clamp(0.1rem,0.2vw,0.125rem)]" />}
-                    </button>
-                    <button
-                      onClick={nextTrack}
-                      className="p-[clamp(0.4rem,1vw,0.75rem)] text-zinc-400 hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
-                      title="Next"
-                    >
-                      <SkipForward className="w-[clamp(1.5rem,2.5vw,1.75rem)] h-[clamp(1.5rem,2.5vw,1.75rem)]" />
-                    </button>
-                    <button
-                      onClick={cycleRepeatMode}
-                      style={repeatMode !== 'off' ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-                      className={`p-[clamp(0.4rem,1vw,0.75rem)] rounded-2xl transition-colors hover:bg-white/10 ${
-                        repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
-                      }`}
-                      title="Repeat"
-                    >
-                      <RepeatIcon className="w-[clamp(1.2rem,2vw,1.5rem)] h-[clamp(1.2rem,2vw,1.5rem)]" />
-                    </button>
-                  </div>
-                  <div ref={volRefCallback} className="flex items-center gap-[clamp(0.25rem,1vw,0.5rem)] pl-[clamp(0.25rem,1vw,0.75rem)]">
-                    <button
-                      onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
-                      className="text-zinc-400 hover:text-white transition-colors p-[clamp(0.25rem,0.75vw,0.5rem)] hover:bg-white/10 rounded-xl"
-                      title={volume > 0 ? 'Mute' : 'Unmute'}
-                    >
-                      {volume > 0 ? <Volume2 className="w-[clamp(1.2rem,2vw,1.5rem)] h-[clamp(1.2rem,2vw,1.5rem)]" /> : <VolumeX className="w-[clamp(1.2rem,2vw,1.5rem)] h-[clamp(1.2rem,2vw,1.5rem)] text-rose-400" />}
-                    </button>
-                    <AudioSlider
-                      value={volume}
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      onChange={(val) => setVolume(val)}
-                      formatTooltip={(val) => `${Math.round(val * 100)}%`}
-                      size="md"
-                      className="w-[clamp(4.5rem,10vw,13rem)]"
-                    />
+                {/* Fading Controls Container (Transport Buttons & Volume Slider) */}
+                <div
+                  className={`w-full flex flex-col transition-opacity duration-300 ${
+                    controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                  }`}
+                >
+                  {/* Transport Buttons & Volume Slider */}
+                  <div className="w-full flex items-center justify-between mt-[clamp(0.35rem,1.2vh,0.75rem)] pt-[clamp(0.35rem,1.2vh,0.75rem)] border-t border-white/10">
+                    <div className="flex items-center gap-[clamp(0.2rem,0.8vw,0.75rem)]">
+                      <button
+                        onClick={toggleShuffle}
+                        style={shuffleEnabled ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
+                        className={`p-[clamp(0.35rem,0.8vw,0.65rem)] rounded-2xl transition-colors hover:bg-white/10 ${
+                          shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
+                        }`}
+                        title="Shuffle"
+                      >
+                        <Shuffle className="w-[clamp(1.1rem,1.8vw,1.35rem)] h-[clamp(1.1rem,1.8vw,1.35rem)]" />
+                      </button>
+                      <button
+                        onClick={previousTrack}
+                        className="p-[clamp(0.35rem,0.8vw,0.65rem)] text-zinc-400 hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
+                        title="Previous"
+                      >
+                        <SkipBack className="w-[clamp(1.3rem,2.2vw,1.6rem)] h-[clamp(1.3rem,2.2vw,1.6rem)]" />
+                      </button>
+                      <button
+                        onClick={togglePlay}
+                        style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+                        className="w-[clamp(2.75rem,4.5vw,3.75rem)] h-[clamp(2.75rem,4.5vw,3.75rem)] rounded-full text-white flex items-center justify-center shadow-2xl transition-transform active:scale-95 cursor-pointer shrink-0 hover:scale-105"
+                        title={isPlaying ? 'Pause' : 'Play'}
+                      >
+                        {isPlaying ? <Pause className="w-[clamp(1.3rem,2.2vw,1.75rem)] h-[clamp(1.3rem,2.2vw,1.75rem)] fill-white" /> : <Play className="w-[clamp(1.3rem,2.2vw,1.75rem)] h-[clamp(1.3rem,2.2vw,1.75rem)] fill-white ml-[clamp(0.1rem,0.2vw,0.125rem)]" />}
+                      </button>
+                      <button
+                        onClick={nextTrack}
+                        className="p-[clamp(0.35rem,0.8vw,0.65rem)] text-zinc-400 hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
+                        title="Next"
+                      >
+                        <SkipForward className="w-[clamp(1.3rem,2.2vw,1.6rem)] h-[clamp(1.3rem,2.2vw,1.6rem)]" />
+                      </button>
+                      <button
+                        onClick={cycleRepeatMode}
+                        style={repeatMode !== 'off' ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
+                        className={`p-[clamp(0.35rem,0.8vw,0.65rem)] rounded-2xl transition-colors hover:bg-white/10 ${
+                          repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
+                        }`}
+                        title="Repeat"
+                      >
+                        <RepeatIcon className="w-[clamp(1.1rem,1.8vw,1.35rem)] h-[clamp(1.1rem,1.8vw,1.35rem)]" />
+                      </button>
+                    </div>
+                    <div ref={volRefCallback} className="flex items-center gap-[clamp(0.2rem,0.8vw,0.45rem)] pl-[clamp(0.2rem,0.8vw,0.6rem)]">
+                      <button
+                        onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
+                        className="text-zinc-400 hover:text-white transition-colors p-[clamp(0.2rem,0.6vw,0.45rem)] hover:bg-white/10 rounded-xl"
+                        title={volume > 0 ? 'Mute' : 'Unmute'}
+                      >
+                        {volume > 0 ? <Volume2 className="w-[clamp(1.1rem,1.8vw,1.35rem)] h-[clamp(1.1rem,1.8vw,1.35rem)]" /> : <VolumeX className="w-[clamp(1.1rem,1.8vw,1.35rem)] h-[clamp(1.1rem,1.8vw,1.35rem)] text-rose-400" />}
+                      </button>
+                      <AudioSlider
+                        value={volume}
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        onChange={(val) => setVolume(val)}
+                        formatTooltip={(val) => `${Math.round(val * 100)}%`}
+                        size="md"
+                        className="w-[clamp(4rem,8.5vw,11rem)]"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3257,13 +3267,12 @@ export const LyricsView: React.FC = () => {
               </div>
 
               <div className="flex flex-col min-w-0 flex-1 mb-1">
-                <span
-                  className={`font-extrabold text-white truncate drop-shadow-lg transition-all ${
+                <MarqueeText
+                  text={currentTrack.title}
+                  className={`font-extrabold text-white drop-shadow-lg transition-all ${
                     artExpanded ? 'text-xl md:text-3xl' : 'text-base md:text-lg'
                   }`}
-                >
-                  {currentTrack.title}
-                </span>
+                />
                 <span
                   className={`font-medium text-zinc-300 truncate mt-0.5 transition-all cursor-pointer hover:underline hover:text-indigo-400 ${
                     artExpanded ? 'text-sm md:text-lg' : 'text-xs md:text-sm'

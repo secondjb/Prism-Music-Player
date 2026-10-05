@@ -2830,16 +2830,16 @@ export const LyricsView: React.FC = () => {
               <div className="flex flex-col items-center justify-center w-full max-w-[min(640px,94%)] max-h-full min-h-0">
                 <div
                   onClick={() => setLyricsLayoutMode('centered')}
-                  className="relative rounded-[clamp(1rem,2vw,1.5rem)] overflow-hidden shadow-2xl border border-white/15 aspect-square select-none cursor-pointer group transition-all shrink min-h-[140px]"
+                  className="relative rounded-[clamp(1rem,2vw,1.5rem)] overflow-hidden shadow-2xl border border-white/15 aspect-square select-none cursor-pointer group transition-all shrink-0 bg-black/40 flex items-center justify-center"
                   style={{
-                    width: 'min(44vw, calc(100vh - 240px), 640px)',
-                    height: 'min(44vw, calc(100vh - 240px), 640px)',
-                    maxWidth: 'min(100%, calc(100vh - 240px))',
-                    maxHeight: 'min(100%, calc(100vh - 240px))',
+                    width: 'min(38vw, calc(100vh - 280px), 520px)',
+                    height: 'min(38vw, calc(100vh - 280px), 520px)',
+                    maxWidth: '100%',
+                    maxHeight: 'calc(100vh - 280px)',
                   }}
                 >
                   {trackArt ? (
-                    <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
+                    <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-contain" />
                   ) : (
                     <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
                       <Mic2 className="w-[clamp(3rem,6vw,5rem)] h-[clamp(3rem,6vw,5rem)]" />
@@ -3225,12 +3225,18 @@ export const LyricsView: React.FC = () => {
             }`}>
               <div
                 onClick={() => setArtExpanded(!artExpanded)}
-                className={`relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 shrink-0 group cursor-pointer transition-all duration-300 ${
-                  artExpanded ? (isCompact ? 'w-48 h-48' : 'w-80 h-80') : (isCompact ? 'w-14 h-14' : 'w-20 h-20')
+                className={`relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 shrink-0 group cursor-pointer transition-all duration-300 bg-black/40 ${
+                  artExpanded
+                    ? isCompact
+                      ? 'w-48 h-48 max-w-[40vh] max-h-[40vh]'
+                      : 'w-80 h-80 max-w-[45vh] max-h-[45vh]'
+                    : isCompact
+                    ? 'w-14 h-14'
+                    : 'w-20 h-20'
                 }`}
               >
                 {trackArt ? (
-                  <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
+                  <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-contain" />
                 ) : (
                   <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
                     <Mic2 className="w-8 h-8" />

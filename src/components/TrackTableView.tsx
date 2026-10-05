@@ -984,6 +984,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const playNextTracks = usePlayerStore((s) => s.playNextTracks);
   const likeMultipleTracks = usePlayerStore((s) => s.likeMultipleTracks);
   const removeTracksFromPlaylistStore = usePlayerStore((s) => s.removeTracksFromPlaylist);
+  const masterStoreTracks = usePlayerStore((s) => s.tracks);
 
   const {
     visibleTrackColumns,
@@ -1102,9 +1103,10 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
 
   const originalIndexMap = useMemo(() => {
     const map = new Map<string, number>();
-    tracks.forEach((t, i) => map.set(t.id, i + 1));
+    const masterList = masterStoreTracks && masterStoreTracks.length > 0 ? masterStoreTracks : tracks;
+    masterList.forEach((t, i) => map.set(t.id, i + 1));
     return map;
-  }, [tracks]);
+  }, [masterStoreTracks, tracks]);
 
   const sortedTracks = useMemo(() => {
     if (!sortState) return tracks;
@@ -1112,13 +1114,56 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     const isDesc = order === 'desc';
 
     return [...tracks].sort((a, b) => {
+      if (prop === 'order') {
+        const aVal = originalIndexMap.get(a.id) ?? 0;
+        const bVal = originalIndexMap.get(b.id) ?? 0;
+        return isDesc ? bVal - aVal : aVal - bVal;
+      }
+
+      if (prop === 'album') {
+        const strA = String(a.album ?? '').toLowerCase();
+        const strB = String(b.album ?? '').toLowerCase();
+        const cmp = strA.localeCompare(strB, undefined, { numeric: true });
+        if (cmp !== 0) return isDesc ? -cmp : cmp;
+        const aTrackNo = (a as any).track_number ?? (a as any).trackNumber ?? 0;
+        const bTrackNo = (b as any).track_number ?? (b as any).trackNumber ?? 0;
+        if (aTrackNo !== bTrackNo) return aTrackNo - bTrackNo;
+        const aIdx = originalIndexMap.get(a.id) ?? 0;
+        const bIdx = originalIndexMap.get(b.id) ?? 0;
+        return aIdx - bIdx;
+      }
+
+      if (prop === 'artist') {
+        const strA = String(a.artist ?? '').toLowerCase();
+        const strB = String(b.artist ?? '').toLowerCase();
+        const cmp = strA.localeCompare(strB, undefined, { numeric: true });
+        if (cmp !== 0) return isDesc ? -cmp : cmp;
+        const aAlbum = String(a.album ?? '').toLowerCase();
+        const bAlbum = String(b.album ?? '').toLowerCase();
+        const albumCmp = aAlbum.localeCompare(bAlbum, undefined, { numeric: true });
+        if (albumCmp !== 0) return albumCmp;
+        const aTrackNo = (a as any).track_number ?? (a as any).trackNumber ?? 0;
+        const bTrackNo = (b as any).track_number ?? (b as any).trackNumber ?? 0;
+        if (aTrackNo !== bTrackNo) return aTrackNo - bTrackNo;
+        const aIdx = originalIndexMap.get(a.id) ?? 0;
+        const bIdx = originalIndexMap.get(b.id) ?? 0;
+        return aIdx - bIdx;
+      }
+
+      if (prop === 'title') {
+        const strA = String(a.title ?? '').toLowerCase();
+        const strB = String(b.title ?? '').toLowerCase();
+        const cmp = strA.localeCompare(strB, undefined, { numeric: true });
+        if (cmp !== 0) return isDesc ? -cmp : cmp;
+        const aIdx = originalIndexMap.get(a.id) ?? 0;
+        const bIdx = originalIndexMap.get(b.id) ?? 0;
+        return aIdx - bIdx;
+      }
+
       let aVal: any;
       let bVal: any;
 
-      if (prop === 'order') {
-        aVal = originalIndexMap.get(a.id) ?? 0;
-        bVal = originalIndexMap.get(b.id) ?? 0;
-      } else if (prop === 'duration' || prop === 'duration_secs') {
+      if (prop === 'duration' || prop === 'duration_secs') {
         aVal = a.duration_secs ?? 0;
         bVal = b.duration_secs ?? 0;
       } else if (prop === 'date' || prop === 'year') {
@@ -1130,13 +1175,20 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       }
 
       if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return isDesc ? bVal - aVal : aVal - bVal;
+        const diff = isDesc ? bVal - aVal : aVal - bVal;
+        if (diff !== 0) return diff;
+        const aIdx = originalIndexMap.get(a.id) ?? 0;
+        const bIdx = originalIndexMap.get(b.id) ?? 0;
+        return aIdx - bIdx;
       }
 
       const strA = String(aVal ?? '').toLowerCase();
       const strB = String(bVal ?? '').toLowerCase();
       const cmp = strA.localeCompare(strB, undefined, { numeric: true });
-      return isDesc ? -cmp : cmp;
+      if (cmp !== 0) return isDesc ? -cmp : cmp;
+      const aIdx = originalIndexMap.get(a.id) ?? 0;
+      const bIdx = originalIndexMap.get(b.id) ?? 0;
+      return aIdx - bIdx;
     });
   }, [tracks, sortState, originalIndexMap]);
 

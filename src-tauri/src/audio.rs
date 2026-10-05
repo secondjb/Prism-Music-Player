@@ -280,21 +280,62 @@ impl TrackDecoder {
     }
 
     pub fn seek(&mut self, position_secs: f64) -> Result<(), String> {
-        let _ = self.format.seek(
-            symphonia::core::formats::SeekMode::Accurate,
-            symphonia::core::formats::SeekTo::Time {
-                time: symphonia::core::units::Time::from(position_secs),
-                track_id: Some(self.track_id),
-            },
-        );
-        self.decoder.reset();
         self.ready_samples.clear();
         for b in &mut self.resampler_in_buffer {
             b.clear();
         }
-        self.frames_emitted = (position_secs * self.input_sample_rate as f64) as u64;
         self.delay_frames_remaining = 0;
-        self.eof = false;
+
+        let clamped_secs = position_secs.max(0.0);
+        // If seek target is at or beyond the track duration, treat as immediate EOF
+        if self.total_duration_secs > 0.0 && clamped_secs >= (self.total_duration_secs - 0.25) {
+            self.eof = true;
+            self.frames_emitted = (self.total_duration_secs * self.input_sample_rate as f64) as u64;
+            return Ok(());
+        }
+
+        let seek_res = self.format.seek(
+            symphonia::core::formats::SeekMode::Accurate,
+            symphonia::core::formats::SeekTo::Time {
+                time: symphonia::core::units::Time::from(clamped_secs),
+                track_id: Some(self.track_id),
+            },
+        ).or_else(|_| {
+            self.format.seek(
+                symphonia::core::formats::SeekMode::Coarse,
+                symphonia::core::formats::SeekTo::Time {
+                    time: symphonia::core::units::Time::from(clamped_secs),
+                    track_id: Some(self.track_id),
+                },
+            )
+        });
+
+        self.decoder.reset();
+
+        match seek_res {
+            Ok(_) => {
+                self.frames_emitted = (clamped_secs * self.input_sample_rate as f64) as u64;
+                self.eof = false;
+            }
+            Err(e) => {
+                if self.total_duration_secs > 0.0 && clamped_secs >= (self.total_duration_secs - 2.0) {
+                    self.eof = true;
+                    self.frames_emitted = (self.total_duration_secs * self.input_sample_rate as f64) as u64;
+                } else {
+                    let _ = self.format.seek(
+                        symphonia::core::formats::SeekMode::Coarse,
+                        symphonia::core::formats::SeekTo::Time {
+                            time: symphonia::core::units::Time::from(0.0),
+                            track_id: Some(self.track_id),
+                        },
+                    );
+                    self.decoder.reset();
+                    self.frames_emitted = 0;
+                    self.eof = false;
+                }
+                return Err(format!("Seek error: {}", e));
+            }
+        }
         Ok(())
     }
 
@@ -441,11 +482,19 @@ impl TrackDecoder {
                 (0, num_frames)
             };
 
-            // 2. Gapless padding trimming
+            // 2. Gapless padding trimming & duration clamp
             let frames_to_take = if let Some(limit) = self.valid_frames_remaining {
                 if self.frames_emitted + frames_after_delay as u64 >= limit {
                     self.eof = true;
                     (limit.saturating_sub(self.frames_emitted)) as usize
+                } else {
+                    frames_after_delay
+                }
+            } else if self.total_duration_secs > 0.0 {
+                let max_frames = (self.total_duration_secs * self.input_sample_rate as f64) as u64;
+                if self.frames_emitted + frames_after_delay as u64 >= max_frames {
+                    self.eof = true;
+                    (max_frames.saturating_sub(self.frames_emitted)) as usize
                 } else {
                     frames_after_delay
                 }
@@ -929,39 +978,25 @@ fn run_audio_engine(
                         replay_gain_db,
                         start_position_secs,
                         crossfade_secs,
-                        force_gapless,
+                        force_gapless: _,
                     } => {
                         let fade_s = crossfade_secs.unwrap_or(0.0);
                         configured_crossfade_secs = fade_s;
 
-                        if fade_s > 0.0 && !force_gapless && current_track.is_some() && is_playing {
-                            // Smooth Equal-Power crossfade to requested track
-                            match TrackDecoder::open(&path, replay_gain_db, start_position_secs, target_sample_rate, target_channels) {
-                                Ok(incoming) => {
-                                    let total_f = (fade_s * target_sample_rate as f32) as usize;
-                                    crossfade_state = Some(CrossfadeState {
-                                        total_frames: total_f.max(1),
-                                        current_frame: 0,
-                                    });
-                                    incoming_track = Some(incoming);
-                                }
-                                Err(e) => eprintln!("Failed to open track for crossfade: {}", e),
+                        // Instant switch: manual skip or play must NEVER crossfade.
+                        flush_counter.fetch_add(1, Ordering::SeqCst);
+                        incoming_track = None;
+                        crossfade_state = None;
+                        pending_next = None;
+                        match TrackDecoder::open(&path, replay_gain_db, start_position_secs, target_sample_rate, target_channels) {
+                            Ok(t) => {
+                                let dur_ms = (t.total_duration_secs * 1000.0) as u64;
+                                state.lock().current_duration_ms.store(dur_ms, Ordering::Relaxed);
+                                current_track = Some(t);
+                                is_playing = true;
+                                state.lock().is_playing.store(true, Ordering::SeqCst);
                             }
-                        } else {
-                            // Instant switch: flush buffer and start new track
-                            flush_counter.fetch_add(1, Ordering::SeqCst);
-                            incoming_track = None;
-                            crossfade_state = None;
-                            match TrackDecoder::open(&path, replay_gain_db, start_position_secs, target_sample_rate, target_channels) {
-                                Ok(t) => {
-                                    let dur_ms = (t.total_duration_secs * 1000.0) as u64;
-                                    state.lock().current_duration_ms.store(dur_ms, Ordering::Relaxed);
-                                    current_track = Some(t);
-                                    is_playing = true;
-                                    state.lock().is_playing.store(true, Ordering::SeqCst);
-                                }
-                                Err(e) => eprintln!("Failed to open track: {}", e),
-                            }
+                            Err(e) => eprintln!("Failed to open track: {}", e),
                         }
                     }
                     AudioCommand::SetNextTrack { path, replay_gain_db, force_gapless } => {
@@ -986,7 +1021,7 @@ fn run_audio_engine(
                         crossfade_state = None;
                         if let Some(ref mut cur) = current_track {
                             let _ = cur.seek(position_secs);
-                            let pos_ms = (position_secs * 1000.0) as u64;
+                            let pos_ms = (cur.current_position_secs() * 1000.0) as u64;
                             state.lock().current_position_ms.store(pos_ms, Ordering::Relaxed);
                         }
                     }
@@ -1042,14 +1077,15 @@ fn run_audio_engine(
 
         // Lazy On-Demand Preload: only within 12s of track ending
         if incoming_track.is_none() && pending_next.is_some() && (remaining_secs <= 12.0 || cur.eof) {
-            let (next_path, next_gain, _) = pending_next.take().unwrap();
+            let (next_path, next_gain, _) = pending_next.as_ref().unwrap().clone();
             if let Ok(inc) = TrackDecoder::open(&next_path, next_gain, None, target_sample_rate, target_channels) {
                 incoming_track = Some(inc);
             }
         }
 
-        // Auto trigger crossfade if configured and nearing end
-        if crossfade_state.is_none() && incoming_track.is_some() && configured_crossfade_secs > 0.0 {
+        // Auto trigger crossfade if configured and nearing end (natural end transition only, never if next is gapless)
+        let is_gapless = pending_next.as_ref().map(|(_, _, g)| *g).unwrap_or(false);
+        if crossfade_state.is_none() && incoming_track.is_some() && configured_crossfade_secs > 0.0 && !is_gapless {
             if remaining_secs <= (configured_crossfade_secs as f64) {
                 let total_f = (configured_crossfade_secs * target_sample_rate as f32) as usize;
                 crossfade_state = Some(CrossfadeState {
@@ -1095,6 +1131,7 @@ fn run_audio_engine(
                     // Crossfade complete: transition to incoming track
                     crossfade_state = None;
                     current_track = incoming_track.take();
+                    pending_next = None;
                     let new_dur_ms = (current_track.as_ref().unwrap().total_duration_secs * 1000.0) as u64;
                     state.lock().current_duration_ms.store(new_dur_ms, Ordering::Relaxed);
                     break;
@@ -1121,6 +1158,7 @@ fn run_audio_engine(
                     if incoming_track.is_some() {
                         // True Gapless Transition on the immediate frame!
                         current_track = incoming_track.take();
+                        pending_next = None;
                         let new_dur_ms = (current_track.as_ref().unwrap().total_duration_secs * 1000.0) as u64;
                         state.lock().current_duration_ms.store(new_dur_ms, Ordering::Relaxed);
                         if let Some(app) = app_handle.lock().as_ref() {

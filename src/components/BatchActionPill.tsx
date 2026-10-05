@@ -135,7 +135,7 @@ export const BatchActionPill: React.FC = () => {
   return (
     <>
       <div
-        className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-3.5 py-2 rounded-2xl shadow-2xl border backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-3 duration-150 select-none pointer-events-auto"
+        className="fixed bottom-32 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-3.5 py-2 rounded-2xl shadow-2xl border backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-3 duration-150 select-none pointer-events-auto"
         style={{
           backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 16%, #121216)',
           borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, rgba(255, 255, 255, 0.18))',

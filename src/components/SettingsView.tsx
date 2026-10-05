@@ -312,7 +312,6 @@ export const SettingsView: React.FC = () => {
   // Search & Filter Category
   const [selectedCategory, setSelectedCategory] = useState<SettingsCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showRefreshDropdown, setShowRefreshDropdown] = useState(false);
 
   // Collapsible Accordion State (remembered in localStorage, default: all expanded)
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
@@ -392,7 +391,6 @@ export const SettingsView: React.FC = () => {
     setIsRefreshingLocal(true);
     try {
       await refreshConfiguredLibraries();
-      setShowRefreshDropdown(true);
     } finally {
       setIsRefreshingLocal(false);
     }
@@ -555,116 +553,6 @@ export const SettingsView: React.FC = () => {
                 <span>{isRefreshing ? 'Scanning...' : 'Scan for Changes'}</span>
               </button>
 
-              {lastRefreshResult && (
-                <button
-                  onClick={() => setShowRefreshDropdown(!showRefreshDropdown)}
-                  className="px-2.5 py-2 rounded-xl text-xs font-mono font-bold border transition-colors flex items-center gap-1.5"
-                  style={{
-                    backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
-                    borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
-                    color: 'var(--color-stop-1, #6366f1)',
-                  }}
-                  title="View scan details and changes"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>
-                    +{lastRefreshResult.added_count} / -{lastRefreshResult.removed_count}
-                    {Boolean(lastRefreshResult.updated_count) && ` / ~${lastRefreshResult.updated_count}`}
-                  </span>
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 transition-transform ${showRefreshDropdown ? 'rotate-180' : ''}`}
-                  />
-                </button>
-              )}
-
-              {/* Refresh Results Dropdown */}
-              {showRefreshDropdown && lastRefreshResult && (
-                <div
-                  className="absolute right-0 top-full mt-2 w-88 max-w-[90vw] glass-panel border rounded-2xl p-4 shadow-2xl z-50 flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-150"
-                  style={{ borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)' }}
-                >
-                  <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                      Scan Summary
-                    </span>
-                    <button
-                      onClick={() => setShowRefreshDropdown(false)}
-                      className="text-zinc-500 hover:text-zinc-300 text-xs px-1.5 py-0.5 rounded cursor-pointer"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <div className="flex flex-col gap-1.5 text-xs text-zinc-300">
-                    <div className="flex justify-between">
-                      <span>Newly Added Songs:</span>
-                      <strong className="text-emerald-400 font-mono">+{lastRefreshResult.added_count}</strong>
-                    </div>
-                    {lastRefreshResult.added_track_names && lastRefreshResult.added_track_names.length > 0 && (
-                      <div className="flex flex-col gap-1 my-1 max-h-32 overflow-y-auto custom-scrollbar bg-black/40 rounded-xl p-2.5 border border-white/5">
-                        <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Added Songs:</span>
-                        {lastRefreshResult.added_track_names.map((name, i) => (
-                          <span key={i} className="text-[11px] text-zinc-200 truncate font-medium" title={name}>
-                            • {name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {typeof lastRefreshResult.updated_count === 'number' && lastRefreshResult.updated_count > 0 && (
-                      <>
-                        <div className="flex justify-between">
-                          <span>Metadata Updated:</span>
-                          <strong className="text-blue-400 font-mono">~{lastRefreshResult.updated_count}</strong>
-                        </div>
-                        {lastRefreshResult.updated_track_names && lastRefreshResult.updated_track_names.length > 0 && (
-                          <div className="flex flex-col gap-1 my-1 max-h-32 overflow-y-auto custom-scrollbar bg-black/40 rounded-xl p-2.5 border border-white/5">
-                            <span className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">Updated Songs:</span>
-                            {lastRefreshResult.updated_track_names.map((name, i) => (
-                              <span key={i} className="text-[11px] text-zinc-200 truncate font-medium" title={name}>
-                                • {name}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </>
-                    )}
-                    <div className="flex justify-between">
-                      <span>Missing from Disk:</span>
-                      <strong className="text-amber-400 font-mono">{lastRefreshResult.missing_count}</strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Purged Tracks:</span>
-                      <strong className="text-rose-400 font-mono">{lastRefreshResult.removed_count}</strong>
-                    </div>
-                    {lastRefreshResult.removed_track_names && lastRefreshResult.removed_track_names.length > 0 && (
-                      <div className="flex flex-col gap-1 my-1 max-h-32 overflow-y-auto custom-scrollbar bg-black/40 rounded-xl p-2.5 border border-white/5">
-                        <span className="text-[10px] uppercase font-bold text-rose-400 tracking-wider">Purged Songs:</span>
-                        {lastRefreshResult.removed_track_names.map((name, i) => (
-                          <span key={i} className="text-[11px] text-zinc-300 truncate font-medium" title={name}>
-                            • {name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="flex justify-between pt-1 border-t border-white/5 font-semibold">
-                      <span>Total Active Tracks:</span>
-                      <strong className="text-white font-mono">{lastRefreshResult.total_count}</strong>
-                    </div>
-                  </div>
-
-                  {lastRefreshResult.missing_count > 0 && (
-                    <button
-                      onClick={async () => {
-                        await handlePurgeMissing();
-                        setShowRefreshDropdown(false);
-                      }}
-                      className="mt-1 w-full py-1.5 rounded-xl text-xs font-semibold text-rose-300 bg-rose-950/40 border border-rose-500/30 hover:bg-rose-900/50 transition-colors cursor-pointer"
-                    >
-                      Purge Missing Songs Now
-                    </button>
-                  )}
-                </div>
-              )}
             </div>
           </div>
 
@@ -807,6 +695,110 @@ export const SettingsView: React.FC = () => {
             {/* Accordion Content */}
             {!collapsedSections.has('library') && (
               <div className="p-5 pt-0 border-t border-white/5 flex flex-col gap-5 mt-1">
+                {/* Last Scan Summary Inline Modern Card */}
+                {lastRefreshResult && (
+                  <div
+                    className="p-4 rounded-2xl border flex flex-col gap-3 shadow-lg animate-in fade-in duration-200 mt-4"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 8%, #121216)',
+                      borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, rgba(255, 255, 255, 0.1))',
+                    }}
+                  >
+                    <div className="flex items-center justify-between pb-2.5 border-b border-white/10">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                        <span className="text-xs font-bold text-white uppercase tracking-wider">Library Scan Summary</span>
+                      </div>
+                      <button
+                        onClick={() => usePlayerStore.setState({ lastRefreshResult: null })}
+                        className="text-xs text-zinc-400 hover:text-white px-2 py-0.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                        title="Dismiss summary"
+                      >
+                        ✕ Dismiss
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-0.5">
+                        <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">New Added</span>
+                        <span className={`text-base font-mono font-bold ${lastRefreshResult.added_count > 0 ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                          +{lastRefreshResult.added_count}
+                        </span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-0.5">
+                        <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Updated Tags</span>
+                        <span className={`text-base font-mono font-bold ${(lastRefreshResult.updated_count ?? 0) > 0 ? 'text-blue-400' : 'text-zinc-400'}`}>
+                          ~{lastRefreshResult.updated_count ?? 0}
+                        </span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-0.5">
+                        <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Missing Files</span>
+                        <span className={`text-base font-mono font-bold ${lastRefreshResult.missing_count > 0 ? 'text-amber-400' : 'text-zinc-400'}`}>
+                          {lastRefreshResult.missing_count}
+                        </span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-0.5">
+                        <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Purged Files</span>
+                        <span className={`text-base font-mono font-bold ${lastRefreshResult.removed_count > 0 ? 'text-rose-400' : 'text-zinc-400'}`}>
+                          -{lastRefreshResult.removed_count}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Detailed list of added / updated / removed files if any */}
+                    {lastRefreshResult.added_track_names && lastRefreshResult.added_track_names.length > 0 && (
+                      <div className="flex flex-col gap-1 max-h-36 overflow-y-auto custom-scrollbar bg-black/40 rounded-xl p-2.5 border border-white/5">
+                        <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Newly Added Songs:</span>
+                        {lastRefreshResult.added_track_names.map((name, i) => (
+                          <span key={i} className="text-[11px] text-zinc-200 truncate font-medium">
+                            • {name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {lastRefreshResult.updated_track_names && lastRefreshResult.updated_track_names.length > 0 && (
+                      <div className="flex flex-col gap-1 max-h-36 overflow-y-auto custom-scrollbar bg-black/40 rounded-xl p-2.5 border border-white/5">
+                        <span className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">Metadata Updated:</span>
+                        {lastRefreshResult.updated_track_names.map((name, i) => (
+                          <span key={i} className="text-[11px] text-zinc-200 truncate font-medium">
+                            • {name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {lastRefreshResult.removed_track_names && lastRefreshResult.removed_track_names.length > 0 && (
+                      <div className="flex flex-col gap-1 max-h-36 overflow-y-auto custom-scrollbar bg-black/40 rounded-xl p-2.5 border border-white/5">
+                        <span className="text-[10px] uppercase font-bold text-rose-400 tracking-wider">Purged Songs:</span>
+                        {lastRefreshResult.removed_track_names.map((name, i) => (
+                          <span key={i} className="text-[11px] text-zinc-300 truncate font-medium">
+                            • {name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {lastRefreshResult.added_count === 0 &&
+                      (lastRefreshResult.updated_count ?? 0) === 0 &&
+                      lastRefreshResult.missing_count === 0 &&
+                      lastRefreshResult.removed_count === 0 && (
+                        <p className="text-xs text-zinc-400 italic">
+                          Library is up to date. No new or missing tracks detected.
+                        </p>
+                    )}
+
+                    {lastRefreshResult.missing_count > 0 && (
+                      <button
+                        onClick={handlePurgeMissing}
+                        className="self-start px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-300 bg-rose-950/40 border border-rose-500/30 hover:bg-rose-900/50 transition-colors cursor-pointer"
+                      >
+                        Purge Missing Songs Now
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {/* Tag Indexing Stats Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-4">
                   <div className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-0.5">
@@ -1248,7 +1240,7 @@ export const SettingsView: React.FC = () => {
                         <span className="text-xs font-semibold text-white">Crossfade Duration</span>
                       </div>
                       <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-white/10 text-white font-semibold">
-                        {crossfadeDuration === 0 ? 'Off (0s)' : `${crossfadeDuration}s (Equal-Power)`}
+                        {crossfadeDuration === 0 ? 'Off (0s)' : `${crossfadeDuration}s`}
                       </span>
                     </div>
                     <span className="text-[11px] text-zinc-400">

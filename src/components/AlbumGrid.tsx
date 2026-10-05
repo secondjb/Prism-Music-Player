@@ -2,7 +2,16 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useTrackArt } from '../utils/useTrackArt';
 import { Track } from '../types/player';
-import { Disc, Play, LayoutGrid, List } from 'lucide-react';
+import { Disc, Play, LayoutGrid, List, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react';
+
+type AlbumSortKey = 'alphabetical' | 'songs' | 'release_date';
+type SortDirection = 'asc' | 'desc';
+
+const ALBUM_SORT_OPTIONS = [
+  { id: 'alphabetical' as const, label: 'Alphabetical', defaultDir: 'asc' as const },
+  { id: 'songs' as const, label: 'Most Songs', defaultDir: 'desc' as const },
+  { id: 'release_date' as const, label: 'Release Date', defaultDir: 'desc' as const },
+];
 
 interface AlbumGridProps {
   tracks: Track[];
@@ -243,6 +252,41 @@ export const AlbumGrid: React.FC<AlbumGridProps> = ({ tracks }) => {
     return (localStorage.getItem('prism_album_view_mode') as 'grid' | 'list') || 'grid';
   });
 
+  const [sortKey, setSortKey] = useState<AlbumSortKey>(() => {
+    return (localStorage.getItem('prism_album_sort_key') as AlbumSortKey) || 'alphabetical';
+  });
+  const [sortDir, setSortDir] = useState<SortDirection>(() => {
+    return (localStorage.getItem('prism_album_sort_dir') as SortDirection) || 'asc';
+  });
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(e.target as Node)) {
+        setShowSortMenu(false);
+      }
+    };
+    if (showSortMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showSortMenu]);
+
+  const handleSelectSort = (key: AlbumSortKey, defaultDir: SortDirection) => {
+    if (sortKey === key) {
+      const nextDir: SortDirection = sortDir === 'asc' ? 'desc' : 'asc';
+      setSortDir(nextDir);
+      localStorage.setItem('prism_album_sort_dir', nextDir);
+    } else {
+      setSortKey(key);
+      setSortDir(defaultDir);
+      localStorage.setItem('prism_album_sort_key', key);
+      localStorage.setItem('prism_album_sort_dir', defaultDir);
+    }
+    setShowSortMenu(false);
+  };
+
   const handleToggleViewMode = (mode: 'grid' | 'list') => {
     setViewMode(mode);
     localStorage.setItem('prism_album_view_mode', mode);
@@ -261,8 +305,30 @@ export const AlbumGrid: React.FC<AlbumGridProps> = ({ tracks }) => {
         albumsMap.set(albumName, [track]);
       }
     }
-    return Array.from(albumsMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [tracks]);
+    const entries = Array.from(albumsMap.entries());
+
+    return entries.sort((a, b) => {
+      if (sortKey === 'songs') {
+        const diff = sortDir === 'desc' ? b[1].length - a[1].length : a[1].length - b[1].length;
+        if (diff !== 0) return diff;
+      } else if (sortKey === 'release_date') {
+        const getYear = (tracks: Track[]) => {
+          let maxYear = 0;
+          for (const t of tracks) {
+            const y = t.year || (t.date ? parseInt(t.date, 10) : 0) || 0;
+            if (y > maxYear) maxYear = y;
+          }
+          return maxYear;
+        };
+        const yearA = getYear(a[1]);
+        const yearB = getYear(b[1]);
+        const diff = sortDir === 'desc' ? yearB - yearA : yearA - yearB;
+        if (diff !== 0) return diff;
+      }
+      const cmp = a[0].localeCompare(b[0], undefined, { numeric: true });
+      return sortDir === 'desc' && sortKey === 'alphabetical' ? -cmp : cmp;
+    });
+  }, [tracks, sortKey, sortDir]);
 
   // Progressive batch rendering: render first 48, load more on scroll
   const [renderCount, setRenderCount] = useState(48);
@@ -299,34 +365,107 @@ export const AlbumGrid: React.FC<AlbumGridProps> = ({ tracks }) => {
 
   return (
     <div className="flex flex-col h-full overflow-hidden pb-12 pr-2">
-      {/* Header toolbar with count and view mode toggle */}
+      {/* Header toolbar with count, sort dropdown, and view mode toggle */}
       <div className="flex items-center justify-between pb-4 shrink-0">
         <span className="text-xs text-zinc-400 font-medium">
           {albumList.length} album{albumList.length !== 1 ? 's' : ''}
         </span>
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
-          <button
-            onClick={() => handleToggleViewMode('grid')}
-            title="Grid View"
-            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-              viewMode === 'grid'
-                ? 'bg-white/15 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <LayoutGrid className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleToggleViewMode('list')}
-            title="List View"
-            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-              viewMode === 'list'
-                ? 'bg-white/15 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <List className="w-4 h-4" />
-          </button>
+        <div className="flex items-center gap-2">
+          {/* Sort Dropdown */}
+          <div className="relative" ref={sortDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setShowSortMenu((prev) => !prev)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer shadow-sm active:scale-95"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
+                color: 'var(--color-stop-1, #6366f1)',
+                borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+              }}
+              title="Sort albums"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              <span>{ALBUM_SORT_OPTIONS.find((o) => o.id === sortKey)?.label}</span>
+              {sortDir === 'desc' ? (
+                <ArrowDown className="w-3 h-3 stroke-[2.5]" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              ) : (
+                <ArrowUp className="w-3 h-3 stroke-[2.5]" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              )}
+              <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showSortMenu ? 'rotate-180' : ''}`} style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+            </button>
+
+            {showSortMenu && (
+              <div
+                className="absolute right-0 mt-1.5 w-48 rounded-2xl glass-panel border shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100"
+                style={{
+                  borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
+                }}
+              >
+                <div className="px-3 py-1.5 text-xs font-semibold text-zinc-400 select-none">
+                  Sort albums
+                </div>
+                {ALBUM_SORT_OPTIONS.map((opt) => {
+                  const isActive = sortKey === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => handleSelectSort(opt.id, opt.defaultDir)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-colors text-left cursor-pointer select-none ${
+                        isActive
+                          ? 'font-semibold border'
+                          : 'text-zinc-300 hover:text-white hover:bg-white/10'
+                      }`}
+                      style={
+                        isActive
+                          ? {
+                              color: 'var(--color-stop-1, #6366f1)',
+                              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
+                              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
+                            }
+                          : undefined
+                      }
+                    >
+                      <span>{opt.label}</span>
+                      {isActive && (
+                        sortDir === 'desc' ? (
+                          <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                        ) : (
+                          <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                        )
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-white/5 border border-white/10">
+            <button
+              onClick={() => handleToggleViewMode('grid')}
+              title="Grid View"
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                viewMode === 'grid'
+                  ? 'bg-white/15 text-white shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleToggleViewMode('list')}
+              title="List View"
+              className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-white/15 text-white shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 

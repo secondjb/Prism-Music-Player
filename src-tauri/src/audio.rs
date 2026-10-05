@@ -911,119 +911,128 @@ fn run_audio_engine(
 
     loop {
         // Drain commands
-        while let Ok(cmd) = cmd_rx.try_recv() {
-            match cmd {
-                AudioCommand::Play {
-                    path,
-                    replay_gain_db,
-                    start_position_secs,
-                    crossfade_secs,
-                    force_gapless,
-                } => {
-                    let fade_s = crossfade_secs.unwrap_or(0.0);
-                    configured_crossfade_secs = fade_s;
+        let first_cmd = if !is_playing || current_track.is_none() || producer.is_none() {
+            match cmd_rx.recv() {
+                Ok(cmd) => Some(cmd),
+                Err(_) => break,
+            }
+        } else {
+            cmd_rx.try_recv().ok()
+        };
 
-                    if fade_s > 0.0 && !force_gapless && current_track.is_some() && is_playing {
-                        // Smooth Equal-Power crossfade to requested track
-                        match TrackDecoder::open(&path, replay_gain_db, start_position_secs, target_sample_rate, target_channels) {
-                            Ok(incoming) => {
-                                let total_f = (fade_s * target_sample_rate as f32) as usize;
-                                crossfade_state = Some(CrossfadeState {
-                                    total_frames: total_f.max(1),
-                                    current_frame: 0,
-                                });
-                                incoming_track = Some(incoming);
+        if let Some(cmd) = first_cmd {
+            let mut current_cmd = Some(cmd);
+            while let Some(c) = current_cmd {
+                match c {
+                    AudioCommand::Play {
+                        path,
+                        replay_gain_db,
+                        start_position_secs,
+                        crossfade_secs,
+                        force_gapless,
+                    } => {
+                        let fade_s = crossfade_secs.unwrap_or(0.0);
+                        configured_crossfade_secs = fade_s;
+
+                        if fade_s > 0.0 && !force_gapless && current_track.is_some() && is_playing {
+                            // Smooth Equal-Power crossfade to requested track
+                            match TrackDecoder::open(&path, replay_gain_db, start_position_secs, target_sample_rate, target_channels) {
+                                Ok(incoming) => {
+                                    let total_f = (fade_s * target_sample_rate as f32) as usize;
+                                    crossfade_state = Some(CrossfadeState {
+                                        total_frames: total_f.max(1),
+                                        current_frame: 0,
+                                    });
+                                    incoming_track = Some(incoming);
+                                }
+                                Err(e) => eprintln!("Failed to open track for crossfade: {}", e),
                             }
-                            Err(e) => eprintln!("Failed to open track for crossfade: {}", e),
+                        } else {
+                            // Instant switch: flush buffer and start new track
+                            flush_counter.fetch_add(1, Ordering::SeqCst);
+                            incoming_track = None;
+                            crossfade_state = None;
+                            match TrackDecoder::open(&path, replay_gain_db, start_position_secs, target_sample_rate, target_channels) {
+                                Ok(t) => {
+                                    let dur_ms = (t.total_duration_secs * 1000.0) as u64;
+                                    state.lock().current_duration_ms.store(dur_ms, Ordering::Relaxed);
+                                    current_track = Some(t);
+                                    is_playing = true;
+                                    state.lock().is_playing.store(true, Ordering::SeqCst);
+                                }
+                                Err(e) => eprintln!("Failed to open track: {}", e),
+                            }
                         }
-                    } else {
-                        // Instant switch: flush buffer and start new track
+                    }
+                    AudioCommand::SetNextTrack { path, replay_gain_db, force_gapless } => {
+                        if let Some(p) = path {
+                            pending_next = Some((p, replay_gain_db.unwrap_or(0.0), force_gapless));
+                        } else {
+                            pending_next = None;
+                            incoming_track = None;
+                        }
+                    }
+                    AudioCommand::Pause => {
+                        is_playing = false;
+                        state.lock().is_playing.store(false, Ordering::SeqCst);
+                    }
+                    AudioCommand::Resume => {
+                        is_playing = true;
+                        state.lock().is_playing.store(true, Ordering::SeqCst);
+                    }
+                    AudioCommand::Seek { position_secs } => {
                         flush_counter.fetch_add(1, Ordering::SeqCst);
                         incoming_track = None;
                         crossfade_state = None;
-                        match TrackDecoder::open(&path, replay_gain_db, start_position_secs, target_sample_rate, target_channels) {
-                            Ok(t) => {
-                                let dur_ms = (t.total_duration_secs * 1000.0) as u64;
-                                state.lock().current_duration_ms.store(dur_ms, Ordering::Relaxed);
-                                current_track = Some(t);
-                                is_playing = true;
-                                state.lock().is_playing.store(true, Ordering::SeqCst);
+                        if let Some(ref mut cur) = current_track {
+                            let _ = cur.seek(position_secs);
+                            let pos_ms = (position_secs * 1000.0) as u64;
+                            state.lock().current_position_ms.store(pos_ms, Ordering::Relaxed);
+                        }
+                    }
+                    AudioCommand::SetVolume { volume } => {
+                        master_volume = volume;
+                    }
+                    AudioCommand::SetReplayGain { gain_db } => {
+                        if let Some(ref mut cur) = current_track {
+                            cur.replay_gain_db = gain_db;
+                        }
+                    }
+                    AudioCommand::SetOutputDevice { device_name } => {
+                        _current_stream = None;
+                        producer = None;
+                        flush_counter.fetch_add(1, Ordering::SeqCst);
+
+                        match create_cpal_stream(device_name.as_deref(), Arc::clone(&flush_counter)) {
+                            Ok(res) => {
+                                _current_stream = Some(res.0);
+                                producer = Some(res.1);
+                                active_dev_name = res.2;
+                                target_sample_rate = res.3;
+                                target_channels = res.4;
+
+                                let s = state.lock();
+                                *s.active_device_name.lock() = active_dev_name.clone();
+                                *s.active_sample_rate.lock() = target_sample_rate;
+                                *s.active_channels.lock() = target_channels as u16;
+
+                                if let Some(ref mut cur) = current_track {
+                                    let _ = cur.reconfigure_target(target_sample_rate, target_channels);
+                                }
+                                if let Some(ref mut inc) = incoming_track {
+                                    let _ = inc.reconfigure_target(target_sample_rate, target_channels);
+                                }
                             }
-                            Err(e) => eprintln!("Failed to open track: {}", e),
+                            Err(e) => eprintln!("Failed to switch output device: {}", e),
                         }
                     }
                 }
-                AudioCommand::SetNextTrack { path, replay_gain_db, force_gapless } => {
-                    if let Some(p) = path {
-                        pending_next = Some((p, replay_gain_db.unwrap_or(0.0), force_gapless));
-                    } else {
-                        pending_next = None;
-                        incoming_track = None;
-                    }
-                }
-                AudioCommand::Pause => {
-                    is_playing = false;
-                    state.lock().is_playing.store(false, Ordering::SeqCst);
-                }
-                AudioCommand::Resume => {
-                    is_playing = true;
-                    state.lock().is_playing.store(true, Ordering::SeqCst);
-                }
-                AudioCommand::Seek { position_secs } => {
-                    flush_counter.fetch_add(1, Ordering::SeqCst);
-                    incoming_track = None;
-                    crossfade_state = None;
-                    if let Some(ref mut cur) = current_track {
-                        let _ = cur.seek(position_secs);
-                        let pos_ms = (position_secs * 1000.0) as u64;
-                        state.lock().current_position_ms.store(pos_ms, Ordering::Relaxed);
-                    }
-                }
-                AudioCommand::SetVolume { volume } => {
-                    master_volume = volume;
-                }
-                AudioCommand::SetReplayGain { gain_db } => {
-                    if let Some(ref mut cur) = current_track {
-                        cur.replay_gain_db = gain_db;
-                    }
-                }
-                AudioCommand::SetOutputDevice { device_name } => {
-                    _current_stream = None;
-                    producer = None;
-                    flush_counter.fetch_add(1, Ordering::SeqCst);
-
-                    match create_cpal_stream(device_name.as_deref(), Arc::clone(&flush_counter)) {
-                        Ok(res) => {
-                            _current_stream = Some(res.0);
-                            producer = Some(res.1);
-                            active_dev_name = res.2;
-                            target_sample_rate = res.3;
-                            target_channels = res.4;
-
-                            let s = state.lock();
-                            *s.active_device_name.lock() = active_dev_name.clone();
-                            *s.active_sample_rate.lock() = target_sample_rate;
-                            *s.active_channels.lock() = target_channels as u16;
-
-                            if let Some(ref mut cur) = current_track {
-                                let _ = cur.reconfigure_target(target_sample_rate, target_channels);
-                            }
-                            if let Some(ref mut inc) = incoming_track {
-                                let _ = inc.reconfigure_target(target_sample_rate, target_channels);
-                            }
-                        }
-                        Err(e) => eprintln!("Failed to switch output device: {}", e),
-                    }
-                }
+                current_cmd = cmd_rx.try_recv().ok();
             }
         }
 
         // Idle when paused or stopped
         if !is_playing || current_track.is_none() || producer.is_none() {
-            if let Ok(_cmd) = cmd_rx.recv_timeout(Duration::from_millis(40)) {
-                let _ = cmd_rx.try_recv(); // will be processed on loop top
-                continue;
-            }
             continue;
         }
 

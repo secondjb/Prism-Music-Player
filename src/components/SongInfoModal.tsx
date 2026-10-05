@@ -181,7 +181,7 @@ export const SongInfoModal: React.FC = () => {
   const unlinkChain = usePlayerStore((s) => s.unlinkChain);
   const playLinkedSuite = usePlayerStore((s) => s.playLinkedSuite);
   const toggleSongAlwaysGapless = usePlayerStore((s) => s.toggleSongAlwaysGapless);
-  const isSongAlwaysGapless = usePlayerStore((s) => s.isSongAlwaysGapless);
+  const alwaysGaplessSongIds = usePlayerStore((s) => s.alwaysGaplessSongIds);
   const tracks = usePlayerStore((s) => s.tracks);
 
   const [onlineData, setOnlineData] = useState<ITunesResult | null>(null);
@@ -551,8 +551,11 @@ export const SongInfoModal: React.FC = () => {
                     </span>
                   </div>
                   <Checkbox
-                    checked={isSongAlwaysGapless((activeTrack || infoModalTrack).id)}
-                    onChange={() => toggleSongAlwaysGapless((activeTrack || infoModalTrack).id)}
+                    checked={Boolean((activeTrack || infoModalTrack)?.id && alwaysGaplessSongIds?.includes((activeTrack || infoModalTrack).id))}
+                    onChange={() => {
+                      const id = (activeTrack || infoModalTrack)?.id;
+                      if (id) toggleSongAlwaysGapless(id);
+                    }}
                     size="small"
                     sx={{
                       color: 'var(--color-stop-1, #6366f1)',
@@ -561,8 +564,17 @@ export const SongInfoModal: React.FC = () => {
                     }}
                   />
                 </div>
-                <span className="text-xs font-mono font-bold" style={{ color: isSongAlwaysGapless((activeTrack || infoModalTrack).id) ? 'var(--color-stop-1, #6366f1)' : '#71717a' }}>
-                  {isSongAlwaysGapless((activeTrack || infoModalTrack).id) ? 'Always Gapless Enabled' : 'Follows Global Crossfade'}
+                <span
+                  className="text-xs font-mono font-bold"
+                  style={{
+                    color: Boolean((activeTrack || infoModalTrack)?.id && alwaysGaplessSongIds?.includes((activeTrack || infoModalTrack).id))
+                      ? 'var(--color-stop-1, #6366f1)'
+                      : '#71717a',
+                  }}
+                >
+                  {Boolean((activeTrack || infoModalTrack)?.id && alwaysGaplessSongIds?.includes((activeTrack || infoModalTrack).id))
+                    ? 'Always Gapless Enabled'
+                    : 'Follows Global Crossfade'}
                 </span>
               </div>
             </div>

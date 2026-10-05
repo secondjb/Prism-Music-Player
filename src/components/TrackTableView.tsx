@@ -1051,14 +1051,15 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
 
   const sortState = isMainGrid ? mainGridSortState : localSortState;
   const setSortState = useCallback(
-    (newSort: GridSortState | null) => {
+    (newSortOrUpdater: GridSortState | null | ((prev: GridSortState | null) => GridSortState | null)) => {
       const current = isMainGrid ? usePlayerStore.getState().mainGridSortState : localSortState;
-      if (!current && !newSort) return;
-      if (current && newSort && current.prop === newSort.prop && current.order === newSort.order) return;
+      const nextSort = typeof newSortOrUpdater === 'function' ? newSortOrUpdater(current) : newSortOrUpdater;
+      if (!current && !nextSort) return;
+      if (current && nextSort && current.prop === nextSort.prop && current.order === nextSort.order) return;
       if (isMainGrid) {
-        setMainGridSortState(newSort);
+        setMainGridSortState(nextSort);
       } else {
-        setLocalSortState(newSort);
+        setLocalSortState(nextSort);
       }
     },
     [isMainGrid, setMainGridSortState, localSortState]
@@ -1149,33 +1150,27 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     return `rg-${containerWidth}-${trackGridDensity}-${visibleTrackColumns.length}-${columnOrder.join(',')}-${isSearchActive ? 'search' : 'all'}`;
   }, [containerWidth, trackGridDensity, visibleTrackColumns.length, columnOrder, isSearchActive]);
 
-  // Synchronize RevoGrid sorting lifecycle with React state to maintain and toggle sort orders correctly
+  // Synchronize RevoGrid sorting lifecycle with React state cleanly without feedback loops
   useEffect(() => {
     const gridEl = gridRef.current;
     if (!gridEl) return;
 
     const handleBeforeSorting = (e: any) => {
+      e.preventDefault();
       const { column, order } = e.detail || {};
-      if (column?.prop) {
-        if (order === 'asc' || order === 'desc') {
-          setSortState({ prop: column.prop, order });
-        } else {
-          setSortState(null);
-        }
-      }
-    };
+      const prop = column?.prop;
+      if (!prop) return;
 
-    const handleAfterSortingApply = (e: any) => {
-      const sorting = e.detail?.sorting;
-      if (sorting && typeof sorting === 'object') {
-        const prop = Object.keys(sorting)[0];
-        const order = sorting[prop];
-        if (prop && (order === 'asc' || order === 'desc')) {
-          setSortState({ prop, order });
-          return;
-        }
+      if (order === 'asc' || order === 'desc') {
+        setSortState({ prop, order });
+      } else {
+        setSortState((prev) => {
+          if (prev && prev.prop === prop) {
+            return prev.order === 'asc' ? { prop, order: 'desc' } : null;
+          }
+          return { prop, order: 'asc' };
+        });
       }
-      setSortState(null);
     };
 
     const handleViewportScroll = (e: any) => {
@@ -1185,11 +1180,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     };
 
     gridEl.addEventListener('beforesorting', handleBeforeSorting);
-    gridEl.addEventListener('aftersortingapply', handleAfterSortingApply);
     gridEl.addEventListener('viewportscroll', handleViewportScroll);
     return () => {
       gridEl.removeEventListener('beforesorting', handleBeforeSorting);
-      gridEl.removeEventListener('aftersortingapply', handleAfterSortingApply);
       gridEl.removeEventListener('viewportscroll', handleViewportScroll);
     };
   }, [gridKey, setSortState]);
@@ -1923,17 +1916,33 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowSortMenu((p) => !p)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer shadow-sm active:scale-95 bg-white/5 hover:bg-white/10 border-white/10 text-zinc-300 hover:text-white"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer shadow-sm active:scale-95"
+                style={
+                  sortState
+                    ? {
+                        backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
+                        color: 'var(--color-stop-1, #6366f1)',
+                        borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+                      }
+                    : {
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        color: '#d4d4d8',
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                      }
+                }
                 title="Sort songs"
               >
-                <ArrowUpDown className="w-3.5 h-3.5 text-zinc-400" />
+                <ArrowUpDown className="w-3.5 h-3.5" style={{ color: sortState ? 'var(--color-stop-1, #6366f1)' : '#a1a1aa' }} />
                 <span>{currentSortLabel}</span>
-                <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform duration-200 ${showSortMenu ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showSortMenu ? 'rotate-180' : ''}`} style={{ color: sortState ? 'var(--color-stop-1, #6366f1)' : '#a1a1aa' }} />
               </button>
 
               {showSortMenu && (
                 <div
-                  className="absolute right-0 mt-1.5 w-44 rounded-xl bg-[#18181b]/95 border border-white/10 shadow-2xl p-1 z-50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
+                  className="absolute right-0 mt-1.5 w-48 rounded-2xl glass-panel border shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100"
+                  style={{
+                    borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
+                  }}
                 >
                   <div className="px-3 py-1.5 text-xs font-semibold text-zinc-400 select-none">
                     Sort by
@@ -1946,18 +1955,27 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
                         key={opt.id}
                         type="button"
                         onClick={() => handleSelectSortOption(opt)}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors text-left cursor-pointer select-none ${
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-colors text-left cursor-pointer select-none ${
                           isActive
-                            ? 'text-[#22c55e] bg-white/5 font-semibold'
+                            ? 'font-semibold border'
                             : 'text-zinc-300 hover:text-white hover:bg-white/10'
                         }`}
+                        style={
+                          isActive
+                            ? {
+                                color: 'var(--color-stop-1, #6366f1)',
+                                backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
+                                borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
+                              }
+                            : undefined
+                        }
                       >
                         <span>{opt.label}</span>
                         {isActive && (
                           currentOrder === 'desc' ? (
-                            <ArrowDown className="w-3.5 h-3.5 text-[#22c55e] stroke-[2.5]" />
+                            <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                           ) : (
-                            <ArrowUp className="w-3.5 h-3.5 text-[#22c55e] stroke-[2.5]" />
+                            <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                           )
                         )}
                       </button>

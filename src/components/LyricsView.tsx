@@ -2832,14 +2832,14 @@ export const LyricsView: React.FC = () => {
                   onClick={() => setLyricsLayoutMode('centered')}
                   className="relative rounded-[clamp(1rem,2vw,1.5rem)] overflow-hidden shadow-2xl border border-white/15 aspect-square select-none cursor-pointer group transition-all shrink-0 bg-black/40 flex items-center justify-center"
                   style={{
-                    width: 'min(44vw, calc(100vh - 220px), 780px)',
-                    height: 'min(44vw, calc(100vh - 220px), 780px)',
+                    width: 'min(44vw, calc(100vh - 280px), 780px)',
+                    height: 'min(44vw, calc(100vh - 280px), 780px)',
                     maxWidth: '100%',
-                    maxHeight: 'calc(100vh - 220px)',
+                    maxHeight: 'calc(100vh - 280px)',
                   }}
                 >
                   {trackArt ? (
-                    <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-contain" />
+                    <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
                       <Mic2 className="w-[clamp(3rem,6vw,5rem)] h-[clamp(3rem,6vw,5rem)]" />
@@ -2935,7 +2935,7 @@ export const LyricsView: React.FC = () => {
                         {isPlaying ? <Pause className="w-[clamp(1.3rem,2.2vw,1.75rem)] h-[clamp(1.3rem,2.2vw,1.75rem)] fill-white" /> : <Play className="w-[clamp(1.3rem,2.2vw,1.75rem)] h-[clamp(1.3rem,2.2vw,1.75rem)] fill-white ml-[clamp(0.1rem,0.2vw,0.125rem)]" />}
                       </button>
                       <button
-                        onClick={nextTrack}
+                        onClick={() => nextTrack()}
                         className="p-[clamp(0.35rem,0.8vw,0.65rem)] text-zinc-400 hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
                         title="Next"
                       >
@@ -3353,7 +3353,7 @@ export const LyricsView: React.FC = () => {
             </button>
 
             <button
-              onClick={nextTrack}
+              onClick={() => nextTrack()}
               className="p-1.5 text-zinc-400 hover:text-white transition-colors"
               title="Next"
             >

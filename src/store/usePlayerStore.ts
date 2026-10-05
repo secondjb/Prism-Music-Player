@@ -418,7 +418,7 @@ interface PlayerState {
   resume: () => void;
   seek: (seconds: number) => void;
   setVolume: (vol: number) => void;
-  nextTrack: () => void;
+  nextTrack: (isUserInitiated?: boolean) => void;
   previousTrack: () => void;
   replayCurrentTrack: () => Promise<void>;
   addToQueue: (track: Track) => void;
@@ -1573,12 +1573,17 @@ export const usePlayerStore = create<PlayerState>()(
         sendThrottledVolume(clamped);
       },
 
-      nextTrack: async () => {
-        const { userQueue, currentIndex, queue, repeatMode, playIndex, onTrackFinished } = get();
+      nextTrack: async (isUserInitiated = true) => {
+        const { userQueue, currentIndex, queue, repeatMode, playIndex, onTrackFinished, replayCurrentTrack } = get();
         onTrackFinished();
 
         if (repeatMode === 'one') {
-          set({ repeatMode: 'all' });
+          if (isUserInitiated) {
+            set({ repeatMode: 'all' });
+          } else {
+            replayCurrentTrack();
+            return;
+          }
         }
 
         // Priority User Queue takes precedence over context queue
@@ -1622,7 +1627,7 @@ export const usePlayerStore = create<PlayerState>()(
             playIndex(0);
           } else {
             // repeatMode === 'off': stop at end
-            set({ isPlaying: false });
+            set({ isPlaying: false, currentTime: 0 });
             try {
               await invoke('pause_audio');
             } catch (e) {
@@ -2367,7 +2372,7 @@ if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
   });
 
   listen('track-finished', () => {
-    usePlayerStore.setState({ isPlaying: false, currentTime: 0 });
+    usePlayerStore.getState().nextTrack(false);
   });
 
   listen<{ current: number; total: number; track_id: string; bpm?: number; key?: string }>(

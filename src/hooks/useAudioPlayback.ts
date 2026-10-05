@@ -99,7 +99,6 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
           }
 
           const dur = effectiveDur;
-          const rm = state.repeatMode;
 
           // Detect if playback position has stalled near end of track (stream EOF)
           if (dur > 1 && pos >= dur - 1.5) {
@@ -113,20 +112,6 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
           }
           lastPosRef.current = pos;
 
-          // Fallback auto-advance if audio stream has completely stalled at EOF without a backend transition
-          const isStalledAtEnd = dur > 1 && pos >= dur - 0.5 && stallCountRef.current >= 6;
-
-          if (dur > 1 && pos > 0.5 && isStalledAtEnd && !isTransitioningRef.current) {
-            isTransitioningRef.current = true;
-            setTimeout(() => {
-              isTransitioningRef.current = false;
-            }, 1000);
-            if (rm === 'one') {
-              usePlayerStore.getState().replayCurrentTrack();
-            } else {
-              nextTrack();
-            }
-          }
         }
       } catch (e) {
         // Ignored

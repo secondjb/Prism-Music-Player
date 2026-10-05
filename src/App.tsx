@@ -209,11 +209,9 @@ export const App: React.FC = () => {
             await invoke('play_audio', {
               path: store.currentTrack.path,
               replayGainDb: getEffectiveReplayGain(store.currentTrack, store.replayGainMode, savedTracks),
+              initPaused: true,
+              startPositionSecs: store.currentTime > 0 ? store.currentTime : undefined,
             });
-            await invoke('pause_audio');
-            if (store.currentTime > 0) {
-              await invoke('seek_audio', { positionSecs: store.currentTime });
-            }
           }
 
           if (store.autoCheckUpdates) {

@@ -83,6 +83,7 @@ pub enum AudioCommand {
         start_position_secs: Option<f64>,
         crossfade_secs: Option<f32>,
         force_gapless: bool,
+        init_paused: bool,
     },
     SetNextTrack {
         path: Option<String>,
@@ -595,6 +596,7 @@ impl GlobalAudioEngine {
         replay_gain_db: f32,
         start_position_secs: Option<f64>,
         crossfade_secs: Option<f32>,
+        init_paused: bool,
     ) -> Result<(), String> {
         let _ = self.cmd_tx.send(AudioCommand::Play {
             path: file_path,
@@ -602,6 +604,7 @@ impl GlobalAudioEngine {
             start_position_secs,
             crossfade_secs,
             force_gapless: false,
+            init_paused,
         });
         Ok(())
     }
@@ -979,6 +982,7 @@ fn run_audio_engine(
                         start_position_secs,
                         crossfade_secs,
                         force_gapless: _,
+                        init_paused,
                     } => {
                         let fade_s = crossfade_secs.unwrap_or(0.0);
                         configured_crossfade_secs = fade_s;
@@ -993,8 +997,13 @@ fn run_audio_engine(
                                 let dur_ms = (t.total_duration_secs * 1000.0) as u64;
                                 state.lock().current_duration_ms.store(dur_ms, Ordering::Relaxed);
                                 current_track = Some(t);
-                                is_playing = true;
-                                state.lock().is_playing.store(true, Ordering::SeqCst);
+                                if !init_paused {
+                                    is_playing = true;
+                                    state.lock().is_playing.store(true, Ordering::SeqCst);
+                                } else {
+                                    is_playing = false;
+                                    state.lock().is_playing.store(false, Ordering::SeqCst);
+                                }
                             }
                             Err(e) => eprintln!("Failed to open track: {}", e),
                         }
@@ -1008,6 +1017,7 @@ fn run_audio_engine(
                         }
                     }
                     AudioCommand::Pause => {
+                        flush_counter.fetch_add(1, Ordering::SeqCst);
                         is_playing = false;
                         state.lock().is_playing.store(false, Ordering::SeqCst);
                     }

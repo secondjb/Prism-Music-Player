@@ -11,9 +11,11 @@ pub fn play_audio(
     replay_gain_db: Option<f32>,
     start_position_secs: Option<f64>,
     crossfade_secs: Option<f32>,
+    init_paused: Option<bool>,
 ) -> Result<(), String> {
     let gain = replay_gain_db.unwrap_or(0.0);
-    audio_engine.play(path, gain, start_position_secs, crossfade_secs)?;
+    let paused = init_paused.unwrap_or(false);
+    audio_engine.play(path, gain, start_position_secs, crossfade_secs, paused)?;
     if let Ok(mut guard) = controls_state.0.try_lock() {
         if let Some(controls) = guard.as_mut() {
             let _ = controls.set_playback(MediaPlayback::Playing { progress: None });

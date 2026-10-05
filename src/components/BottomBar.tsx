@@ -554,7 +554,7 @@ export const BottomBar: React.FC = () => {
           </button>
 
           <button
-            onClick={nextTrack}
+            onClick={() => nextTrack()}
             className="text-zinc-400 hover:text-white transition-colors p-1"
           >
             <SkipForward className="w-5 h-5" />

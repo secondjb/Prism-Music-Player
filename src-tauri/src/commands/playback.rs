@@ -23,6 +23,16 @@ pub fn play_audio(
 }
 
 #[tauri::command]
+pub fn set_next_track(
+    audio_engine: State<'_, GlobalAudioEngine>,
+    path: Option<String>,
+    replay_gain_db: Option<f32>,
+    force_gapless: Option<bool>,
+) {
+    audio_engine.set_next_track(path, replay_gain_db, force_gapless);
+}
+
+#[tauri::command]
 pub fn pause_audio(
     audio_engine: State<'_, GlobalAudioEngine>,
     controls_state: State<'_, MediaControlState>,

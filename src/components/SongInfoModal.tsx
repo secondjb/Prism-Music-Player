@@ -23,7 +23,9 @@ import {
   Unlink,
   Check,
   Activity,
+  Radio,
 } from 'lucide-react';
+import Checkbox from '@mui/material/Checkbox';
 import { fetchListeningEvents } from '../utils/stats';
 
 const LinkedTrackThumbnail: React.FC<{ track: Track }> = ({ track }) => {
@@ -178,6 +180,8 @@ export const SongInfoModal: React.FC = () => {
   const reverseChain = usePlayerStore((s) => s.reverseChain);
   const unlinkChain = usePlayerStore((s) => s.unlinkChain);
   const playLinkedSuite = usePlayerStore((s) => s.playLinkedSuite);
+  const toggleSongAlwaysGapless = usePlayerStore((s) => s.toggleSongAlwaysGapless);
+  const isSongAlwaysGapless = usePlayerStore((s) => s.isSongAlwaysGapless);
   const tracks = usePlayerStore((s) => s.tracks);
 
   const [onlineData, setOnlineData] = useState<ITunesResult | null>(null);
@@ -531,6 +535,34 @@ export const SongInfoModal: React.FC = () => {
                       [Album: {(activeTrack || infoModalTrack).replay_gain_album_db! > 0 ? '+' : ''}${(activeTrack || infoModalTrack).replay_gain_album_db!.toFixed(2)} dB]
                     </span>
                   )}
+                </span>
+              </div>
+
+              {/* Per-Track Always Gapless Playback Toggle */}
+              <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col justify-between gap-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest flex items-center gap-1.5">
+                      <Radio className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                      Always Gapless Entry
+                    </span>
+                    <span className="text-[11px] text-zinc-400 leading-tight">
+                      Never crossfade into this track (overrides global crossfade)
+                    </span>
+                  </div>
+                  <Checkbox
+                    checked={isSongAlwaysGapless((activeTrack || infoModalTrack).id)}
+                    onChange={() => toggleSongAlwaysGapless((activeTrack || infoModalTrack).id)}
+                    size="small"
+                    sx={{
+                      color: 'var(--color-stop-1, #6366f1)',
+                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                      p: 0,
+                    }}
+                  />
+                </div>
+                <span className="text-xs font-mono font-bold" style={{ color: isSongAlwaysGapless((activeTrack || infoModalTrack).id) ? 'var(--color-stop-1, #6366f1)' : '#71717a' }}>
+                  {isSongAlwaysGapless((activeTrack || infoModalTrack).id) ? 'Always Gapless Enabled' : 'Follows Global Crossfade'}
                 </span>
               </div>
             </div>

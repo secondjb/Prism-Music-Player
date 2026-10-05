@@ -43,9 +43,11 @@ pub fn run() {
 
     let engine = GlobalAudioEngine::new();
     let engine_warm = engine.clone();
+    let engine_setup = engine.clone();
 
     tauri::Builder::default()
         .setup(move |app| {
+            engine_setup.set_app_handle(app.handle().clone());
             let app_handle = app.handle().clone();
 
             #[cfg(desktop)]
@@ -149,6 +151,7 @@ pub fn run() {
             commands::get_track_lyrics,
             commands::embed_lyrics,
             commands::play_audio,
+            commands::set_next_track,
             commands::pause_audio,
             commands::resume_audio,
             commands::update_media_controls_playback,

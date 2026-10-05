@@ -38,6 +38,7 @@ import {
   Search,
   RotateCcw,
   ShieldAlert,
+  Link2,
 } from 'lucide-react';
 import {
   CURRENT_APP_VERSION,
@@ -281,6 +282,10 @@ export const SettingsView: React.FC = () => {
 
   const isGaplessEnabled = usePlayerStore((s) => s.isGaplessEnabled);
   const toggleGaplessEnabled = usePlayerStore((s) => s.toggleGaplessEnabled);
+  const crossfadeDuration = usePlayerStore((s) => s.crossfadeDuration);
+  const setCrossfadeDuration = usePlayerStore((s) => s.setCrossfadeDuration);
+  const alwaysGaplessForLinkedSongs = usePlayerStore((s) => s.alwaysGaplessForLinkedSongs);
+  const toggleAlwaysGaplessForLinkedSongs = usePlayerStore((s) => s.toggleAlwaysGaplessForLinkedSongs);
   const replayGainMode = usePlayerStore((s) => s.replayGainMode);
   const setReplayGainMode = usePlayerStore((s) => s.setReplayGainMode);
 
@@ -1148,14 +1153,14 @@ export const SettingsView: React.FC = () => {
                 <div className="flex flex-col min-w-0">
                   <h3 className="text-sm font-bold text-white">Audio Engine & Playback</h3>
                   <p className="text-xs text-zinc-400 truncate">
-                    Gapless audio transitions and ReplayGain volume normalization
+                    True gapless transitions, equal-power crossfading, and ReplayGain loudness normalization
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-3 shrink-0">
                 <span className="hidden sm:inline-flex px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-white/5 border border-white/10 text-zinc-300">
-                  {isGaplessEnabled ? 'Gapless On' : 'Gapless Off'}
+                  {crossfadeDuration > 0 ? `Crossfade ${crossfadeDuration}s` : (isGaplessEnabled ? 'Gapless On' : 'Gapless Off')}
                 </span>
                 <ChevronDown
                   className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${
@@ -1177,7 +1182,7 @@ export const SettingsView: React.FC = () => {
                       <div className="flex flex-col min-w-0">
                         <span className="text-xs font-semibold text-white">Gapless Playback</span>
                         <span className="text-[11px] text-zinc-400 leading-tight">
-                          Preloads upcoming tracks to eliminate gaps
+                          Preloads upcoming tracks to eliminate gaps & silence
                         </span>
                       </div>
                     </div>
@@ -1191,6 +1196,64 @@ export const SettingsView: React.FC = () => {
                         p: 0.5,
                       }}
                     />
+                  </div>
+
+                  {/* Always Gapless for Linked Songs Toggle */}
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 gap-2">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <Link2 className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--color-stop-2, #8b5cf6)' }} />
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-semibold text-white">Always Gapless for Linked Suites</span>
+                        <span className="text-[11px] text-zinc-400 leading-tight">
+                          Overrides crossfading when transitioning into linked songs
+                        </span>
+                      </div>
+                    </div>
+                    <Checkbox
+                      checked={alwaysGaplessForLinkedSongs}
+                      onChange={toggleAlwaysGaplessForLinkedSongs}
+                      size="small"
+                      sx={{
+                        color: 'var(--color-stop-2, #8b5cf6)',
+                        '&.Mui-checked': { color: 'var(--color-stop-2, #8b5cf6)' },
+                        p: 0.5,
+                      }}
+                    />
+                  </div>
+
+                  {/* Equal-Power Crossfade Slider */}
+                  <div className="flex flex-col justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-2 col-span-1 md:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Waves className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                        <span className="text-xs font-semibold text-white">Crossfade Duration</span>
+                      </div>
+                      <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-white/10 text-white font-semibold">
+                        {crossfadeDuration === 0 ? 'Off (0s)' : `${crossfadeDuration}s (Equal-Power)`}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-zinc-400">
+                      Smoothly crossfades between consecutive tracks using an equal-power curve to prevent volume dips. Set to 0s for gapless transitions.
+                    </span>
+                    <div className="px-1 pt-1">
+                      <Slider
+                        value={crossfadeDuration}
+                        min={0}
+                        max={12}
+                        step={1}
+                        marks={[
+                          { value: 0, label: '0s' },
+                          { value: 2, label: '2s' },
+                          { value: 4, label: '4s' },
+                          { value: 6, label: '6s' },
+                          { value: 8, label: '8s' },
+                          { value: 10, label: '10s' },
+                          { value: 12, label: '12s' },
+                        ]}
+                        onChange={(_, val) => setCrossfadeDuration(val as number)}
+                        valueLabelDisplay="auto"
+                      />
+                    </div>
                   </div>
 
                   {/* ReplayGain Mode Selector */}

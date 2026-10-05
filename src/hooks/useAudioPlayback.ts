@@ -100,7 +100,6 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
 
           const dur = effectiveDur;
           const rm = state.repeatMode;
-          const crossfade = state.crossfadeDuration || 0;
 
           // Detect if playback position has stalled near end of track (stream EOF)
           if (dur > 1 && pos >= dur - 1.5) {
@@ -114,12 +113,10 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
           }
           lastPosRef.current = pos;
 
-          const isTransition =
-            crossfade > 0 && dur > crossfade * 2
-              ? pos >= dur - crossfade
-              : dur > 0 && (pos >= dur - 0.04 || (pos >= dur - 0.5 && stallCountRef.current >= 4));
+          // Fallback auto-advance if audio stream has completely stalled at EOF without a backend transition
+          const isStalledAtEnd = dur > 1 && pos >= dur - 0.5 && stallCountRef.current >= 6;
 
-          if (dur > 1 && pos > 0.5 && isTransition && !isTransitioningRef.current) {
+          if (dur > 1 && pos > 0.5 && isStalledAtEnd && !isTransitioningRef.current) {
             isTransitioningRef.current = true;
             setTimeout(() => {
               isTransitioningRef.current = false;

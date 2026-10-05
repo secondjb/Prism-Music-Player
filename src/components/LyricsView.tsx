@@ -2827,15 +2827,15 @@ export const LyricsView: React.FC = () => {
           {/* Left Column (50%): Dynamic Album Art, Track Info, Seekbar & Controls that never overflow */}
           {currentTrack && (
             <div className="h-full w-full min-w-0 min-h-0 flex flex-col justify-center items-center px-6 lg:px-12 py-2 overflow-hidden">
-              <div className="flex flex-col items-center justify-center w-full max-w-[min(640px,94%)] max-h-full min-h-0">
+              <div className="flex flex-col items-center justify-center w-full max-w-[min(820px,96%)] max-h-full min-h-0">
                 <div
                   onClick={() => setLyricsLayoutMode('centered')}
                   className="relative rounded-[clamp(1rem,2vw,1.5rem)] overflow-hidden shadow-2xl border border-white/15 aspect-square select-none cursor-pointer group transition-all shrink-0 bg-black/40 flex items-center justify-center"
                   style={{
-                    width: 'min(38vw, calc(100vh - 280px), 520px)',
-                    height: 'min(38vw, calc(100vh - 280px), 520px)',
+                    width: 'min(44vw, calc(100vh - 220px), 780px)',
+                    height: 'min(44vw, calc(100vh - 220px), 780px)',
                     maxWidth: '100%',
-                    maxHeight: 'calc(100vh - 280px)',
+                    maxHeight: 'calc(100vh - 220px)',
                   }}
                 >
                   {trackArt ? (

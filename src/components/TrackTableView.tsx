@@ -1219,7 +1219,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       } else {
         setSortState((prev) => {
           if (prev && prev.prop === prop) {
-            return prev.order === 'asc' ? { prop, order: 'desc' } : null;
+            return { prop, order: prev.order === 'asc' ? 'desc' : 'asc' };
           }
           return { prop, order: 'asc' };
         });

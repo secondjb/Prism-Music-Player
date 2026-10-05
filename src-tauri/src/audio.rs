@@ -1092,6 +1092,10 @@ fn run_audio_engine(
                     total_frames: total_f.max(1),
                     current_frame: 0,
                 });
+                if let Some(ref inc) = incoming_track {
+                    let dur_ms = (inc.total_duration_secs * 1000.0) as u64;
+                    state.lock().current_duration_ms.store(dur_ms, Ordering::Relaxed);
+                }
                 if let Some(app) = app_handle.lock().as_ref() {
                     let _ = app.emit("track-transitioned", ());
                 }
@@ -1131,7 +1135,6 @@ fn run_audio_engine(
                     // Crossfade complete: transition to incoming track
                     crossfade_state = None;
                     current_track = incoming_track.take();
-                    pending_next = None;
                     let new_dur_ms = (current_track.as_ref().unwrap().total_duration_secs * 1000.0) as u64;
                     state.lock().current_duration_ms.store(new_dur_ms, Ordering::Relaxed);
                     break;
@@ -1158,7 +1161,6 @@ fn run_audio_engine(
                     if incoming_track.is_some() {
                         // True Gapless Transition on the immediate frame!
                         current_track = incoming_track.take();
-                        pending_next = None;
                         let new_dur_ms = (current_track.as_ref().unwrap().total_duration_secs * 1000.0) as u64;
                         state.lock().current_duration_ms.store(new_dur_ms, Ordering::Relaxed);
                         if let Some(app) = app_handle.lock().as_ref() {
@@ -1172,7 +1174,12 @@ fn run_audio_engine(
             }
         }
 
-        if let Some(ref cur_active) = current_track {
+        if crossfade_state.is_some() {
+            if let Some(ref inc) = incoming_track {
+                let pos_ms = (inc.current_position_secs() * 1000.0) as u64;
+                state.lock().current_position_ms.store(pos_ms, Ordering::Relaxed);
+            }
+        } else if let Some(ref cur_active) = current_track {
             let pos_ms = (cur_active.current_position_secs() * 1000.0) as u64;
             state.lock().current_position_ms.store(pos_ms, Ordering::Relaxed);
         }

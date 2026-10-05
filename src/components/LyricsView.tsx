@@ -2248,7 +2248,7 @@ export const LyricsView: React.FC = () => {
             initial={{ opacity: 0, scale: 0.95, y: -10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -10 }}
-            className="absolute right-8 top-20 w-[340px] max-h-[82vh] overflow-y-auto custom-scrollbar glass-panel border border-white/15 rounded-2xl shadow-2xl p-4.5 z-50 flex flex-col gap-3.5 text-xs text-zinc-200"
+            className="absolute right-8 top-20 w-[350px] min-h-[480px] max-h-[82vh] overflow-y-auto custom-scrollbar glass-panel border border-white/15 rounded-2xl shadow-2xl p-4.5 z-50 flex flex-col gap-3.5 text-xs text-zinc-200"
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-white/10 pb-2.5">

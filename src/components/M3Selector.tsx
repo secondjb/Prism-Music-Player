@@ -30,9 +30,22 @@ export const M3Selector = <T extends string>({
   size = 'md',
 }: M3SelectorProps<T>) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [openUpwards, setOpenUpwards] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const selectedOption = options.find((opt) => opt.id === value) || options[0];
+
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      if (spaceBelow < 240 && rect.top > spaceBelow) {
+        setOpenUpwards(true);
+      } else {
+        setOpenUpwards(false);
+      }
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -47,7 +60,7 @@ export const M3Selector = <T extends string>({
   }, [isOpen]);
 
   return (
-    <div ref={containerRef} className={`relative flex flex-col gap-1.5 ${isOpen ? 'z-40' : 'z-10'} ${className}`}>
+    <div ref={containerRef} className={`relative flex flex-col gap-1.5 ${isOpen ? 'z-50' : 'z-10'} ${className}`}>
       {label && (
         <span className="text-zinc-300 font-semibold flex items-center gap-1.5 text-xs">
           {icon && <span style={{ color: 'var(--color-stop-1, #6366f1)' }}>{icon}</span>}
@@ -95,11 +108,13 @@ export const M3Selector = <T extends string>({
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            initial={{ opacity: 0, y: openUpwards ? 6 : -6, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            exit={{ opacity: 0, y: openUpwards ? 6 : -6, scale: 0.98 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-64 overflow-y-auto custom-scrollbar glass-panel bg-zinc-950/95 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-2xl p-1.5 flex flex-col gap-1"
+            className={`absolute left-0 right-0 z-[60] max-h-60 overflow-y-auto custom-scrollbar glass-panel bg-zinc-950/95 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-2xl p-1.5 flex flex-col gap-1 ${
+              openUpwards ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+            }`}
           >
             {options.map((opt) => {
               const isSelected = opt.id === value;

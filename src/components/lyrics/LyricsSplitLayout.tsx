@@ -236,18 +236,18 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
             sx={{
               flexShrink: 0,
               width: '100%',
-              maxWidth: 'min(720px, 100%)',
+              maxWidth: 'min(860px, 100%)',
               display: 'flex',
               flexDirection: 'column',
               minWidth: 0,
-              pt: 1,
+              pt: { xs: 1, sm: 1.5 },
               pb: 0.5,
             }}
           >
-            <Stack spacing={0.5} sx={{ minWidth: 0, width: '100%' }}>
+            <Stack spacing={0.75} sx={{ minWidth: 0, width: '100%' }}>
               <MarqueeText
                 text={currentTrack.title}
-                className="font-extrabold text-white text-[clamp(1.2rem,2.4vw,2.2rem)] drop-shadow-md leading-tight"
+                className="font-black text-white text-[clamp(1.6rem,2.8vw,2.75rem)] drop-shadow-lg leading-tight tracking-tight"
               />
               <Box
                 component="span"
@@ -258,9 +258,9 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                   }
                 }}
                 sx={{
-                  fontWeight: 600,
-                  color: 'rgb(212 212 216)',
-                  fontSize: 'clamp(0.85rem, 1.3vw, 1.1rem)',
+                  fontWeight: 700,
+                  color: 'rgb(228 228 231)',
+                  fontSize: 'clamp(1.05rem, 1.6vw, 1.4rem)',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -281,7 +281,8 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                   }}
                   sx={{
                     color: 'rgb(161 161 170)',
-                    fontSize: 'clamp(0.75rem, 1vw, 0.85rem)',
+                    fontWeight: 500,
+                    fontSize: 'clamp(0.9rem, 1.3vw, 1.15rem)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -299,7 +300,8 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
               duration={duration}
               isWavySeekbarEnabled={isWavySeekbarEnabled}
               onSeek={handleSeek}
-              className="mt-3 sm:mt-4"
+              size="lg"
+              className="mt-3.5 sm:mt-5"
             />
 
             {/* Controls */}
@@ -319,8 +321,8 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  mt: 'clamp(0.35rem, 1.2vh, 0.75rem)',
-                  pt: 'clamp(0.35rem, 1.2vh, 0.75rem)',
+                  mt: 'clamp(0.45rem, 1.4vh, 0.95rem)',
+                  pt: 'clamp(0.45rem, 1.4vh, 0.95rem)',
                   borderTop: '1px solid rgba(255, 255, 255, 0.1)',
                 }}
               >
@@ -333,7 +335,7 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                   onToggleShuffle={toggleShuffle}
                   repeatMode={repeatMode}
                   onCycleRepeatMode={cycleRepeatMode}
-                  size="md"
+                  size="lg"
                   playButtonColor="primary"
                 />
 
@@ -341,7 +343,8 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                   <PlayerVolumeControl
                     volume={volume}
                     setVolume={setVolume}
-                    width={{ xs: 120, sm: 150, md: 180 }}
+                    width={{ xs: 140, sm: 180, md: 230 }}
+                    size="lg"
                     showAlways
                   />
                 </Box>

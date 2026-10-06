@@ -18,6 +18,7 @@ export interface LyricsSeekbarProps {
   onSeek: (secs: number) => void;
   className?: string;
   active?: boolean;
+  size?: 'sm' | 'md' | 'lg';
 }
 
 export const LyricsSeekbar: React.FC<LyricsSeekbarProps> = memo(({
@@ -26,6 +27,7 @@ export const LyricsSeekbar: React.FC<LyricsSeekbarProps> = memo(({
   onSeek,
   className,
   active = true,
+  size = 'md',
 }) => {
   const currentTime = usePlayerStore((s) => s.currentTime);
   const [dragSeekVal, setDragSeekVal] = useState<number | null>(null);
@@ -39,9 +41,10 @@ export const LyricsSeekbar: React.FC<LyricsSeekbarProps> = memo(({
         width: '100%',
         display: 'flex',
         alignItems: 'center',
-        gap: { xs: 1, sm: 1.5 },
+        gap: size === 'lg' ? { xs: 1.5, sm: 2 } : { xs: 1, sm: 1.5 },
         fontFamily: 'monospace',
-        fontSize: 'clamp(0.65rem, 1vw, 0.75rem)',
+        fontSize: size === 'lg' ? 'clamp(0.85rem, 1.2vw, 1.05rem)' : 'clamp(0.65rem, 1vw, 0.75rem)',
+        fontWeight: size === 'lg' ? 600 : 400,
         color: 'rgb(161 161 170)',
         my: 0,
         py: 0,
@@ -52,8 +55,9 @@ export const LyricsSeekbar: React.FC<LyricsSeekbarProps> = memo(({
         sx={{
           fontFamily: 'monospace',
           fontSize: 'inherit',
+          fontWeight: 'inherit',
           color: 'inherit',
-          minWidth: '2.5rem',
+          minWidth: size === 'lg' ? '3.2rem' : '2.5rem',
           textAlign: 'left',
           userSelect: 'none',
           display: 'flex',
@@ -76,7 +80,7 @@ export const LyricsSeekbar: React.FC<LyricsSeekbarProps> = memo(({
               onSeek(val);
               setDragSeekVal(null);
             }}
-            size="md"
+            size={size}
             className="flex-1"
             formatTooltip={(val) => formatTime(val)}
             active={active}
@@ -92,7 +96,7 @@ export const LyricsSeekbar: React.FC<LyricsSeekbarProps> = memo(({
               onSeek(val);
               setDragSeekVal(null);
             }}
-            size="md"
+            size={size}
             className="flex-1"
             formatTooltip={(val) => formatTime(val)}
           />
@@ -104,8 +108,9 @@ export const LyricsSeekbar: React.FC<LyricsSeekbarProps> = memo(({
         sx={{
           fontFamily: 'monospace',
           fontSize: 'inherit',
+          fontWeight: 'inherit',
           color: 'inherit',
-          minWidth: '2.5rem',
+          minWidth: size === 'lg' ? '3.2rem' : '2.5rem',
           textAlign: 'right',
           userSelect: 'none',
           display: 'flex',

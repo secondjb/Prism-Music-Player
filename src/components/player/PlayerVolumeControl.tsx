@@ -12,6 +12,7 @@ export interface PlayerVolumeControlProps {
   width?: number | string | object;
   showNumericInput?: boolean;
   showAlways?: boolean;
+  size?: 'sm' | 'md' | 'lg';
 }
 
 export const PlayerVolumeControl: React.FC<PlayerVolumeControlProps> = ({
@@ -20,6 +21,7 @@ export const PlayerVolumeControl: React.FC<PlayerVolumeControlProps> = ({
   width,
   showNumericInput = true,
   showAlways = false,
+  size = 'md',
 }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [prevVol, setPrevVol] = useState(volume);
@@ -74,7 +76,7 @@ export const PlayerVolumeControl: React.FC<PlayerVolumeControlProps> = ({
     <Stack
       ref={volContainerRef}
       direction="row"
-      spacing={1}
+      spacing={size === 'lg' ? 1.25 : 1}
       sx={{
         alignItems: 'center',
         width: width || { xs: 75, sm: 105, md: 155 },
@@ -85,15 +87,19 @@ export const PlayerVolumeControl: React.FC<PlayerVolumeControlProps> = ({
     >
       <Tooltip title={isMuted ? 'Unmute' : 'Mute'} arrow>
         <IconButton
-          size="small"
+          size={size === 'lg' ? 'medium' : 'small'}
           onClick={handleMuteToggle}
           sx={{
-            p: 0.5,
+            p: size === 'lg' ? 0.75 : 0.5,
             color: isMuted || volume === 0 ? '#fb7185' : '#a1a1aa',
             '&:hover': { color: '#ffffff' },
           }}
         >
-          {isMuted || volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+          {isMuted || volume === 0 ? (
+            <VolumeX size={size === 'lg' ? 22 : 18} />
+          ) : (
+            <Volume2 size={size === 'lg' ? 22 : 18} />
+          )}
         </IconButton>
       </Tooltip>
 
@@ -103,6 +109,7 @@ export const PlayerVolumeControl: React.FC<PlayerVolumeControlProps> = ({
           min={0}
           max={1}
           step={0.01}
+          size={size}
           onChange={(val) => {
             setVolume(val);
             if (isMuted) setIsMuted(false);
@@ -114,7 +121,7 @@ export const PlayerVolumeControl: React.FC<PlayerVolumeControlProps> = ({
 
       {/* Numeric Percentage / Direct Input */}
       {showNumericInput && (
-        <Box sx={{ width: 34, flexShrink: 0, display: { xs: 'none', md: 'flex' }, justifyContent: 'flex-end' }}>
+        <Box sx={{ width: size === 'lg' ? 42 : 34, flexShrink: 0, display: { xs: 'none', md: 'flex' }, justifyContent: 'flex-end' }}>
           {isEditingVol ? (
             <input
               type="number"
@@ -134,7 +141,7 @@ export const PlayerVolumeControl: React.FC<PlayerVolumeControlProps> = ({
                 borderColor: 'var(--color-stop-1, #6366f1)',
                 width: '100%',
                 padding: '2px',
-                fontSize: '11px',
+                fontSize: size === 'lg' ? '13px' : '11px',
                 fontFamily: 'monospace',
                 fontWeight: 700,
                 textAlign: 'center',
@@ -155,7 +162,7 @@ export const PlayerVolumeControl: React.FC<PlayerVolumeControlProps> = ({
               title="Click to type volume"
               sx={{
                 p: 0.25,
-                fontSize: '11px',
+                fontSize: size === 'lg' ? '13px' : '11px',
                 fontFamily: 'monospace',
                 fontWeight: 700,
                 color: 'var(--color-stop-1, #6366f1)',

@@ -33,21 +33,26 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   playButtonColor = 'white',
   hideAuxOnSmall = true,
 }) => {
-  const playBtnDiameter = size === 'sm' ? 36 : size === 'lg' ? 48 : 42;
-  const mainIconSize = size === 'sm' ? 16 : size === 'lg' ? 22 : 18;
-  const navIconSize = size === 'sm' ? 16 : size === 'lg' ? 22 : 18;
-  const auxIconSize = size === 'sm' ? 14 : size === 'lg' ? 18 : 16;
+  const playBtnDiameter = size === 'sm' ? 36 : size === 'lg' ? 54 : 42;
+  const mainIconSize = size === 'sm' ? 16 : size === 'lg' ? 26 : 18;
+  const navIconSize = size === 'sm' ? 16 : size === 'lg' ? 24 : 18;
+  const auxIconSize = size === 'sm' ? 14 : size === 'lg' ? 20 : 16;
+  const btnPadding = size === 'lg' ? 1.25 : 1;
   return (
-    <Stack direction="row" spacing={{ xs: 0.75, sm: 1.5, md: 2 }} sx={{ alignItems: 'center', my: 0 }}>
+    <Stack
+      direction="row"
+      spacing={size === 'lg' ? { xs: 1, sm: 2, md: 2.5 } : { xs: 0.75, sm: 1.5, md: 2 }}
+      sx={{ alignItems: 'center', my: 0 }}
+    >
       {/* Shuffle Button */}
       <Tooltip title={shuffleEnabled ? 'Shuffle On' : 'Shuffle Off'} arrow>
         <IconButton
-          size="small"
+          size={size === 'lg' ? 'medium' : 'small'}
           onClick={onToggleShuffle}
           sx={{
             display: hideAuxOnSmall ? { xs: 'none', sm: 'inline-flex' } : 'inline-flex',
-            p: 1,
-            borderRadius: '10px',
+            p: btnPadding,
+            borderRadius: '12px',
             color: shuffleEnabled ? 'var(--color-stop-1, #6366f1)' : '#a1a1aa',
             bgcolor: shuffleEnabled ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)' : 'transparent',
             '&:hover': {
@@ -65,10 +70,10 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
       {/* Previous Track Button */}
       <Tooltip title="Previous Song" arrow>
         <IconButton
-          size="small"
+          size={size === 'lg' ? 'medium' : 'small'}
           onClick={onPreviousTrack}
           sx={{
-            p: 1,
+            p: btnPadding,
             color: '#a1a1aa',
             '&:hover': { color: '#ffffff' },
           }}
@@ -122,10 +127,10 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
       {/* Next Track Button */}
       <Tooltip title="Next Song" arrow>
         <IconButton
-          size="small"
+          size={size === 'lg' ? 'medium' : 'small'}
           onClick={onNextTrack}
           sx={{
-            p: 1,
+            p: btnPadding,
             color: '#a1a1aa',
             '&:hover': { color: '#ffffff' },
           }}
@@ -146,12 +151,12 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
         arrow
       >
         <IconButton
-          size="small"
+          size={size === 'lg' ? 'medium' : 'small'}
           onClick={onCycleRepeatMode}
           sx={{
             display: hideAuxOnSmall ? { xs: 'none', sm: 'inline-flex' } : 'inline-flex',
-            p: 1,
-            borderRadius: '10px',
+            p: btnPadding,
+            borderRadius: '12px',
             color: repeatMode !== 'off' ? 'var(--color-stop-1, #6366f1)' : '#a1a1aa',
             bgcolor: repeatMode !== 'off' ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)' : 'transparent',
             '&:hover': {

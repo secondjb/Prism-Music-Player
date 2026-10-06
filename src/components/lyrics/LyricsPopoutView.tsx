@@ -368,42 +368,26 @@ export const LyricsPopoutView: React.FC = () => {
     }
   }, [popoutSettings.backgroundStyle, popoutSettings.opacity]);
 
-  // Dynamic font sizing that scales to fill the available space (Balanced mode default)
+  // Dynamic font sizing: stable across lines, calibrated so ~3 lines appear comfortably at a time
   const computedFontSize = useMemo(() => {
     const h = contentSize.height;
-    const w = contentSize.width;
-    const isSplit = popoutSettings.layoutMode === 'split_left' || popoutSettings.layoutMode === 'split_right';
-    const effectiveWidth = isSplit ? w * 0.5 : w;
 
     if (popoutSettings.fontSize === 'small') {
-      return {
-        active: Math.max(14, Math.min(24, Math.round(h * 0.09))),
-        inactive: Math.max(11, Math.min(16, Math.round(h * 0.06))),
-        sub: Math.max(10, Math.min(13, Math.round(h * 0.05))),
-      };
+      const sz = Math.max(16, Math.min(24, Math.round(h * 0.075)));
+      return { active: sz, sub: Math.max(11, Math.round(sz * 0.52)) };
     }
     if (popoutSettings.fontSize === 'large') {
-      return {
-        active: Math.max(26, Math.min(64, Math.round(h * 0.22))),
-        inactive: Math.max(16, Math.min(36, Math.round(h * 0.13))),
-        sub: Math.max(12, Math.min(20, Math.round(h * 0.08))),
-      };
+      const sz = Math.max(26, Math.min(46, Math.round(h * 0.135)));
+      return { active: sz, sub: Math.max(12, Math.round(sz * 0.52)) };
     }
-    // 'balanced' mode (default): actively fills the space nicely
-    const activeLine = lines[activeIndex];
-    const textLen = (activeLine?.content || '').length;
-    let factor = 1.0;
-    if (textLen > 40) factor = 0.82;
-    else if (textLen > 25) factor = 0.92;
-    else if (textLen < 15 && textLen > 0) factor = 1.15;
 
-    const baseByHeight = h * (isSplit ? 0.16 : 0.155) * factor;
-    const maxByWidth = Math.max(18, Math.round((effectiveWidth / Math.max(10, textLen || 20)) * 1.55));
-    const activeSize = Math.max(18, Math.min(52, Math.round(Math.min(baseByHeight, maxByWidth))));
-    const inactiveSize = Math.max(13, Math.round(activeSize * 0.65));
-    const subSize = Math.max(11, Math.round(activeSize * 0.52));
-    return { active: activeSize, inactive: inactiveSize, sub: subSize };
-  }, [contentSize.height, contentSize.width, popoutSettings.fontSize, popoutSettings.layoutMode, lines, activeIndex]);
+    // 'balanced' mode (default): big and readable so ~3 lines appear clearly at a time without jumping
+    const balancedSize = Math.max(24, Math.min(38, Math.round(h * 0.11)));
+    return {
+      active: balancedSize,
+      sub: Math.max(12, Math.round(balancedSize * 0.52)),
+    };
+  }, [contentSize.height, popoutSettings.fontSize]);
 
   // Volume wheel handler
   const handleVolumeWheel = (e: React.WheelEvent) => {
@@ -1226,7 +1210,6 @@ export const LyricsPopoutView: React.FC = () => {
 
     return lines.map((line, idx) => {
       const isLineActive = idx === activeIndex;
-      const isPast = idx < activeIndex;
 
       // Romanization & Translation text calculation
       const showRom = isRomanizationEnabled && Boolean(line.romanized);
@@ -1247,6 +1230,18 @@ export const LyricsPopoutView: React.FC = () => {
 
       const isTransparent = popoutSettings.backgroundStyle === 'transparent';
 
+      const distance = Math.abs(idx - activeIndex);
+
+      let lineColor = 'rgba(255, 255, 255, 0.30)';
+      let lineOpacity = 0.22;
+      if (distance === 0) {
+        lineColor = '#ffffff';
+        lineOpacity = 1;
+      } else if (distance === 1) {
+        lineColor = 'rgba(255, 255, 255, 0.72)';
+        lineOpacity = 0.65;
+      }
+
       return (
         <div
           id={`popout-lyric-${idx}`}
@@ -1256,21 +1251,16 @@ export const LyricsPopoutView: React.FC = () => {
               sendCommand('seek', line.startSecs);
             }
           }}
-          className={`transition-colors duration-200 cursor-pointer select-none leading-snug w-full max-w-xl mx-auto flex flex-col items-center ${
-            isLineActive ? 'font-bold' : 'font-medium'
-          }`}
+          className="transition-all duration-200 cursor-pointer select-none leading-snug w-full max-w-xl mx-auto flex flex-col items-center font-bold"
           style={{
             fontSize: `${computedFontSize.active}px`,
+            opacity: lineOpacity,
             textShadow: isTransparent
               ? '0 1px 4px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.9), 0 0 16px rgba(0,0,0,0.85)'
-              : isLineActive
+              : distance === 0
               ? '0 0 20px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)'
               : undefined,
-            color: isLineActive
-              ? '#ffffff'
-              : isPast
-              ? 'rgba(255, 255, 255, 0.45)'
-              : 'rgba(255, 255, 255, 0.35)',
+            color: lineColor,
           }}
         >
           {/* Main Line Content */}
@@ -1287,9 +1277,9 @@ export const LyricsPopoutView: React.FC = () => {
                   return (
                     <span
                       key={sIdx}
-                      className={`inline-block transition-colors duration-150 ${
+                      className={`inline-block font-bold transition-colors duration-150 ${
                         syl.hasTrailingSpace ? 'mr-[0.25em]' : ''
-                      } ${isSylActive ? 'font-bold' : 'font-normal'}`}
+                      }`}
                       style={{
                         position: isSylActive ? 'relative' : undefined,
                         zIndex: isSylActive ? 20 : undefined,

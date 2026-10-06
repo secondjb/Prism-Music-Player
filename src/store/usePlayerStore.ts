@@ -1342,6 +1342,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       playTrack: async (track, contextTracks) => {
+        const prevTrack = get().currentTrack;
         try {
           const { shuffleEnabled, linkedTracks } = get();
           let baseQueue = contextTracks && contextTracks.length > 0 ? [...contextTracks] : [track];
@@ -1388,7 +1389,7 @@ export const usePlayerStore = create<PlayerState>()(
           if (window.__TAURI_INTERNALS__) {
             const crossfade = getEffectiveCrossfadeSecs(
               track,
-              get().currentTrack,
+              prevTrack,
               get().crossfadeDuration,
               get().alwaysGaplessForLinkedSongs,
               get().alwaysGaplessSongIds,
@@ -1411,6 +1412,7 @@ export const usePlayerStore = create<PlayerState>()(
         const { queue } = get();
         if (index >= 0 && index < queue.length) {
           const track = queue[index];
+          const prevTrack = get().currentTrack;
           set({
             currentIndex: index,
             currentTrack: track,
@@ -1422,7 +1424,7 @@ export const usePlayerStore = create<PlayerState>()(
             if (window.__TAURI_INTERNALS__) {
               const crossfade = getEffectiveCrossfadeSecs(
                 track,
-                get().currentTrack,
+                prevTrack,
                 get().crossfadeDuration,
                 get().alwaysGaplessForLinkedSongs,
                 get().alwaysGaplessSongIds,
@@ -1554,14 +1556,17 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       seek: async (seconds) => {
+        const { duration, currentTrack } = get();
+        const maxSecs = duration > 0 ? duration : (currentTrack?.duration_secs || 0);
+        const clamped = maxSecs > 0.5 ? Math.max(0, Math.min(maxSecs - 0.3, seconds)) : Math.max(0, seconds);
         const now = performance.now();
         set({
-          currentTime: seconds,
+          currentTime: clamped,
           lastSeekTime: now,
-          lastSeekTarget: seconds,
+          lastSeekTarget: clamped,
         });
         try {
-          await invoke('seek_audio', { positionSecs: seconds });
+          await invoke('seek_audio', { positionSecs: clamped });
         } catch (e) {
           console.warn('Rust seek_audio error:', e);
         }
@@ -1590,6 +1595,7 @@ export const usePlayerStore = create<PlayerState>()(
         if (userQueue.length > 0) {
           const nextUserTrack = userQueue[0];
           const remainingUserQueue = userQueue.slice(1);
+          const prevTrack = get().currentTrack;
           set({
             userQueue: remainingUserQueue,
             currentTrack: nextUserTrack,
@@ -1600,7 +1606,7 @@ export const usePlayerStore = create<PlayerState>()(
           try {
             const crossfade = getEffectiveCrossfadeSecs(
               nextUserTrack,
-              get().currentTrack,
+              prevTrack,
               get().crossfadeDuration,
               get().alwaysGaplessForLinkedSongs,
               get().alwaysGaplessSongIds,

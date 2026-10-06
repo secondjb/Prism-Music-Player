@@ -7,11 +7,12 @@ export interface UseTrackArtOptions {
   maxSize?: number;
 }
 
-const MAX_FULL_ART_CACHE = 40;
-const MAX_THUMB_CACHE = 2000;
+const MAX_FULL_ART_CACHE = 100;
+const MAX_THUMB_CACHE = 4000;
 
 const fullArtCache = new Map<string, string>();
 const thumbnailCache = new Map<string, string>();
+const thumbPromiseCache = new Map<string, Promise<string>>();
 const pendingRequests = new Map<string, Promise<string | null>>();
 
 function setFullArt(path: string, art: string) {
@@ -36,11 +37,17 @@ function setThumbnail(key: string, thumb: string) {
 
 /**
  * Creates a lightweight downscaled JPEG thumbnail (~3KB) from a high-res image data URL.
+ * Memoized by source length + sample prefix to prevent re-rendering canvases for identical covers.
  */
 function createThumbnail(dataUrl: string, maxSize = 128): Promise<string> {
   if (!dataUrl || dataUrl.length < 4096) return Promise.resolve(dataUrl);
 
-  return new Promise((resolve) => {
+  const memoKey = `${dataUrl.length}_${dataUrl.slice(0, 80)}_${maxSize}`;
+  if (thumbPromiseCache.has(memoKey)) {
+    return thumbPromiseCache.get(memoKey)!;
+  }
+
+  const p = new Promise<string>((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -66,7 +73,7 @@ function createThumbnail(dataUrl: string, maxSize = 128): Promise<string> {
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'medium';
           ctx.drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL('image/jpeg', 0.8));
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
           return;
         }
       } catch {
@@ -77,6 +84,9 @@ function createThumbnail(dataUrl: string, maxSize = 128): Promise<string> {
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
   });
+
+  thumbPromiseCache.set(memoKey, p);
+  return p;
 }
 
 export function useTrackArt(

@@ -1066,6 +1066,11 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     [isMainGrid, setMainGridSortState, localSortState]
   );
 
+  const handleResetGrid = useCallback(() => {
+    resetGrid();
+    setSortState(null);
+  }, [resetGrid, setSortState]);
+
   const [showSortMenu, setShowSortMenu] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -1200,8 +1205,8 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const isSearchActive = Boolean(searchQuery && searchQuery.trim());
 
   const gridKey = useMemo(() => {
-    return `rg-${containerWidth}-${trackGridDensity}-${visibleTrackColumns.length}-${columnOrder.join(',')}-${isSearchActive ? 'search' : 'all'}-${sortState?.prop ?? 'none'}-${sortState?.order ?? 'none'}`;
-  }, [containerWidth, trackGridDensity, visibleTrackColumns.length, columnOrder, isSearchActive, sortState]);
+    return `rg-${containerWidth}-${trackGridDensity}-${visibleTrackColumns.length}-${columnOrder.join(',')}-${isSearchActive ? 'search' : 'all'}`;
+  }, [containerWidth, trackGridDensity, visibleTrackColumns.length, columnOrder, isSearchActive]);
 
   // Synchronize RevoGrid sorting lifecycle with React state cleanly without feedback loops
   useEffect(() => {
@@ -2060,7 +2065,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
               onDensityChange={setTrackGridDensity}
               showSubArtistUnderTitle={showSubArtistUnderTitle}
               onToggleSubArtist={setShowSubArtistUnderTitle}
-              onResetGrid={resetGrid}
+              onResetGrid={handleResetGrid}
               visibleTrackColumns={visibleTrackColumns}
               onToggleColumn={handleToggleColumn}
             />

@@ -42,8 +42,24 @@ fn parse_replay_gain_peak(peak_str: &str) -> Option<f32> {
     peak_str.trim().parse::<f32>().ok()
 }
 
+static ART_CACHE: std::sync::OnceLock<parking_lot::Mutex<std::collections::HashMap<String, Option<String>>>> = std::sync::OnceLock::new();
+
+fn get_art_cache() -> &'static parking_lot::Mutex<std::collections::HashMap<String, Option<String>>> {
+    ART_CACHE.get_or_init(|| parking_lot::Mutex::new(std::collections::HashMap::with_capacity(512)))
+}
+
 pub fn extract_track_art(path_str: &str) -> Option<String> {
+    let cache = get_art_cache();
+    {
+        let guard = cache.lock();
+        if let Some(cached) = guard.get(path_str) {
+            return cached.clone();
+        }
+    }
+
     let path = Path::new(path_str);
+    let mut found_art = None;
+
     if let Ok(tag) = Tag::read_from_path(path) {
         for pic in tag.pictures() {
             let mime = if pic.mime_type.is_empty() {
@@ -52,40 +68,50 @@ pub fn extract_track_art(path_str: &str) -> Option<String> {
                 pic.mime_type.clone()
             };
             let encoded = STANDARD.encode(&pic.data);
-            return Some(format!("data:{};base64,{}", mime, encoded));
+            found_art = Some(format!("data:{};base64,{}", mime, encoded));
+            break;
         }
     }
 
-    // Fallback: Check folder for cover image
-    if let Some(parent) = path.parent() {
-        for name in &[
-            "cover.jpg",
-            "cover.png",
-            "folder.jpg",
-            "folder.png",
-            "album.jpg",
-            "album.png",
-            "Cover.jpg",
-            "Folder.jpg",
-            "Album.jpg",
-            "art.jpg",
-            "art.png",
-        ] {
-            let img_path = parent.join(name);
-            if img_path.exists() {
-                if let Ok(bytes) = std::fs::read(&img_path) {
-                    let mime = if name.to_lowercase().ends_with(".png") {
-                        "image/png"
-                    } else {
-                        "image/jpeg"
-                    };
-                    let encoded = STANDARD.encode(&bytes);
-                    return Some(format!("data:{};base64,{}", mime, encoded));
+    // Fallback: Check folder for cover image only if the file itself has no embedded art
+    if found_art.is_none() {
+        if let Some(parent) = path.parent() {
+            for name in &[
+                "cover.jpg",
+                "cover.png",
+                "folder.jpg",
+                "folder.png",
+                "album.jpg",
+                "album.png",
+                "Cover.jpg",
+                "Folder.jpg",
+                "Album.jpg",
+                "art.jpg",
+                "art.png",
+            ] {
+                let img_path = parent.join(name);
+                if img_path.exists() {
+                    if let Ok(bytes) = std::fs::read(&img_path) {
+                        let mime = if name.to_lowercase().ends_with(".png") {
+                            "image/png"
+                        } else {
+                            "image/jpeg"
+                        };
+                        let encoded = STANDARD.encode(&bytes);
+                        found_art = Some(format!("data:{};base64,{}", mime, encoded));
+                        break;
+                    }
                 }
             }
         }
     }
-    None
+
+    let mut guard = cache.lock();
+    if guard.len() >= 2000 {
+        guard.clear();
+    }
+    guard.insert(path_str.to_string(), found_art.clone());
+    found_art
 }
 
 /// On-demand lyrics extraction from a FLAC file.

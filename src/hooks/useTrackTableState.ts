@@ -400,6 +400,8 @@ export function useTrackTableState() {
     }
   });
 
+  const setMainGridSortState = usePlayerStore((s) => s.setMainGridSortState);
+
   const resetGrid = useCallback(() => {
     localStorage.removeItem(COLUMN_SIZING_STORAGE_KEY);
     setColumnWidths({});
@@ -407,7 +409,8 @@ export function useTrackTableState() {
     setShowSubArtistUnderTitle(true);
     setVisibleTrackColumns(DEFAULT_VISIBLE_COLUMNS);
     setColumnOrder(DEFAULT_COLUMN_ORDER);
-  }, [setTrackGridDensity, setShowSubArtistUnderTitle, setVisibleTrackColumns, setColumnOrder]);
+    setMainGridSortState(null);
+  }, [setTrackGridDensity, setShowSubArtistUnderTitle, setVisibleTrackColumns, setColumnOrder, setMainGridSortState]);
 
   const saveColumnWidths = useCallback((widths: Record<string, number>) => {
     setColumnWidths((prev) => {

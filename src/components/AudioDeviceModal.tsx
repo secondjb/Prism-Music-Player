@@ -113,16 +113,15 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
     }
   }, []);
 
-  // Fetch details ONCE when modal is opened
+  // Fetch details ONCE when modal is opened (force fresh device scan)
   useEffect(() => {
     if (isOpen) {
-      fetchDetails(false);
+      fetchDetails(true);
     }
   }, [isOpen, fetchDetails]);
 
   const handleSelectDevice = async (dev: AudioDeviceInfo) => {
-    // If device is already active, do nothing! Never restart the stream redundantly.
-    if (dev.is_active || dev.name === details?.active_device_name) {
+    if (switchingDeviceName === dev.name) {
       return;
     }
 
@@ -161,12 +160,12 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
         return;
       }
 
-      // Wait 600ms for the background audio thread to finish rebuilding the stream
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      // Wait 300ms for the background audio thread to finish rebuilding the stream
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       if (currentSeq !== activeSwitchSeqRef.current) return;
 
-      const updated = await invoke<AudioOutputDetails>('get_audio_output_details', { forceRefresh: false });
+      const updated = await invoke<AudioOutputDetails>('get_audio_output_details', { forceRefresh: true });
       if (currentSeq === activeSwitchSeqRef.current) {
         setDetails(updated);
         setSwitchingDeviceName(null);

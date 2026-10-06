@@ -287,13 +287,11 @@ impl TrackDecoder {
         }
         self.delay_frames_remaining = 0;
 
-        let clamped_secs = position_secs.max(0.0);
-        // If seek target is at or beyond the track duration, treat as immediate EOF
-        if self.total_duration_secs > 0.0 && clamped_secs >= (self.total_duration_secs - 0.25) {
-            self.eof = true;
-            self.frames_emitted = (self.total_duration_secs * self.input_sample_rate as f64) as u64;
-            return Ok(());
-        }
+        let clamped_secs = if self.total_duration_secs > 0.5 {
+            position_secs.clamp(0.0, self.total_duration_secs - 0.3)
+        } else {
+            position_secs.max(0.0)
+        };
 
         let seek_res = self.format.seek(
             symphonia::core::formats::SeekMode::Accurate,
@@ -677,7 +675,7 @@ impl GlobalAudioEngine {
         let mut cached_guard = cached_devices_arc.lock();
         let device_infos: Vec<AudioDeviceInfo> = if !force_refresh
             && cached_guard.is_some()
-            && cached_guard.as_ref().unwrap().0.elapsed() < Duration::from_secs(600)
+            && cached_guard.as_ref().unwrap().0.elapsed() < Duration::from_secs(2)
         {
             let mut list = cached_guard.as_ref().unwrap().1.clone();
             for dev in list.iter_mut() {
@@ -818,10 +816,6 @@ impl GlobalAudioEngine {
 
     pub fn set_output_device(&self, device_name: Option<String>) {
         let state = self.state.lock();
-        let current_sel = state.selected_device_name.lock().clone();
-        if current_sel == device_name {
-            return;
-        }
         *state.selected_device_name.lock() = device_name.clone();
         drop(state);
 
@@ -832,6 +826,7 @@ impl GlobalAudioEngine {
 fn create_cpal_stream(
     device_name_opt: Option<&str>,
     flush_counter: Arc<AtomicU64>,
+    device_changed: Arc<AtomicBool>,
 ) -> Result<(cpal::Stream, rtrb::Producer<f32>, String, u32, usize, String), String> {
     let host = cpal::default_host();
     let device = match device_name_opt {
@@ -867,8 +862,10 @@ fn create_cpal_stream(
     let ring_buffer_capacity = (target_sample_rate as usize * target_channels / 2).max(16384);
     let (producer, mut consumer) = rtrb::RingBuffer::<f32>::new(ring_buffer_capacity);
 
+    let dc = Arc::clone(&device_changed);
     let err_fn = move |err| {
         eprintln!("CPAL Stream error: {}", err);
+        dc.store(true, Ordering::SeqCst);
     };
 
     let fc = Arc::clone(&flush_counter);
@@ -935,9 +932,10 @@ fn run_audio_engine(
     app_handle: Arc<Mutex<Option<tauri::AppHandle>>>,
 ) {
     let flush_counter = Arc::new(AtomicU64::new(0));
+    let device_changed = Arc::new(AtomicBool::new(false));
 
     let (current_stream_init, mut producer, mut active_dev_name, mut target_sample_rate, mut target_channels, _) =
-        match create_cpal_stream(None, Arc::clone(&flush_counter)) {
+        match create_cpal_stream(None, Arc::clone(&flush_counter), Arc::clone(&device_changed)) {
             Ok(res) => (Some(res.0), Some(res.1), res.2, res.3, res.4, res.5),
             Err(e) => {
                 eprintln!("Initial CPAL initialization failed: {}", e);
@@ -960,13 +958,16 @@ fn run_audio_engine(
     let mut configured_crossfade_secs: f32 = 0.0;
     let mut is_playing = false;
     let mut master_volume = 0.8f32;
+    let mut last_device_check = std::time::Instant::now();
+    let mut last_stall_check = std::time::Instant::now();
 
     loop {
-        // Drain commands
+        // Drain commands (using timeout when idle so device changes are noticed while paused)
         let first_cmd = if !is_playing || current_track.is_none() || producer.is_none() {
-            match cmd_rx.recv() {
+            match cmd_rx.recv_timeout(Duration::from_millis(150)) {
                 Ok(cmd) => Some(cmd),
-                Err(_) => break,
+                Err(crossbeam_channel::RecvTimeoutError::Timeout) => None,
+                Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
             }
         } else {
             cmd_rx.try_recv().ok()
@@ -1048,7 +1049,7 @@ fn run_audio_engine(
                         producer = None;
                         flush_counter.fetch_add(1, Ordering::SeqCst);
 
-                        match create_cpal_stream(device_name.as_deref(), Arc::clone(&flush_counter)) {
+                        match create_cpal_stream(device_name.as_deref(), Arc::clone(&flush_counter), Arc::clone(&device_changed)) {
                             Ok(res) => {
                                 _current_stream = Some(res.0);
                                 producer = Some(res.1);
@@ -1073,6 +1074,56 @@ fn run_audio_engine(
                     }
                 }
                 current_cmd = cmd_rx.try_recv().ok();
+            }
+        }
+
+        // Automatic device migration detection (CPAL error, OS default swap, or hardware disconnect)
+        let dev_err = device_changed.swap(false, Ordering::SeqCst);
+        let is_system_default = state.lock().selected_device_name.lock().is_none();
+        let mut need_auto_switch = dev_err;
+
+        if !need_auto_switch && is_system_default && last_device_check.elapsed() >= Duration::from_millis(150) {
+            last_device_check = std::time::Instant::now();
+            if let Some(def_dev) = cpal::default_host().default_output_device() {
+                if let Ok(name) = def_dev.name() {
+                    if !active_dev_name.is_empty() && name != active_dev_name {
+                        need_auto_switch = true;
+                    }
+                }
+            }
+        }
+
+        if need_auto_switch {
+            let sel_name = state.lock().selected_device_name.lock().clone();
+            _current_stream = None;
+            producer = None;
+            flush_counter.fetch_add(1, Ordering::SeqCst);
+
+            match create_cpal_stream(sel_name.as_deref(), Arc::clone(&flush_counter), Arc::clone(&device_changed)) {
+                Ok(res) => {
+                    _current_stream = Some(res.0);
+                    producer = Some(res.1);
+                    active_dev_name = res.2;
+                    target_sample_rate = res.3;
+                    target_channels = res.4;
+
+                    let s = state.lock();
+                    *s.active_device_name.lock() = active_dev_name.clone();
+                    *s.active_sample_rate.lock() = target_sample_rate;
+                    *s.active_channels.lock() = target_channels as u16;
+
+                    if let Some(ref mut cur) = current_track {
+                        let _ = cur.reconfigure_target(target_sample_rate, target_channels);
+                    }
+                    if let Some(ref mut inc) = incoming_track {
+                        let _ = inc.reconfigure_target(target_sample_rate, target_channels);
+                    }
+                    println!("Successfully migrated audio stream to device: {}", active_dev_name);
+                }
+                Err(e) => {
+                    eprintln!("Failed to migrate audio stream to new device: {}", e);
+                    device_changed.store(true, Ordering::SeqCst);
+                }
             }
         }
 
@@ -1115,9 +1166,16 @@ fn run_audio_engine(
         let prod = producer.as_mut().unwrap();
         let slots = prod.slots();
         if slots < target_channels * 64 {
+            if last_stall_check.elapsed() > Duration::from_millis(1500) {
+                // Buffer full for >1.5s while playing -> audio stream stalled/dead
+                device_changed.store(true, Ordering::SeqCst);
+                last_stall_check = std::time::Instant::now();
+            }
             // SPSC ring buffer has plenty of headroom; yield gracefully
             thread::sleep(Duration::from_millis(15));
             continue;
+        } else {
+            last_stall_check = std::time::Instant::now();
         }
 
         let frames_to_generate = (slots / target_channels).min(512);

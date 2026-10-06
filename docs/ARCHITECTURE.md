@@ -63,6 +63,11 @@ Playback is managed by `GlobalAudioEngine`:
 5. **Gapless Playback**:
    - A next-track buffer is preloaded before the current track reaches EOF via `AudioCommand::SetNextTrack`.
    - Transition executes seamlessly without closing/reopening the CPAL stream.
+6. **Automatic Output Device Migration & Error Recovery**:
+   - The CPAL stream error callback tracks hardware disconnections via `device_changed: Arc<AtomicBool>`.
+   - In default device mode, the engine polls OS default output device changes every 150ms and migrates streams seamlessly on unplug/plug events.
+   - Buffer stall detection triggers stream recovery if an audio endpoint ceases consuming frames for >1.5s.
+   - `set_output_device` explicitly targets the requested device and immediately updates the active stream without dropping requests.
 
 ### 2.2 Lock-Free IPC Position Tracking
 - **The Problem**: Querying playback position frequently via Tauri IPC can cause UI micro-stutters if the audio render thread locks mutexes.
@@ -119,14 +124,15 @@ Prism utilizes `@revolist/react-datagrid` (RevoGrid) backed by Stencil web compo
 - To avoid memory leaks, each cell mounts an isolated `createRoot(el)` keyed by `${colProp}-${trackId}`.
 - Native Stencil cells are used for simple text/metadata properties to minimize React root overhead.
 
-### 4.2 Grid Sorting & Key Invalidation
-- **Gotcha**: RevoGrid caches internal row order. If sorting state changes in the store, the grid can fall 1 step out of sync unless its cache key is updated.
-- **Rule**: Always incorporate `sortState` into the grid's unique key:
-  ```typescript
-  const gridKey = useMemo(() => {
-    return `track-grid-${sortState.col}-${sortState.dir}-${tracks.length}`;
-  }, [sortState, tracks.length]);
-  ```
+### 4.2 Grid Sorting & Smooth Data Updates
+- **Smooth Re-ordering**: To prevent the table from flashing blank and unmounting all virtual DOM nodes and cell components on every sort, `sortState` is intentionally **excluded** from `gridKey`.
+- Instead, `sortedTracks` seamlessly updates the `source` prop passed to `<RevoGrid source={source} />`, while `columns` headers receive dynamic `order: 'asc' | 'desc'` and are synchronized via `gridRef.current.updateColumns(columns)`.
+- **Reset Grid Defaults**: Invoking `resetGrid()` resets custom column widths, density, visibility, order, and resets `sortState` (`mainGridSortState` and `localSortState`) to `null` to return to the natural track sequence.
+
+### 4.3 Album Art & Thumbnail High-Performance Pipeline
+- **Strict Per-Track Keying**: To prevent cross-track artwork pollution across tracks sharing flat directories or unknown albums, artwork and thumbnails are keyed strictly by each audio file's canonical `track.path`.
+- **Rust In-Memory Caching**: `extract_track_art` in `src-tauri/src/metadata.rs` caches extracted base64 artwork by file path in a thread-safe `OnceLock<Mutex<HashMap>>`, eliminating repeated disk I/O and tag parsing when scrolling, sorting, or re-rendering.
+- **Frontend Canvas Thumbnail Memoization**: In-memory `thumbnailCache` and `thumbPromiseCache` store downscaled thumbnails and prevent redundant HTML Canvas operations across component re-renders.
 
 ---
 

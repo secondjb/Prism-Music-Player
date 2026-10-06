@@ -1,905 +1,20 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useTrackArt } from '../utils/useTrackArt';
-import { AudioSlider } from './AudioSlider';
-import { WavyAudioSlider } from './WavyAudioSlider';
-import { M3Selector } from './M3Selector';
 import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
-import { InterludeIndicator } from './InterludeIndicator';
-import { parseRichLyrics, ParsedLyricLine, LyricSyllable, hasExplicitWordSync, isIdenticalLyricText } from '../utils/lyricsParser';
+import { parseRichLyrics, ParsedLyricLine, hasExplicitWordSync, isIdenticalLyricText } from '../utils/lyricsParser';
 import { createRomanizer, detectScript } from 'lyric-romanizer';
 import { enrichLineWithRomanization } from '../utils/japaneseRomanizer';
-import { MarqueeText } from './MarqueeText';
-import { motion, AnimatePresence } from 'framer-motion';
-import { invoke, convertFileSrc } from '@tauri-apps/api/core';
-import { open } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import {
-  Mic2,
-  Settings2,
-  RefreshCw,
-  X,
-  Target,
-  Languages,
-  ChevronRight,
-  ChevronLeft,
-  Play,
-  Pause,
-  SkipBack,
-  SkipForward,
-  Shuffle,
-  Repeat,
-  Repeat1,
-  Volume2,
-  VolumeX,
-  Maximize2,
-  Minimize2,
-  Save,
-  Type as TypeIcon,
-  Activity,
-  Waves,
-  Globe,
-  Palette,
-  Columns2,
-  Check,
-} from 'lucide-react';
+import { LyricsHeader } from './lyrics/LyricsHeader';
+import { LyricsSettingsModal } from './lyrics/LyricsSettingsModal';
+import { LyricsSplitLayout } from './lyrics/LyricsSplitLayout';
+import { LyricsCenteredLayout } from './lyrics/LyricsCenteredLayout';
+import { InterludeGap, computeActiveLyricState, getLineEndSecs } from './lyrics/types';
 
 const romanizer = createRomanizer({ japaneseDictPath: '/dict' });
-
-const BACKGROUND_OPTIONS = [
-  { id: 'dynamic_glow', name: 'Ambient Dynamic Glow', desc: 'Flowing animated gradient synced to album artwork palette' },
-  { id: 'album_art_blur', name: 'Album Artwork Blur', desc: 'Subtly blurred and dimmed high-resolution album cover backdrop' },
-  { id: 'album_art_color', name: 'Album Art Solid Tint', desc: 'Minimalist solid backdrop derived dynamically from current song artwork' },
-  { id: 'custom_photo', name: 'Custom Wallpaper Image', desc: 'Select any custom PNG, JPG or WebP wallpaper photo from your PC' },
-  { id: 'solid_color', name: 'Solid Minimal Color', desc: 'Clean, distraction-free solid slate or custom picked hex tint' },
-  { id: 'amoled_black', name: 'AMOLED Pure Black', desc: 'Zero-light true black #000000 background for OLED displays' },
-] as const;
-
-const FONT_OPTIONS = [
-  { id: 'system-ui, -apple-system, sans-serif', name: 'System Default', desc: 'Native OS typeface' },
-  { id: "'Plus Jakarta Sans', system-ui, sans-serif", name: 'Google Sans / Jakarta', desc: 'Modern geometric sans', fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" },
-  { id: "'Outfit', system-ui, sans-serif", name: 'Outfit', desc: 'Warm display sans', fontFamily: "'Outfit', system-ui, sans-serif" },
-  { id: "'Inter', system-ui, sans-serif", name: 'Inter Clean', desc: 'Neutral high-legibility sans', fontFamily: "'Inter', system-ui, sans-serif" },
-  { id: "'Lexend', system-ui, sans-serif", name: 'Lexend', desc: 'Designed for fluid reading', fontFamily: "'Lexend', system-ui, sans-serif" },
-  { id: "'Poppins', system-ui, sans-serif", name: 'Poppins', desc: 'Geometric round shapes', fontFamily: "'Poppins', system-ui, sans-serif" },
-  { id: "'DM Sans', system-ui, sans-serif", name: 'DM Sans', desc: 'Clean geometric low-contrast', fontFamily: "'DM Sans', system-ui, sans-serif" },
-  { id: "'Nunito', system-ui, sans-serif", name: 'Nunito (Rounded)', desc: 'Soft rounded terminals', fontFamily: "'Nunito', system-ui, sans-serif" },
-];
-
-const ANIMATION_OPTIONS = [
-  { id: 'apple_fluid', name: 'Apple Fluid', desc: 'Smooth spring scaling & dynamic focal tracking' },
-  { id: 'karaoke_pulse', name: 'Karaoke Pulse', desc: 'Rhythmic scale pop & jumping text bounce' },
-  { id: 'kinetic_slide', name: 'Kinetic Slide', desc: 'Active line glides smoothly from edge' },
-  { id: 'cinematic_blur', name: 'Cinematic Focus', desc: 'Soft depth blur on surrounding lines' },
-  { id: 'lossless_glow', name: 'Lossless Glow', desc: 'Vibrant neon gradient & glass glow' },
-  { id: 'card_pop', name: 'Glass Elevation', desc: '3D floating frosted card lift' },
-  { id: 'apple_zoom', name: 'Dynamic Focus Zoom', desc: 'Magnified active line with spring push' },
-  { id: 'minimal_wave', name: 'Minimal Clean', desc: 'Low-latency clean opacity transitions' },
-] as const;
-
-
-const formatTime = (secs: number) => {
-  if (!secs || isNaN(secs)) return '0:00';
-  const m = Math.floor(secs / 60);
-  const s = Math.floor(secs % 60);
-  return `${m}:${s < 10 ? '0' : ''}${s}`;
-};
-
-interface LyricsSeekbarProps {
-  duration: number;
-  isWavySeekbarEnabled: boolean;
-  onSeek: (secs: number) => void;
-  className?: string;
-  active?: boolean;
-}
-
-const LyricsSeekbar = React.memo<LyricsSeekbarProps>(({
-  duration,
-  isWavySeekbarEnabled,
-  onSeek,
-  className = "w-full max-w-[clamp(240px,38vw,640px)] flex items-center gap-[clamp(0.5rem,1vw,0.75rem)] text-[clamp(0.65rem,1vw,0.75rem)] font-mono text-zinc-400 mt-[clamp(0.4rem,1.4vh,0.875rem)]",
-  active = true,
-}) => {
-  const currentTime = usePlayerStore((s) => s.currentTime);
-  return (
-    <div className={className}>
-      <span>{formatTime(currentTime)}</span>
-      <div className="relative flex-1 flex items-center group cursor-pointer min-w-[90px]">
-        {isWavySeekbarEnabled ? (
-          <WavyAudioSlider
-            value={currentTime}
-            min={0}
-            max={duration || 100}
-            step={0.1}
-            onChange={onSeek}
-            size="md"
-            className="flex-1"
-            formatTooltip={(val) => formatTime(val)}
-            active={active}
-          />
-        ) : (
-          <AudioSlider
-            value={currentTime}
-            min={0}
-            max={duration || 100}
-            step={0.1}
-            onChange={onSeek}
-            size="md"
-            className="flex-1"
-            formatTooltip={(val) => formatTime(val)}
-          />
-        )}
-      </div>
-      <span>{formatTime(duration)}</span>
-    </div>
-  );
-});
-
-interface SyllableItem {
-  syl: LyricSyllable;
-  sIdx: number;
-}
-
-interface WordGroup {
-  wordIndex: number;
-  syllables: SyllableItem[];
-  hasTrailingSpace: boolean;
-}
-
-const renderSyllableTransWords = (
-  transWords: string[],
-  wordDur: number,
-  line: ParsedLyricLine,
-  currentTimeMs: number,
-  isPast: boolean,
-  lyricsAnimationStyle: string
-) => {
-  return transWords.map((word, wIdx) => {
-    const sylStart = line.timeMs + wIdx * wordDur;
-    const sylEnd = sylStart + wordDur;
-    const isSylActive = currentTimeMs >= 0 && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
-    const isSylPast = isPast || (currentTimeMs >= 0 && currentTimeMs >= sylEnd);
-
-    let sylLift = 0;
-    let sylScale = 1;
-
-    if (isSylActive) {
-      switch (lyricsAnimationStyle) {
-        case 'karaoke_pulse':
-          sylLift = -4;
-          sylScale = 1.15;
-          break;
-        case 'card_pop':
-        case 'apple_zoom':
-          sylLift = -3.5;
-          sylScale = 1.12;
-          break;
-        case 'apple_fluid':
-        case 'lossless_glow':
-          sylLift = -2.5;
-          sylScale = 1.09;
-          break;
-        case 'kinetic_slide':
-          sylLift = -2;
-          sylScale = 1.07;
-          break;
-        case 'cinematic_blur':
-          sylLift = -1.5;
-          sylScale = 1.05;
-          break;
-        case 'minimal_wave':
-        default:
-          sylLift = 0;
-          sylScale = 1.02;
-          break;
-      }
-    }
-
-    return (
-      <span
-        key={`${line.id}-trans-syl-${wIdx}`}
-        className={`inline-block whitespace-nowrap transition-all duration-200 ease-out mr-[0.28em] ${
-          isSylActive ? 'drop-shadow-md' : ''
-        }`}
-        style={{
-          transform: `translate3d(0, ${sylLift}px, 0) scale(${sylScale})`,
-          willChange: isSylActive ? 'transform' : undefined,
-          position: isSylActive ? 'relative' : undefined,
-          zIndex: isSylActive ? 35 : undefined,
-          opacity: isSylActive ? 1 : isPast ? 0.45 : isSylPast ? 0.9 : 0.45,
-          color: isSylActive
-            ? '#ffffff'
-            : isPast
-            ? 'rgba(255, 255, 255, 0.45)'
-            : isSylPast
-            ? 'rgba(255, 255, 255, 0.90)'
-            : 'rgba(255, 255, 255, 0.45)',
-          ...(isSylActive && lyricsAnimationStyle === 'lossless_glow'
-            ? {
-                textShadow:
-                  '0 0 12px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #818cf8)',
-              }
-            : undefined),
-        }}
-      >
-        {word}
-      </span>
-    );
-  });
-};
-
-const renderSyllableGroups = (
-  wordGroups: WordGroup[],
-  line: ParsedLyricLine,
-  currentTimeMs: number,
-  isPast: boolean,
-  lyricsAnimationStyle: string,
-  useRomText = false
-) => {
-  return wordGroups.map((group) => (
-    <span
-      key={`${line.id}-word-${group.wordIndex}`}
-      className={`inline-flex items-baseline whitespace-nowrap overflow-visible relative ${
-        group.hasTrailingSpace ? 'mr-[0.28em]' : ''
-      }`}
-    >
-      {group.syllables.map(({ syl, sIdx }) => {
-        const sylStart = syl.timeMs;
-        const sylEnd = syl.timeMs + syl.durationMs;
-        const isSylActive = currentTimeMs >= 0 && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
-        const isSylPast = isPast || (currentTimeMs >= 0 && currentTimeMs >= sylEnd);
-
-        let sylLift = 0;
-        let sylScale = 1;
-
-        if (isSylActive) {
-          switch (lyricsAnimationStyle) {
-            case 'karaoke_pulse':
-              sylLift = -4;
-              sylScale = 1.15;
-              break;
-            case 'card_pop':
-            case 'apple_zoom':
-              sylLift = -3.5;
-              sylScale = 1.12;
-              break;
-            case 'apple_fluid':
-            case 'lossless_glow':
-              sylLift = -2.5;
-              sylScale = 1.09;
-              break;
-            case 'kinetic_slide':
-              sylLift = -2;
-              sylScale = 1.07;
-              break;
-            case 'cinematic_blur':
-              sylLift = -1.5;
-              sylScale = 1.05;
-              break;
-            case 'minimal_wave':
-            default:
-              sylLift = 0;
-              sylScale = 1.02;
-              break;
-          }
-        }
-
-        return (
-          <span
-            key={`${line.id}-syl-${sIdx}`}
-            className={`inline-block transition-all duration-200 ease-out ${
-              isSylActive ? 'drop-shadow-md' : ''
-            }`}
-            style={{
-              transform: `translate3d(0, ${sylLift}px, 0) scale(${sylScale})`,
-              willChange: isSylActive ? 'transform' : undefined,
-              position: isSylActive ? 'relative' : undefined,
-              zIndex: isSylActive ? 35 : undefined,
-              opacity: isSylActive ? 1 : isPast ? 0.45 : isSylPast ? 0.9 : 0.45,
-              color: isSylActive
-                ? '#ffffff'
-                : isPast
-                ? 'rgba(255, 255, 255, 0.45)'
-                : isSylPast
-                ? 'rgba(255, 255, 255, 0.90)'
-                : 'rgba(255, 255, 255, 0.45)',
-              ...(isSylActive && lyricsAnimationStyle === 'lossless_glow'
-                ? {
-                    textShadow:
-                      '0 0 12px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #818cf8)',
-                  }
-                : undefined),
-            }}
-          >
-            {useRomText ? (syl.romanizedText || syl.text) : syl.text}
-          </span>
-        );
-      })}
-    </span>
-  ));
-};
-
-const ActiveSyllableWords: React.FC<{
-  line: ParsedLyricLine;
-  showTrans: boolean;
-  translationMode: string;
-  showRom: boolean;
-  romanizationMode: string;
-  wordGroups: WordGroup[];
-  lyricsAnimationStyle: string;
-  isPast: boolean;
-}> = ({ line, showTrans, translationMode, showRom, romanizationMode, wordGroups, lyricsAnimationStyle, isPast }) => {
-  const currentTimeMs = usePlayerStore((s) => s.currentTime * 1000);
-  if (showTrans && translationMode === 'replace' && line.translation) {
-    const transWords = line.translation.trim().split(/\s+/).filter(Boolean);
-    const wordDur = line.durationMs / Math.max(1, transWords.length);
-    return <>{renderSyllableTransWords(transWords, wordDur, line, currentTimeMs, isPast, lyricsAnimationStyle)}</>;
-  }
-  if (showRom && romanizationMode === 'replace' && line.romanized) {
-    // If syllables have per-syllable romanized text, use those; otherwise split line.romanized as words
-    const hasSylRom = wordGroups.some((g) => g.syllables.some(({ syl }) => syl.romanizedText));
-    if (hasSylRom) {
-      return <>{renderSyllableGroups(wordGroups, line, currentTimeMs, isPast, lyricsAnimationStyle, true)}</>;
-    }
-    const romWords = line.romanized.trim().split(/\s+/).filter(Boolean);
-    const wordDur = line.durationMs / Math.max(1, romWords.length);
-    return <>{renderSyllableTransWords(romWords, wordDur, line, currentTimeMs, isPast, lyricsAnimationStyle)}</>;
-  }
-  return <>{renderSyllableGroups(wordGroups, line, currentTimeMs, isPast, lyricsAnimationStyle)}</>;
-};
-
-const StaticSyllableWords: React.FC<{
-  line: ParsedLyricLine;
-  showTrans: boolean;
-  translationMode: string;
-  showRom: boolean;
-  romanizationMode: string;
-  wordGroups: WordGroup[];
-  lyricsAnimationStyle: string;
-  isPast: boolean;
-}> = ({ line, showTrans, translationMode, showRom, romanizationMode, wordGroups, lyricsAnimationStyle, isPast }) => {
-  if (showTrans && translationMode === 'replace' && line.translation) {
-    const transWords = line.translation.trim().split(/\s+/).filter(Boolean);
-    const wordDur = line.durationMs / Math.max(1, transWords.length);
-    return <>{renderSyllableTransWords(transWords, wordDur, line, -1, isPast, lyricsAnimationStyle)}</>;
-  }
-  if (showRom && romanizationMode === 'replace' && line.romanized) {
-    const hasSylRom = wordGroups.some((g) => g.syllables.some(({ syl }) => syl.romanizedText));
-    if (hasSylRom) {
-      return <>{renderSyllableGroups(wordGroups, line, -1, isPast, lyricsAnimationStyle, true)}</>;
-    }
-    const romWords = line.romanized.trim().split(/\s+/).filter(Boolean);
-    const wordDur = line.durationMs / Math.max(1, romWords.length);
-    return <>{renderSyllableTransWords(romWords, wordDur, line, -1, isPast, lyricsAnimationStyle)}</>;
-  }
-  return <>{renderSyllableGroups(wordGroups, line, -1, isPast, lyricsAnimationStyle)}</>;
-};
-
-
-const renderSubRomGroups = (
-  wordGroups: WordGroup[],
-  line: ParsedLyricLine,
-  currentTimeMs: number,
-  isPast: boolean,
-  inactiveFontSize: number
-) => {
-  return wordGroups.map((group) => (
-    <span
-      key={`${line.id}-rom-word-${group.wordIndex}`}
-      className={`inline-flex items-baseline whitespace-nowrap ${
-        group.hasTrailingSpace ? 'mr-[0.28em]' : ''
-      }`}
-    >
-      {group.syllables.map(({ syl, sIdx }) => {
-        const sylStart = syl.timeMs;
-        const sylEnd = syl.timeMs + syl.durationMs;
-        const isSylActive = currentTimeMs >= 0 && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
-        const isSylPast = isPast || (currentTimeMs >= 0 && currentTimeMs >= sylEnd);
-        const romText = syl.romanizedText || syl.text;
-
-        return (
-          <span
-            key={`${line.id}-rom-${sIdx}`}
-            className="inline-block transition-all duration-150"
-            style={{
-              fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
-              color: isSylActive
-                ? '#ffffff'
-                : isPast
-                ? 'rgba(255, 255, 255, 0.45)'
-                : isSylPast
-                ? 'rgba(255, 255, 255, 0.85)'
-                : 'rgba(255, 255, 255, 0.45)',
-              fontWeight: isSylActive ? 700 : 400,
-              transform: isSylActive ? 'translate3d(0, -1px, 0) scale(1.06)' : 'none',
-              willChange: isSylActive ? 'transform' : undefined,
-              textShadow: isSylActive
-                ? '0 0 10px rgba(255, 255, 255, 0.6), 0 0 18px var(--color-stop-1, #6366f1)'
-                : undefined,
-            }}
-          >
-            {romText}
-          </span>
-        );
-      })}
-    </span>
-  ));
-};
-
-const ActiveSubRomWords: React.FC<{
-  line: ParsedLyricLine;
-  wordGroups: WordGroup[];
-  inactiveFontSize: number;
-  isPast: boolean;
-}> = ({ line, wordGroups, inactiveFontSize, isPast }) => {
-  const currentTimeMs = usePlayerStore((s) => s.currentTime * 1000);
-  return <>{renderSubRomGroups(wordGroups, line, currentTimeMs, isPast, inactiveFontSize)}</>;
-};
-
-const StaticSubRomWords: React.FC<{
-  line: ParsedLyricLine;
-  wordGroups: WordGroup[];
-  inactiveFontSize: number;
-  isPast: boolean;
-}> = ({ line, wordGroups, inactiveFontSize, isPast }) => {
-  return <>{renderSubRomGroups(wordGroups, line, -1, isPast, inactiveFontSize)}</>;
-};
-
-const renderSubTransWords = (
-  subTrans: string,
-  line: ParsedLyricLine,
-  currentTimeMs: number,
-  isPast: boolean,
-  inactiveFontSize: number
-) => {
-  const transWords = subTrans.trim().split(/\s+/).filter(Boolean);
-  const wordDur = line.durationMs / Math.max(1, transWords.length);
-  return transWords.map((word, wIdx) => {
-    const sylStart = line.timeMs + wIdx * wordDur;
-    const sylEnd = sylStart + wordDur;
-    const isSylActive = currentTimeMs >= 0 && currentTimeMs >= sylStart && currentTimeMs < sylEnd;
-    const isSylPast = isPast || (currentTimeMs >= 0 && currentTimeMs >= sylEnd);
-
-    return (
-      <span
-        key={`${line.id}-trans-${wIdx}`}
-        className="inline-block whitespace-nowrap transition-all duration-150 mr-[0.28em]"
-        style={{
-          fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
-          color: isSylActive
-            ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, #ffffff)'
-            : isSylPast
-            ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, rgba(255, 255, 255, 0.85))'
-            : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.45))',
-          fontWeight: isSylActive ? 700 : 400,
-          transform: isSylActive ? 'translate3d(0, -1px, 0) scale(1.06)' : 'none',
-          willChange: isSylActive ? 'transform' : undefined,
-          textShadow: isSylActive
-            ? '0 0 10px rgba(255, 255, 255, 0.6), 0 0 18px var(--color-stop-1, #6366f1)'
-            : undefined,
-        }}
-      >
-        {word}
-      </span>
-    );
-  });
-};
-
-const ActiveSubTransWords: React.FC<{
-  line: ParsedLyricLine;
-  subTrans: string;
-  inactiveFontSize: number;
-  isPast: boolean;
-}> = ({ line, subTrans, inactiveFontSize, isPast }) => {
-  const currentTimeMs = usePlayerStore((s) => s.currentTime * 1000);
-  return <>{renderSubTransWords(subTrans, line, currentTimeMs, isPast, inactiveFontSize)}</>;
-};
-
-const StaticSubTransWords: React.FC<{
-  line: ParsedLyricLine;
-  subTrans: string;
-  inactiveFontSize: number;
-  isPast: boolean;
-}> = ({ line, subTrans, inactiveFontSize, isPast }) => {
-  return <>{renderSubTransWords(subTrans, line, -1, isPast, inactiveFontSize)}</>;
-};
-
-interface LyricLineRowProps {
-  line: ParsedLyricLine;
-  idx: number;
-  isActive: boolean;
-  isPast: boolean;
-  distance: number;
-  isUnsynced: boolean;
-  lyricsAnimationStyle: string;
-  lyricsFontSizePreset: string;
-  isRomanizationEnabled: boolean;
-  romanizationMode: string;
-  isTranslationEnabled: boolean;
-  translationMode: string;
-  activeFontSize: number;
-  inactiveFontSize: number;
-  activeLineRef: React.Ref<HTMLDivElement> | null;
-  onSeek: (secs: number, targetIdx?: number) => void;
-}
-
-const LyricLineRow = React.memo<LyricLineRowProps>(
-  ({
-    line,
-    idx,
-    isActive,
-    isPast,
-    distance,
-    isUnsynced,
-    lyricsAnimationStyle,
-    lyricsFontSizePreset,
-    isRomanizationEnabled,
-    romanizationMode,
-    isTranslationEnabled,
-    translationMode,
-    activeFontSize,
-    inactiveFontSize,
-    activeLineRef,
-    onSeek,
-  }) => {
-    if (lyricsFontSizePreset === 'maximum' && !isUnsynced && distance > 1) {
-      return null;
-    }
-
-    const showRom = isRomanizationEnabled && Boolean(line.romanized);
-    const showTrans =
-      isTranslationEnabled &&
-      Boolean(line.translation) &&
-      !isIdenticalLyricText(line.content, line.translation);
-
-    let mainText = line.content;
-    if (showTrans && translationMode === 'replace' && line.translation) {
-      mainText = line.translation;
-    } else if (showRom && romanizationMode === 'replace' && line.romanized) {
-      mainText = line.romanized;
-    }
-
-    const subRom = showRom && romanizationMode === 'below' ? line.romanized : null;
-    const subTrans = showTrans && translationMode === 'below' ? line.translation : null;
-
-    let scaleTarget = 1;
-    let transXTarget = 0;
-    let transYTarget = 0;
-    let opacityTarget = isActive ? 1 : 0.35;
-    let blurAmount = 'none';
-
-    if (!isUnsynced) {
-      const isFar = distance >= 2;
-      switch (lyricsAnimationStyle) {
-        case 'apple_fluid':
-          scaleTarget = isActive ? 1.085 : distance === 1 && !isPast ? 0.99 : 0.975;
-          transXTarget = isActive ? 4 : isFar ? 0 : isPast ? 0 : -6;
-          transYTarget = isActive ? -2 : isFar ? 0 : isPast ? -1 : 3;
-          opacityTarget = isActive ? 1 : isFar ? 0.45 : isPast ? 0.45 : distance === 1 ? 0.64 : 0.43;
-          break;
-        case 'karaoke_pulse':
-          scaleTarget = isActive ? 1.1 : distance === 1 && !isPast ? 0.99 : 0.97;
-          transXTarget = isActive ? 4 : 0;
-          transYTarget = isActive ? -3 : isFar ? 0 : 1;
-          opacityTarget = isActive ? 1 : isFar ? 0.45 : isPast ? 0.45 : distance === 1 ? 0.60 : 0.49;
-          break;
-        case 'kinetic_slide':
-          scaleTarget = isActive ? 1.045 : isFar ? 0.975 : isPast ? 0.99 : 0.975;
-          transXTarget = isActive ? 0 : isFar ? 0 : isPast ? 14 : -24;
-          transYTarget = isActive ? -1 : isFar ? 0 : 1;
-          opacityTarget = isActive ? 1 : isFar ? 0.45 : isPast ? 0.45 : 0.42;
-          break;
-        case 'cinematic_blur':
-          scaleTarget = isActive ? 1.065 : distance === 1 && !isPast ? 0.96 : 0.93;
-          transYTarget = isActive ? 0 : isFar ? 0 : isPast ? -10 : 10;
-          opacityTarget = isActive ? 1 : isFar ? 0.35 : isPast ? 0.45 : distance <= 1 ? 0.58 : 0.28;
-          blurAmount = isActive ? 'none' : isFar ? 'none' : isPast ? 'none' : distance === 1 ? 'blur(1.5px)' : 'none';
-          break;
-        case 'lossless_glow':
-          scaleTarget = isActive ? 1.075 : distance === 1 && !isPast ? 0.99 : 0.97;
-          transXTarget = isActive ? 3 : 0;
-          transYTarget = isActive ? -2 : isFar ? 0 : 1;
-          opacityTarget = isActive ? 1 : isFar ? 0.45 : isPast ? 0.45 : distance === 1 ? 0.66 : 0.46;
-          break;
-        case 'card_pop':
-          scaleTarget = isActive ? 1.065 : 0.985;
-          transYTarget = isActive ? -5 : isFar ? 0 : 2;
-          opacityTarget = isActive ? 1 : isFar ? 0.45 : isPast ? 0.45 : distance === 1 ? 0.60 : 0.48;
-          break;
-        case 'apple_zoom':
-          scaleTarget = isActive ? 1.18 : distance === 1 && !isPast ? 0.94 : 0.88;
-          transYTarget = isActive ? -4 : isFar ? 0 : isPast ? -1 : 2;
-          opacityTarget = isActive ? 1 : isFar ? 0.35 : isPast ? 0.45 : distance === 1 ? 0.55 : 0.32;
-          break;
-        case 'minimal_wave':
-        default:
-          scaleTarget = 1;
-          transXTarget = isActive ? 2 : 0;
-          transYTarget = isPast ? -1 : isActive ? 0 : 1;
-          opacityTarget = isActive ? 1 : isFar ? 0.45 : isPast ? 0.45 : distance === 1 ? 0.58 : 0.38;
-          break;
-      }
-    }
-
-    const isCardPopActive = lyricsAnimationStyle === 'card_pop' && isActive && !isUnsynced;
-    const isLosslessGlowActive = lyricsAnimationStyle === 'lossless_glow' && isActive && !isUnsynced;
-
-    let lineGlowStyle: React.CSSProperties | undefined;
-    if (isActive && !isUnsynced && !line.hasSyllables) {
-      switch (lyricsAnimationStyle) {
-        case 'lossless_glow':
-          lineGlowStyle = {
-            textShadow:
-              '0 0 14px var(--color-stop-1, #6366f1), 0 0 28px var(--color-stop-2, #818cf8), 0 0 42px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
-          };
-          break;
-        case 'apple_fluid':
-          lineGlowStyle = {
-            textShadow: '0 0 18px color-mix(in srgb, var(--color-stop-1, #6366f1) 32%, transparent)',
-          };
-          break;
-        case 'karaoke_pulse':
-          lineGlowStyle = {
-            textShadow:
-              '0 0 16px color-mix(in srgb, var(--color-stop-1, #ec4899) 65%, white 35%), 0 0 28px color-mix(in srgb, var(--color-stop-2, #818cf8) 40%, transparent)',
-          };
-          break;
-        case 'cinematic_blur':
-        case 'apple_zoom':
-          lineGlowStyle = {
-            textShadow: '0 0 14px rgba(255, 255, 255, 0.4)',
-          };
-          break;
-        default:
-          break;
-      }
-    }
-
-    const wordGroups: WordGroup[] = useMemo(() => {
-      if (!line.syllables || line.syllables.length === 0) return [];
-      const groups: WordGroup[] = [];
-      let currentGroup: SyllableItem[] = [];
-
-      for (let i = 0; i < line.syllables.length; i++) {
-        const syl = line.syllables[i];
-        currentGroup.push({ syl, sIdx: i });
-
-        const isBoundary =
-          Boolean(syl.hasTrailingSpace) ||
-          /\s+$/.test(syl.text) ||
-          i === line.syllables.length - 1;
-
-        if (isBoundary) {
-          groups.push({
-            wordIndex: groups.length,
-            syllables: currentGroup,
-            hasTrailingSpace: Boolean(syl.hasTrailingSpace) || /\s+$/.test(syl.text),
-          });
-          currentGroup = [];
-        }
-      }
-
-      if (currentGroup.length > 0) {
-        groups.push({
-          wordIndex: groups.length,
-          syllables: currentGroup,
-          hasTrailingSpace: false,
-        });
-      }
-
-      return groups;
-    }, [line.syllables]);
-
-    const lineMaxWidth =
-      lyricsFontSizePreset === 'balanced'
-        ? 'min(1750px, 95vw)'
-        : lyricsFontSizePreset === 'maximum'
-        ? 'min(1400px, 94vw)'
-        : lyricsFontSizePreset === 'large'
-        ? 'min(1100px, 90vw)'
-        : 'min(900px, 86vw)';
-
-    return (
-      <div
-        id={`lyric-line-${idx}`}
-        ref={isActive && !isUnsynced ? activeLineRef : null}
-        className={`text-center cursor-pointer w-full px-8 sm:px-12 py-3.5 rounded-2xl flex flex-col items-center justify-center break-words [text-wrap:balance] overflow-visible relative ${
-          isActive && !isUnsynced
-            ? 'font-extrabold'
-            : isUnsynced
-            ? 'text-zinc-200 font-medium'
-            : 'text-zinc-400 hover:text-zinc-200 font-medium'
-        }`}
-        style={{
-          maxWidth: lineMaxWidth,
-          fontSize: isActive && !isUnsynced ? `${activeFontSize}px` : `${inactiveFontSize}px`,
-          lineHeight: 1.35,
-          opacity: opacityTarget,
-          transform: `translate3d(${transXTarget}px, ${transYTarget}px, 0) scale(${scaleTarget})`,
-          filter: blurAmount,
-          willChange: 'transform, opacity',
-          transition: 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease-out',
-          position: 'relative',
-          zIndex: isLosslessGlowActive ? 30 : isActive && !isUnsynced ? 25 : 1,
-          ...(isLosslessGlowActive
-            ? {
-                filter:
-                  'drop-shadow(0 0 20px color-mix(in srgb, var(--color-stop-1, #6366f1) 85%, transparent)) drop-shadow(0 0 35px color-mix(in srgb, var(--color-stop-2, #818cf8) 50%, transparent))',
-              }
-            : {}),
-        }}
-        onClick={() => {
-          if (typeof line.startSecs === 'number' && !isNaN(line.startSecs) && !isUnsynced) {
-            onSeek(line.startSecs, idx);
-          }
-        }}
-      >
-        {/* Floating Card Pop Background Layer (Placed on a child layer so backdropFilter doesn't clip child text-shadows/glows) */}
-        {isCardPopActive && (
-          <div
-            className="absolute inset-0 rounded-2xl pointer-events-none -z-10"
-            style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.08)',
-              backdropFilter: 'blur(20px)',
-              boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.5)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-            }}
-          />
-        )}
-
-        {/* Granular Syllable / Word rendering with Jumping text */}
-        {line.hasSyllables && !isUnsynced ? (
-          <div className="inline-flex flex-wrap justify-center items-baseline text-center max-w-full overflow-visible relative">
-            {isActive ? (
-              <ActiveSyllableWords
-                line={line}
-                showTrans={showTrans}
-                translationMode={translationMode}
-                showRom={showRom}
-                romanizationMode={romanizationMode}
-                wordGroups={wordGroups}
-                lyricsAnimationStyle={lyricsAnimationStyle}
-                isPast={isPast}
-              />
-            ) : (
-              <StaticSyllableWords
-                line={line}
-                showTrans={showTrans}
-                translationMode={translationMode}
-                showRom={showRom}
-                romanizationMode={romanizationMode}
-                wordGroups={wordGroups}
-                lyricsAnimationStyle={lyricsAnimationStyle}
-                isPast={isPast}
-              />
-            )}
-          </div>
-        ) : (
-          <div
-            className={`break-words [text-wrap:balance] ${
-              isActive && !(showTrans && translationMode === 'replace')
-                ? 'text-white'
-                : isPast
-                ? 'text-white/45'
-                : distance === 1
-                ? 'text-white/70'
-                : 'text-white/45'
-            }`}
-            style={{
-              ...lineGlowStyle,
-              ...(showTrans && translationMode === 'replace'
-                ? {
-                    color: isActive
-                      ? 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, #ffffff)'
-                      : 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.45))',
-                  }
-                : {}),
-            }}
-          >
-            {mainText}
-          </div>
-        )}
-
-        {/* Word-by-Word Romanization Underneath */}
-        {subRom && (
-          line.hasSyllables && !isUnsynced ? (
-            <div className="w-full flex flex-wrap justify-center items-center gap-1 font-mono mt-1.5 select-none text-center">
-              {isActive ? (
-                <ActiveSubRomWords
-                  line={line}
-                  wordGroups={wordGroups}
-                  inactiveFontSize={inactiveFontSize}
-                  isPast={isPast}
-                />
-              ) : (
-                <StaticSubRomWords
-                  line={line}
-                  wordGroups={wordGroups}
-                  inactiveFontSize={inactiveFontSize}
-                  isPast={isPast}
-                />
-              )}
-            </div>
-          ) : (
-            <div
-              className="w-full flex items-center justify-center font-mono font-normal mt-1.5 select-none break-words [text-wrap:balance] text-center"
-              style={{
-                fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
-                color: 'rgba(255, 255, 255, 0.6)',
-              }}
-            >
-              <span>{subRom}</span>
-            </div>
-          )
-        )}
-
-        {/* Word-by-Word Translation Underneath */}
-        {subTrans && (
-          line.hasSyllables && !isUnsynced ? (
-            <div className="w-full flex flex-wrap justify-center items-center gap-1 font-sans mt-1.5 select-none text-center">
-              {isActive ? (
-                <ActiveSubTransWords
-                  line={line}
-                  subTrans={subTrans}
-                  inactiveFontSize={inactiveFontSize}
-                  isPast={isPast}
-                />
-              ) : (
-                <StaticSubTransWords
-                  line={line}
-                  subTrans={subTrans}
-                  inactiveFontSize={inactiveFontSize}
-                  isPast={isPast}
-                />
-              )}
-            </div>
-          ) : (
-            <div
-              className="w-full flex items-center justify-center font-sans font-normal mt-1.5 select-none break-words [text-wrap:balance] text-center"
-              style={{
-                fontSize: `${Math.max(12, inactiveFontSize * 0.65)}px`,
-                color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, rgba(255, 255, 255, 0.7))',
-              }}
-            >
-              <span>{subTrans}</span>
-            </div>
-          )
-        )}
-      </div>
-    );
-  },
-  (prev, next) => {
-    if (!prev.isActive && !next.isActive && prev.distance >= 2 && next.distance >= 2) {
-      return (
-        prev.activeFontSize === next.activeFontSize &&
-        prev.inactiveFontSize === next.inactiveFontSize &&
-        prev.lyricsAnimationStyle === next.lyricsAnimationStyle &&
-        prev.lyricsFontSizePreset === next.lyricsFontSizePreset &&
-        prev.line === next.line &&
-        prev.isRomanizationEnabled === next.isRomanizationEnabled &&
-        prev.romanizationMode === next.romanizationMode &&
-        prev.isTranslationEnabled === next.isTranslationEnabled &&
-        prev.translationMode === next.translationMode
-      );
-    }
-    return (
-      prev.isActive === next.isActive &&
-      prev.isPast === next.isPast &&
-      prev.distance === next.distance &&
-      prev.activeFontSize === next.activeFontSize &&
-      prev.inactiveFontSize === next.inactiveFontSize &&
-      prev.lyricsAnimationStyle === next.lyricsAnimationStyle &&
-      prev.lyricsFontSizePreset === next.lyricsFontSizePreset &&
-      prev.line === next.line &&
-      prev.isRomanizationEnabled === next.isRomanizationEnabled &&
-      prev.romanizationMode === next.romanizationMode &&
-      prev.isTranslationEnabled === next.isTranslationEnabled &&
-      prev.translationMode === next.translationMode
-    );
-  }
-);
 
 const hasMusicNoteOrInstrumental = (text: string): boolean => {
   if (!text) return false;
@@ -909,124 +24,7 @@ const hasMusicNoteOrInstrumental = (text: string): boolean => {
   return false;
 };
 
-const getLineEndSecs = (line: ParsedLyricLine): number => {
-  if (line.syllables && line.syllables.length > 0) {
-    const lastSyl = line.syllables[line.syllables.length - 1];
-    return Math.max(line.startSecs + 1, (lastSyl.timeMs + lastSyl.durationMs) / 1000);
-  }
-  const wordsCount = line.content.trim().split(/\s+/).filter(Boolean).length;
-  const estimatedSecs = Math.max(2.0, Math.min(line.durationSecs || 4.0, wordsCount * 0.55));
-  return line.startSecs + estimatedSecs;
-};
-
-interface InterludeGap {
-  key: string;
-  startSecs: number;
-  endSecs: number;
-  insertIndex: number;
-}
-
-interface ActiveLyricState {
-  activeIndex: number;
-  activeLinesKey: string;
-  activeInterludeKey: string | null;
-  isCurrentLinePassed: boolean;
-}
-
-function computeActiveLyricState(
-  currentTime: number,
-  lines: ParsedLyricLine[],
-  interludeList: InterludeGap[]
-): ActiveLyricState {
-  const activeInterlude =
-    interludeList.find((item) => currentTime >= item.startSecs && currentTime < item.endSecs) || null;
-
-  let activeIndex = -1;
-  const activeLineIndices = new Set<number>();
-  let isCurrentLinePassed = false;
-
-  if (lines.length > 0 && lines[0].startSecs !== -1) {
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.startSecs <= currentTime) {
-        activeIndex = i;
-      }
-      let endSecs = getLineEndSecs(line);
-      const interludeAfter = interludeList.find((item) => item.insertIndex === i + 1);
-      if (interludeAfter) {
-        endSecs = Math.min(endSecs, interludeAfter.startSecs);
-      }
-      if (currentTime >= line.startSecs && currentTime < endSecs) {
-        activeLineIndices.add(i);
-      }
-    }
-
-    if (activeInterlude) {
-      activeLineIndices.clear();
-    } else if (activeLineIndices.size === 0 && activeIndex !== -1) {
-      const currentLine = lines[activeIndex];
-      const endSecs = getLineEndSecs(currentLine);
-      if (currentTime < endSecs + 1.2) {
-        activeLineIndices.add(activeIndex);
-      }
-    }
-
-    if (activeIndex >= 0) {
-      const curLine = lines[activeIndex];
-      isCurrentLinePassed = currentTime >= getLineEndSecs(curLine);
-    }
-  }
-
-  const activeLinesKey = Array.from(activeLineIndices).sort((a, b) => a - b).join(',');
-
-  return {
-    activeIndex,
-    activeLinesKey,
-    activeInterludeKey: activeInterlude?.key || null,
-    isCurrentLinePassed,
-  };
-}
-
-const LyricInterludeRow = InterludeIndicator;
-
 export const LyricsView: React.FC = () => {
-  const renderStartTime = performance.now();
-  const perfRef = useRef({
-    renderCount: 0,
-    accumulatedRenderMs: 0,
-    windowStart: performance.now(),
-  });
-  perfRef.current.renderCount++;
-
-  useEffect(() => {
-    const renderEndTime = performance.now();
-    const renderDuration = renderEndTime - renderStartTime;
-    perfRef.current.accumulatedRenderMs += renderDuration;
-
-    // Throttle spike warnings to once every 5s and only warn if frame budget severely exceeded (>60ms)
-    if (renderDuration > 60 && renderEndTime - perfRef.current.windowStart > 5000) {
-      console.warn(`[Perf:LyricsView:SPIKE] Heavy render: ${renderDuration.toFixed(2)}ms`);
-    }
-
-    const elapsedSecs = (renderEndTime - perfRef.current.windowStart) / 1000;
-    if (elapsedSecs >= 5) {
-      const fps = (perfRef.current.renderCount / elapsedSecs).toFixed(1);
-      const avgDuration = (
-        perfRef.current.accumulatedRenderMs / perfRef.current.renderCount
-      ).toFixed(2);
-      if (perfRef.current.renderCount > 1) {
-        console.log(
-          `[Perf:LyricsView] Rate=${fps} renders/sec, AvgRenderTime=${avgDuration}ms (${perfRef.current.renderCount} renders in ${elapsedSecs.toFixed(1)}s)`
-        );
-      }
-      perfRef.current = {
-        renderCount: 0,
-        accumulatedRenderMs: 0,
-        windowStart: performance.now(),
-      };
-    }
-  });
-
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const duration = usePlayerStore((s) => s.duration);
@@ -1160,9 +158,7 @@ export const LyricsView: React.FC = () => {
   const [isEmbedding, setIsEmbedding] = useState(false);
   const [embedSuccess, setEmbedSuccess] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'atmosphere' | 'typography' | 'sync'>('atmosphere');
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [artExpanded, setArtExpanded] = useState(false);
   const [isUserScrolled, setIsUserScrolled] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isScrollbarVisible, setIsScrollbarVisible] = useState(false);
@@ -1173,7 +169,7 @@ export const LyricsView: React.FC = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const volNodeRef = useRef<HTMLDivElement | null>(null);
 
-  const volRefCallback = React.useCallback((node: HTMLDivElement | null) => {
+  const volRefCallback = useCallback((node: HTMLDivElement | null) => {
     if (volNodeRef.current) {
       const prev = (volNodeRef.current as any)._volWheelHandler;
       if (prev) volNodeRef.current.removeEventListener('wheel', prev);
@@ -1197,7 +193,7 @@ export const LyricsView: React.FC = () => {
 
   // Check initial window fullscreen state
   useEffect(() => {
-    if (window.__TAURI_INTERNALS__) {
+    if ((window as any).__TAURI_INTERNALS__) {
       getCurrentWindow().isFullscreen().then(setIsFullscreen).catch(() => {});
     } else {
       setIsFullscreen(!!document.fullscreenElement);
@@ -1206,7 +202,7 @@ export const LyricsView: React.FC = () => {
 
   const toggleFullscreen = async () => {
     try {
-      if (window.__TAURI_INTERNALS__) {
+      if ((window as any).__TAURI_INTERNALS__) {
         const appWin = getCurrentWindow();
         const next = !isFullscreen;
         await appWin.setFullscreen(next);
@@ -1254,7 +250,6 @@ export const LyricsView: React.FC = () => {
   const [windowHeight, setWindowHeight] = useState(window.innerHeight);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
-  // Track window dimensions for dynamic text sizing & small window layouts
   useEffect(() => {
     const handleResize = () => {
       setWindowHeight(window.innerHeight);
@@ -1266,12 +261,11 @@ export const LyricsView: React.FC = () => {
 
   const isCompact = windowWidth < 850;
 
-  // Memoize interlude gaps (intro or >=5s pauses between lines without music notes/instrumental tags)
+  // Memoize interlude gaps
   const interludeList = useMemo<InterludeGap[]>(() => {
     if (lines.length === 0 || lines[0].startSecs === -1) return [];
     const interludes: InterludeGap[] = [];
 
-    // Intro gap >= 5.0s
     if (lines[0].startSecs >= 5.0 && !hasMusicNoteOrInstrumental(lines[0].content)) {
       interludes.push({
         key: 'lyric-interlude-intro',
@@ -1319,10 +313,7 @@ export const LyricsView: React.FC = () => {
     return interludeList.find((item) => item.key === activeInterludeKey) || null;
   }, [activeInterludeKey, interludeList]);
 
-  // Dynamic font size calculation for 'balanced' preset:
-  // Dynamically calculates the optimal font size based on the current song's line lengths and wrapping,
-  // allowing lines to take up the majority of the window's horizontal space while ensuring
-  // 3 lines (previous, active, next) fit on the screen as large as possible without rapid zooming or jitter.
+  // Dynamic font size calculation for 'balanced' preset
   const balancedFontSize = useMemo(() => {
     const validLines = lines.filter((l) => l.content && l.content.trim().length > 0);
     if (validLines.length === 0) {
@@ -1339,7 +330,6 @@ export const LyricsView: React.FC = () => {
       return l.content.trim();
     };
 
-    // Measure normalized visual character widths (accounting for CJK vs Latin)
     const normWidths = validLines.map((l) => {
       const text = getEffectiveText(l);
       let w = 0;
@@ -1358,46 +348,35 @@ export const LyricsView: React.FC = () => {
       return Math.max(1, w);
     }).sort((a, b) => a - b);
 
-    // 90th percentile represents the longest typical line of the song without being distorted by rare outliers
     const repNormWidth = normWidths[Math.min(normWidths.length - 1, Math.floor(normWidths.length * 0.90))];
     const medianNormWidth = normWidths[Math.floor(normWidths.length * 0.5)];
-
-    // Majority of window horizontal space (95vw, up to 1750px), minus padding (48px)
     const availWidth = Math.max(320, Math.min(windowWidth * 0.95, 1750) - 48);
-
-    // Target vertical height budget for 3 lines (active line + 2 inactive lines + gaps + padding)
-    // Lyrics view centers 3 lines on screen; we budget up to 72% of window height (leaving plenty of room for header and seekbar)
     const targetHeight = Math.max(340, Math.min(windowHeight * 0.72, windowHeight - 160));
 
-    // Has sub-text (translation / romanization) rendered below active line?
     const hasTrans = isTranslationEnabled && translationMode === 'below' && validLines.some((l) => l.translation && !isIdenticalLyricText(l.content, l.translation));
     const hasRom = isRomanizationEnabled && romanizationMode === 'below' && validLines.some((l) => l.romanized);
     const subLineCount = (hasTrans ? 1 : 0) + (hasRom ? 1 : 0);
 
-    // Search from largest desired font size down to minimum comfortable size
     const maxCandidate = Math.min(76, Math.round(windowHeight * 0.085));
     const minCandidate = 30;
 
     let bestSize = minCandidate;
     for (let candidateF = maxCandidate; candidateF >= minCandidate; candidateF--) {
       const activeWrappedLines = Math.max(1, Math.ceil((repNormWidth * candidateF) / availWidth));
-      // In balanced mode, inactive lines have uniform font size
       const inactiveWrappedLines = Math.max(1, Math.ceil((medianNormWidth * candidateF) / availWidth));
 
       const activeHeight = activeWrappedLines * (candidateF * 1.35) + 24 + subLineCount * (Math.max(12, candidateF * 0.45) * 1.3 + 8);
       const inactiveHeight = 2 * (inactiveWrappedLines * (candidateF * 1.35) + 24);
-      const gapsHeight = 48; // two 24px gaps between the 3 lines
+      const gapsHeight = 48;
 
       const totalRequiredHeight = activeHeight + inactiveHeight + gapsHeight;
 
-      // Ensure 3 lines fit comfortably on screen, and the representative line doesn't wrap more than 2 visual lines
       if (totalRequiredHeight <= targetHeight && activeWrappedLines <= 2) {
         bestSize = candidateF;
         break;
       }
     }
 
-    // Fallback if even at minCandidate activeWrappedLines > 2 due to narrow window or long lines
     if (bestSize === minCandidate) {
       for (let candidateF = maxCandidate; candidateF >= minCandidate; candidateF--) {
         const activeWrappedLines = Math.max(1, Math.ceil((repNormWidth * candidateF) / availWidth));
@@ -1423,7 +402,6 @@ export const LyricsView: React.FC = () => {
   } else if (lyricsFontSizePreset === 'large') {
     activeFontSize = Math.max(34, Math.min(52, windowHeight * 0.058));
   } else if (lyricsFontSizePreset === 'maximum') {
-    // Fill the screen so exactly 3 lines are shown, but cap it so it doesn't wrap excessively
     activeFontSize = Math.max(42, Math.min(windowHeight * 0.15, windowWidth * 0.07));
   }
   const inactiveFontSize =
@@ -1461,7 +439,7 @@ export const LyricsView: React.FC = () => {
     };
   }, [autoHideLyricsControls]);
 
-  // 1. Fetch raw lyrics when currentTrack changes without flashing unsynced lyrics
+  // Fetch raw lyrics when currentTrack changes
   useEffect(() => {
     if (!currentTrack) {
       setRawLrc('');
@@ -1472,21 +450,16 @@ export const LyricsView: React.FC = () => {
     let isMounted = true;
     const hasLrcTimestamps = (text: string) => /\[\d{1,2}:\d{2}/.test(text);
 
-    // If embedded lyrics contain synced LRC timestamps, use them immediately (UNLESS preferOnlineLyrics is true)
     if (!preferOnlineLyrics && currentTrack.unsynced_lyrics && hasLrcTimestamps(currentTrack.unsynced_lyrics)) {
       setRawLrc(currentTrack.unsynced_lyrics);
       setIsLoading(false);
       return;
     }
 
-    // Set loading state true and hold off rendering unsynced text until synced check finishes
-    setIsLoading(true);
-
     const loadLyrics = async () => {
-      let foundSynced: string | null = null;
+      setIsLoading(true);
 
-      // 1. If preferOnlineLyrics or preferWordSyncedLyrics, try online FIRST
-      if ((preferOnlineLyrics || preferWordSyncedLyrics) && lrclibAutoFetch) {
+      if (lrclibAutoFetch && preferOnlineLyrics) {
         const fetched = await fetchLrclibLyrics(
           currentTrack.title,
           currentTrack.artist,
@@ -1494,27 +467,27 @@ export const LyricsView: React.FC = () => {
           currentTrack.duration_secs,
           preferWordSyncedLyrics
         );
-        if (fetched && fetched.trim()) {
-          foundSynced = fetched;
+        if (isMounted && fetched) {
+          setRawLrc(fetched);
+          setIsLoading(false);
+          return;
         }
       }
 
-      // 2. If not found online (or didn't try yet), check local
-      if (!foundSynced) {
+      if ((window as any).__TAURI_INTERNALS__) {
         try {
-          if (window.__TAURI_INTERNALS__) {
-            const lyrics: string | null = await invoke('get_track_lyrics', { path: currentTrack.path });
-            if (lyrics && lyrics.trim() && (hasLrcTimestamps(lyrics) || !currentTrack.unsynced_lyrics)) {
-              foundSynced = lyrics;
-            }
+          const lyrics: string | null = await invoke('get_track_lyrics', { path: currentTrack.path });
+          if (isMounted && lyrics && lyrics.trim().length > 0) {
+            setRawLrc(lyrics);
+            setIsLoading(false);
+            return;
           }
         } catch (e) {
-          console.warn('On-demand lyrics fetch error:', e);
+          console.warn('Native lyrics lookup failed:', e);
         }
       }
 
-      // 3. If local check failed but we haven't tried online yet, try online now
-      if (!foundSynced && !preferOnlineLyrics && lrclibAutoFetch) {
+      if (lrclibAutoFetch) {
         const fetched = await fetchLrclibLyrics(
           currentTrack.title,
           currentTrack.artist,
@@ -1522,30 +495,17 @@ export const LyricsView: React.FC = () => {
           currentTrack.duration_secs,
           preferWordSyncedLyrics
         );
-        if (fetched && fetched.trim()) {
-          foundSynced = fetched;
+        if (isMounted && fetched) {
+          setRawLrc(fetched);
+          setIsLoading(false);
+          return;
         }
       }
 
-      if (!isMounted) return;
-
-      if (foundSynced) {
-        setRawLrc(foundSynced);
-
-        // Auto-embed online lyrics if setting is enabled and file doesn't already have it
-        if (autoEmbedLyrics && currentTrack.path && window.__TAURI_INTERNALS__) {
-          if (foundSynced !== currentTrack.unsynced_lyrics) {
-            invoke('embed_lyrics', { path: currentTrack.path, lyrics: foundSynced }).catch(() => {});
-          }
-        }
-      } else if (currentTrack.unsynced_lyrics) {
-        // Fallback to unsynced lyrics only after synced lookup finishes
-        setRawLrc(currentTrack.unsynced_lyrics);
-      } else {
-        setRawLrc('');
+      if (isMounted) {
+        setRawLrc(currentTrack.unsynced_lyrics || '');
+        setIsLoading(false);
       }
-
-      setIsLoading(false);
     };
 
     loadLyrics();
@@ -1553,87 +513,104 @@ export const LyricsView: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [currentTrack?.id, preferOnlineLyrics, preferWordSyncedLyrics, lrclibAutoFetch, autoEmbedLyrics]);
+  }, [currentTrack?.id, preferOnlineLyrics, lrclibAutoFetch, preferWordSyncedLyrics]);
 
-  // 2. Parse, Romanize & Translate lines locally whenever rawLrc, romanization, or translation changes
+  // Auto-embed lyrics if enabled
   useEffect(() => {
-    if (!rawLrc.trim()) {
+    if (!autoEmbedLyrics || !currentTrack || !rawLrc || !rawLrc.trim()) return;
+    if (currentTrack.unsynced_lyrics === rawLrc) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        if ((window as any).__TAURI_INTERNALS__) {
+          await invoke('embed_lyrics', { path: currentTrack.path, lyrics: rawLrc });
+          const { currentTrack: ct, tracks, setTracks } = usePlayerStore.getState();
+          if (ct && ct.id === currentTrack.id) {
+            usePlayerStore.setState({
+              currentTrack: { ...ct, unsynced_lyrics: rawLrc }
+            });
+          }
+          if (tracks) {
+            setTracks(tracks.map(t => t.id === currentTrack.id ? { ...t, unsynced_lyrics: rawLrc } : t));
+          }
+        }
+      } catch (e) {
+        console.warn('Auto embed lyrics error:', e);
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [rawLrc, currentTrack?.id, autoEmbedLyrics]);
+
+  // Parse raw LRC & enrich with romanization
+  useEffect(() => {
+    if (!rawLrc) {
       setLines([]);
       return;
     }
 
     const formatted = parseRichLyrics(rawLrc, { inferWordSync: inferWordSyncedLyrics });
-    setLines(formatted);
+    let isCancelled = false;
 
-    let isMounted = true;
-
-    async function enrichLines() {
+    const processRomanization = async () => {
       let processed = formatted;
 
-      if (isRomanizationEnabled) {
+      try {
         const allContents = processed.map((l) => l.content);
         const trackScript = detectScript(allContents);
 
         processed = await Promise.all(
           processed.map((line) => enrichLineWithRomanization(line, trackScript, romanizer))
         );
+      } catch (e) {
+        console.warn('Romanization enrichment failed:', e);
       }
- 
-      if (isMounted) {
+
+      if (!isCancelled) {
         setLines(processed);
       }
-    }
+    };
 
-    enrichLines();
+    processRomanization();
 
     return () => {
-      isMounted = false;
+      isCancelled = true;
     };
-  }, [rawLrc, isRomanizationEnabled, inferWordSyncedLyrics]);
-
-
+  }, [rawLrc, inferWordSyncedLyrics]);
 
   const isProgrammaticScrollRef = useRef(false);
   const userInteractingRef = useRef(false);
   const userInteractionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const programmaticScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Tracking refs to ensure single, smooth monotonic forward movement during playback
   const lastScrolledMaxLineRef = useRef<number>(-1);
   const lastScrolledInterludeRef = useRef<string | null>(null);
   const lastScrollTargetRef = useRef<number>(0);
 
-  // Detect manual seeks or skips (time jumping backwards or skipping > 2.5s) and reset monotonic scroll clamp
+  // Reset scroll lock when song is scrubbed backwards or changed
   useEffect(() => {
-    let lastTime = usePlayerStore.getState().currentTime;
+    let lastTime = 0;
     const unsub = usePlayerStore.subscribe((state) => {
       const curTime = state.currentTime;
       const dt = curTime - lastTime;
-      if (dt < -0.5 || dt > 2.5) {
+      if (dt < -1.0 || dt > 8.0) {
         lastScrolledMaxLineRef.current = -1;
         lastScrollTargetRef.current = 0;
         lastScrolledInterludeRef.current = null;
+        if (!isUserScrolled) {
+          scrollToActive(true);
+        }
       }
       lastTime = curTime;
     });
-    return unsub;
-  }, []);
 
-  // When lines change or reload, reset scroll tracking
-  useEffect(() => {
-    lastScrolledMaxLineRef.current = -1;
-    lastScrollTargetRef.current = 0;
-    lastScrolledInterludeRef.current = null;
-  }, [lines]);
+    return () => unsub();
+  }, [isUserScrolled]);
 
-
-  // The furthest active line index in forward playback
   const maxActiveLine = activeLineIndices.size > 0
     ? Math.max(...Array.from(activeLineIndices))
     : activeIndex;
 
-  // Smart centering target calculation: centers multi-line active groups while prioritizing current line.
-  // Enforces monotonic forward scrolling during normal playback so it never bounces backwards.
   const getSmartScrollTarget = useCallback((force: boolean = false, readOnly: boolean = false) => {
     const containerEl = containerRef.current;
     if (!containerEl) return null;
@@ -1642,22 +619,21 @@ export const LyricsView: React.FC = () => {
       const targetEl = document.getElementById(activeInterlude.key);
       if (targetEl) {
         const target = Math.max(0, targetEl.offsetTop - containerEl.clientHeight / 2 + targetEl.clientHeight / 2);
-        if (!force && target < lastScrollTargetRef.current) {
-          return lastScrollTargetRef.current;
-        }
-        if (!readOnly) {
-          lastScrollTargetRef.current = target;
+        if (!readOnly && !force && Math.abs(containerEl.scrollTop - target) < 14) {
+          return null;
         }
         return target;
       }
       return null;
     }
 
+    if (activeLineIndices.size === 0 && activeIndex === -1) return null;
+
     const currentPrimaryIdx = activeLineIndices.size > 0
-      ? Math.max(...Array.from(activeLineIndices))
+      ? Math.min(...Array.from(activeLineIndices))
       : activeIndex;
 
-    if (currentPrimaryIdx === -1) return null;
+    if (currentPrimaryIdx < 0) return null;
 
     const primaryEl = document.getElementById(`lyric-line-${currentPrimaryIdx}`);
     if (!primaryEl) return null;
@@ -1666,7 +642,7 @@ export const LyricsView: React.FC = () => {
 
     const activeIndices = Array.from(activeLineIndices);
     const activeEls = activeIndices
-      .map((i) => document.getElementById(`lyric-line-${i}`))
+      .map((idx) => document.getElementById(`lyric-line-${idx}`))
       .filter((el): el is HTMLElement => el !== null);
 
     let idealTop = primaryIdealScrollTop;
@@ -1678,7 +654,6 @@ export const LyricsView: React.FC = () => {
       const groupCenter = groupTop + groupHeight / 2;
       const idealGroupScrollTop = groupCenter - containerEl.clientHeight / 2;
 
-      // Prioritize the current line: allow group centering while keeping current line comfortably near center
       const maxDisplacement = Math.min(containerEl.clientHeight * 0.18, 120);
       const delta = idealGroupScrollTop - primaryIdealScrollTop;
       const clampedDelta = Math.max(-maxDisplacement, Math.min(maxDisplacement, delta));
@@ -1688,41 +663,39 @@ export const LyricsView: React.FC = () => {
 
     const target = Math.max(0, idealTop);
 
-    // During forward playback, enforce monotonic downward scrolling to eliminate any upward bouncing
-    if (!force && target < lastScrollTargetRef.current) {
-      return lastScrollTargetRef.current;
+    if (!readOnly && !force) {
+      const isTinyJitter = Math.abs(containerEl.scrollTop - target) < 14;
+      const isAlreadyNear = Math.abs(lastScrollTargetRef.current - target) < 10;
+      if (isTinyJitter || isAlreadyNear) {
+        return null;
+      }
     }
 
-    if (!readOnly) {
-      lastScrollTargetRef.current = target;
-    }
     return target;
-  }, [activeIndex, activeInterlude?.key, activeLinesKey]);
+  }, [activeInterlude, activeLineIndices, activeIndex]);
 
-  // 4. Smooth scroll active line or balanced multi-line group to center
   const scrollToActive = useCallback((force: boolean = false) => {
     const containerEl = containerRef.current;
     if (!containerEl) return;
 
     const targetTop = getSmartScrollTarget(force);
-    if (targetTop !== null) {
-      if (programmaticScrollTimerRef.current) {
-        clearTimeout(programmaticScrollTimerRef.current);
-      }
-      isProgrammaticScrollRef.current = true;
-      setIsScrollbarVisible(false);
-      const isFarJump = Math.abs(containerEl.scrollTop - targetTop) > 650;
-      containerEl.scrollTo({
-        top: targetTop,
-        behavior: isFarJump ? 'auto' : 'smooth',
-      });
-      programmaticScrollTimerRef.current = setTimeout(() => {
-        isProgrammaticScrollRef.current = false;
-      }, 800);
-    }
+    if (targetTop === null) return;
+
+    lastScrollTargetRef.current = targetTop;
+    isProgrammaticScrollRef.current = true;
+    if (programmaticScrollTimerRef.current) clearTimeout(programmaticScrollTimerRef.current);
+
+    const isFarJump = Math.abs(containerEl.scrollTop - targetTop) > 650;
+    containerEl.scrollTo({
+      top: targetTop,
+      behavior: isFarJump ? 'auto' : 'smooth',
+    });
+
+    programmaticScrollTimerRef.current = setTimeout(() => {
+      isProgrammaticScrollRef.current = false;
+    }, isFarJump ? 80 : 350);
   }, [getSmartScrollTarget]);
 
-  // Unified seek handler that resets scroll tracking, sync state, and centers the lyric line
   const handleSeek = useCallback(
     (secs: number, targetIdx?: number) => {
       isProgrammaticScrollRef.current = true;
@@ -1740,51 +713,31 @@ export const LyricsView: React.FC = () => {
           );
           lastScrollTargetRef.current = targetTop;
           lastScrolledMaxLineRef.current = targetIdx;
-          lastScrolledInterludeRef.current = null;
+
           const isFarJump = Math.abs(containerEl.scrollTop - targetTop) > 650;
           containerEl.scrollTo({
             top: targetTop,
             behavior: isFarJump ? 'auto' : 'smooth',
           });
+
+          if (programmaticScrollTimerRef.current) clearTimeout(programmaticScrollTimerRef.current);
+          programmaticScrollTimerRef.current = setTimeout(() => {
+            isProgrammaticScrollRef.current = false;
+          }, isFarJump ? 80 : 350);
         }
       } else {
         lastScrolledMaxLineRef.current = -1;
         lastScrollTargetRef.current = 0;
         lastScrolledInterludeRef.current = null;
-        requestAnimationFrame(() => {
+        setTimeout(() => {
           scrollToActive(true);
-        });
+        }, 50);
       }
-
-      if (programmaticScrollTimerRef.current) clearTimeout(programmaticScrollTimerRef.current);
-      programmaticScrollTimerRef.current = setTimeout(() => {
-        isProgrammaticScrollRef.current = false;
-      }, 800);
     },
     [seek, scrollToActive]
   );
 
-  // Scroll to top when track changes / skips
-  useEffect(() => {
-    setIsUserScrolled(false);
-    setIsScrollbarVisible(false);
-    lastScrolledMaxLineRef.current = -1;
-    lastScrollTargetRef.current = 0;
-    lastScrolledInterludeRef.current = null;
-    if (containerRef.current) {
-      if (programmaticScrollTimerRef.current) clearTimeout(programmaticScrollTimerRef.current);
-      isProgrammaticScrollRef.current = true;
-      containerRef.current.scrollTo({
-        top: 0,
-        behavior: 'auto',
-      });
-      programmaticScrollTimerRef.current = setTimeout(() => {
-        isProgrammaticScrollRef.current = false;
-      }, 800);
-    }
-  }, [currentTrack?.id]);
-
-  // 5. Detect genuine user scrolling (wheel/touch/drag) away from current lyric line or interlude
+  // User scroll interaction tracking
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -1794,11 +747,10 @@ export const LyricsView: React.FC = () => {
       if (userInteractionTimeoutRef.current) clearTimeout(userInteractionTimeoutRef.current);
       userInteractionTimeoutRef.current = setTimeout(() => {
         userInteractingRef.current = false;
-      }, 1500);
+      }, 400);
     };
 
     const handleScroll = () => {
-      // Only show scrollbar if user is genuinely interacting and it is NOT an auto-scroll!
       if (!isProgrammaticScrollRef.current && userInteractingRef.current) {
         setIsScrollbarVisible(true);
         if (scrollbarTimerRef.current) clearTimeout(scrollbarTimerRef.current);
@@ -1809,12 +761,10 @@ export const LyricsView: React.FC = () => {
         setIsScrollbarVisible(false);
       }
 
-      // Only unsync if it's NOT a programmatic scroll, user is actively scrolling, and scrolled away from active line/interlude
       if (!isProgrammaticScrollRef.current && userInteractingRef.current) {
         const targetTop = getSmartScrollTarget(true, true);
         if (targetTop !== null) {
           const distance = Math.abs(el.scrollTop - targetTop);
-          // Require at least 100px displacement from the centered active item to consider it an unsync scroll
           if (distance > 100) {
             setIsUserScrolled(true);
           }
@@ -1838,12 +788,10 @@ export const LyricsView: React.FC = () => {
     };
   }, [getSmartScrollTarget]);
 
-  // Auto-scroll effect: ONLY fires when advancing forward to a new line index or new interlude.
-  // When an older/concurrent line finishes singing, maxActiveLine does not advance, so ZERO scroll is triggered.
+  // Auto-scroll effect
   useEffect(() => {
     if (isUserScrolled) return;
 
-    // Case 1: Interlude active
     if (activeInterlude) {
       if (lastScrolledInterludeRef.current !== activeInterlude.key) {
         lastScrolledInterludeRef.current = activeInterlude.key;
@@ -1852,21 +800,17 @@ export const LyricsView: React.FC = () => {
       return;
     }
 
-    // Interlude ended
     if (lastScrolledInterludeRef.current !== null) {
       lastScrolledInterludeRef.current = null;
     }
 
-    // Case 2: Lyric lines active
-    // Advance ONLY when a new line is reached (maxActiveLine > lastScrolledMaxLineRef.current)
     if (maxActiveLine !== -1 && maxActiveLine > lastScrolledMaxLineRef.current) {
       lastScrolledMaxLineRef.current = maxActiveLine;
       scrollToActive();
     }
   }, [maxActiveLine, activeInterlude?.key, isUserScrolled, scrollToActive]);
 
-  // Swap lyrics view layout effect (Centered <-> Split / Immersive):
-  // When swapped: if already synced, jump to current line; if unsynced, keep sync button enabled
+  // Swap layout effect
   const prevLayoutModeRef = useRef(lyricsLayoutMode);
   const prevCompactRef = useRef(isCompact);
   useEffect(() => {
@@ -1877,19 +821,16 @@ export const LyricsView: React.FC = () => {
       lastScrollTargetRef.current = 0;
       lastScrolledInterludeRef.current = null;
       if (!isUserScrolled) {
-        // If it was synced already, jump to current line in the newly active container
         const timer = setTimeout(() => {
           scrollToActive(true);
         }, 50);
         return () => clearTimeout(timer);
       } else {
-        // If it was unsynced, keep sync button enabled so user can re-sync
         setIsUserScrolled(true);
       }
     }
   }, [lyricsLayoutMode, isCompact, isUserScrolled, scrollToActive]);
 
-  // When lyrics lines load or update: if already synced, auto-scroll to current line
   useEffect(() => {
     if (lines.length > 0 && !isUserScrolled) {
       const timer = setTimeout(() => {
@@ -1905,7 +846,7 @@ export const LyricsView: React.FC = () => {
       setActiveTab('library');
     }
     try {
-      if (window.__TAURI_INTERNALS__) {
+      if ((window as any).__TAURI_INTERNALS__) {
         const appWin = getCurrentWindow();
         if (await appWin.isFullscreen()) {
           await appWin.setFullscreen(false);
@@ -1942,7 +883,7 @@ export const LyricsView: React.FC = () => {
     if (!currentTrack || !rawLrc.trim()) return;
     setIsEmbedding(true);
     try {
-      if (window.__TAURI_INTERNALS__) {
+      if ((window as any).__TAURI_INTERNALS__) {
         await invoke('embed_lyrics', { path: currentTrack.path, lyrics: rawLrc });
       }
       const { currentTrack: ct, tracks, setTracks } = usePlayerStore.getState();
@@ -1963,7 +904,6 @@ export const LyricsView: React.FC = () => {
     }
   };
 
-  const RepeatIcon = repeatMode === 'one' ? Repeat1 : Repeat;
   const isUnsynced = lines.length > 0 && lines[0].startSecs === -1;
   const isWordSynced = hasExplicitWordSync(lines);
 
@@ -1976,8 +916,6 @@ export const LyricsView: React.FC = () => {
     }
   };
 
-  const currentRomanizationState = !isRomanizationEnabled ? 'off' : romanizationMode;
-
   const handleTranslationChange = (state: 'off' | 'below' | 'replace') => {
     if (state === 'off') {
       if (isTranslationEnabled) toggleTranslation();
@@ -1987,17 +925,15 @@ export const LyricsView: React.FC = () => {
     }
   };
 
-  const currentTranslationState = !isTranslationEnabled ? 'off' : translationMode;
-
   return (
     <div
       className="fixed inset-0 z-50 bg-[#09090b] flex flex-col justify-between p-8 overflow-hidden select-none"
       style={{ fontFamily: lyricsFontFamily }}
     >
-      {/* 100% Solid Base Layer (guarantees zero bleed-through from underlying window) */}
+      {/* 100% Solid Base Layer */}
       <div className="absolute inset-0 bg-[#09090b] -z-20 pointer-events-none" />
 
-      {/* Dynamic Background Renderer */}
+      {/* Background Modes */}
       {backgroundType === 'amoled_black' && (
         <div className="absolute inset-0 bg-[#000000] -z-10 pointer-events-none" />
       )}
@@ -2086,1379 +1022,180 @@ export const LyricsView: React.FC = () => {
               />
             </>
           )}
-          {/* Subtle dark vignette overlay for lyric contrast and readability */}
           <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/40 via-transparent to-black/60" />
         </div>
       )}
 
-      {/* Top Bar Controls (Fades on idle) */}
-      <motion.div
-        animate={{
-          opacity: controlsVisible ? 1 : 0,
-          y: controlsVisible ? 0 : -20,
-        }}
-        transition={{ duration: 0.3 }}
-        className={`flex items-center justify-between z-10 ${
-          controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center border"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
-              color: 'var(--color-stop-1, #6366f1)',
-              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
-            }}
-          >
-            <Mic2 className="w-5 h-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3
-              className="font-bold text-white text-base truncate"
-              title={
-                isUnsynced
-                  ? 'Plain unsynced lyrics'
-                  : isWordSynced
-                    ? 'Native word-by-word timestamps from LRC file'
-                    : inferWordSyncedLyrics
-                      ? 'Line-synced lyrics (word timing is inferred)'
-                      : 'Line-synced lyrics'
-              }
-            >
-              {isUnsynced
-                ? 'Unsynced Lyrics'
-                : isWordSynced
-                  ? 'Word Synced Lyrics'
-                  : 'Synced Lyrics'}
-            </h3>
-          </div>
-          {showAudioSpecs && currentTrack && (
-            <div className="ml-4 text-xs font-mono text-zinc-400 bg-white/5 px-3 py-1 rounded-xl border border-white/10 shrink-0">
-              {currentTrack.bit_rate_kbps ? `${currentTrack.bit_rate_kbps} kb/s • ` : ''}
-              {(currentTrack.sample_rate / 1000).toFixed(1)} kHz
-            </div>
-          )}
-        </div>
+      {/* Top Bar Controls */}
+      <LyricsHeader
+        controlsVisible={controlsVisible}
+        isUnsynced={isUnsynced}
+        isWordSynced={isWordSynced}
+        inferWordSyncedLyrics={inferWordSyncedLyrics}
+        showAudioSpecs={showAudioSpecs}
+        currentTrack={currentTrack}
+        isRomanizationEnabled={isRomanizationEnabled}
+        toggleRomanization={toggleRomanization}
+        isTranslationEnabled={isTranslationEnabled}
+        toggleTranslation={toggleTranslation}
+        showSettings={showSettings}
+        setShowSettings={setShowSettings}
+        isFullscreen={isFullscreen}
+        toggleFullscreen={toggleFullscreen}
+        handleClose={handleClose}
+      />
 
-        <div className="flex items-center gap-3">
-          {/* Romanization Toggle Button */}
-          <button
-            onClick={toggleRomanization}
-            className={`p-2.5 rounded-xl transition-all border ${
-              isRomanizationEnabled
-                ? 'shadow-lg border-transparent'
-                : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
-            }`}
-            style={
-              isRomanizationEnabled
-                ? {
-                    backgroundColor: 'var(--color-stop-1, #6366f1)',
-                    color: 'var(--color-stop-1-text, #ffffff)',
-                    borderColor: 'transparent',
-                  }
-                : undefined
-            }
-            title={isRomanizationEnabled ? 'Romanization Enabled' : 'Romanization Disabled'}
-          >
-            <Languages className="w-5 h-5" />
-          </button>
+      {/* Settings Modal */}
+      <LyricsSettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        backgroundType={backgroundType}
+        setBackgroundType={setBackgroundType}
+        customBgPath={customBgPath}
+        setCustomBgPath={setCustomBgPath}
+        customBgColor={customBgColor}
+        setCustomBgColor={setCustomBgColor}
+        bgBlurAmount={bgBlurAmount}
+        setBgBlurAmount={setBgBlurAmount}
+        bgDimOpacity={bgDimOpacity}
+        setBgDimOpacity={setBgDimOpacity}
+        lyricsLayoutMode={lyricsLayoutMode}
+        setLyricsLayoutMode={setLyricsLayoutMode}
+        lyricsAnimationStyle={lyricsAnimationStyle}
+        setLyricsAnimationStyle={setLyricsAnimationStyle}
+        lyricsFontFamily={lyricsFontFamily}
+        setLyricsFontFamily={setLyricsFontFamily}
+        lyricsFontSizePreset={lyricsFontSizePreset}
+        setLyricsFontSizePreset={setLyricsFontSizePreset}
+        activeFontSize={activeFontSize}
+        setLyricsFontSize={setLyricsFontSize}
+        isWavySeekbarEnabled={isWavySeekbarEnabled}
+        toggleWavySeekbar={toggleWavySeekbar}
+        showAudioSpecs={showAudioSpecs}
+        toggleShowAudioSpecs={toggleShowAudioSpecs}
+        autoHideLyricsControls={autoHideLyricsControls}
+        toggleAutoHideLyricsControls={toggleAutoHideLyricsControls}
+        isRomanizationEnabled={isRomanizationEnabled}
+        romanizationMode={romanizationMode}
+        handleRomanizationChange={handleRomanizationChange}
+        isTranslationEnabled={isTranslationEnabled}
+        translationMode={translationMode}
+        handleTranslationChange={handleTranslationChange}
+        preferWordSyncedLyrics={preferWordSyncedLyrics}
+        togglePreferWordSyncedLyrics={togglePreferWordSyncedLyrics}
+        inferWordSyncedLyrics={inferWordSyncedLyrics}
+        toggleInferWordSyncedLyrics={toggleInferWordSyncedLyrics}
+        lrclibAutoFetch={lrclibAutoFetch}
+        setLrclibAutoFetch={setLrclibAutoFetch}
+        preferOnlineLyrics={preferOnlineLyrics}
+        setPreferOnlineLyrics={setPreferOnlineLyrics}
+        autoEmbedLyrics={autoEmbedLyrics}
+        toggleAutoEmbedLyrics={toggleAutoEmbedLyrics}
+        handleManualRefresh={handleManualRefresh}
+        handleEmbedLyrics={handleEmbedLyrics}
+        isLoading={isLoading}
+        isEmbedding={isEmbedding}
+        embedSuccess={embedSuccess}
+        rawLrc={rawLrc}
+      />
 
-          {/* Translation Toggle Button */}
-          <button
-            onClick={toggleTranslation}
-            className={`p-2.5 rounded-xl transition-all border ${
-              isTranslationEnabled
-                ? 'shadow-lg border-transparent'
-                : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
-            }`}
-            style={
-              isTranslationEnabled
-                ? {
-                    backgroundColor: 'var(--color-stop-1, #6366f1)',
-                    color: 'var(--color-stop-1-text, #ffffff)',
-                    borderColor: 'transparent',
-                  }
-                : undefined
-            }
-            title={isTranslationEnabled ? 'Translation Enabled' : 'Translation Disabled'}
-          >
-            <Globe className="w-5 h-5" />
-          </button>
-
-
-          {/* Settings Modal Toggle Button */}
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className={`p-2.5 rounded-xl transition-all border ${
-              showSettings
-                ? 'shadow-lg border-transparent'
-                : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
-            }`}
-            style={
-              showSettings
-                ? {
-                    backgroundColor: 'var(--color-stop-1, #6366f1)',
-                    color: 'var(--color-stop-1-text, #ffffff)',
-                    borderColor: 'transparent',
-                  }
-                : undefined
-            }
-            title="Settings"
-          >
-            <Settings2 className="w-5 h-5" />
-          </button>
-
-          {/* Fullscreen Toggle Button */}
-          <button
-            onClick={toggleFullscreen}
-            className={`p-2.5 rounded-xl transition-all border ${
-              isFullscreen
-                ? 'shadow-lg border-transparent'
-                : 'text-zinc-400 hover:text-white hover:bg-white/10 border-white/10'
-            }`}
-            style={
-              isFullscreen
-                ? {
-                    backgroundColor: 'var(--color-stop-1, #6366f1)',
-                    color: 'var(--color-stop-1-text, #ffffff)',
-                    borderColor: 'transparent',
-                  }
-                : undefined
-            }
-            title={isFullscreen ? 'Exit Fullscreen (F11)' : 'Fullscreen (F11)'}
-          >
-            {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-          </button>
-
-          <button
-            onClick={handleClose}
-            className="p-2.5 text-zinc-400 hover:text-white rounded-xl hover:bg-white/10 border border-white/10 transition-all"
-            title="Close Lyrics View"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-      </motion.div>
-
-      {/* Settings Popup */}
-      <AnimatePresence>
-        {showSettings && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -10 }}
-            className="absolute right-8 top-20 w-[350px] min-h-[480px] max-h-[82vh] overflow-y-auto custom-scrollbar glass-panel border border-white/15 rounded-2xl shadow-2xl p-4.5 z-50 flex flex-col gap-3.5 text-xs text-zinc-200"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-              <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                <Settings2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                Lyrics & Visual Settings
-              </h4>
-              <button
-                onClick={() => setShowSettings(false)}
-                className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Tab Navigation Pills */}
-            <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
-              <button
-                onClick={() => setSettingsTab('atmosphere')}
-                className={`flex-1 h-8 py-0 px-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer leading-none ${
-                  settingsTab === 'atmosphere'
-                    ? 'shadow-md'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-                style={
-                  settingsTab === 'atmosphere'
-                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
-                    : undefined
-                }
-              >
-                <Palette className="w-3.5 h-3.5 shrink-0" />
-                <span className="leading-none flex items-center">Atmosphere</span>
-              </button>
-              <button
-                onClick={() => setSettingsTab('typography')}
-                className={`flex-1 h-8 py-0 px-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer leading-none ${
-                  settingsTab === 'typography'
-                    ? 'shadow-md'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-                style={
-                  settingsTab === 'typography'
-                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
-                    : undefined
-                }
-              >
-                <TypeIcon className="w-3.5 h-3.5 shrink-0" />
-                <span className="leading-none flex items-center">Typography</span>
-              </button>
-              <button
-                onClick={() => setSettingsTab('sync')}
-                className={`flex-1 h-8 py-0 px-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer leading-none ${
-                  settingsTab === 'sync'
-                    ? 'shadow-md'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-                style={
-                  settingsTab === 'sync'
-                    ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
-                    : undefined
-                }
-              >
-                <Languages className="w-3.5 h-3.5 shrink-0" />
-                <span className="leading-none flex items-center">Sync & Lang</span>
-              </button>
-            </div>
-
-            {/* TAB 1: ATMOSPHERE */}
-            {settingsTab === 'atmosphere' && (
-              <div className="flex flex-col gap-3">
-                <M3Selector
-                  label="Background Theme"
-                  icon={<Palette className="w-3.5 h-3.5" />}
-                  value={backgroundType}
-                  onChange={(val) => setBackgroundType(val as any)}
-                  options={BACKGROUND_OPTIONS}
-                />
-
-                {/* Custom Photo Wallpaper */}
-                {backgroundType === 'custom_photo' && (
-                  <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-white/5 border border-white/5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-zinc-300 font-medium">Custom Photo</span>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          try {
-                            const selected = await open({
-                              multiple: false,
-                              filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'] }],
-                            });
-                            if (selected && typeof selected === 'string') {
-                              const assetUrl = window.__TAURI_INTERNALS__ ? convertFileSrc(selected) : selected;
-                              setCustomBgPath(assetUrl);
-                            }
-                          } catch (e) {
-                            console.warn('Pick background image error:', e);
-                          }
-                        }}
-                        className="px-2.5 py-1 rounded-lg text-white text-[10px] font-semibold shadow-sm cursor-pointer"
-                        style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-                      >
-                        Choose Image...
-                      </button>
-                    </div>
-                    {customBgPath && (
-                      <span className="text-[10px] text-zinc-500 truncate">{customBgPath}</span>
-                    )}
-                  </div>
-                )}
-
-                {/* Solid Color Tint */}
-                {backgroundType === 'solid_color' && (
-                  <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-white/5 border border-white/5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-zinc-300 font-medium">Color Tint</span>
-                      <input
-                        type="color"
-                        value={customBgColor}
-                        onChange={(e) => setCustomBgColor(e.target.value)}
-                        className="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-0"
-                      />
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {['#09090b', '#0f172a', '#18181b', '#1e1b4b', '#311042', '#064e3b'].map((hex) => (
-                        <button
-                          key={hex}
-                          type="button"
-                          onClick={() => setCustomBgColor(hex)}
-                          className={`w-5 h-5 rounded-full border transition-transform ${
-                            customBgColor.toLowerCase() === hex ? 'scale-125 border-white' : 'border-white/20 hover:scale-110'
-                          }`}
-                          style={{ backgroundColor: hex }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Blur & Dim Sliders */}
-                {(backgroundType === 'album_art_blur' || backgroundType === 'custom_photo') && (
-                  <div className="flex flex-col gap-2.5 p-2.5 rounded-xl bg-white/5 border border-white/5">
-                    <div className="flex flex-col gap-1">
-                      <div className="flex justify-between text-[11px] text-zinc-300">
-                        <span>Blur Amount</span>
-                        <span className="font-mono">{bgBlurAmount}px</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={2}
-                        value={bgBlurAmount}
-                        onChange={(e) => setBgBlurAmount(parseInt(e.target.value, 10))}
-                        className="w-full h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <div className="flex justify-between text-[11px] text-zinc-300">
-                        <span>Dim Tint Overlay</span>
-                        <span className="font-mono">{Math.round(bgDimOpacity * 100)}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={0.9}
-                        step={0.05}
-                        value={bgDimOpacity}
-                        onChange={(e) => setBgDimOpacity(parseFloat(e.target.value))}
-                        className="w-full h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Lyrics Layout Mode */}
-                <div className="flex flex-col gap-1.5 pt-1">
-                  <span className="text-zinc-300 font-semibold text-xs">Screen Layout</span>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      onClick={() => setLyricsLayoutMode('centered')}
-                      className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold transition-all cursor-pointer ${
-                        lyricsLayoutMode === 'centered'
-                          ? 'shadow-md'
-                          : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
-                      }`}
-                      style={
-                        lyricsLayoutMode === 'centered'
-                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
-                          : undefined
-                      }
-                    >
-                      Centered Focus
-                    </button>
-                    <button
-                      onClick={() => setLyricsLayoutMode('split')}
-                      className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold transition-all cursor-pointer ${
-                        lyricsLayoutMode === 'split'
-                          ? 'shadow-md'
-                          : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
-                      }`}
-                      style={
-                        lyricsLayoutMode === 'split'
-                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
-                          : undefined
-                      }
-                    >
-                      Side-by-Side Split
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 2: TYPOGRAPHY & ANIMATION */}
-            {settingsTab === 'typography' && (
-              <div className="flex flex-col gap-3">
-                <M3Selector
-                  label="Lyric Animation Style"
-                  icon={<Activity className="w-3.5 h-3.5" />}
-                  value={lyricsAnimationStyle}
-                  onChange={(val) => setLyricsAnimationStyle(val as any)}
-                  options={ANIMATION_OPTIONS}
-                />
-
-                <M3Selector
-                  label="Lyrics Typography & Font"
-                  icon={<TypeIcon className="w-3.5 h-3.5" />}
-                  value={lyricsFontFamily}
-                  onChange={(val) => setLyricsFontFamily(val)}
-                  options={FONT_OPTIONS}
-                />
-
-                {/* Lyrics Size Presets */}
-                <div className="flex flex-col gap-1.5 pt-1">
-                  <span className="text-zinc-300 font-semibold text-xs">Lyrics Size Preset</span>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {(['normal', 'balanced', 'large', 'maximum'] as const).map((preset) => (
-                      <button
-                        key={preset}
-                        onClick={() => setLyricsFontSizePreset(preset)}
-                        className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold capitalize transition-all cursor-pointer ${
-                          lyricsFontSizePreset === preset
-                            ? 'shadow-md'
-                            : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 border border-white/5'
-                        }`}
-                        style={
-                          lyricsFontSizePreset === preset
-                            ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
-                            : undefined
-                        }
-                      >
-                        {preset === 'maximum' ? 'Max Space' : preset}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Manual Font Size Slider */}
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex justify-between text-xs text-zinc-300">
-                    <span>Manual Font Size</span>
-                    <span className="font-mono font-bold" style={{ color: 'var(--color-stop-1, #6366f1)' }}>
-                      {Math.round(activeFontSize)}px
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={18}
-                    max={150}
-                    step={1}
-                    value={activeFontSize}
-                    onChange={(e) => {
-                      setLyricsFontSizePreset('manual');
-                      setLyricsFontSize(parseInt(e.target.value, 10));
-                    }}
-                    style={{
-                      background: `linear-gradient(to right, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #818cf8) ${
-                        ((activeFontSize - 18) / (150 - 18)) * 100
-                      }%, #27272a ${((activeFontSize - 18) / (150 - 18)) * 100}%)`,
-                    }}
-                    className="w-full h-1.5 rounded-full appearance-none cursor-pointer slider-m3"
-                  />
-                </div>
-
-                {/* Visual Checkboxes */}
-                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                  <div className="flex items-center gap-2 pr-2">
-                    <Waves className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                    <span className="text-white font-medium text-xs">Wavy Seekbar</span>
-                  </div>
-                  <Checkbox
-                    checked={isWavySeekbarEnabled}
-                    onChange={toggleWavySeekbar}
-                    size="small"
-                    sx={{
-                      color: 'var(--color-stop-1, #6366f1)',
-                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                      p: 0.5,
-                    }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                  <div className="flex flex-col pr-2">
-                    <span className="text-white font-medium text-xs">Audio Specs Badge</span>
-                    <span className="text-[10px] text-zinc-400">FLAC sample rate & bit depth</span>
-                  </div>
-                  <Checkbox
-                    checked={showAudioSpecs}
-                    onChange={toggleShowAudioSpecs}
-                    size="small"
-                    sx={{
-                      color: 'var(--color-stop-1, #6366f1)',
-                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                      p: 0.5,
-                    }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                  <div className="flex flex-col pr-2">
-                    <span className="text-white font-medium text-xs">Auto-hide Controls</span>
-                    <span className="text-[10px] text-zinc-400">Fade buttons during playback</span>
-                  </div>
-                  <Checkbox
-                    checked={autoHideLyricsControls}
-                    onChange={() => toggleAutoHideLyricsControls()}
-                    size="small"
-                    sx={{
-                      color: 'var(--color-stop-1, #6366f1)',
-                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                      p: 0.5,
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* TAB 3: SYNC & LANGUAGES */}
-            {settingsTab === 'sync' && (
-              <div className="flex flex-col gap-3">
-                {/* 3-State Romanization */}
-                <div className="flex flex-col gap-1.5 p-2.5 rounded-xl bg-white/5 border border-white/5">
-                  <div className="flex items-center gap-2">
-                    <Languages className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                    <span className="text-white font-medium text-xs">Lyric Romanization</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
-                    <button
-                      onClick={() => handleRomanizationChange('off')}
-                      className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                        currentRomanizationState === 'off' ? 'shadow-md' : 'text-zinc-400 hover:text-zinc-200'
-                      }`}
-                      style={
-                        currentRomanizationState === 'off'
-                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
-                          : undefined
-                      }
-                    >
-                      Off
-                    </button>
-                    <button
-                      onClick={() => handleRomanizationChange('below')}
-                      className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                        currentRomanizationState === 'below' ? 'shadow-md' : 'text-zinc-400 hover:text-zinc-200'
-                      }`}
-                      style={
-                        currentRomanizationState === 'below'
-                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
-                          : undefined
-                      }
-                    >
-                      Below
-                    </button>
-                    <button
-                      onClick={() => handleRomanizationChange('replace')}
-                      className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                        currentRomanizationState === 'replace' ? 'shadow-md' : 'text-zinc-400 hover:text-zinc-200'
-                      }`}
-                      style={
-                        currentRomanizationState === 'replace'
-                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
-                          : undefined
-                      }
-                    >
-                      Replace
-                    </button>
-                  </div>
-                </div>
-
-                {/* 3-State Translation */}
-                <div className="flex flex-col gap-1.5 p-2.5 rounded-xl bg-white/5 border border-white/5">
-                  <div className="flex items-center gap-2">
-                    <Globe className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                    <span className="text-white font-medium text-xs">Lyric Translation</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
-                    <button
-                      onClick={() => handleTranslationChange('off')}
-                      className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                        currentTranslationState === 'off' ? 'shadow-md' : 'text-zinc-400 hover:text-zinc-200'
-                      }`}
-                      style={
-                        currentTranslationState === 'off'
-                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
-                          : undefined
-                      }
-                    >
-                      Off
-                    </button>
-                    <button
-                      onClick={() => handleTranslationChange('below')}
-                      className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                        currentTranslationState === 'below' ? 'shadow-md' : 'text-zinc-400 hover:text-zinc-200'
-                      }`}
-                      style={
-                        currentTranslationState === 'below'
-                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
-                          : undefined
-                      }
-                    >
-                      Below
-                    </button>
-                    <button
-                      onClick={() => handleTranslationChange('replace')}
-                      className={`py-1 px-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
-                        currentTranslationState === 'replace' ? 'shadow-md' : 'text-zinc-400 hover:text-zinc-200'
-                      }`}
-                      style={
-                        currentTranslationState === 'replace'
-                          ? { backgroundColor: 'var(--color-stop-1, #6366f1)', color: 'var(--color-stop-1-text, #ffffff)' }
-                          : undefined
-                      }
-                    >
-                      Replace
-                    </button>
-                  </div>
-                </div>
-
-                {/* Prefer Word Sync */}
-                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                  <div className="flex flex-col pr-2">
-                    <span className="text-white font-medium text-xs">Prefer Word/Syllable Sync</span>
-                    <span className="text-[10px] text-zinc-400">Query rich syllable timing</span>
-                  </div>
-                  <Checkbox
-                    checked={preferWordSyncedLyrics}
-                    onChange={togglePreferWordSyncedLyrics}
-                    size="small"
-                    sx={{
-                      color: 'var(--color-stop-1, #6366f1)',
-                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                      p: 0.5,
-                    }}
-                  />
-                </div>
-
-                {/* Infer Word-by-Word */}
-                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                  <div className="flex flex-col pr-2">
-                    <span className="text-white font-medium text-xs">Infer Word-by-Word Sync</span>
-                    <span className="text-[10px] text-zinc-400">Estimate word timing</span>
-                  </div>
-                  <Checkbox
-                    checked={inferWordSyncedLyrics}
-                    onChange={toggleInferWordSyncedLyrics}
-                    size="small"
-                    sx={{
-                      color: 'var(--color-stop-1, #6366f1)',
-                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                      p: 0.5,
-                    }}
-                  />
-                </div>
-
-                {/* Auto-fetch Online Lyrics */}
-                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                  <div className="flex flex-col pr-2">
-                    <span className="text-white font-medium text-xs">Auto-fetch Online Lyrics</span>
-                    <span className="text-[10px] text-zinc-400">Search online database</span>
-                  </div>
-                  <Checkbox
-                    checked={lrclibAutoFetch}
-                    onChange={(e) => setLrclibAutoFetch(e.target.checked)}
-                    size="small"
-                    sx={{
-                      color: 'var(--color-stop-1, #6366f1)',
-                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                      p: 0.5,
-                    }}
-                  />
-                </div>
-
-                {/* Prefer Online */}
-                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                  <div className="flex flex-col pr-2">
-                    <span className="text-white font-medium text-xs">Prefer Online Over Embedded</span>
-                    <span className="text-[10px] text-zinc-400">Prioritize online synced</span>
-                  </div>
-                  <Checkbox
-                    checked={preferOnlineLyrics}
-                    onChange={(e) => setPreferOnlineLyrics(e.target.checked)}
-                    size="small"
-                    sx={{
-                      color: 'var(--color-stop-1, #6366f1)',
-                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                      p: 0.5,
-                    }}
-                  />
-                </div>
-
-                {/* Auto Embed */}
-                <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                  <div className="flex flex-col pr-2">
-                    <span className="text-white font-medium text-xs">Auto-embed to Audio</span>
-                    <span className="text-[10px] text-zinc-400">Save fetched lyrics to file</span>
-                  </div>
-                  <Checkbox
-                    checked={autoEmbedLyrics}
-                    onChange={toggleAutoEmbedLyrics}
-                    size="small"
-                    sx={{
-                      color: 'var(--color-stop-1, #6366f1)',
-                      '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
-                      p: 0.5,
-                    }}
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5 pt-1">
-                  <button
-                    onClick={handleManualRefresh}
-                    style={{
-                      backgroundColor: 'var(--color-stop-1, #6366f1)',
-                      color: 'var(--color-stop-1-text, #ffffff)',
-                    }}
-                    className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-semibold transition-colors hover:brightness-110 cursor-pointer"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-                    Refresh Online Lyrics
-                  </button>
-                  
-                  <button
-                    onClick={handleEmbedLyrics}
-                    disabled={isEmbedding || !rawLrc.trim()}
-                    style={{
-                      backgroundColor: embedSuccess ? '#10b981' : 'var(--color-stop-1, #6366f1)',
-                      color: 'var(--color-stop-1-text, #ffffff)',
-                    }}
-                    className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-semibold transition-colors hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    {embedSuccess ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        Embedded to File!
-                      </>
-                    ) : (
-                      <>
-                        <Save className={`w-3.5 h-3.5 ${isEmbedding ? 'animate-pulse' : ''}`} />
-                        {isEmbedding ? 'Embedding...' : 'Embed Lyrics to File'}
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* RENDER MODE: SIDE-BY-SIDE SPLIT VIEW */}
+      {/* Main Content Layout */}
       {lyricsLayoutMode === 'split' && !isCompact ? (
-        <div className="flex-1 grid grid-cols-2 min-h-0 w-full h-full overflow-hidden z-10">
-          {/* Left Column (50%): Dynamic Album Art, Track Info, Seekbar & Controls that never overflow */}
-          {currentTrack && (
-            <div className="h-full w-full min-w-0 min-h-0 flex flex-col justify-center items-center px-6 lg:px-12 py-2 overflow-hidden">
-              <div className="flex flex-col items-center justify-center w-full max-w-[min(820px,96%)] max-h-full min-h-0">
-                <div
-                  onClick={() => setLyricsLayoutMode('centered')}
-                  className="relative rounded-[clamp(1rem,2vw,1.5rem)] overflow-hidden shadow-2xl border border-white/15 aspect-square select-none cursor-pointer group transition-all shrink-0 bg-black/40 flex items-center justify-center"
-                  style={{
-                    width: 'min(44vw, calc(100vh - 280px), 780px)',
-                    height: 'min(44vw, calc(100vh - 280px), 780px)',
-                    maxWidth: '100%',
-                    maxHeight: 'calc(100vh - 280px)',
-                  }}
-                >
-                  {trackArt ? (
-                    <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
-                      <Mic2 className="w-[clamp(3rem,6vw,5rem)] h-[clamp(3rem,6vw,5rem)]" />
-                    </div>
-                  )}
-                  {/* Center button allowing minimize back to Fullscreen / Centered View */}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity bg-black/25">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setLyricsLayoutMode('centered');
-                      }}
-                      className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-full bg-black/80 hover:bg-black/95 text-white text-xs font-semibold shadow-2xl border border-white/25 hover:scale-105 active:scale-95 transition-all backdrop-blur-md cursor-pointer group/btn"
-                      title="Minimize back to Fullscreen View"
-                    >
-                      <Minimize2 className="w-4 h-4 text-indigo-400 group-hover/btn:text-white transition-colors" />
-                      <span>Fullscreen View</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex flex-col min-w-0 w-full mt-[clamp(0.6rem,1.8vh,1.25rem)]">
-                  <MarqueeText
-                    text={currentTrack.title}
-                    className="font-extrabold text-white text-[clamp(1.4rem,3vw,2.5rem)] drop-shadow-md leading-tight"
-                  />
-                  <span
-                    className="font-semibold text-zinc-300 text-[clamp(0.9rem,1.5vw,1.15rem)] truncate mt-0.5 cursor-pointer hover:underline hover:text-indigo-400"
-                    onClick={() => {
-                      if (currentTrack.artist && currentTrack.artist !== 'Unknown Artist') {
-                        setShowLyricsFullscreen(false);
-                        usePlayerStore.getState().navigateToArtist(currentTrack.artist);
-                      }
-                    }}
-                  >
-                    {currentTrack.artist}
-                  </span>
-                  {currentTrack.album && (
-                    <span
-                      className="text-[clamp(0.75rem,1.1vw,0.85rem)] text-zinc-400 truncate mt-0.5 cursor-pointer hover:underline hover:text-indigo-400"
-                      onClick={() => {
-                        if (currentTrack.album && currentTrack.album !== 'Unknown Album') {
-                          setShowLyricsFullscreen(false);
-                          usePlayerStore.getState().navigateToAlbum(currentTrack.album);
-                        }
-                      }}
-                    >
-                      {currentTrack.album} {currentTrack.year ? `• ${currentTrack.year}` : ''}
-                    </span>
-                  )}
-                </div>
-
-                {/* Seekbar - ALWAYS VISIBLE */}
-                <LyricsSeekbar
-                  duration={duration}
-                  isWavySeekbarEnabled={isWavySeekbarEnabled}
-                  onSeek={handleSeek}
-                />
-
-                {/* Fading Controls Container (Transport Buttons & Volume Slider) */}
-                <div
-                  className={`w-full flex flex-col transition-opacity duration-300 ${
-                    controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-                  }`}
-                >
-                  {/* Transport Buttons & Volume Slider */}
-                  <div className="w-full flex items-center justify-between mt-[clamp(0.35rem,1.2vh,0.75rem)] pt-[clamp(0.35rem,1.2vh,0.75rem)] border-t border-white/10">
-                    <div className="flex items-center gap-[clamp(0.2rem,0.8vw,0.75rem)]">
-                      <button
-                        onClick={toggleShuffle}
-                        style={shuffleEnabled ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-                        className={`p-[clamp(0.35rem,0.8vw,0.65rem)] rounded-2xl transition-colors hover:bg-white/10 ${
-                          shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
-                        }`}
-                        title="Shuffle"
-                      >
-                        <Shuffle className="w-[clamp(1.1rem,1.8vw,1.35rem)] h-[clamp(1.1rem,1.8vw,1.35rem)]" />
-                      </button>
-                      <button
-                        onClick={previousTrack}
-                        className="p-[clamp(0.35rem,0.8vw,0.65rem)] text-zinc-400 hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
-                        title="Previous"
-                      >
-                        <SkipBack className="w-[clamp(1.3rem,2.2vw,1.6rem)] h-[clamp(1.3rem,2.2vw,1.6rem)]" />
-                      </button>
-                      <button
-                        onClick={togglePlay}
-                        style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-                        className="w-[clamp(2.75rem,4.5vw,3.75rem)] h-[clamp(2.75rem,4.5vw,3.75rem)] rounded-full text-white flex items-center justify-center shadow-2xl transition-transform active:scale-95 cursor-pointer shrink-0 hover:scale-105"
-                        title={isPlaying ? 'Pause' : 'Play'}
-                      >
-                        {isPlaying ? <Pause className="w-[clamp(1.3rem,2.2vw,1.75rem)] h-[clamp(1.3rem,2.2vw,1.75rem)] fill-white" /> : <Play className="w-[clamp(1.3rem,2.2vw,1.75rem)] h-[clamp(1.3rem,2.2vw,1.75rem)] fill-white ml-[clamp(0.1rem,0.2vw,0.125rem)]" />}
-                      </button>
-                      <button
-                        onClick={() => nextTrack()}
-                        className="p-[clamp(0.35rem,0.8vw,0.65rem)] text-zinc-400 hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
-                        title="Next"
-                      >
-                        <SkipForward className="w-[clamp(1.3rem,2.2vw,1.6rem)] h-[clamp(1.3rem,2.2vw,1.6rem)]" />
-                      </button>
-                      <button
-                        onClick={cycleRepeatMode}
-                        style={repeatMode !== 'off' ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-                        className={`p-[clamp(0.35rem,0.8vw,0.65rem)] rounded-2xl transition-colors hover:bg-white/10 ${
-                          repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
-                        }`}
-                        title="Repeat"
-                      >
-                        <RepeatIcon className="w-[clamp(1.1rem,1.8vw,1.35rem)] h-[clamp(1.1rem,1.8vw,1.35rem)]" />
-                      </button>
-                    </div>
-                    <div ref={volRefCallback} className="flex items-center gap-[clamp(0.2rem,0.8vw,0.45rem)] pl-[clamp(0.2rem,0.8vw,0.6rem)]">
-                      <button
-                        onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
-                        className="text-zinc-400 hover:text-white transition-colors p-[clamp(0.2rem,0.6vw,0.45rem)] hover:bg-white/10 rounded-xl"
-                        title={volume > 0 ? 'Mute' : 'Unmute'}
-                      >
-                        {volume > 0 ? <Volume2 className="w-[clamp(1.1rem,1.8vw,1.35rem)] h-[clamp(1.1rem,1.8vw,1.35rem)]" /> : <VolumeX className="w-[clamp(1.1rem,1.8vw,1.35rem)] h-[clamp(1.1rem,1.8vw,1.35rem)] text-rose-400" />}
-                      </button>
-                      <AudioSlider
-                        value={volume}
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        onChange={(val) => setVolume(val)}
-                        formatTooltip={(val) => `${Math.round(val * 100)}%`}
-                        size="md"
-                        className="w-[clamp(4rem,8.5vw,11rem)]"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Right Column (50%): Scrolling Lyrics shifted left towards album art */}
-          <div
-            ref={containerRef}
-            style={{ willChange: 'scroll-position' }}
-            className={`h-full w-full min-w-0 overflow-y-auto custom-scrollbar ${
-              !isScrollbarVisible ? 'scrollbar-hidden' : ''
-            } flex flex-col items-center justify-start gap-6 pt-[16vh] pb-[22vh] px-8 sm:px-12 lg:px-16 z-20 relative`}
-          >
-            {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
-              <button
-                onClick={() => {
-                  lastScrolledMaxLineRef.current = -1;
-                  lastScrollTargetRef.current = 0;
-                  lastScrolledInterludeRef.current = null;
-                  setIsUserScrolled(false);
-                  scrollToActive(true);
-                }}
-                style={{
-                  background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #818cf8))',
-                  borderColor: 'color-mix(in srgb, var(--color-stop-2, #818cf8) 60%, white)',
-                  boxShadow: '0 8px 24px -4px color-mix(in srgb, var(--color-stop-1, #6366f1) 50%, transparent)',
-                }}
-                className="fixed bottom-10 right-16 z-30 flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-xs font-semibold shadow-xl backdrop-blur-md transition-all border animate-in fade-in slide-in-from-bottom-3 cursor-pointer hover:brightness-110 active:scale-95"
-              >
-                <Target className="w-4 h-4" />
-                <span>Re-sync to music</span>
-              </button>
-            )}
-
-            {isLoading && lines.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 my-auto mx-auto">
-                <RefreshCw
-                  className="w-8 h-8 animate-spin"
-                  style={{ color: 'var(--color-stop-1, #6366f1)' }}
-                />
-                <span className="text-sm text-zinc-400 font-medium">Loading synchronized lyrics...</span>
-              </div>
-            ) : lines.length === 0 ? (
-              <div className="flex flex-col items-start gap-3 my-auto max-w-md">
-                <Mic2 className="w-12 h-12 text-zinc-600" />
-                <h4 className="text-lg font-bold text-white">No lyrics found</h4>
-                <p className="text-xs text-zinc-400">
-                  No synced lyrics were found for this song. Click refresh to search online.
-                </p>
-                <button
-                  onClick={handleManualRefresh}
-                  style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-                  className="mt-2 px-4 py-2 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110"
-                >
-                  Search Online
-                </button>
-              </div>
-            ) : (
-              lines.map((line, idx) => {
-                const isUnsynced = line.startSecs === -1;
-                const isActive = !isUnsynced && !activeInterlude && activeLineIndices.has(idx);
-                const isPast =
-                  !isActive &&
-                  ((activeInterlude && idx < activeInterlude.insertIndex) ||
-                    (!activeInterlude && activeIndex >= 0 && idx < activeIndex) ||
-                    (idx === activeIndex && !isActive && isCurrentLinePassed));
-                const rawDistance = isActive
-                  ? 0
-                  : activeInterlude
-                  ? idx < activeInterlude.insertIndex
-                    ? Math.abs(activeInterlude.insertIndex - idx)
-                    : Math.abs(idx - activeInterlude.insertIndex + 1)
-                  : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0));
-                const distance = Math.min(2, rawDistance);
-
-                const interludeBefore = !isUnsynced
-                  ? interludeList.find((item) => item.insertIndex === idx)
-                  : null;
-
-                return (
-                  <React.Fragment key={line.id}>
-                    {interludeBefore && (
-                      <LyricInterludeRow
-                        key={interludeBefore.key}
-                        id={interludeBefore.key}
-                        startSecs={interludeBefore.startSecs}
-                        endSecs={interludeBefore.endSecs}
-                        isPlaying={isPlaying}
-                        isActive={activeInterlude?.key === interludeBefore.key}
-                        isPast={activeIndex >= interludeBefore.insertIndex}
-                        distance={
-                          activeInterlude?.key === interludeBefore.key
-                            ? 0
-                            : Math.min(2, Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0)))
-                        }
-                        lyricsFontSizePreset={lyricsFontSizePreset}
-                        activeFontSize={splitActiveFontSize}
-                        onSeek={handleSeek}
-                      />
-                    )}
-                    <LyricLineRow
-                      line={line}
-                      idx={idx}
-                      isActive={isActive}
-                      isPast={isPast}
-                      distance={distance}
-                      isUnsynced={isUnsynced}
-                      lyricsAnimationStyle={lyricsAnimationStyle}
-                      lyricsFontSizePreset={lyricsFontSizePreset}
-                      isRomanizationEnabled={isRomanizationEnabled}
-                      romanizationMode={romanizationMode}
-                      isTranslationEnabled={isTranslationEnabled}
-                      translationMode={translationMode}
-                      activeFontSize={splitActiveFontSize}
-                      inactiveFontSize={splitInactiveFontSize}
-                      activeLineRef={activeLineRef}
-                      onSeek={handleSeek}
-                    />
-                  </React.Fragment>
-                );
-              })
-            )}
-          </div>
-        </div>
+        <LyricsSplitLayout
+          currentTrack={currentTrack}
+          trackArt={trackArt}
+          setLyricsLayoutMode={setLyricsLayoutMode}
+          setShowLyricsFullscreen={setShowLyricsFullscreen}
+          duration={duration}
+          isWavySeekbarEnabled={isWavySeekbarEnabled}
+          handleSeek={handleSeek}
+          controlsVisible={controlsVisible}
+          toggleShuffle={toggleShuffle}
+          shuffleEnabled={shuffleEnabled}
+          previousTrack={previousTrack}
+          togglePlay={togglePlay}
+          isPlaying={isPlaying}
+          nextTrack={nextTrack}
+          cycleRepeatMode={cycleRepeatMode}
+          repeatMode={repeatMode}
+          volRefCallback={volRefCallback}
+          setVolume={setVolume}
+          volume={volume}
+          containerRef={containerRef}
+          isScrollbarVisible={isScrollbarVisible}
+          isUserScrolled={isUserScrolled}
+          setIsUserScrolled={setIsUserScrolled}
+          scrollToActive={scrollToActive}
+          lastScrolledMaxLineRef={lastScrolledMaxLineRef}
+          lastScrollTargetRef={lastScrollTargetRef}
+          lastScrolledInterludeRef={lastScrolledInterludeRef}
+          isLoading={isLoading}
+          lines={lines}
+          activeInterlude={activeInterlude}
+          activeLineIndices={activeLineIndices}
+          activeIndex={activeIndex}
+          isCurrentLinePassed={isCurrentLinePassed}
+          interludeList={interludeList}
+          lyricsFontSizePreset={lyricsFontSizePreset}
+          splitActiveFontSize={splitActiveFontSize}
+          splitInactiveFontSize={splitInactiveFontSize}
+          lyricsAnimationStyle={lyricsAnimationStyle}
+          isRomanizationEnabled={isRomanizationEnabled}
+          romanizationMode={romanizationMode}
+          isTranslationEnabled={isTranslationEnabled}
+          translationMode={translationMode}
+          activeLineRef={activeLineRef}
+          handleManualRefresh={handleManualRefresh}
+        />
       ) : (
-        /* RENDER MODE: CENTERED FULLSCREEN VIEW */
-        <>
-          {/* Main Lyrics Display Area */}
-          <div
-            ref={containerRef}
-            style={{ willChange: 'scroll-position' }}
-            className={`flex-1 overflow-y-auto my-4 px-8 sm:px-16 lg:px-24 custom-scrollbar ${
-              !isScrollbarVisible ? 'scrollbar-hidden' : ''
-            } flex flex-col items-center justify-start gap-6 pt-[30vh] pb-[30vh] z-20 relative`}
-          >
-            {isUserScrolled && lines.length > 0 && lines[0].startSecs !== -1 && (
-              <button
-                onClick={() => {
-                  lastScrolledMaxLineRef.current = -1;
-                  lastScrollTargetRef.current = 0;
-                  lastScrolledInterludeRef.current = null;
-                  setIsUserScrolled(false);
-                  scrollToActive(true);
-                }}
-                style={{
-                  background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #818cf8))',
-                  borderColor: 'color-mix(in srgb, var(--color-stop-2, #818cf8) 60%, white)',
-                  boxShadow: '0 8px 24px -4px color-mix(in srgb, var(--color-stop-1, #6366f1) 50%, transparent)',
-                }}
-                className="fixed bottom-28 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-xs font-semibold shadow-xl backdrop-blur-md transition-all border animate-in fade-in slide-in-from-bottom-3 cursor-pointer hover:brightness-110 active:scale-95"
-              >
-                <Target className="w-4 h-4" />
-                <span>Re-sync to music</span>
-              </button>
-            )}
-
-            {isLoading && lines.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 my-auto">
-                <RefreshCw
-                  className="w-8 h-8 animate-spin"
-                  style={{ color: 'var(--color-stop-1, #6366f1)' }}
-                />
-                <span className="text-sm text-zinc-400 font-medium">Loading synchronized lyrics...</span>
-              </div>
-            ) : lines.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 my-auto text-center max-w-md">
-                <Mic2 className="w-12 h-12 text-zinc-600" />
-                <h4 className="text-lg font-bold text-white">No lyrics found</h4>
-                <p className="text-xs text-zinc-400">
-                  No synced lyrics were found for this song. Click refresh to search online.
-                </p>
-                <button
-                  onClick={handleManualRefresh}
-                  style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-                  className="mt-2 px-4 py-2 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110"
-                >
-                  Search Online
-                </button>
-              </div>
-            ) : (
-              lines.map((line, idx) => {
-                const isUnsynced = line.startSecs === -1;
-                const isActive = !isUnsynced && !activeInterlude && activeLineIndices.has(idx);
-                const isPast =
-                  !isActive &&
-                  ((activeInterlude && idx < activeInterlude.insertIndex) ||
-                    (!activeInterlude && activeIndex >= 0 && idx < activeIndex) ||
-                    (idx === activeIndex && !isActive && isCurrentLinePassed));
-                const rawDistance = isActive
-                  ? 0
-                  : activeInterlude
-                  ? idx < activeInterlude.insertIndex
-                    ? Math.abs(activeInterlude.insertIndex - idx)
-                    : Math.abs(idx - activeInterlude.insertIndex + 1)
-                  : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0));
-                const distance = Math.min(2, rawDistance);
-
-                const interludeBefore = !isUnsynced
-                  ? interludeList.find((item) => item.insertIndex === idx)
-                  : null;
-
-                return (
-                  <React.Fragment key={line.id}>
-                    {interludeBefore && (
-                      <LyricInterludeRow
-                        key={interludeBefore.key}
-                        id={interludeBefore.key}
-                        startSecs={interludeBefore.startSecs}
-                        endSecs={interludeBefore.endSecs}
-                        isPlaying={isPlaying}
-                        isActive={activeInterlude?.key === interludeBefore.key}
-                        isPast={activeIndex >= interludeBefore.insertIndex}
-                        distance={
-                          activeInterlude?.key === interludeBefore.key
-                            ? 0
-                            : Math.min(2, Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0)))
-                        }
-                        lyricsFontSizePreset={lyricsFontSizePreset}
-                        activeFontSize={activeFontSize}
-                        onSeek={handleSeek}
-                      />
-                    )}
-                    <LyricLineRow
-                      line={line}
-                      idx={idx}
-                      isActive={isActive}
-                      isPast={isPast}
-                      distance={distance}
-                      isUnsynced={isUnsynced}
-                      lyricsAnimationStyle={lyricsAnimationStyle}
-                      lyricsFontSizePreset={lyricsFontSizePreset}
-                      isRomanizationEnabled={isRomanizationEnabled}
-                      romanizationMode={romanizationMode}
-                      isTranslationEnabled={isTranslationEnabled}
-                      translationMode={translationMode}
-                      activeFontSize={activeFontSize}
-                      inactiveFontSize={inactiveFontSize}
-                      activeLineRef={activeLineRef}
-                      onSeek={handleSeek}
-                    />
-                  </React.Fragment>
-                );
-              })
-            )}
-          </div>
-
-          {/* Track Info & Expandable Album Art */}
-          {currentTrack && (
-            <div className={`fixed z-40 flex items-end gap-4 pointer-events-auto select-none transition-all duration-300 max-w-[calc(100vw-80px)] md:max-w-[calc(100vw-350px)] ${
-              isCompact ? 'top-16 left-6' : 'bottom-8 left-8'
-            }`}>
-              <div
-                onClick={() => setArtExpanded(!artExpanded)}
-                className={`relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 shrink-0 group cursor-pointer transition-all duration-300 bg-black/40 ${
-                  artExpanded
-                    ? isCompact
-                      ? 'w-48 h-48 max-w-[40vh] max-h-[40vh]'
-                      : 'w-80 h-80 max-w-[45vh] max-h-[45vh]'
-                    : isCompact
-                    ? 'w-14 h-14'
-                    : 'w-20 h-20'
-                }`}
-              >
-                {trackArt ? (
-                  <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-contain" />
-                ) : (
-                  <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
-                    <Mic2 className="w-8 h-8" />
-                  </div>
-                )}
-                {artExpanded ? (
-                  <>
-                    {/* Center button allowing switch to Immersive View (Only on hover) */}
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setLyricsLayoutMode('split');
-                        }}
-                        className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-full bg-black/80 hover:bg-black/95 text-white text-xs font-semibold shadow-2xl border border-white/25 hover:scale-105 active:scale-95 transition-all backdrop-blur-md cursor-pointer group/btn"
-                        title="Enter Immersive View"
-                      >
-                        <Columns2 className="w-4 h-4 text-indigo-400 group-hover/btn:text-white transition-colors" />
-                        <span>Immersive View</span>
-                      </button>
-                    </div>
-                    <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-1.5 pointer-events-none">
-                      <ChevronLeft className="w-4 h-4 text-white" />
-                    </div>
-                  </>
-                ) : (
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-2">
-                      <ChevronRight className="w-5 h-5 text-white" />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col min-w-0 flex-1 mb-1">
-                <MarqueeText
-                  text={currentTrack.title}
-                  className={`font-extrabold text-white drop-shadow-lg transition-all ${
-                    artExpanded ? 'text-xl md:text-3xl' : 'text-base md:text-lg'
-                  }`}
-                />
-                <span
-                  className={`font-medium text-zinc-300 truncate mt-0.5 transition-all cursor-pointer hover:underline hover:text-indigo-400 ${
-                    artExpanded ? 'text-sm md:text-lg' : 'text-xs md:text-sm'
-                  }`}
-                  onClick={(e) => {
-                    if (currentTrack.artist && currentTrack.artist !== 'Unknown Artist') {
-                      e.stopPropagation();
-                      setShowLyricsFullscreen(false);
-                      usePlayerStore.getState().navigateToArtist(currentTrack.artist);
-                    }
-                  }}
-                >
-                  {currentTrack.artist}
-                </span>
-                {currentTrack.album && (
-                  <span
-                    className={`text-zinc-400 truncate mt-0.5 transition-all cursor-pointer hover:underline hover:text-indigo-400 ${
-                      artExpanded ? 'text-xs md:text-sm' : 'text-[11px]'
-                    }`}
-                    onClick={(e) => {
-                      if (currentTrack.album && currentTrack.album !== 'Unknown Album') {
-                        e.stopPropagation();
-                        setShowLyricsFullscreen(false);
-                        usePlayerStore.getState().navigateToAlbum(currentTrack.album);
-                      }
-                    }}
-                  >
-                    {currentTrack.album}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Floating Glass Transport Controls (Bottom-Center, Responsive) */}
-          <motion.div
-            animate={{
-              opacity: controlsVisible ? 1 : 0,
-              y: controlsVisible ? 0 : 20,
-            }}
-            transition={{ duration: 0.3 }}
-            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-40 glass-panel border border-white/10 rounded-full px-5 py-2.5 shadow-2xl flex items-center gap-4 md:gap-6 ${
-              controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
-            } ${isCompact ? 'max-w-[92vw] overflow-x-auto custom-scrollbar' : ''}`}
-          >
-            <button
-              onClick={toggleShuffle}
-              style={shuffleEnabled ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-              className={`p-1.5 rounded-xl transition-colors ${
-                shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
-              }`}
-              title="Shuffle"
-            >
-              <Shuffle className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={previousTrack}
-              className="p-1.5 text-zinc-400 hover:text-white transition-colors"
-              title="Previous"
-            >
-              <SkipBack className="w-5 h-5" />
-            </button>
-
-            <button
-              onClick={togglePlay}
-              style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-              className="w-10 h-10 rounded-full text-white flex items-center justify-center shadow-lg transition-transform active:scale-95 cursor-pointer shrink-0"
-              title={isPlaying ? 'Pause' : 'Play'}
-            >
-              {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
-            </button>
-
-            <button
-              onClick={() => nextTrack()}
-              className="p-1.5 text-zinc-400 hover:text-white transition-colors"
-              title="Next"
-            >
-              <SkipForward className="w-5 h-5" />
-            </button>
-
-            <button
-              onClick={cycleRepeatMode}
-              style={repeatMode !== 'off' ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-              className={`p-1.5 rounded-xl transition-colors ${
-                repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
-              }`}
-              title="Repeat"
-            >
-              <RepeatIcon className="w-4 h-4" />
-            </button>
-
-            {/* Seek Bar inside floating pill */}
-            <LyricsSeekbar
-              duration={duration}
-              isWavySeekbarEnabled={isWavySeekbarEnabled}
-              onSeek={handleSeek}
-              className="flex items-center gap-2.5 text-xs font-mono text-zinc-400 w-48 sm:w-72 md:w-96"
-              active={controlsVisible}
-            />
-
-            {/* Integrated Volume control when space is compact */}
-            {isCompact && (
-              <div ref={volRefCallback} className="flex items-center gap-1.5 pl-2 border-l border-white/10">
-                <button
-                  onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
-                  className="text-zinc-400 hover:text-white transition-colors p-1"
-                >
-                  {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
-                </button>
-                <AudioSlider
-                  value={volume}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  onChange={(val) => setVolume(val)}
-                  formatTooltip={(val) => `${Math.round(val * 100)}%`}
-                  size="sm"
-                  className="w-20"
-                />
-                <span
-                  style={{ color: 'var(--color-stop-1, #6366f1)' }}
-                  className="text-[10px] font-mono font-bold w-8 shrink-0 text-right tabular-nums select-none"
-                >
-                  {Math.round(volume * 100)}%
-                </span>
-              </div>
-            )}
-
-            {/* Exit Lyrics Button */}
-            <button
-              onClick={handleClose}
-              className="p-1.5 rounded-xl hover:text-white hover:bg-white/10 transition-colors"
-              style={{ color: 'var(--color-stop-1, #6366f1)' }}
-              title="Exit Karaoke View"
-            >
-              <Mic2 className="w-5 h-5" />
-            </button>
-          </motion.div>
-
-          {/* Floating Glass Volume Pill (Bottom-Right, Hidden on Compact Windows to avoid collision) */}
-          {!isCompact && (
-            <motion.div
-              animate={{
-                opacity: controlsVisible ? 1 : 0,
-                y: controlsVisible ? 0 : 20,
-              }}
-              transition={{ duration: 0.3 }}
-              className={`fixed bottom-6 right-8 z-40 glass-panel border border-white/10 rounded-full px-4 py-2 shadow-2xl flex items-center gap-3.5 ${
-                controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
-              }`}
-            >
-              <div ref={volRefCallback} className="flex items-center gap-2.5">
-                <button
-                  onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
-                  className="text-zinc-400 hover:text-white transition-colors p-1"
-                  title={volume > 0 ? 'Mute' : 'Unmute'}
-                >
-                  {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
-                </button>
-                <AudioSlider
-                  value={volume}
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  onChange={(val) => setVolume(val)}
-                  formatTooltip={(val) => `${Math.round(val * 100)}%`}
-                  size="md"
-                  className="w-24 sm:w-28 md:w-32"
-                />
-                <span
-                  style={{ color: 'var(--color-stop-1, #6366f1)' }}
-                  className="text-xs font-mono font-bold min-w-[32px] text-right"
-                >
-                  {Math.round(volume * 100)}%
-                </span>
-              </div>
-            </motion.div>
-          )}
-        </>
+        <LyricsCenteredLayout
+          currentTrack={currentTrack}
+          trackArt={trackArt}
+          setLyricsLayoutMode={setLyricsLayoutMode}
+          setShowLyricsFullscreen={setShowLyricsFullscreen}
+          duration={duration}
+          isWavySeekbarEnabled={isWavySeekbarEnabled}
+          handleSeek={handleSeek}
+          controlsVisible={controlsVisible}
+          toggleShuffle={toggleShuffle}
+          shuffleEnabled={shuffleEnabled}
+          previousTrack={previousTrack}
+          togglePlay={togglePlay}
+          isPlaying={isPlaying}
+          nextTrack={nextTrack}
+          cycleRepeatMode={cycleRepeatMode}
+          repeatMode={repeatMode}
+          volRefCallback={volRefCallback}
+          setVolume={setVolume}
+          volume={volume}
+          containerRef={containerRef}
+          isScrollbarVisible={isScrollbarVisible}
+          isUserScrolled={isUserScrolled}
+          setIsUserScrolled={setIsUserScrolled}
+          scrollToActive={scrollToActive}
+          lastScrolledMaxLineRef={lastScrolledMaxLineRef}
+          lastScrollTargetRef={lastScrollTargetRef}
+          lastScrolledInterludeRef={lastScrolledInterludeRef}
+          isLoading={isLoading}
+          lines={lines}
+          activeInterlude={activeInterlude}
+          activeLineIndices={activeLineIndices}
+          activeIndex={activeIndex}
+          isCurrentLinePassed={isCurrentLinePassed}
+          interludeList={interludeList}
+          lyricsFontSizePreset={lyricsFontSizePreset}
+          activeFontSize={activeFontSize}
+          inactiveFontSize={inactiveFontSize}
+          lyricsAnimationStyle={lyricsAnimationStyle}
+          isRomanizationEnabled={isRomanizationEnabled}
+          romanizationMode={romanizationMode}
+          isTranslationEnabled={isTranslationEnabled}
+          translationMode={translationMode}
+          activeLineRef={activeLineRef}
+          handleManualRefresh={handleManualRefresh}
+          handleClose={handleClose}
+          isCompact={isCompact}
+        />
       )}
     </div>
   );

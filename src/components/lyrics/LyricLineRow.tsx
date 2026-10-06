@@ -577,7 +577,7 @@ export const LyricLineRow = React.memo<LyricLineRowProps>(
         id={`lyric-line-${idx}`}
         ref={isActive && !isUnsynced ? activeLineRef : null}
         className={`text-center cursor-pointer w-full ${
-          compact ? 'px-2 py-1.5 rounded-xl' : 'px-8 sm:px-12 py-3.5 rounded-2xl'
+          compact ? 'px-5 py-3 rounded-xl' : 'px-8 sm:px-12 py-3.5 rounded-2xl'
         } flex flex-col items-center justify-center break-words [text-wrap:balance] overflow-visible relative ${
           isActive && !isUnsynced
             ? 'font-extrabold'
@@ -592,7 +592,7 @@ export const LyricLineRow = React.memo<LyricLineRowProps>(
           opacity: opacityTarget,
           transform: `translate3d(${transXTarget}px, ${transYTarget}px, 0) scale(${scaleTarget})`,
           filter: blurAmount,
-          willChange: 'transform, opacity',
+          willChange: isLosslessGlowActive ? undefined : 'transform, opacity',
           transition: 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease-out',
           position: 'relative',
           zIndex: isLosslessGlowActive ? 30 : isActive && !isUnsynced ? 25 : 1,

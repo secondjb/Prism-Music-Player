@@ -232,10 +232,21 @@ export const LyricsPopoutView: React.FC = () => {
     };
   }, [currentTrack?.id, currentTrack?.path, popoutSettings.karaokeMode, preferWordSyncedLyrics]);
 
+  // Reset scroll and re-align lyrics to the top when skipping or advancing tracks
+  useEffect(() => {
+    setIsUserScrolled(false);
+    if (lyricsScrollRef.current) {
+      lyricsScrollRef.current.scrollTo({ top: 0, behavior: 'auto' });
+    }
+  }, [currentTrack?.id]);
+
   // Parse raw LRC & enrich with romanization
   useEffect(() => {
     if (!rawLrc || !rawLrc.trim()) {
       setLines([]);
+      if (lyricsScrollRef.current) {
+        lyricsScrollRef.current.scrollTo({ top: 0, behavior: 'auto' });
+      }
       return;
     }
 
@@ -256,6 +267,9 @@ export const LyricsPopoutView: React.FC = () => {
 
       if (!isCancelled) {
         setLines(processed);
+        if (lyricsScrollRef.current && currentTimeSecs <= 1.0) {
+          lyricsScrollRef.current.scrollTo({ top: 0, behavior: 'auto' });
+        }
       }
     };
 
@@ -593,7 +607,7 @@ export const LyricsPopoutView: React.FC = () => {
                 if (!isProgrammaticScrollRef.current) setIsUserScrolled(true);
               }}
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-              className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col items-center gap-4 px-2 text-center relative"
+              className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col items-center gap-4 px-6 py-2 text-center relative"
             >
               <div style={{ height: `${Math.max(60, Math.round(contentSize.height / 2 - (computedFontSize.active * 0.7)))}px`, flexShrink: 0 }} />
               {renderLyricsContent()}
@@ -656,11 +670,11 @@ export const LyricsPopoutView: React.FC = () => {
                   sx={{
                     position: 'relative',
                     aspectRatio: artAspectRatio ? `${artAspectRatio}` : '1 / 1',
-                    height: '100%',
                     maxHeight: '100%',
                     maxWidth: '100%',
+                    height: '100%',
                     width: 'auto',
-                    borderRadius: 'clamp(0.75rem, 2vw, 1.25rem)',
+                    borderRadius: '1rem',
                     overflow: 'hidden',
                     boxShadow: 'none',
                     border: 'none',
@@ -669,6 +683,7 @@ export const LyricsPopoutView: React.FC = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     bgcolor: 'transparent',
+                    flexShrink: 1,
                   }}
                 >
                   {trackArt ? (
@@ -684,9 +699,12 @@ export const LyricsPopoutView: React.FC = () => {
                       style={{
                         width: '100%',
                         height: '100%',
-                        objectFit: 'contain',
+                        maxHeight: '100%',
+                        maxWidth: '100%',
+                        aspectRatio: artAspectRatio ? `${artAspectRatio}` : '1 / 1',
+                        objectFit: 'cover',
                         display: 'block',
-                        borderRadius: 'clamp(0.75rem, 2vw, 1.25rem)',
+                        borderRadius: '1rem',
                       }}
                     />
                   ) : (
@@ -799,7 +817,7 @@ export const LyricsPopoutView: React.FC = () => {
                   if (!isProgrammaticScrollRef.current) setIsUserScrolled(true);
                 }}
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                className="w-full h-full min-w-0 overflow-y-auto no-scrollbar flex flex-col items-center gap-4 px-2 text-center relative"
+                className="w-full h-full min-w-0 overflow-y-auto no-scrollbar flex flex-col items-center gap-4 px-6 py-2 text-center relative"
               >
                 <div style={{ height: `${Math.max(60, Math.round(contentSize.height / 2 - (computedFontSize.active * 0.7)))}px`, flexShrink: 0 }} />
                 {renderLyricsContent()}

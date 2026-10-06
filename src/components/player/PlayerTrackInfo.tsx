@@ -216,10 +216,21 @@ export const PlayerTrackInfo: React.FC<PlayerTrackInfoProps> = ({
         </Typography>
 
         {showAudioSpecs && (
-          <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', mt: 0.5 }}>
+          <Stack
+            direction="row"
+            spacing={0.75}
+            sx={{
+              alignItems: 'center',
+              mt: 0.5,
+              minWidth: 0,
+              overflow: 'hidden',
+              flexWrap: 'nowrap',
+            }}
+          >
             <Box
               component="span"
               sx={{
+                flexShrink: 0,
                 px: 0.75,
                 py: '1px',
                 fontSize: '9px',
@@ -231,11 +242,24 @@ export const PlayerTrackInfo: React.FC<PlayerTrackInfoProps> = ({
                 color: 'var(--color-stop-1, #6366f1)',
                 border: '1px solid',
                 lineHeight: 1.2,
+                whiteSpace: 'nowrap',
               }}
             >
               FLAC
             </Box>
-            <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#71717a', fontSize: '10px' }}>
+            <Typography
+              variant="caption"
+              noWrap
+              sx={{
+                fontFamily: 'monospace',
+                color: '#71717a',
+                fontSize: '10px',
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {(currentTrack.sample_rate / 1000).toFixed(1)}kHz / {currentTrack.bit_depth}bit
             </Typography>
           </Stack>

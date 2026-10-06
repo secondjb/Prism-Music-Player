@@ -1726,7 +1726,18 @@ export const usePlayerStore = create<PlayerState>()(
       clearUserQueue: () => set({ userQueue: [] }),
 
       clearQueue: () => {
-        set({ queue: [], userQueue: [], currentIndex: -1, currentTrack: null, isPlaying: false });
+        set({
+          queue: [],
+          userQueue: [],
+          currentIndex: -1,
+          currentTrack: null,
+          isPlaying: false,
+          currentTime: 0,
+          duration: 0,
+        });
+        if (window.__TAURI_INTERNALS__) {
+          invoke('stop_audio').catch((e) => console.warn('Rust stop_audio error:', e));
+        }
       },
 
       setQueue: (newQueue) => set({ queue: newQueue }),

@@ -1146,6 +1146,7 @@ export const LyricsView: React.FC = () => {
           translationMode={translationMode}
           activeLineRef={activeLineRef}
           handleManualRefresh={handleManualRefresh}
+          handleClose={handleClose}
         />
       ) : (
         <LyricsCenteredLayout

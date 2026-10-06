@@ -92,6 +92,7 @@ pub enum AudioCommand {
     },
     Pause,
     Resume,
+    Stop,
     Seek {
         position_secs: f64,
     },
@@ -628,6 +629,13 @@ impl GlobalAudioEngine {
         let _ = self.cmd_tx.send(AudioCommand::Resume);
     }
 
+    pub fn stop(&self) {
+        self.current_position_ms.store(0, Ordering::Relaxed);
+        self.current_duration_ms.store(0, Ordering::Relaxed);
+        self.seek_target_ms.store(0, Ordering::Release);
+        let _ = self.cmd_tx.send(AudioCommand::Stop);
+    }
+
     #[inline]
     pub fn seek(&self, position_secs: f64) {
         let pos_ms = (position_secs.max(0.0) * 1000.0) as u64;
@@ -1025,6 +1033,18 @@ fn run_audio_engine(
                     AudioCommand::Resume => {
                         is_playing = true;
                         state.lock().is_playing.store(true, Ordering::SeqCst);
+                    }
+                    AudioCommand::Stop => {
+                        flush_counter.fetch_add(1, Ordering::SeqCst);
+                        is_playing = false;
+                        current_track = None;
+                        incoming_track = None;
+                        crossfade_state = None;
+                        pending_next = None;
+                        let s = state.lock();
+                        s.is_playing.store(false, Ordering::SeqCst);
+                        s.current_position_ms.store(0, Ordering::Relaxed);
+                        s.current_duration_ms.store(0, Ordering::Relaxed);
                     }
                     AudioCommand::Seek { position_secs } => {
                         flush_counter.fetch_add(1, Ordering::SeqCst);

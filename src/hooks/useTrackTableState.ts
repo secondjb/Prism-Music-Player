@@ -79,7 +79,7 @@ export const COLUMN_LABELS: Record<TrackColumnId, string> = {
 };
 
 export const DEFAULT_COLUMN_WIDTHS: Record<TrackColumnId, number> = {
-  order: 44,
+  order: 58,
   art: 56,
   title: 280,
   artist: 160,
@@ -98,7 +98,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<TrackColumnId, number> = {
 };
 
 export const MIN_COLUMN_WIDTHS: Record<TrackColumnId, number> = {
-  order: 44,
+  order: 58,
   art: 40,
   title: 140,
   artist: 100,

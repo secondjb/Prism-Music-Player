@@ -109,9 +109,10 @@ const { volume, setVolume } = usePlayerStore(
 ```
 
 ### 3.2 Centralized Audio Lifecycle Hook (`src/hooks/useAudioPlayback.ts`)
-- Bridges Zustand store events to Rust Tauri commands (`play_audio`, `pause_audio`, `resume_audio`, `seek_audio`, `set_volume`).
+- Bridges Zustand store events to Rust Tauri commands (`play_audio`, `pause_audio`, `resume_audio`, `stop_audio`, `seek_audio`, `set_volume`).
 - Synchronizes the Web MediaSession API (`navigator.mediaSession`) and Windows SMTC with track title, artist, album, and artwork.
 - Contains the auto-advance logic (`nextTrack()`) when tracks finish.
+- `stop_audio` command explicitly flushes audio buffers, clears `current_track`, `pending_next`, and resets hardware playback position to 0 (used on `clearQueue`).
 
 ### 3.3 UI Component System & Material 3 Architecture
 - **Component Preference**: Always prefer **Material 3 (MUI / Material Design 3)** UI components, controls, and scaffolding over raw/native custom CSS implementations wherever feasible.

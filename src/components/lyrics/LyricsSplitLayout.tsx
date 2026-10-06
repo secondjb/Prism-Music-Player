@@ -1,6 +1,8 @@
 import React from 'react';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
 import {
   Mic2,
   Minimize2,
@@ -63,6 +65,7 @@ export interface LyricsSplitLayoutProps {
   translationMode: string;
   activeLineRef: React.RefObject<HTMLDivElement | null>;
   handleManualRefresh: () => Promise<void>;
+  handleClose: () => void;
 }
 
 export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
@@ -70,6 +73,7 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
   trackArt,
   setLyricsLayoutMode,
   setShowLyricsFullscreen,
+  handleClose,
   duration,
   isWavySeekbarEnabled,
   handleSeek,
@@ -156,12 +160,12 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                 width: 'auto',
                 borderRadius: 'clamp(1rem, 2vw, 1.5rem)',
                 overflow: 'hidden',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
+                boxShadow: 'none',
                 border: '1px solid rgba(255, 255, 255, 0.15)',
                 userSelect: 'none',
                 cursor: 'pointer',
                 transition: 'all 0.3s ease',
-                backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                backgroundColor: 'transparent',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -333,14 +337,35 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                   playButtonColor="primary"
                 />
 
-                <Box ref={volRefCallback}>
-                  <PlayerVolumeControl
-                    volume={volume}
-                    setVolume={setVolume}
-                    width={{ xs: 120, sm: 150, md: 180 }}
-                    showAlways
-                  />
-                </Box>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <Box ref={volRefCallback}>
+                    <PlayerVolumeControl
+                      volume={volume}
+                      setVolume={setVolume}
+                      width={{ xs: 120, sm: 150, md: 180 }}
+                      showAlways
+                    />
+                  </Box>
+                  <Tooltip title="Exit Lyrics View" arrow>
+                    <IconButton
+                      size="small"
+                      onClick={handleClose}
+                      sx={{
+                        p: 1,
+                        borderRadius: '12px',
+                        color: '#ffffff',
+                        bgcolor: 'var(--color-stop-1, #6366f1)',
+                        boxShadow: '0 0 14px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                        '&:hover': {
+                          bgcolor: 'var(--color-stop-1, #6366f1)',
+                          filter: 'brightness(1.1)',
+                        },
+                      }}
+                    >
+                      <Mic2 size={20} />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
               </Box>
             </Box>
           </Box>

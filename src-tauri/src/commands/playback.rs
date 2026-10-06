@@ -61,6 +61,19 @@ pub fn resume_audio(
 }
 
 #[tauri::command]
+pub fn stop_audio(
+    audio_engine: State<'_, GlobalAudioEngine>,
+    controls_state: State<'_, MediaControlState>,
+) {
+    audio_engine.stop();
+    if let Ok(mut guard) = controls_state.0.try_lock() {
+        if let Some(controls) = guard.as_mut() {
+            let _ = controls.set_playback(MediaPlayback::Stopped);
+        }
+    }
+}
+
+#[tauri::command]
 pub fn seek_audio(audio_engine: State<'_, GlobalAudioEngine>, position_secs: f64) {
     audio_engine.seek(position_secs);
 }

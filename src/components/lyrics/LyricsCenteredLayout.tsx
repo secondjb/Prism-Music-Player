@@ -248,7 +248,7 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
         >
           <div
             onClick={() => setArtExpanded(!artExpanded)}
-            className={`relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 shrink-0 group cursor-pointer transition-all duration-300 bg-black/40 ${
+            className={`relative rounded-2xl overflow-hidden border border-white/10 shrink-0 group cursor-pointer transition-all duration-300 bg-transparent ${
               artExpanded
                 ? isCompact
                   ? 'w-48 h-48 max-w-[40vh] max-h-[40vh]'
@@ -385,18 +385,20 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
           </div>
         )}
 
-        {/* Exit Lyrics Button */}
-        <button
-          onClick={handleClose}
-          className="p-1.5 rounded-xl hover:text-white hover:bg-white/10 transition-colors shrink-0"
-          style={{ color: 'var(--color-stop-1, #6366f1)' }}
-          title="Exit Karaoke View"
-        >
-          <Mic2 className="w-5 h-5" />
-        </button>
+        {/* Exit Lyrics Button (Mobile/Compact Only) */}
+        {isCompact && (
+          <button
+            onClick={handleClose}
+            className="p-1.5 rounded-xl hover:text-white hover:bg-white/10 transition-colors shrink-0"
+            style={{ color: 'var(--color-stop-1, #6366f1)' }}
+            title="Exit Karaoke View"
+          >
+            <Mic2 className="w-5 h-5" />
+          </button>
+        )}
       </motion.div>
 
-      {/* Floating Glass Volume Pill (Bottom-Right) */}
+      {/* Floating Glass Volume & Lyrics Toggle Pill (Bottom-Right) */}
       {!isCompact && (
         <motion.div
           animate={{
@@ -404,7 +406,7 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
             y: controlsVisible ? 0 : 20,
           }}
           transition={{ duration: 0.3 }}
-          className={`fixed bottom-6 right-8 z-40 glass-panel border border-white/10 rounded-full px-4 py-2 shadow-2xl flex items-center ${
+          className={`fixed bottom-6 right-8 z-40 glass-panel border border-white/10 rounded-full px-4 py-2 shadow-2xl flex items-center gap-3 ${
             controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
           }`}
         >
@@ -416,6 +418,18 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
               showAlways
             />
           </div>
+          {/* Exit Lyrics Button aligned in exact bottom-right position as main player bar */}
+          <button
+            onClick={handleClose}
+            className="p-2 rounded-xl text-white transition-all hover:scale-105 active:scale-95 shrink-0"
+            style={{
+              backgroundColor: 'var(--color-stop-1, #6366f1)',
+              boxShadow: '0 0 14px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+            }}
+            title="Exit Karaoke / Lyrics View"
+          >
+            <Mic2 className="w-5 h-5" />
+          </button>
         </motion.div>
       )}
     </>

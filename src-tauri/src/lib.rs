@@ -154,6 +154,7 @@ pub fn run() {
             commands::set_next_track,
             commands::pause_audio,
             commands::resume_audio,
+            commands::stop_audio,
             commands::update_media_controls_playback,
             commands::set_taskbar_playback_state,
             commands::update_media_controls_metadata,

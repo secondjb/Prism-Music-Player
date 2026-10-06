@@ -10,6 +10,8 @@ import { BottomBar } from './components/BottomBar';
 import { BatchActionPill } from './components/BatchActionPill';
 import { LyricsView } from './components/LyricsView';
 import { QueueDrawer } from './components/QueueDrawer';
+import { ThemeProvider } from '@mui/material/styles';
+import { prismDarkTheme } from './theme/prismTheme';
 import { invoke } from '@tauri-apps/api/core';
 import { logListeningEvent } from './utils/stats';
 import { updateLogoGradientFromImage } from './utils/colorExtractor';
@@ -382,77 +384,79 @@ export const App: React.FC = () => {
   const isLyricsActive = showLyricsFullscreen || activeTab === 'lyrics';
 
   return (
-    <div className="w-screen h-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden relative">
-      {/* Hidden audio element for Windows Taskbar Thumbnail Toolbar & MediaSession sync */}
-      <audio
-        ref={silentAudioRef}
-        src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"
-        loop
-        style={{ display: 'none' }}
-      />
+    <ThemeProvider theme={prismDarkTheme}>
+      <div className="w-screen h-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden relative">
+        {/* Hidden audio element for Windows Taskbar Thumbnail Toolbar & MediaSession sync */}
+        <audio
+          ref={silentAudioRef}
+          src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"
+          loop
+          style={{ display: 'none' }}
+        />
 
-      {/* Dynamic Ambient Background Glows */}
-      {!isLyricsActive && (
-        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-          {ambientArt || trackArt ? (
-            <div
-              className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] opacity-20 blur-[140px] transition-all duration-1000 bg-cover bg-center scale-110"
-              style={{ backgroundImage: `url(${ambientArt || trackArt})` }}
-            />
-          ) : (
-            <>
+        {/* Dynamic Ambient Background Glows */}
+        {!isLyricsActive && (
+          <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+            {ambientArt || trackArt ? (
               <div
-                className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full blur-[140px] opacity-15 pointer-events-none transition-all duration-700"
-                style={{
-                  background:
-                    'radial-gradient(circle, var(--color-stop-1, #6366F1), var(--color-stop-3, #EC4899), transparent 70%)',
-                }}
+                className="absolute -top-1/4 -left-1/4 w-[150%] h-[150%] opacity-20 blur-[140px] transition-all duration-1000 bg-cover bg-center scale-110"
+                style={{ backgroundImage: `url(${ambientArt || trackArt})` }}
               />
-              <div
-                className="absolute top-1/3 -right-40 w-[600px] h-[600px] rounded-full blur-[150px] opacity-15 pointer-events-none transition-all duration-700"
-                style={{
-                  background:
-                    'radial-gradient(circle, var(--color-stop-4, #D946EF), var(--color-stop-6, #818CF8), transparent 70%)',
-                }}
-              />
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Main App Body Layout (preserved in DOM to maintain scroll offsets) */}
-      <div className={`flex flex-1 min-h-0 z-10 ${isLyricsActive ? 'hidden' : ''}`}>
-        <Sidebar />
-        <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-          <Header />
-          <div className="flex-1 min-h-0 overflow-hidden px-8 py-2 flex flex-col">
-            {renderContent()}
+            ) : (
+              <>
+                <div
+                  className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full blur-[140px] opacity-15 pointer-events-none transition-all duration-700"
+                  style={{
+                    background:
+                      'radial-gradient(circle, var(--color-stop-1, #6366F1), var(--color-stop-3, #EC4899), transparent 70%)',
+                  }}
+                />
+                <div
+                  className="absolute top-1/3 -right-40 w-[600px] h-[600px] rounded-full blur-[150px] opacity-15 pointer-events-none transition-all duration-700"
+                  style={{
+                    background:
+                      'radial-gradient(circle, var(--color-stop-4, #D946EF), var(--color-stop-6, #818CF8), transparent 70%)',
+                  }}
+                />
+              </>
+            )}
           </div>
-        </main>
+        )}
+
+        {/* Main App Body Layout (preserved in DOM to maintain scroll offsets) */}
+        <div className={`flex flex-1 min-h-0 z-10 ${isLyricsActive ? 'hidden' : ''}`}>
+          <Sidebar />
+          <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+            <Header />
+            <div className="flex-1 min-h-0 overflow-hidden px-8 py-2 flex flex-col">
+              {renderContent()}
+            </div>
+          </main>
+        </div>
+
+        {/* Floating Batch Actions Bar for Multi-Selected Songs */}
+        {!isLyricsActive && <BatchActionPill />}
+
+        {/* Bottom Audio Player Bar */}
+        <div className={`z-20 ${isLyricsActive ? 'hidden' : ''}`}>
+          <BottomBar />
+        </div>
+
+        {/* Dedicated Lyrics View Page */}
+        {isLyricsActive && <LyricsView />}
+
+        {/* Queue Drawer Overlay */}
+        <QueueDrawer
+          isOpen={isQueueOpen}
+          onClose={() => usePlayerStore.setState({ isQueueOpen: false })}
+        />
+
+        {/* Link Track Modal */}
+        <Suspense fallback={null}>
+          <LinkTrackModal />
+        </Suspense>
       </div>
-
-      {/* Floating Batch Actions Bar for Multi-Selected Songs */}
-      {!isLyricsActive && <BatchActionPill />}
-
-      {/* Bottom Audio Player Bar */}
-      <div className={`z-20 ${isLyricsActive ? 'hidden' : ''}`}>
-        <BottomBar />
-      </div>
-
-      {/* Dedicated Lyrics View Page */}
-      {isLyricsActive && <LyricsView />}
-
-      {/* Queue Drawer Overlay */}
-      <QueueDrawer
-        isOpen={isQueueOpen}
-        onClose={() => usePlayerStore.setState({ isQueueOpen: false })}
-      />
-
-      {/* Link Track Modal */}
-      <Suspense fallback={null}>
-        <LinkTrackModal />
-      </Suspense>
-    </div>
+    </ThemeProvider>
   );
 };
 

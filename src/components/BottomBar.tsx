@@ -1,62 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
+import Box from '@mui/material/Box';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { useTrackArt } from '../utils/useTrackArt';
+import { PlayerTrackInfo } from './player/PlayerTrackInfo';
+import { PlayerControls } from './player/PlayerControls';
 import { TrackProgressBar } from './player/TrackProgressBar';
-import { AudioSlider } from './AudioSlider';
-import {
-  Play,
-  Pause,
-  SkipBack,
-  SkipForward,
-  Volume2,
-  VolumeX,
-  Heart,
-  Mic2,
-  Timer,
-  ListMusic,
-  Sparkles,
-  Shuffle,
-  Repeat,
-  Repeat1,
-  Info,
-  ListPlus,
-  ListEnd,
-  PlusCircle,
-  Speaker,
-  Check,
-  Plus,
-  ChevronRight,
-} from 'lucide-react';
-import { Track } from '../types/player';
-import { SleepTimerModal } from './SleepTimerModal';
-import { AudioDeviceModal } from './AudioDeviceModal';
+import { PlayerVolumeControl } from './player/PlayerVolumeControl';
+import { PlayerActions } from './player/PlayerActions';
 import { CreatePlaylistModal } from './CreatePlaylistModal';
-
-const handleTrackDragStart = (e: React.DragEvent, track: Track) => {
-  if (!track || !track.id) return;
-  e.dataTransfer.setData(
-    'text/plain',
-    JSON.stringify({ type: 'tracks', ids: [track.id] })
-  );
-  e.dataTransfer.effectAllowed = 'copy';
-
-  const ghost = document.createElement('div');
-  ghost.style.position = 'absolute';
-  ghost.style.top = '-9999px';
-  ghost.style.left = '-9999px';
-  ghost.className =
-    'glass-panel text-white text-xs font-semibold px-3 py-1.5 rounded-xl shadow-2xl z-50 flex items-center gap-2 border border-white/20';
-  ghost.style.background = 'rgba(20, 20, 24, 0.95)';
-  ghost.innerHTML = `<span>🎵</span> <span style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${track.title || 'Song'}</span>`;
-
-  document.body.appendChild(ghost);
-  e.dataTransfer.setDragImage(ghost, 20, 15);
-  setTimeout(() => {
-    if (document.body.contains(ghost)) {
-      document.body.removeChild(ghost);
-    }
-  }, 0);
-};
 
 export const BottomBar: React.FC = () => {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
@@ -68,678 +18,110 @@ export const BottomBar: React.FC = () => {
   const setVolume = usePlayerStore((s) => s.setVolume);
   const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
   const toggleLikeTrack = usePlayerStore((s) => s.toggleLikeTrack);
-  const sleepTimer = usePlayerStore((s) => s.sleepTimer);
-  const showLyricsFullscreen = usePlayerStore((s) => s.showLyricsFullscreen);
-  const setShowLyricsFullscreen = usePlayerStore((s) => s.setShowLyricsFullscreen);
-  const activeTab = usePlayerStore((s) => s.activeTab);
-  const isLyricsActive = showLyricsFullscreen || activeTab === 'lyrics';
   const shuffleEnabled = usePlayerStore((s) => s.shuffleEnabled);
   const toggleShuffle = usePlayerStore((s) => s.toggleShuffle);
   const repeatMode = usePlayerStore((s) => s.repeatMode);
   const cycleRepeatMode = usePlayerStore((s) => s.cycleRepeatMode);
-
-  const trackArt = useTrackArt(currentTrack);
-
-  const [isTimerModalOpen, setIsTimerModalOpen] = useState(false);
-  const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
-  const [showCreatePlaylistModal, setShowCreatePlaylistModal] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [prevVol, setPrevVol] = useState(volume);
-  const [showContextMenu, setShowContextMenu] = useState(false);
-  const [showPlaylistSub, setShowPlaylistSub] = useState(false);
-  const playlistSubmenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handlePlaylistSubmenuEnter = () => {
-    if (playlistSubmenuTimerRef.current) {
-      clearTimeout(playlistSubmenuTimerRef.current);
-      playlistSubmenuTimerRef.current = null;
-    }
-    setShowPlaylistSub(true);
-  };
-
-  const handlePlaylistSubmenuLeave = () => {
-    if (playlistSubmenuTimerRef.current) {
-      clearTimeout(playlistSubmenuTimerRef.current);
-    }
-    playlistSubmenuTimerRef.current = setTimeout(() => {
-      setShowPlaylistSub(false);
-    }, 250);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (playlistSubmenuTimerRef.current) {
-        clearTimeout(playlistSubmenuTimerRef.current);
-      }
-    };
-  }, []);
-
-  const playlists = usePlayerStore((s) => s.playlists);
-  const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
+  const showAudioSpecs = usePlayerStore((s) => s.showAudioSpecs);
+  const showLyricsFullscreen = usePlayerStore((s) => s.showLyricsFullscreen);
+  const activeTab = usePlayerStore((s) => s.activeTab);
   const createPlaylist = usePlayerStore((s) => s.createPlaylist);
-  const addToQueue = usePlayerStore((s) => s.addToQueue);
-  const playNext = usePlayerStore((s) => s.playNext);
-  const setInfoModalTrack = usePlayerStore((s) => s.setInfoModalTrack);
+  const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
 
-  // Ref for volume wheel scrolling
-  const volContainerRef = useRef<HTMLDivElement>(null);
-
-  const handleMuteToggle = () => {
-    if (isMuted) {
-      setVolume(prevVol);
-      setIsMuted(false);
-    } else {
-      setPrevVol(volume);
-      setVolume(0);
-      setIsMuted(true);
-    }
-  };
-
-  const [isEditingVol, setIsEditingVol] = useState(false);
-  const [volInputText, setVolInputText] = useState('');
-
-  // Native non-passive wheel listener for smooth & instant volume scrolling in WebView2/Tauri
-  useEffect(() => {
-    const el = volContainerRef.current;
-    if (!el) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const store = usePlayerStore.getState();
-      const current = store.volume;
-      const step = e.shiftKey ? 0.01 : 0.02;
-      const delta = e.deltaY < 0 ? step : -step;
-      const nextVol = Math.max(0, Math.min(1, Math.round((current + delta) * 100) / 100));
-      store.setVolume(nextVol);
-    };
-
-    el.addEventListener('wheel', handleWheel, { passive: false });
-    return () => {
-      el.removeEventListener('wheel', handleWheel);
-    };
-  }, []);
-
-  const handleVolInputSubmit = () => {
-    const num = parseInt(volInputText, 10);
-    if (!isNaN(num)) {
-      const clamped = Math.max(0, Math.min(100, num)) / 100;
-      setVolume(clamped);
-      if (isMuted && clamped > 0) setIsMuted(false);
-    }
-    setIsEditingVol(false);
-  };
+  const [showCreatePlaylistModal, setShowCreatePlaylistModal] = useState(false);
 
   const isLiked = currentTrack ? likedTrackIds.includes(currentTrack.id) : false;
-  const effectiveVol = isMuted ? 0 : volume;
+  const isLyricsActive = showLyricsFullscreen || activeTab === 'lyrics';
 
-  const RepeatIcon = repeatMode === 'one' ? Repeat1 : Repeat;
+  const handleCreatePlaylistConfirm = (playlistName: string) => {
+    if (currentTrack) {
+      createPlaylist(playlistName);
+      setTimeout(() => {
+        const latest = usePlayerStore.getState().playlists;
+        const created = latest.find((p) => p.name === playlistName);
+        if (created) {
+          addTrackToPlaylist(created.id, currentTrack.id);
+        }
+      }, 50);
+    }
+  };
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 h-24 bg-zinc-950/95 backdrop-blur-2xl border-t border-white/10 z-30 flex items-center justify-between px-6 select-none">
+    <Box
+      component="footer"
+      sx={{
+        width: '100%',
+        height: 92,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        px: { xs: 2, sm: 3, md: 4 },
+        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+        bgcolor: 'rgba(12, 12, 16, 0.85)',
+        backdropFilter: 'blur(32px)',
+        WebkitBackdropFilter: 'blur(32px)',
+        position: 'relative',
+        zIndex: 30,
+        boxShadow: '0 -8px 32px rgba(0, 0, 0, 0.4)',
+      }}
+    >
       {/* 1. Track Info (Left) */}
-      <div 
-        className="flex items-center gap-4 flex-1 min-w-[180px] max-w-[32%] relative"
-        onContextMenu={(e) => {
-          if (currentTrack) {
-            e.preventDefault();
-            setShowContextMenu(true);
-            setShowPlaylistSub(false);
-          }
+      <PlayerTrackInfo
+        currentTrack={currentTrack}
+        isLiked={isLiked}
+        onToggleLike={toggleLikeTrack}
+        showAudioSpecs={showAudioSpecs}
+        onOpenCreatePlaylistModal={() => setShowCreatePlaylistModal(true)}
+      />
+
+      {/* 2. Audio Controls & Expressive Seek Bar (Center) */}
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 0.25,
+          flex: 1,
+          maxWidth: 680,
+          minWidth: 260,
+          px: { xs: 1, sm: 2 },
         }}
       >
-        {/* Backdrop to close context menu on click outside */}
-        {showContextMenu && (
-          <div
-            className="fixed inset-0 z-40 bg-transparent"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowContextMenu(false);
-              setShowPlaylistSub(false);
-            }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setShowContextMenu(false);
-              setShowPlaylistSub(false);
-            }}
-          />
-        )}
-
-        {currentTrack ? (
-          <>
-            <div
-              draggable={Boolean(currentTrack)}
-              onDragStart={(e) => currentTrack && handleTrackDragStart(e, currentTrack)}
-              className="relative w-14 h-14 rounded-xl overflow-hidden shadow-md shrink-0 border border-white/10 bg-zinc-900 cursor-grab active:cursor-grabbing select-none"
-              title="Drag song to playlist or right-click for options"
-            >
-              {trackArt ? (
-                <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-cover pointer-events-none" />
-              ) : (
-                <div
-                  className="w-full h-full flex items-center justify-center pointer-events-none"
-                  style={{
-                    background: 'linear-gradient(135deg, color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, #18181b), color-mix(in srgb, var(--color-stop-2, #8b5cf6) 20%, #09090b))',
-                  }}
-                >
-                  <Sparkles
-                    className="w-6 h-6"
-                    style={{ color: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 75%, white)' }}
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-col min-w-0 flex-1 cursor-context-menu">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="font-semibold text-sm text-white truncate max-w-[clamp(140px,22vw,480px)]" title={currentTrack.title}>
-                  {currentTrack.title}
-                </span>
-                <button
-                  onClick={() => toggleLikeTrack(currentTrack.id)}
-                  className="text-zinc-400 hover:text-red-500 transition-colors p-0.5 shrink-0"
-                >
-                  <Heart className={`w-4 h-4 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
-                </button>
-              </div>
-              <span 
-                className="text-xs text-zinc-400 truncate max-w-[clamp(140px,22vw,480px)] hover:underline cursor-pointer" 
-                title={currentTrack.artist}
-                onClick={(e) => {
-                  if (currentTrack.artist && currentTrack.artist !== 'Unknown Artist') {
-                    e.stopPropagation();
-                    usePlayerStore.getState().navigateToArtist(currentTrack.artist);
-                  }
-                }}
-              >
-                {currentTrack.artist}
-              </span>
-              
-              {/* High-Res Audio Specs Badge */}
-              {usePlayerStore.getState().showAudioSpecs && (
-                <div className="flex items-center gap-1.5 mt-1 pointer-events-none">
-                  <span
-                    className="px-1.5 py-0.2 text-[9px] font-mono font-bold rounded border"
-                    style={{
-                      backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
-                      borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
-                      color: 'var(--color-stop-1, #6366f1)',
-                    }}
-                  >
-                    FLAC
-                  </span>
-                  <span className="text-[10px] font-mono text-zinc-400">
-                    {(currentTrack.sample_rate / 1000).toFixed(1)}kHz / {currentTrack.bit_depth}bit
-                  </span>
-                </div>
-              )}
-            </div>
-            
-            {/* Context Menu Dropdown */}
-            {showContextMenu && (
-              <div
-                style={{
-                  backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 8%, #141416)',
-                  borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, rgba(255, 255, 255, 0.12))',
-                  boxShadow:
-                    '0 12px 36px -4px rgba(0, 0, 0, 0.7), 0 0 16px color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent)',
-                  backdropFilter: 'blur(24px)',
-                }}
-                className="absolute left-0 bottom-full mb-3 w-52 border rounded-xl p-1.5 z-50 flex flex-col gap-0.5 text-xs text-zinc-300 animate-in fade-in zoom-in-95 duration-100"
-                onMouseLeave={() => {
-                  setShowContextMenu(false);
-                  setShowPlaylistSub(false);
-                }}
-              >
-                <div
-                  className="px-2.5 py-1 text-[11px] font-semibold text-zinc-400 border-b truncate"
-                  style={{
-                    borderColor:
-                      'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
-                  }}
-                >
-                  {currentTrack.title}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    addToQueue(currentTrack);
-                    setShowContextMenu(false);
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor =
-                      'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '';
-                  }}
-                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
-                >
-                  <ListEnd className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                  <span>Add to Queue</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    playNext(currentTrack);
-                    setShowContextMenu(false);
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor =
-                      'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '';
-                  }}
-                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
-                >
-                  <ListPlus className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                  <span>Play Next</span>
-                </button>
-                
-                {/* Add to Playlist submenu */}
-                <div
-                  className="relative"
-                  onMouseEnter={handlePlaylistSubmenuEnter}
-                  onMouseLeave={handlePlaylistSubmenuLeave}
-                >
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowPlaylistSub((s) => !s);
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor =
-                        'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = '';
-                    }}
-                    className="flex items-center justify-between w-full px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <PlusCircle className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                      <span>Add to Playlist</span>
-                    </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-zinc-400" />
-                  </button>
-
-                  {showPlaylistSub && (
-                    <div
-                      onMouseEnter={handlePlaylistSubmenuEnter}
-                      onMouseLeave={handlePlaylistSubmenuLeave}
-                      style={{
-                        backgroundColor:
-                          'color-mix(in srgb, var(--color-stop-1, #6366f1) 10%, #141416)',
-                        borderColor:
-                          'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, rgba(255, 255, 255, 0.12))',
-                        boxShadow:
-                          '0 12px 36px -4px rgba(0, 0, 0, 0.7), 0 0 16px color-mix(in srgb, var(--color-stop-1, #6366f1) 18%, transparent)',
-                        backdropFilter: 'blur(24px)',
-                      }}
-                      className="absolute left-full bottom-0 w-48 border rounded-xl p-1.5 z-50 flex flex-col gap-0.5 ml-1 before:absolute before:-left-3 before:inset-y-0 before:w-3 before:content-[''] max-h-60 overflow-y-auto custom-scrollbar shadow-2xl animate-in fade-in zoom-in-95 duration-100"
-                    >
-                      <div
-                        className="px-2 py-1 text-[10px] font-semibold text-zinc-400 border-b uppercase tracking-wider"
-                        style={{
-                          borderColor:
-                            'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
-                        }}
-                      >
-                        Your Playlists
-                      </div>
-                      {playlists.length === 0 ? (
-                        <div className="px-2 py-2 text-zinc-500 italic text-[11px]">No playlists yet</div>
-                      ) : (
-                        playlists.map((pl) => {
-                          const inPlaylist = pl.trackIds.includes(currentTrack.id);
-                          return (
-                            <button
-                              key={pl.id}
-                              type="button"
-                              onClick={() => {
-                                addTrackToPlaylist(pl.id, currentTrack.id);
-                                setShowContextMenu(false);
-                                setShowPlaylistSub(false);
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor =
-                                  'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = '';
-                              }}
-                              className="flex items-center justify-between w-full px-2 py-1.5 rounded-lg text-left transition-colors cursor-pointer text-zinc-200 hover:text-white"
-                            >
-                              <span className="truncate pr-2">{pl.name}</span>
-                              {inPlaylist && (
-                                <span className="flex items-center justify-center shrink-0 w-4 h-4 ml-1.5 translate-y-[0.5px]">
-                                  <Check className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })
-                      )}
-
-                      <div
-                        className="border-t my-0.5"
-                        style={{
-                          borderColor:
-                            'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
-                        }}
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCreatePlaylistModal(true);
-                          setShowContextMenu(false);
-                          setShowPlaylistSub(false);
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor =
-                            'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = '';
-                        }}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors cursor-pointer font-medium"
-                        style={{ color: 'var(--color-stop-1, #6366f1)' }}
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>New Playlist...</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    toggleLikeTrack(currentTrack.id);
-                    setShowContextMenu(false);
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor =
-                      'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '';
-                  }}
-                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
-                >
-                  <Heart
-                    className={`w-4 h-4 ${
-                      isLiked ? 'fill-pink-500 text-pink-500' : 'text-zinc-400'
-                    }`}
-                    style={!isLiked ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-                  />
-                  <span>{isLiked ? 'Unlike' : 'Like'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInfoModalTrack(currentTrack);
-                    setShowContextMenu(false);
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor =
-                      'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '';
-                  }}
-                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left font-medium cursor-pointer text-zinc-200 hover:text-white"
-                >
-                  <Info className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                  <span>Song Details & Specs</span>
-                </button>
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-zinc-600">
-              <Sparkles className="w-6 h-6" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold text-zinc-500">No track playing</span>
-              <span className="text-xs text-zinc-600">Select a song to start listening</span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 2. Audio Controls & Material 3 Expressive Seek Bar (Center) */}
-      <div className="flex flex-col items-center gap-0.5 flex-1 max-w-2xl px-4 min-w-[320px] shrink">
-        {/* Playback Buttons */}
-        <div className="flex items-center gap-4">
-          {/* Shuffle */}
-          <button
-            onClick={toggleShuffle}
-            style={
-              shuffleEnabled
-                ? {
-                    color: 'var(--color-stop-1, #6366f1)',
-                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-                  }
-                : undefined
-            }
-            className={`p-1.5 rounded-lg transition-all ${
-              shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
-            }`}
-            title={shuffleEnabled ? 'Shuffle On' : 'Shuffle Off'}
-          >
-            <Shuffle className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={previousTrack}
-            className="text-zinc-400 hover:text-white transition-colors p-1"
-          >
-            <SkipBack className="w-5 h-5" />
-          </button>
-
-          <button
-            onClick={togglePlay}
-            className="w-11 h-11 rounded-full bg-white text-zinc-950 flex items-center justify-center shadow-lg shadow-white/10 hover:scale-105 active:scale-95 transition-transform"
-          >
-            {isPlaying ? <Pause className="w-5 h-5 fill-zinc-950" /> : <Play className="w-5 h-5 fill-zinc-950 ml-0.5" />}
-          </button>
-
-          <button
-            onClick={() => nextTrack()}
-            className="text-zinc-400 hover:text-white transition-colors p-1"
-          >
-            <SkipForward className="w-5 h-5" />
-          </button>
-
-          {/* Repeat */}
-          <button
-            onClick={cycleRepeatMode}
-            style={
-              repeatMode !== 'off'
-                ? {
-                    color: 'var(--color-stop-1, #6366f1)',
-                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-                  }
-                : undefined
-            }
-            className={`p-1.5 rounded-lg transition-all ${
-              repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
-            }`}
-            title={repeatMode === 'off' ? 'Repeat Off' : repeatMode === 'all' ? 'Repeat All' : 'Repeat One'}
-          >
-            <RepeatIcon className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Seek Bar with Isolated High-Frequency Rerenders */}
+        <PlayerControls
+          isPlaying={isPlaying}
+          onTogglePlay={togglePlay}
+          onNextTrack={() => nextTrack()}
+          onPreviousTrack={previousTrack}
+          shuffleEnabled={shuffleEnabled}
+          onToggleShuffle={toggleShuffle}
+          repeatMode={repeatMode}
+          onCycleRepeatMode={cycleRepeatMode}
+        />
         <TrackProgressBar isLyricsActive={isLyricsActive} />
+      </Box>
 
-      </div>
+      {/* 3. Volume & Extra Actions (Right) */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: { xs: 1, sm: 2 },
+          flex: 1,
+          maxWidth: { xs: '35%', sm: '32%', md: '30%' },
+          minWidth: 160,
+        }}
+      >
+        <PlayerVolumeControl volume={volume} setVolume={setVolume} />
+        <PlayerActions />
+      </Box>
 
-      {/* 3. Volume & Extra Controls (Right - Responsive & Auto-Shrinking) */}
-      <div className="flex items-center justify-end gap-1.5 sm:gap-2.5 flex-1 min-w-[200px] max-w-[32%] shrink-0">
-        {/* Queue Drawer Button */}
-        <button
-          onClick={() => usePlayerStore.setState((s) => ({ isQueueOpen: !s.isQueueOpen }))}
-          className="p-1.5 sm:p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-all relative shrink-0"
-          title="Play Queue"
-        >
-          <ListMusic className="w-5 h-5" />
-          {usePlayerStore.getState().queue.length > 0 && (
-            <span
-              className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold text-white shadow-md"
-              style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-            >
-              {usePlayerStore.getState().queue.length}
-            </span>
-          )}
-        </button>
-
-        {/* Sleep Timer Button */}
-        <div className="relative shrink-0">
-          <button
-            onClick={() => setIsTimerModalOpen(!isTimerModalOpen)}
-            className={`p-1.5 sm:p-2 rounded-xl transition-all relative ${
-              sleepTimer.active ? 'bg-white/10 text-[var(--color-stop-1)] border border-white/20' : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-            title="Sleep Timer"
-          >
-            <Timer className="w-5 h-5" />
-            {sleepTimer.active && (
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[var(--color-stop-1)] animate-pulse" />
-            )}
-          </button>
-          <SleepTimerModal isOpen={isTimerModalOpen} onClose={() => setIsTimerModalOpen(false)} />
-        </div>
-
-        {/* Volume & Karaoke Toggle */}
-        <div className="flex items-center gap-2">
-          <div ref={volContainerRef} className="hidden sm:flex items-center gap-2 w-32 md:w-44 shrink-0" title="Scroll wheel to adjust volume">
-            <button
-              onClick={handleMuteToggle}
-              className="text-zinc-400 hover:text-white transition-colors p-1 shrink-0"
-              title={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 text-rose-400" /> : <Volume2 className="w-5 h-5" />}
-            </button>
-            
-            <AudioSlider
-              value={effectiveVol}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(val) => {
-                setVolume(val);
-                if (isMuted) setIsMuted(false);
-              }}
-              formatTooltip={(val) => `${Math.round(val * 100)}%`}
-              className="flex-1 min-w-[30px]"
-            />
-
-            {/* Integer Volume Percentage Display / Direct Input */}
-            <div className="w-10 shrink-0 flex items-center justify-end">
-              {isEditingVol ? (
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={1}
-                  autoFocus
-                  value={volInputText}
-                  onChange={(e) => setVolInputText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleVolInputSubmit();
-                    if (e.key === 'Escape') setIsEditingVol(false);
-                  }}
-                  onBlur={handleVolInputSubmit}
-                  style={{
-                    color: 'var(--color-stop-1, #6366f1)',
-                    borderColor: 'var(--color-stop-1, #6366f1)',
-                  }}
-                  className="w-full px-0.5 py-0.5 text-xs font-mono font-bold text-center bg-zinc-800/80 border-b-2 rounded-t outline-none focus:bg-zinc-800 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none shadow-inner"
-                />
-              ) : (
-                <button
-                  onClick={() => {
-                    setVolInputText(Math.round(effectiveVol * 100).toString());
-                    setIsEditingVol(true);
-                  }}
-                  style={{ color: 'var(--color-stop-1, #6366f1)' }}
-                  className="w-full px-0.5 py-0.5 text-xs font-mono font-bold hover:brightness-125 rounded transition-all text-right select-none tabular-nums"
-                  title="Click to type volume"
-                >
-                  {Math.round(effectiveVol * 100)}%
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Audio Output Devices & Quality Modal Button */}
-          <div className="relative shrink-0">
-            <button
-              data-audio-speaker-btn="true"
-              onClick={() => setIsDeviceModalOpen(!isDeviceModalOpen)}
-              className={`p-1.5 sm:p-2 rounded-xl transition-all shrink-0 ${
-                isDeviceModalOpen
-                  ? 'text-white shadow-md'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
-              }`}
-              style={
-                isDeviceModalOpen
-                  ? {
-                      backgroundColor: 'var(--color-stop-1, #6366f1)',
-                      boxShadow: '0 0 14px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
-                    }
-                  : undefined
-              }
-              title="Audio Output & Quality"
-            >
-              <Speaker className="w-5 h-5" />
-            </button>
-            <AudioDeviceModal
-              isOpen={isDeviceModalOpen}
-              onClose={() => setIsDeviceModalOpen(false)}
-            />
-            <CreatePlaylistModal
-              isOpen={showCreatePlaylistModal}
-              onClose={() => setShowCreatePlaylistModal(false)}
-              onConfirm={(playlistName) => {
-                if (currentTrack) {
-                  createPlaylist(playlistName);
-                  setTimeout(() => {
-                    const latest = usePlayerStore.getState().playlists;
-                    const created = latest.find((p) => p.name === playlistName);
-                    if (created) {
-                      addTrackToPlaylist(created.id, currentTrack.id);
-                    }
-                  }, 50);
-                }
-              }}
-            />
-          </div>
-
-          {/* Karaoke / Lyrics Toggle (Moved to far right) */}
-          <button
-            onClick={() => setShowLyricsFullscreen(!showLyricsFullscreen)}
-            className={`p-1.5 sm:p-2 rounded-xl transition-all shrink-0 ${
-              showLyricsFullscreen ? 'text-white shadow-md' : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-            style={showLyricsFullscreen ? { backgroundColor: 'var(--color-stop-1, #6366f1)' } : undefined}
-            title="Karaoke / Fullscreen Lyrics"
-          >
-            <Mic2 className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-    </footer>
+      {/* Create Playlist Modal (when triggered via context menu) */}
+      <CreatePlaylistModal
+        isOpen={showCreatePlaylistModal}
+        onClose={() => setShowCreatePlaylistModal(false)}
+        onConfirm={handleCreatePlaylistConfirm}
+      />
+    </Box>
   );
 };

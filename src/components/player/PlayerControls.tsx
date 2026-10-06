@@ -102,6 +102,10 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
           cursor: 'pointer',
           border: 'none',
           outline: 'none',
+          transform: 'scale(1)',
+          transformOrigin: 'center center',
+          willChange: 'transform',
+          backfaceVisibility: 'hidden',
           transition: 'transform 0.15s ease, filter 0.15s ease',
           '&:hover': {
             transform: 'scale(1.04)',
@@ -114,12 +118,12 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
         title={isPlaying ? 'Pause' : 'Play'}
       >
         {isPlaying ? (
-          <Pause size={mainIconSize} fill={playButtonColor === 'primary' ? '#ffffff' : '#09090b'} />
+          <Pause size={mainIconSize} fill={playButtonColor === 'primary' ? '#ffffff' : '#09090b'} style={{ flexShrink: 0 }} />
         ) : (
           <Play
             size={mainIconSize}
             fill={playButtonColor === 'primary' ? '#ffffff' : '#09090b'}
-            style={{ marginLeft: 2 }}
+            style={{ marginLeft: 2, flexShrink: 0 }}
           />
         )}
       </Box>

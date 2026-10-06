@@ -838,11 +838,16 @@ export const LyricsPopoutView: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  p: 0,
                   boxShadow:
                     '0 4px 16px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
                   cursor: 'pointer',
                   border: 'none',
                   outline: 'none',
+                  transform: 'scale(1)',
+                  transformOrigin: 'center center',
+                  willChange: 'transform',
+                  backfaceVisibility: 'hidden',
                   transition: 'transform 0.15s ease, filter 0.15s ease',
                   '&:hover': {
                     transform: 'scale(1.05)',
@@ -855,9 +860,9 @@ export const LyricsPopoutView: React.FC = () => {
                 title={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
-                  <Pause size={17} fill="#ffffff" />
+                  <Pause size={18} fill="#ffffff" style={{ flexShrink: 0 }} />
                 ) : (
-                  <Play size={17} fill="#ffffff" style={{ marginLeft: 2 }} />
+                  <Play size={18} fill="#ffffff" style={{ marginLeft: 2, flexShrink: 0 }} />
                 )}
               </Box>
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { Track, ActiveTab, SleepTimer, RepeatMode, Playlist, RefreshLibraryResult, BackgroundType, LyricsLayoutMode, LyricsArtSize } from '../types/player';
+import { Track, ActiveTab, SleepTimer, RepeatMode, Playlist, RefreshLibraryResult, BackgroundType, LyricsLayoutMode, LyricsArtSize, PopoutLyricsSettings } from '../types/player';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { fetchLatestRelease, UpdateCheckResult } from '../utils/updateChecker';
@@ -250,7 +250,21 @@ export const getEffectiveCrossfadeSecs = (
   return crossfadeDuration;
 };
 
+export const defaultPopoutLyricsSettings: PopoutLyricsSettings = {
+  showAlbumArt: true,
+  showSeekbar: true,
+  showPlaybackControls: true,
+  layoutMode: 'stacked',
+  fontSize: 'balanced',
+  backgroundStyle: 'frosted',
+  opacity: 0.85,
+  karaokeMode: 'word',
+  alwaysOnTop: true,
+};
+
 interface PlayerState {
+  popoutLyricsSettings: PopoutLyricsSettings;
+  setPopoutLyricsSettings: (settings: Partial<PopoutLyricsSettings>) => void;
   audioAnalysisProgress: { current: number; total: number } | null;
   tracks: Track[];
   queue: Track[];
@@ -803,6 +817,12 @@ export const usePlayerStore = create<PlayerState>()(
       setLyricsLayoutMode: (mode) => set({ lyricsLayoutMode: mode }),
       lyricsArtSize: 'compact',
       setLyricsArtSize: (size) => set({ lyricsArtSize: size }),
+
+      popoutLyricsSettings: defaultPopoutLyricsSettings,
+      setPopoutLyricsSettings: (settings) =>
+        set((state) => ({
+          popoutLyricsSettings: { ...state.popoutLyricsSettings, ...settings },
+        })),
 
       linkedTracks: {},
       linkModalTrack: null,
@@ -2390,6 +2410,7 @@ export const usePlayerStore = create<PlayerState>()(
         showSubArtistUnderTitle: state.showSubArtistUnderTitle,
         mainGridSortState: state.mainGridSortState,
         isSidebarVisible: state.isSidebarVisible,
+        popoutLyricsSettings: state.popoutLyricsSettings,
       }),
     }
   )

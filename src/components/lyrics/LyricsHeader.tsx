@@ -13,7 +13,9 @@ import {
   Globe,
   Maximize2,
   Minimize2,
+  PictureInPicture2,
 } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
 import { Track } from '../../types/player';
 
 export interface LyricsHeaderProps {
@@ -193,6 +195,29 @@ export const LyricsHeader: React.FC<LyricsHeaderProps> = ({
             }}
           >
             <Settings2 className="w-5 h-5" />
+          </IconButton>
+        </Tooltip>
+
+        {/* Pop Out Mini Player Toggle */}
+        <Tooltip title="Pop Out Lyrics (Mini Player)">
+          <IconButton
+            onClick={() => {
+              if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+                invoke('open_lyrics_popout').catch(() => {});
+              }
+            }}
+            sx={{
+              p: 1.25,
+              borderRadius: '12px',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              color: 'rgb(161 161 170)',
+              '&:hover': {
+                bgcolor: 'rgba(255, 255, 255, 0.1)',
+                color: 'white',
+              },
+            }}
+          >
+            <PictureInPicture2 className="w-5 h-5" />
           </IconButton>
         </Tooltip>
 

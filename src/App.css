@@ -614,6 +614,11 @@ body {
   overflow: hidden;
 }
 
+body.is-popout {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
 .slider-m3 {
   -webkit-appearance: none;
   appearance: none;

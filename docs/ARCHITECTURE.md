@@ -181,6 +181,19 @@ Prism utilizes `@revolist/react-datagrid` (RevoGrid) backed by Stencil web compo
 - Smooth centering scroll runs with custom CSS `transform: translateY(...)` or virtual scroll offsets.
 - Fast seek jumps are debounced to prevent scroll bounce glitches.
 
+### 5.4 Pop-Out Lyric Viewer & Multi-Window Overlay Architecture (`LyricsPopoutView.tsx`)
+- **Secondary Tauri Webview Window (`lyrics-popout`)**:
+  - Configured with `decorations: false`, `alwaysOnTop: true`, `transparent: true`, `resizable: true`, and `visible: false` in `tauri.conf.json`.
+  - Managed via Rust IPC commands: `open_lyrics_popout`, `close_lyrics_popout`, and `toggle_lyrics_popout` in `src-tauri/src/commands/playback.rs`.
+  - Dedicated entrypoint in `src/main.tsx` (`?window=lyrics-popout`), directly mounting `<LyricsPopoutView />` inside `ThemeProvider (prismDarkTheme)` and completely bypassing the main player scaffolding, RevoGrid tables, and audio device polling loops for minimal CPU/GPU overhead.
+- **Cross-Window Synchronization Bus (`src/hooks/usePopoutSync.ts`)**:
+  - Employs `BroadcastChannel('prism-popout-sync')` to synchronize track changes, volume levels, play/pause states, and user commands across windows.
+  - The popout window polls `get_playback_position` directly from the Rust CPAL atomic clock at 80ms intervals, ensuring 60 FPS syllable synchronization even when the main player window is minimized or occluded by fullscreen apps/games.
+- **Configurable Floating Widgets & Appearance**:
+  - Widget toggles persisted in `usePlayerStore` (`popoutLyricsSettings`): Album Art (48x48 thumbnail), Seekbar (interactive scrub), Playback Controls (Previous, Play/Pause, Next, Volume), and Word-by-Word karaoke vs plain line highlighting.
+  - Appearance styles: *Frosted Glass* (blur), *Solid Dark* (ultra-low GPU), *Album Art Color* (dynamic color-mix matching current album palette), and *Transparent* (clean floating text with readability shadows for gaming/Discord overlays).
+  - Window controls: Top drag handle (`data-tauri-drag-region`), Pin/Always-on-top toggle (`setAlwaysOnTop`), minimize, and close.
+
 ---
 
 ## 6. Library Scanning & Metadata Pipeline

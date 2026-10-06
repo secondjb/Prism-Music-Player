@@ -161,3 +161,19 @@ export interface SleepTimer {
   remainingSeconds: number;
   remainingTracks: number;
 }
+
+export type PopoutBackgroundStyle = 'frosted' | 'solid' | 'album_art_color' | 'transparent';
+export type PopoutLayoutMode = 'stacked' | 'split_left' | 'split_right';
+export type PopoutFontSize = 'small' | 'balanced' | 'large';
+
+export interface PopoutLyricsSettings {
+  showAlbumArt: boolean;
+  showSeekbar: boolean;
+  showPlaybackControls: boolean;
+  layoutMode: PopoutLayoutMode;
+  fontSize: PopoutFontSize;
+  backgroundStyle: PopoutBackgroundStyle;
+  opacity: number;
+  karaokeMode: 'word' | 'line';
+  alwaysOnTop: boolean;
+}

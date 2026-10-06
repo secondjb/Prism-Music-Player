@@ -1,7 +1,7 @@
 use crate::audio::{self, GlobalAudioEngine};
 use crate::commands::media::MediaControlState;
 use souvlaki::MediaPlayback;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
 pub fn play_audio(
@@ -113,4 +113,58 @@ pub fn set_audio_output_device(
     device_name: Option<String>,
 ) {
     audio_engine.set_output_device(device_name);
+}
+
+#[tauri::command]
+pub fn open_lyrics_popout(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("lyrics-popout") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        return Ok(());
+    }
+
+    #[cfg(desktop)]
+    {
+        use tauri::WebviewUrl;
+        let _ = tauri::WebviewWindowBuilder::new(
+            &app,
+            "lyrics-popout",
+            WebviewUrl::App("index.html?window=lyrics-popout".into()),
+        )
+        .title("Prism - Lyrics")
+        .inner_size(460.0, 340.0)
+        .min_inner_size(280.0, 140.0)
+        .decorations(false)
+        .transparent(true)
+        .always_on_top(true)
+        .resizable(true)
+        .shadow(false)
+        .build()
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn close_lyrics_popout(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("lyrics-popout") {
+        let _ = window.hide();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn toggle_lyrics_popout(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("lyrics-popout") {
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+        } else {
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+        }
+        return Ok(());
+    }
+    open_lyrics_popout(app)
 }

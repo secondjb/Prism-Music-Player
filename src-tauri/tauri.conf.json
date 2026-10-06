@@ -18,6 +18,22 @@
         "label": "main",
         "devtools": true,
         "dragDropEnabled": false
+      },
+      {
+        "title": "Prism - Lyrics",
+        "label": "lyrics-popout",
+        "url": "index.html?window=lyrics-popout",
+        "width": 460,
+        "height": 340,
+        "minWidth": 280,
+        "minHeight": 140,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "visible": false,
+        "resizable": true,
+        "shadow": false,
+        "dragDropEnabled": false
       }
     ],
     "security": {

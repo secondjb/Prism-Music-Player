@@ -176,6 +176,9 @@ pub fn run() {
             stats::log_listening_event,
             stats::fetch_listening_events,
             stats::delete_listening_history,
+            commands::open_lyrics_popout,
+            commands::close_lyrics_popout,
+            commands::toggle_lyrics_popout,
             log_frontend_message
         ])
         .run(tauri::generate_context!())

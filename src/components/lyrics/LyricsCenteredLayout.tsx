@@ -7,7 +7,9 @@ import {
   ChevronRight,
   Target,
   RefreshCw,
+  PictureInPicture2,
 } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
 import { Track, RepeatMode } from '../../types/player';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { MarqueeText } from '../MarqueeText';
@@ -118,6 +120,12 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
 }) => {
   const [artExpanded, setArtExpanded] = useState(false);
   const [artAspectRatio, setArtAspectRatio] = useState<number | null>(null);
+
+  const handlePopout = () => {
+    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+      invoke('open_lyrics_popout').catch(() => {});
+    }
+  };
 
   useEffect(() => {
     if (!trackArt) {
@@ -417,16 +425,25 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
           </div>
         )}
 
-        {/* Exit Lyrics Button (Mobile/Compact Only) */}
+        {/* Pop-Out & Exit Lyrics Buttons (Mobile/Compact Only) */}
         {isCompact && (
-          <button
-            onClick={handleClose}
-            className="p-1.5 rounded-xl hover:text-white hover:bg-white/10 transition-colors shrink-0"
-            style={{ color: 'var(--color-stop-1, #6366f1)' }}
-            title="Exit Karaoke View"
-          >
-            <Mic2 className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={handlePopout}
+              className="p-1.5 rounded-xl hover:text-white hover:bg-white/10 transition-colors text-zinc-400"
+              title="Pop Out Lyrics (Mini Player)"
+            >
+              <PictureInPicture2 className="w-5 h-5" />
+            </button>
+            <button
+              onClick={handleClose}
+              className="p-1.5 rounded-xl hover:text-white hover:bg-white/10 transition-colors"
+              style={{ color: 'var(--color-stop-1, #6366f1)' }}
+              title="Exit Karaoke View"
+            >
+              <Mic2 className="w-5 h-5" />
+            </button>
+          </div>
         )}
       </motion.div>
 
@@ -438,7 +455,7 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
             y: controlsVisible ? 0 : 20,
           }}
           transition={{ duration: 0.3 }}
-          className={`fixed bottom-6 right-8 z-40 glass-panel border border-white/10 rounded-full px-4 py-2 shadow-2xl flex items-center gap-3 ${
+          className={`fixed bottom-6 right-8 z-40 glass-panel border border-white/10 rounded-full px-4 py-2 shadow-2xl flex items-center gap-2.5 ${
             controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
           }`}
         >
@@ -450,6 +467,14 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
               showAlways
             />
           </div>
+          {/* Pop Out Lyrics Button directly next to exit lyrics button */}
+          <button
+            onClick={handlePopout}
+            className="p-2 rounded-xl text-zinc-300 hover:text-white transition-all hover:scale-105 active:scale-95 shrink-0 bg-white/5 hover:bg-white/10 border border-white/10 shadow-sm"
+            title="Pop Out Lyrics (Mini Player)"
+          >
+            <PictureInPicture2 className="w-5 h-5" />
+          </button>
           {/* Exit Lyrics Button aligned in exact bottom-right position as main player bar */}
           <button
             onClick={handleClose}

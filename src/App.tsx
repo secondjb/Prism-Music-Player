@@ -3,6 +3,7 @@ import { usePlayerStore, getEffectiveReplayGain } from './store/usePlayerStore';
 import { Track, LibraryChunkResponse } from './types/player';
 import { useTrackArt, invalidateTrackArtCache } from './utils/useTrackArt';
 import { useAudioPlayback } from './hooks/useAudioPlayback';
+import { useMainWindowPopoutBridge } from './hooks/usePopoutSync';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { TrackList } from './components/TrackList';
@@ -92,6 +93,9 @@ export const App: React.FC = () => {
 
   // Centralized hardware, MediaSession, and playback lifecycle hook
   useAudioPlayback({ trackArt: trackArt || ambientArt });
+
+  // Cross-window synchronization bridge for popout lyrics overlay
+  useMainWindowPopoutBridge();
 
   // Load saved library.json and synchronize saved volume state on startup
   useEffect(() => {

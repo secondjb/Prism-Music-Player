@@ -8,7 +8,9 @@ import {
   Minimize2,
   Target,
   RefreshCw,
+  PictureInPicture2,
 } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
 import { Track, RepeatMode } from '../../types/player';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { MarqueeText } from '../MarqueeText';
@@ -116,6 +118,12 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
   handleManualRefresh,
 }) => {
   const [artAspectRatio, setArtAspectRatio] = useState<number | null>(null);
+
+  const handlePopout = () => {
+    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+      invoke('open_lyrics_popout').catch(() => {});
+    }
+  };
 
   useEffect(() => {
     if (!trackArt) {
@@ -500,19 +508,46 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
         )}
       </div>
 
-      {/* Exit Lyrics / Karaoke Toggle Button (Exact bottom-right corner matching main page bottom bar) */}
+      {/* Pop Out & Exit Lyrics / Karaoke Toggle Buttons (Exact bottom-right corner matching main page bottom bar) */}
       <Box
         sx={{
           position: 'fixed',
           bottom: '22px',
           right: { xs: '16px', sm: '24px' },
           zIndex: 40,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
           transition: 'opacity 0.3s ease, transform 0.3s ease',
           opacity: controlsVisible ? 1 : 0,
           transform: controlsVisible ? 'translateY(0)' : 'translateY(10px)',
           pointerEvents: controlsVisible ? 'auto' : 'none',
         }}
       >
+        <Tooltip title="Pop Out Lyrics (Mini Player)" arrow>
+          <IconButton
+            size="small"
+            onClick={handlePopout}
+            sx={{
+              p: 1,
+              borderRadius: '12px',
+              color: 'rgba(255,255,255,0.85)',
+              bgcolor: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              backdropFilter: 'blur(12px)',
+              transition: 'transform 0.15s ease, background-color 0.15s ease',
+              '&:hover': {
+                bgcolor: 'rgba(255,255,255,0.14)',
+                transform: 'scale(1.05)',
+              },
+              '&:active': {
+                transform: 'scale(0.95)',
+              },
+            }}
+          >
+            <PictureInPicture2 size={20} />
+          </IconButton>
+        </Tooltip>
         <Tooltip title="Exit Lyrics View" arrow>
           <IconButton
             size="small"

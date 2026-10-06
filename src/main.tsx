@@ -1,6 +1,9 @@
 import React, { Component, ErrorInfo, ReactNode } from "react";
 import ReactDOM from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
+import { ThemeProvider } from "@mui/material/styles";
+import { prismDarkTheme } from "./theme/prismTheme";
+import { LyricsPopoutView } from "./components/lyrics/LyricsPopoutView";
 import App from "./App";
 import "./App.css";
 
@@ -128,10 +131,25 @@ class ErrorBoundary extends Component<Props, State> {
   }
 }
 
+const isLyricsPopout =
+  typeof window !== "undefined" &&
+  new URLSearchParams(window.location.search).get("window") === "lyrics-popout";
+
+if (isLyricsPopout && typeof document !== "undefined") {
+  document.documentElement.classList.add("is-popout");
+  document.body.classList.add("is-popout");
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      {isLyricsPopout ? (
+        <ThemeProvider theme={prismDarkTheme}>
+          <LyricsPopoutView />
+        </ThemeProvider>
+      ) : (
+        <App />
+      )}
     </ErrorBoundary>
   </React.StrictMode>,
 );

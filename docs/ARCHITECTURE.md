@@ -189,8 +189,11 @@ Prism utilizes `@revolist/react-datagrid` (RevoGrid) backed by Stencil web compo
 - **Cross-Window Synchronization Bus (`src/hooks/usePopoutSync.ts`)**:
   - Employs `BroadcastChannel('prism-popout-sync')` to synchronize track changes, volume levels, play/pause states, and user commands across windows.
   - The popout window polls `get_playback_position` directly from the Rust CPAL atomic clock at 80ms intervals, ensuring 60 FPS syllable synchronization even when the main player window is minimized or occluded by fullscreen apps/games.
+- **Component & Typography Unification (`LyricLineRow.tsx` & `src/utils/lyricsTypography.ts`)**:
+  - Reuses `<LyricLineRow />` directly with `compact` mode, unifying word-level synchronized karaoke animations, Lossless Glow effects, syllable transitions, and dual romanization/translation rows across both full and mini players.
+  - Shares the `calculateBalancedFontSize` algorithm (`src/utils/lyricsTypography.ts`) with `LyricsView.tsx`, ensuring balanced font scaling, active/inactive parity, and 3-line visual focus consistency across any window size.
 - **Configurable Floating Widgets & Appearance**:
-  - Widget toggles persisted in `usePlayerStore` (`popoutLyricsSettings`): Album Art (48x48 thumbnail), Seekbar (interactive scrub), Playback Controls (Previous, Play/Pause, Next, Volume), and Word-by-Word karaoke vs plain line highlighting.
+  - Widget toggles persisted in `usePlayerStore` and dedicated `localStorage` (`popoutLyricsSettings` / `prism-popout-lyrics-settings`): Album Art (dynamic 1:1 split or stacked), Seekbar (interactive scrub), Playback Controls (Previous, Play/Pause, Next, Volume), and Word-by-Word karaoke vs plain line highlighting.
   - Appearance styles: *Frosted Glass* (blur), *Solid Dark* (ultra-low GPU), *Album Art Color* (dynamic color-mix matching current album palette), and *Transparent* (clean floating text with readability shadows for gaming/Discord overlays).
   - Window controls: Top drag handle (`data-tauri-drag-region`), Pin/Always-on-top toggle (`setAlwaysOnTop`), minimize, and close.
 

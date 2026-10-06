@@ -3,7 +3,7 @@ import { usePlayerStore } from '../store/usePlayerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useTrackArt } from '../utils/useTrackArt';
 import { fetchLrclibLyrics } from '../utils/lrclibFetcher';
-import { parseRichLyrics, ParsedLyricLine, hasExplicitWordSync, isIdenticalLyricText } from '../utils/lyricsParser';
+import { parseRichLyrics, ParsedLyricLine, hasExplicitWordSync } from '../utils/lyricsParser';
 import { createRomanizer, detectScript } from 'lyric-romanizer';
 import { enrichLineWithRomanization } from '../utils/japaneseRomanizer';
 import { invoke } from '@tauri-apps/api/core';
@@ -13,6 +13,7 @@ import { LyricsSettingsModal } from './lyrics/LyricsSettingsModal';
 import { LyricsSplitLayout } from './lyrics/LyricsSplitLayout';
 import { LyricsCenteredLayout } from './lyrics/LyricsCenteredLayout';
 import { InterludeGap, computeActiveLyricState, getLineEndSecs } from './lyrics/types';
+import { calculateBalancedFontSize } from '../utils/lyricsTypography';
 
 const romanizer = createRomanizer({ japaneseDictPath: '/dict' });
 
@@ -315,82 +316,18 @@ export const LyricsView: React.FC = () => {
 
   // Dynamic font size calculation for 'balanced' preset
   const balancedFontSize = useMemo(() => {
-    const validLines = lines.filter((l) => l.content && l.content.trim().length > 0);
-    if (validLines.length === 0) {
-      return Math.max(32, Math.min(52, Math.round(windowHeight * 0.052)));
-    }
-
-    const getEffectiveText = (l: ParsedLyricLine) => {
-      if (isTranslationEnabled && translationMode === 'replace' && l.translation && !isIdenticalLyricText(l.content, l.translation)) {
-        return l.translation.trim();
-      }
-      if (isRomanizationEnabled && romanizationMode === 'replace' && l.romanized) {
-        return l.romanized.trim();
-      }
-      return l.content.trim();
-    };
-
-    const normWidths = validLines.map((l) => {
-      const text = getEffectiveText(l);
-      let w = 0;
-      for (let i = 0; i < text.length; i++) {
-        const code = text.charCodeAt(i);
-        if (
-          (code >= 0x4e00 && code <= 0x9fff) ||
-          (code >= 0x3040 && code <= 0x30ff) ||
-          (code >= 0xac00 && code <= 0xd7af)
-        ) {
-          w += 0.95;
-        } else {
-          w += 0.54;
-        }
-      }
-      return Math.max(1, w);
-    }).sort((a, b) => a - b);
-
-    const repNormWidth = normWidths[Math.min(normWidths.length - 1, Math.floor(normWidths.length * 0.90))];
-    const medianNormWidth = normWidths[Math.floor(normWidths.length * 0.5)];
-    const availWidth = Math.max(320, Math.min(windowWidth * 0.95, 1750) - 48);
-    const targetHeight = Math.max(340, Math.min(windowHeight * 0.72, windowHeight - 160));
-
-    const hasTrans = isTranslationEnabled && translationMode === 'below' && validLines.some((l) => l.translation && !isIdenticalLyricText(l.content, l.translation));
-    const hasRom = isRomanizationEnabled && romanizationMode === 'below' && validLines.some((l) => l.romanized);
-    const subLineCount = (hasTrans ? 1 : 0) + (hasRom ? 1 : 0);
-
-    const maxCandidate = Math.min(76, Math.round(windowHeight * 0.085));
-    const minCandidate = 30;
-
-    let bestSize = minCandidate;
-    for (let candidateF = maxCandidate; candidateF >= minCandidate; candidateF--) {
-      const activeWrappedLines = Math.max(1, Math.ceil((repNormWidth * candidateF) / availWidth));
-      const inactiveWrappedLines = Math.max(1, Math.ceil((medianNormWidth * candidateF) / availWidth));
-
-      const activeHeight = activeWrappedLines * (candidateF * 1.35) + 24 + subLineCount * (Math.max(12, candidateF * 0.45) * 1.3 + 8);
-      const inactiveHeight = 2 * (inactiveWrappedLines * (candidateF * 1.35) + 24);
-      const gapsHeight = 48;
-
-      const totalRequiredHeight = activeHeight + inactiveHeight + gapsHeight;
-
-      if (totalRequiredHeight <= targetHeight && activeWrappedLines <= 2) {
-        bestSize = candidateF;
-        break;
-      }
-    }
-
-    if (bestSize === minCandidate) {
-      for (let candidateF = maxCandidate; candidateF >= minCandidate; candidateF--) {
-        const activeWrappedLines = Math.max(1, Math.ceil((repNormWidth * candidateF) / availWidth));
-        const inactiveWrappedLines = Math.max(1, Math.ceil((medianNormWidth * candidateF) / availWidth));
-        const activeHeight = activeWrappedLines * (candidateF * 1.35) + 24;
-        const inactiveHeight = 2 * (inactiveWrappedLines * (candidateF * 1.35) + 24);
-        if (activeHeight + inactiveHeight + 48 <= targetHeight) {
-          bestSize = candidateF;
-          break;
-        }
-      }
-    }
-
-    return bestSize;
+    return calculateBalancedFontSize({
+      lines,
+      availWidth: Math.max(320, Math.min(windowWidth * 0.95, 1750) - 48),
+      targetHeight: Math.max(340, Math.min(windowHeight * 0.72, windowHeight - 160)),
+      isTranslationEnabled,
+      translationMode,
+      isRomanizationEnabled,
+      romanizationMode,
+      minCandidate: 30,
+      maxCandidate: Math.min(76, Math.round(windowHeight * 0.085)),
+      defaultFallback: Math.max(32, Math.min(52, Math.round(windowHeight * 0.052))),
+    });
   }, [lines, windowWidth, windowHeight, isTranslationEnabled, translationMode, isRomanizationEnabled, romanizationMode]);
 
   // Compute dynamic font sizes based on preset & manual slider

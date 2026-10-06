@@ -3,11 +3,13 @@ import { usePlayerStore } from '../../store/usePlayerStore';
 import { PopoutLyricsSettings } from '../../types/player';
 import { useTrackArt } from '../../utils/useTrackArt';
 import { usePopoutSync } from '../../hooks/usePopoutSync';
-import { parseRichLyrics, ParsedLyricLine, isIdenticalLyricText } from '../../utils/lyricsParser';
+import { parseRichLyrics, ParsedLyricLine } from '../../utils/lyricsParser';
 import { fetchLrclibLyrics } from '../../utils/lrclibFetcher';
 import { createRomanizer, detectScript } from 'lyric-romanizer';
 import { enrichLineWithRomanization } from '../../utils/japaneseRomanizer';
 import { InterludeGap, computeActiveLyricState, getLineEndSecs } from './types';
+import { LyricLineRow } from './LyricLineRow';
+import { calculateBalancedFontSize } from '../../utils/lyricsTypography';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { updateLogoGradientFromImage } from '../../utils/colorExtractor';
@@ -59,6 +61,7 @@ export const LyricsPopoutView: React.FC = () => {
   const translationMode = usePlayerStore((s) => s.translationMode);
   const toggleTranslation = usePlayerStore((s) => s.toggleTranslation);
   const setTranslationMode = usePlayerStore((s) => s.setTranslationMode);
+  const lyricsAnimationStyle = usePlayerStore((s) => s.lyricsAnimationStyle);
 
   const { sendCommand } = usePopoutSync();
 
@@ -83,6 +86,7 @@ export const LyricsPopoutView: React.FC = () => {
   const userScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const lyricsScrollRef = useRef<HTMLDivElement | null>(null);
+  const activeLineRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const [contentSize, setContentSize] = useState({ width: 440, height: 260 });
   const [artAspectRatio, setArtAspectRatio] = useState<number | null>(null);
@@ -296,12 +300,17 @@ export const LyricsPopoutView: React.FC = () => {
 
   const { activeIndex } = activeLyricState;
 
+  const isUnsynced = lines.length > 0 && lines[0].startSecs === -1;
+
   // Auto-scroll logic: ensures active line is perfectly centered in the viewport
   const scrollToActive = useCallback(
     (smooth = true) => {
       const container = lyricsScrollRef.current;
       if (!container || activeIndex < 0) return;
-      const activeEl = document.getElementById(`popout-lyric-${activeIndex}`);
+      const activeEl =
+        activeLineRef.current ||
+        document.getElementById(`lyric-line-${activeIndex}`) ||
+        document.getElementById(`popout-lyric-${activeIndex}`);
       if (activeEl) {
         const containerRect = container.getBoundingClientRect();
         const elRect = activeEl.getBoundingClientRect();
@@ -368,26 +377,62 @@ export const LyricsPopoutView: React.FC = () => {
     }
   }, [popoutSettings.backgroundStyle, popoutSettings.opacity]);
 
-  // Dynamic font sizing: stable across lines, calibrated so ~3 lines appear comfortably at a time
+  // Dynamic font sizing: using the exact same balanced calculation as the main lyrics page player
   const computedFontSize = useMemo(() => {
     const h = contentSize.height;
+    const w = contentSize.width;
+    const isSplit = popoutSettings.layoutMode === 'split_left' || popoutSettings.layoutMode === 'split_right';
 
     if (popoutSettings.fontSize === 'small') {
       const sz = Math.max(16, Math.min(24, Math.round(h * 0.075)));
-      return { active: sz, sub: Math.max(11, Math.round(sz * 0.52)) };
+      return {
+        active: sz,
+        inactive: Math.max(13, Math.round(sz * 0.7)),
+        preset: 'normal',
+      };
     }
     if (popoutSettings.fontSize === 'large') {
       const sz = Math.max(26, Math.min(46, Math.round(h * 0.135)));
-      return { active: sz, sub: Math.max(12, Math.round(sz * 0.52)) };
+      return {
+        active: sz,
+        inactive: Math.max(18, Math.round(sz * 0.7)),
+        preset: 'large',
+      };
     }
 
-    // 'balanced' mode (default): big and readable so ~3 lines appear clearly at a time without jumping
-    const balancedSize = Math.max(24, Math.min(38, Math.round(h * 0.11)));
+    // 'balanced' mode (default): uses the exact shared calculateBalancedFontSize algorithm
+    // from the main lyrics page, ensuring active and inactive lines share the same balanced font size!
+    const availWidth = Math.max(180, isSplit ? w * 0.5 - 24 : w - 24);
+    const targetHeight = Math.max(180, h * 0.72);
+    const balancedSz = calculateBalancedFontSize({
+      lines,
+      availWidth,
+      targetHeight,
+      isTranslationEnabled,
+      translationMode,
+      isRomanizationEnabled,
+      romanizationMode,
+      minCandidate: 20,
+      maxCandidate: Math.min(46, Math.round(h * 0.16)),
+      defaultFallback: Math.max(24, Math.min(38, Math.round(h * 0.11))),
+    });
+
     return {
-      active: balancedSize,
-      sub: Math.max(12, Math.round(balancedSize * 0.52)),
+      active: balancedSz,
+      inactive: balancedSz,
+      preset: 'balanced',
     };
-  }, [contentSize.height, popoutSettings.fontSize]);
+  }, [
+    contentSize.height,
+    contentSize.width,
+    popoutSettings.fontSize,
+    popoutSettings.layoutMode,
+    lines,
+    isTranslationEnabled,
+    translationMode,
+    isRomanizationEnabled,
+    romanizationMode,
+  ]);
 
   // Volume wheel handler
   const handleVolumeWheel = (e: React.WheelEvent) => {
@@ -1213,128 +1258,35 @@ export const LyricsPopoutView: React.FC = () => {
       );
     }
 
+    const isTransparent = popoutSettings.backgroundStyle === 'transparent';
+
     return lines.map((line, idx) => {
-      const isLineActive = idx === activeIndex;
-
-      // Romanization & Translation text calculation
-      const showRom = isRomanizationEnabled && Boolean(line.romanized);
-      const showTrans =
-        isTranslationEnabled &&
-        Boolean(line.translation) &&
-        !isIdenticalLyricText(line.content, line.translation);
-
-      let mainText = line.content;
-      if (showTrans && translationMode === 'replace' && line.translation) {
-        mainText = line.translation;
-      } else if (showRom && romanizationMode === 'replace' && line.romanized) {
-        mainText = line.romanized;
-      }
-
-      const subRom = showRom && romanizationMode === 'below' ? line.romanized : null;
-      const subTrans = showTrans && translationMode === 'below' ? line.translation : null;
-
-      const isTransparent = popoutSettings.backgroundStyle === 'transparent';
-
-      const distance = Math.abs(idx - activeIndex);
-
-      let lineColor = 'rgba(255, 255, 255, 0.30)';
-      let lineOpacity = 0.22;
-      if (distance === 0) {
-        lineColor = '#ffffff';
-        lineOpacity = 1;
-      } else if (distance === 1) {
-        lineColor = 'rgba(255, 255, 255, 0.72)';
-        lineOpacity = 0.65;
-      }
+      const isActive = idx === activeIndex;
+      const isPast = idx < activeIndex;
+      const distance = Math.min(2, Math.abs(idx - activeIndex));
 
       return (
-        <div
-          id={`popout-lyric-${idx}`}
+        <LyricLineRow
           key={`${line.id}-${idx}`}
-          onClick={() => {
-            if (line.startSecs >= 0) {
-              sendCommand('seek', line.startSecs);
-            }
-          }}
-          className="transition-all duration-200 cursor-pointer select-none leading-snug w-full max-w-xl mx-auto flex flex-col items-center font-bold"
-          style={{
-            fontSize: `${computedFontSize.active}px`,
-            opacity: lineOpacity,
-            textShadow: isTransparent
-              ? '0 1px 4px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.9), 0 0 16px rgba(0,0,0,0.85)'
-              : distance === 0
-              ? '0 0 20px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)'
-              : undefined,
-            color: lineColor,
-          }}
-        >
-          {/* Main Line Content */}
-          <div className="w-full">
-            {isLineActive &&
-            popoutSettings.karaokeMode === 'word' &&
-            line.syllables &&
-            line.syllables.length > 0 ? (
-              <span>
-                {line.syllables.map((syl, sIdx) => {
-                  const curMs = currentTimeSecs * 1000;
-                  const isSylActive = curMs >= syl.timeMs && curMs < syl.timeMs + syl.durationMs;
-                  const isSylPassed = curMs >= syl.timeMs + syl.durationMs;
-                  return (
-                    <span
-                      key={sIdx}
-                      className={`inline-block font-bold transition-colors duration-150 ${
-                        syl.hasTrailingSpace ? 'mr-[0.25em]' : ''
-                      }`}
-                      style={{
-                        position: isSylActive ? 'relative' : undefined,
-                        zIndex: isSylActive ? 20 : undefined,
-                        color: isSylActive
-                          ? '#ffffff'
-                          : isSylPassed
-                          ? 'rgba(255, 255, 255, 0.90)'
-                          : 'rgba(255, 255, 255, 0.45)',
-                        opacity: isSylActive ? 1 : isSylPassed ? 0.9 : 0.45,
-                        textShadow: isSylActive
-                          ? '0 0 12px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #818cf8)'
-                          : undefined,
-                      }}
-                    >
-                      {syl.text}
-                    </span>
-                  );
-                })}
-              </span>
-            ) : (
-              mainText
-            )}
-          </div>
-
-          {/* Sub-line: Romanization below */}
-          {subRom && (
-            <div
-              className="opacity-75 tracking-normal leading-tight mt-0.5"
-              style={{
-                fontSize: `${computedFontSize.sub}px`,
-                color: isLineActive ? 'var(--color-stop-2, #a5b4fc)' : 'rgba(255,255,255,0.4)',
-              }}
-            >
-              {subRom}
-            </div>
-          )}
-
-          {/* Sub-line: Translation below */}
-          {subTrans && (
-            <div
-              className="opacity-70 tracking-normal leading-tight mt-0.5 italic"
-              style={{
-                fontSize: `${computedFontSize.sub}px`,
-                color: isLineActive ? 'rgba(255, 255, 255, 0.85)' : 'rgba(255, 255, 255, 0.35)',
-              }}
-            >
-              {subTrans}
-            </div>
-          )}
-        </div>
+          line={line}
+          idx={idx}
+          isActive={isActive}
+          isPast={isPast}
+          distance={distance}
+          isUnsynced={isUnsynced}
+          lyricsAnimationStyle={lyricsAnimationStyle}
+          lyricsFontSizePreset={computedFontSize.preset}
+          isRomanizationEnabled={isRomanizationEnabled}
+          romanizationMode={romanizationMode}
+          isTranslationEnabled={isTranslationEnabled}
+          translationMode={translationMode}
+          activeFontSize={computedFontSize.active}
+          inactiveFontSize={computedFontSize.inactive}
+          activeLineRef={isActive ? activeLineRef : null}
+          onSeek={(secs) => sendCommand('seek', secs)}
+          compact
+          isTransparent={isTransparent}
+        />
       );
     });
   }

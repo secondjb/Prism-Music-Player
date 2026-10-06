@@ -386,6 +386,8 @@ export interface LyricLineRowProps {
   inactiveFontSize: number;
   activeLineRef: React.Ref<HTMLDivElement> | null;
   onSeek: (secs: number, targetIdx?: number) => void;
+  compact?: boolean;
+  isTransparent?: boolean;
 }
 
 export const LyricLineRow = React.memo<LyricLineRowProps>(
@@ -406,6 +408,8 @@ export const LyricLineRow = React.memo<LyricLineRowProps>(
     inactiveFontSize,
     activeLineRef,
     onSeek,
+    compact = false,
+    isTransparent = false,
   }) => {
     if (lyricsFontSizePreset === 'maximum' && !isUnsynced && distance > 1) {
       return null;
@@ -556,7 +560,9 @@ export const LyricLineRow = React.memo<LyricLineRowProps>(
     }, [line.syllables]);
 
     const lineMaxWidth =
-      lyricsFontSizePreset === 'balanced'
+      compact
+        ? '100%'
+        : lyricsFontSizePreset === 'balanced'
         ? 'min(1750px, 95vw)'
         : lyricsFontSizePreset === 'maximum'
         ? 'min(1400px, 94vw)'
@@ -568,7 +574,9 @@ export const LyricLineRow = React.memo<LyricLineRowProps>(
       <div
         id={`lyric-line-${idx}`}
         ref={isActive && !isUnsynced ? activeLineRef : null}
-        className={`text-center cursor-pointer w-full px-8 sm:px-12 py-3.5 rounded-2xl flex flex-col items-center justify-center break-words [text-wrap:balance] overflow-visible relative ${
+        className={`text-center cursor-pointer w-full ${
+          compact ? 'px-2 py-1.5 rounded-xl' : 'px-8 sm:px-12 py-3.5 rounded-2xl'
+        } flex flex-col items-center justify-center break-words [text-wrap:balance] overflow-visible relative ${
           isActive && !isUnsynced
             ? 'font-extrabold'
             : isUnsynced
@@ -586,6 +594,12 @@ export const LyricLineRow = React.memo<LyricLineRowProps>(
           transition: 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease-out',
           position: 'relative',
           zIndex: isLosslessGlowActive ? 30 : isActive && !isUnsynced ? 25 : 1,
+          ...(isTransparent
+            ? {
+                textShadow:
+                  '0 1px 4px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.9), 0 0 16px rgba(0,0,0,0.85)',
+              }
+            : {}),
           ...(isLosslessGlowActive
             ? {
                 filter:
@@ -741,6 +755,8 @@ export const LyricLineRow = React.memo<LyricLineRowProps>(
         prev.lyricsAnimationStyle === next.lyricsAnimationStyle &&
         prev.lyricsFontSizePreset === next.lyricsFontSizePreset &&
         prev.line === next.line &&
+        prev.compact === next.compact &&
+        prev.isTransparent === next.isTransparent &&
         prev.isRomanizationEnabled === next.isRomanizationEnabled &&
         prev.romanizationMode === next.romanizationMode &&
         prev.isTranslationEnabled === next.isTranslationEnabled &&
@@ -756,6 +772,8 @@ export const LyricLineRow = React.memo<LyricLineRowProps>(
       prev.lyricsAnimationStyle === next.lyricsAnimationStyle &&
       prev.lyricsFontSizePreset === next.lyricsFontSizePreset &&
       prev.line === next.line &&
+      prev.compact === next.compact &&
+      prev.isTransparent === next.isTransparent &&
       prev.isRomanizationEnabled === next.isRomanizationEnabled &&
       prev.romanizationMode === next.romanizationMode &&
       prev.isTranslationEnabled === next.isTranslationEnabled &&

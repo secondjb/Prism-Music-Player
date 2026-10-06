@@ -337,35 +337,14 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                   playButtonColor="primary"
                 />
 
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                  <Box ref={volRefCallback}>
-                    <PlayerVolumeControl
-                      volume={volume}
-                      setVolume={setVolume}
-                      width={{ xs: 120, sm: 150, md: 180 }}
-                      showAlways
-                    />
-                  </Box>
-                  <Tooltip title="Exit Lyrics View" arrow>
-                    <IconButton
-                      size="small"
-                      onClick={handleClose}
-                      sx={{
-                        p: 1,
-                        borderRadius: '12px',
-                        color: '#ffffff',
-                        bgcolor: 'var(--color-stop-1, #6366f1)',
-                        boxShadow: '0 0 14px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
-                        '&:hover': {
-                          bgcolor: 'var(--color-stop-1, #6366f1)',
-                          filter: 'brightness(1.1)',
-                        },
-                      }}
-                    >
-                      <Mic2 size={20} />
-                    </IconButton>
-                  </Tooltip>
-                </Stack>
+                <Box ref={volRefCallback} sx={{ display: 'flex', alignItems: 'center' }}>
+                  <PlayerVolumeControl
+                    volume={volume}
+                    setVolume={setVolume}
+                    width={{ xs: 120, sm: 150, md: 180 }}
+                    showAlways
+                  />
+                </Box>
               </Box>
             </Box>
           </Box>
@@ -394,7 +373,7 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
               borderColor: 'color-mix(in srgb, var(--color-stop-2, #818cf8) 60%, white)',
               boxShadow: '0 8px 24px -4px color-mix(in srgb, var(--color-stop-1, #6366f1) 50%, transparent)',
             }}
-            className="fixed bottom-10 right-16 z-30 flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-xs font-semibold shadow-xl backdrop-blur-md transition-all border animate-in fade-in slide-in-from-bottom-3 cursor-pointer hover:brightness-110 active:scale-95"
+            className="fixed bottom-10 right-20 z-30 flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-xs font-semibold shadow-xl backdrop-blur-md transition-all border animate-in fade-in slide-in-from-bottom-3 cursor-pointer hover:brightness-110 active:scale-95"
           >
             <Target className="w-4 h-4" />
             <span>Re-sync to music</span>
@@ -490,6 +469,45 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
           })
         )}
       </div>
+
+      {/* Exit Lyrics / Karaoke Toggle Button (Exact bottom-right corner matching main page bottom bar) */}
+      <Box
+        sx={{
+          position: 'fixed',
+          bottom: '22px',
+          right: { xs: '16px', sm: '24px' },
+          zIndex: 40,
+          transition: 'opacity 0.3s ease, transform 0.3s ease',
+          opacity: controlsVisible ? 1 : 0,
+          transform: controlsVisible ? 'translateY(0)' : 'translateY(10px)',
+          pointerEvents: controlsVisible ? 'auto' : 'none',
+        }}
+      >
+        <Tooltip title="Exit Lyrics View" arrow>
+          <IconButton
+            size="small"
+            onClick={handleClose}
+            sx={{
+              p: 1,
+              borderRadius: '12px',
+              color: '#ffffff',
+              bgcolor: 'var(--color-stop-1, #6366f1)',
+              boxShadow: '0 0 14px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+              transition: 'transform 0.15s ease, filter 0.15s ease',
+              '&:hover': {
+                bgcolor: 'var(--color-stop-1, #6366f1)',
+                filter: 'brightness(1.1)',
+                transform: 'scale(1.05)',
+              },
+              '&:active': {
+                transform: 'scale(0.95)',
+              },
+            }}
+          >
+            <Mic2 size={20} />
+          </IconButton>
+        </Tooltip>
+      </Box>
     </Box>
   );
 };

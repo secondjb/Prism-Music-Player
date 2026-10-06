@@ -80,7 +80,9 @@ export const PlayerVolumeControl: React.FC<PlayerVolumeControlProps> = ({
       sx={{
         alignItems: 'center',
         width: width || { xs: 75, sm: 105, md: 155 },
-        flexShrink: 0,
+        maxWidth: '100%',
+        minWidth: 0,
+        flexShrink: 1,
         display: showAlways ? 'flex' : { xs: 'none', sm: 'flex' },
       }}
       title="Scroll wheel to adjust volume"
@@ -121,7 +123,7 @@ export const PlayerVolumeControl: React.FC<PlayerVolumeControlProps> = ({
 
       {/* Numeric Percentage / Direct Input */}
       {showNumericInput && (
-        <Box sx={{ width: size === 'lg' ? 42 : 34, flexShrink: 0, display: { xs: 'none', md: 'flex' }, justifyContent: 'flex-end' }}>
+        <Box sx={{ width: size === 'lg' ? 42 : 36, flexShrink: 0, display: showAlways ? 'flex' : { xs: 'none', md: 'flex' }, justifyContent: 'flex-end' }}>
           {isEditingVol ? (
             <input
               type="number"

@@ -374,12 +374,11 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                   playButtonColor="primary"
                 />
 
-                <Box ref={volRefCallback} sx={{ display: 'flex', alignItems: 'center' }}>
+                <Box ref={volRefCallback} sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flexShrink: 1 }}>
                   <PlayerVolumeControl
                     volume={volume}
                     setVolume={setVolume}
-                    width={{ xs: 140, sm: 180, md: 230 }}
-                    size="lg"
+                    width={{ xs: 110, sm: 130, md: 155 }}
                     showAlways
                   />
                 </Box>

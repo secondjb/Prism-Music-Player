@@ -1,6 +1,12 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { usePlayerStore } from '../store/usePlayerStore';
-import { Track } from '../types/player';
+import React, { useState, useMemo } from 'react';
+import Box from '@mui/material/Box';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import Divider from '@mui/material/Divider';
 import {
   Play,
   ListEnd,
@@ -11,6 +17,8 @@ import {
   X,
   Plus,
 } from 'lucide-react';
+import { usePlayerStore } from '../store/usePlayerStore';
+import { Track } from '../types/player';
 import { CreatePlaylistModal } from './CreatePlaylistModal';
 
 export const BatchActionPill: React.FC = () => {
@@ -27,47 +35,12 @@ export const BatchActionPill: React.FC = () => {
   const playNextTracks = usePlayerStore((s) => s.playNextTracks);
   const likeMultipleTracks = usePlayerStore((s) => s.likeMultipleTracks);
   const addTracksToPlaylist = usePlayerStore((s) => s.addTracksToPlaylist);
+  const createPlaylist = usePlayerStore((s) => s.createPlaylist);
 
   const [batchQueueAdded, setBatchQueueAdded] = useState(false);
   const [batchNextAdded, setBatchNextAdded] = useState(false);
-  const [showPlaylistMenu, setShowPlaylistMenu] = useState(false);
+  const [playlistAnchorEl, setPlaylistAnchorEl] = useState<null | HTMLElement>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-
-  const menuRef = useRef<HTMLDivElement>(null);
-  const playlistBtnRef = useRef<HTMLButtonElement>(null);
-
-  // Close playlist submenu on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(e.target as Node) &&
-        playlistBtnRef.current &&
-        !playlistBtnRef.current.contains(e.target as Node)
-      ) {
-        setShowPlaylistMenu(false);
-      }
-    };
-    if (showPlaylistMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showPlaylistMenu]);
-
-  // Close on Escape
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (showPlaylistMenu) {
-          setShowPlaylistMenu(false);
-        } else if (selectedTrackIds.length > 0) {
-          clearSelection();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showPlaylistMenu, selectedTrackIds.length, clearSelection]);
 
   const selectedTracks = useMemo(() => {
     const trackMap = new Map<string, Track>();
@@ -99,7 +72,7 @@ export const BatchActionPill: React.FC = () => {
     if (selectedTracks.length > 0) {
       addTracksToQueue(selectedTracks);
       setBatchQueueAdded(true);
-      setTimeout(() => setBatchQueueAdded(false), 1200);
+      setTimeout(() => setBatchQueueAdded(false), 1500);
     }
   };
 
@@ -107,7 +80,7 @@ export const BatchActionPill: React.FC = () => {
     if (selectedTracks.length > 0) {
       playNextTracks(selectedTracks);
       setBatchNextAdded(true);
-      setTimeout(() => setBatchNextAdded(false), 1200);
+      setTimeout(() => setBatchNextAdded(false), 1500);
     }
   };
 
@@ -115,203 +88,269 @@ export const BatchActionPill: React.FC = () => {
     likeMultipleTracks(selectedTrackIds, !allSelectedLiked);
   };
 
-  const handleCreatePlaylistConfirm = (name: string) => {
-    const id = `pl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    usePlayerStore.setState((state) => ({
-      playlists: [
-        ...state.playlists,
-        {
-          id,
-          name,
-          trackIds: [...selectedTrackIds],
-          createdAt: Date.now(),
-        },
-      ],
-    }));
-    setShowCreateModal(false);
-    setShowPlaylistMenu(false);
-  };
-
   return (
-    <>
-      <div
-        className="fixed bottom-32 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-3.5 py-2 rounded-2xl shadow-2xl border backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-3 duration-150 select-none pointer-events-auto"
-        style={{
-          backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 16%, #121216)',
-          borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, rgba(255, 255, 255, 0.18))',
-          boxShadow:
-            '0 14px 40px -4px rgba(0, 0, 0, 0.85), 0 0 24px color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, transparent)',
+    <Box
+      sx={{
+        position: 'fixed',
+        bottom: 104,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 40,
+        bgcolor: 'rgba(18, 18, 24, 0.92)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        border: '1px solid color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, rgba(255, 255, 255, 0.15))',
+        boxShadow:
+          '0 20px 50px -8px rgba(0, 0, 0, 0.85), 0 0 24px color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+        borderRadius: '16px',
+        px: 2,
+        py: 1.25,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        maxWidth: 'calc(100vw - 2rem)',
+        userSelect: 'none',
+      }}
+    >
+      {/* Selection count badge */}
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', pr: 1.5, borderRight: '1px solid rgba(255, 255, 255, 0.1)' }}>
+        <Box
+          sx={{
+            width: 24,
+            height: 24,
+            borderRadius: '50%',
+            bgcolor: 'var(--color-stop-1, #6366f1)',
+            color: '#ffffff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '11px',
+            fontFamily: 'monospace',
+            fontWeight: 800,
+          }}
+        >
+          {selectedTrackIds.length}
+        </Box>
+        <Typography variant="caption" sx={{ color: '#ffffff', fontWeight: 600, fontSize: '12px' }}>
+          Selected
+        </Typography>
+      </Stack>
+
+      {/* Play Button */}
+      <Button
+        size="small"
+        onClick={handlePlay}
+        startIcon={<Play size={14} fill="#09090b" />}
+        sx={{
+          bgcolor: '#ffffff',
+          color: '#09090b',
+          borderRadius: '10px',
+          px: 1.75,
+          py: 0.5,
+          fontSize: '12px',
+          fontWeight: 700,
+          textTransform: 'none',
+          boxShadow: '0 2px 8px rgba(255, 255, 255, 0.2)',
+          '&:hover': { bgcolor: '#f4f4f5' },
         }}
       >
-        <div className="flex items-center gap-2 pr-2.5 border-r border-white/10 text-xs font-bold text-white">
-          <span
-            className="w-2 h-2 rounded-full animate-pulse"
-            style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-          />
-          <span>{selectedTrackIds.length} Songs</span>
-        </div>
+        Play
+      </Button>
 
-        <button
-          type="button"
-          onClick={handlePlay}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer hover:scale-105 active:scale-95"
-          title="Play Selection"
-        >
-          <Play className="w-3.5 h-3.5 fill-current" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-          <span>Play</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={handleQueue}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold ${
-            batchQueueAdded
-              ? 'bg-emerald-500/20 text-emerald-300'
-              : 'bg-white/10 hover:bg-white/20 text-white'
-          } transition-all cursor-pointer hover:scale-105 active:scale-95`}
-          title={batchQueueAdded ? 'Queued!' : 'Add to Queue'}
-        >
-          {batchQueueAdded ? (
-            <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
+      {/* Add to Queue Button */}
+      <Button
+        size="small"
+        onClick={handleQueue}
+        startIcon={
+          batchQueueAdded ? (
+            <Check size={14} style={{ color: '#34d399' }} />
           ) : (
-            <ListEnd className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-          )}
-          <span>{batchQueueAdded ? 'Queued!' : 'Queue'}</span>
-        </button>
+            <ListEnd size={14} style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+          )
+        }
+        sx={{
+          bgcolor: batchQueueAdded ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.08)',
+          color: batchQueueAdded ? '#6ee7b7' : '#ffffff',
+          borderRadius: '10px',
+          px: 1.5,
+          py: 0.5,
+          fontSize: '12px',
+          fontWeight: 600,
+          textTransform: 'none',
+          '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.15)' },
+        }}
+      >
+        {batchQueueAdded ? 'Queued!' : 'Queue'}
+      </Button>
 
-        <button
-          type="button"
-          onClick={handlePlayNext}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold ${
-            batchNextAdded
-              ? 'bg-emerald-500/20 text-emerald-300'
-              : 'bg-white/10 hover:bg-white/20 text-white'
-          } transition-all cursor-pointer hover:scale-105 active:scale-95`}
-          title={batchNextAdded ? 'Added Next!' : 'Play Next'}
-        >
-          {batchNextAdded ? (
-            <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
+      {/* Play Next Button */}
+      <Button
+        size="small"
+        onClick={handlePlayNext}
+        startIcon={
+          batchNextAdded ? (
+            <Check size={14} style={{ color: '#34d399' }} />
           ) : (
-            <ListPlus className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-          )}
-          <span>{batchNextAdded ? 'Next!' : 'Next'}</span>
-        </button>
+            <ListPlus size={14} style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+          )
+        }
+        sx={{
+          bgcolor: batchNextAdded ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.08)',
+          color: batchNextAdded ? '#6ee7b7' : '#ffffff',
+          borderRadius: '10px',
+          px: 1.5,
+          py: 0.5,
+          fontSize: '12px',
+          fontWeight: 600,
+          textTransform: 'none',
+          '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.15)' },
+        }}
+      >
+        {batchNextAdded ? 'Next!' : 'Next'}
+      </Button>
 
-        {/* Playlist Button & Popover */}
-        <div className="relative">
-          <button
-            ref={playlistBtnRef}
-            type="button"
-            onClick={() => setShowPlaylistMenu(!showPlaylistMenu)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer hover:scale-105 active:scale-95"
-            title="Add to Playlist"
-          >
-            <PlusCircle className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-            <span>Playlist</span>
-          </button>
+      {/* Add to Playlist Button */}
+      <Button
+        size="small"
+        onClick={(e) => setPlaylistAnchorEl(e.currentTarget)}
+        startIcon={<PlusCircle size={14} style={{ color: 'var(--color-stop-1, #6366f1)' }} />}
+        sx={{
+          bgcolor: 'rgba(255, 255, 255, 0.08)',
+          color: '#ffffff',
+          borderRadius: '10px',
+          px: 1.5,
+          py: 0.5,
+          fontSize: '12px',
+          fontWeight: 600,
+          textTransform: 'none',
+          '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.15)' },
+        }}
+      >
+        Playlist
+      </Button>
 
-          {showPlaylistMenu && (
-            <div
-              ref={menuRef}
-              style={{
-                backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 12%, #141416)',
-                borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 30%, rgba(255, 255, 255, 0.15))',
-                boxShadow:
-                  '0 16px 40px -4px rgba(0, 0, 0, 0.85), 0 0 20px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
-                backdropFilter: 'blur(24px)',
-              }}
-              className="absolute left-1/2 -translate-x-1/2 bottom-full mb-3 w-52 border rounded-xl p-1.5 z-50 flex flex-col gap-0.5 max-h-60 overflow-y-auto custom-scrollbar shadow-2xl animate-in fade-in zoom-in-95 duration-100"
-            >
-              <div
-                className="px-2 py-1 text-[10px] font-semibold text-zinc-400 border-b uppercase tracking-wider"
-                style={{
-                  borderColor:
-                    'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
-                }}
-              >
-                Your Playlists
-              </div>
-              {playlists.length === 0 ? (
-                <div className="px-2 py-2 text-zinc-500 italic text-[11px]">No playlists yet</div>
-              ) : (
-                playlists.map((pl) => {
-                  const allInPlaylist = selectedTrackIds.every((id) => pl.trackIds.includes(id));
-                  return (
-                    <button
-                      key={pl.id}
-                      type="button"
-                      onClick={() => {
-                        addTracksToPlaylist(pl.id, selectedTrackIds);
-                        setShowPlaylistMenu(false);
-                      }}
-                      className="flex items-center justify-between w-full px-2 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer text-zinc-200 hover:text-white hover:bg-white/10"
-                    >
-                      <span className="truncate pr-2">{pl.name}</span>
-                      {allInPlaylist && (
-                        <span className="flex items-center justify-center shrink-0 w-4 h-4 ml-1.5">
-                          <Check className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
-                        </span>
-                      )}
-                    </button>
-                  );
-                })
-              )}
+      {/* Playlist Dropdown Menu */}
+      <Menu
+        anchorEl={playlistAnchorEl}
+        open={Boolean(playlistAnchorEl)}
+        onClose={() => setPlaylistAnchorEl(null)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        slotProps={{
+          paper: {
+            sx: {
+              minWidth: 200,
+              maxHeight: 280,
+              p: 0.5,
+            },
+          },
+        }}
+      >
+        <Typography
+          variant="caption"
+          sx={{
+            display: 'block',
+            px: 1.5,
+            py: 0.5,
+            fontWeight: 700,
+            color: 'text.secondary',
+            fontSize: '10px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            mb: 0.5,
+          }}
+        >
+          Your Playlists
+        </Typography>
 
-              <div
-                className="border-t my-0.5"
-                style={{
-                  borderColor:
-                    'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, rgba(255, 255, 255, 0.08))',
-                }}
-              />
-
-              <button
-                type="button"
+        {playlists.length === 0 ? (
+          <MenuItem disabled sx={{ fontSize: '11px', color: 'text.secondary', fontStyle: 'italic' }}>
+            No playlists yet
+          </MenuItem>
+        ) : (
+          playlists.map((pl) => {
+            const allInPlaylist = selectedTrackIds.every((id) => pl.trackIds.includes(id));
+            return (
+              <MenuItem
+                key={pl.id}
                 onClick={() => {
-                  setShowCreateModal(true);
-                  setShowPlaylistMenu(false);
+                  addTracksToPlaylist(pl.id, selectedTrackIds);
+                  setPlaylistAnchorEl(null);
                 }}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer font-medium hover:bg-white/10"
-                style={{ color: 'var(--color-stop-1, #6366f1)' }}
+                sx={{ display: 'flex', justifyContent: 'space-between' }}
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>New Playlist...</span>
-              </button>
-            </div>
-          )}
-        </div>
+                <Typography noWrap sx={{ fontSize: '12px', flex: 1 }}>
+                  {pl.name}
+                </Typography>
+                {allInPlaylist && (
+                  <Check size={14} style={{ color: 'var(--color-stop-1, #6366f1)', marginLeft: 8 }} />
+                )}
+              </MenuItem>
+            );
+          })
+        )}
 
-        <button
-          type="button"
-          onClick={handleToggleLike}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-all cursor-pointer hover:scale-105 active:scale-95"
-          title={allSelectedLiked ? 'Unlike Selected' : 'Like Selected'}
+        <Divider sx={{ my: 0.5, borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+
+        <MenuItem
+          onClick={() => {
+            setPlaylistAnchorEl(null);
+            setShowCreateModal(true);
+          }}
+          sx={{ color: 'var(--color-stop-1, #6366f1)' }}
         >
-          <Heart
-            className={`w-3.5 h-3.5 ${
-              allSelectedLiked ? 'fill-pink-500 text-pink-500' : 'text-zinc-300'
-            }`}
-          />
-          <span>{allSelectedLiked ? 'Unlike' : 'Like'}</span>
-        </button>
+          <Plus size={14} style={{ marginRight: 8 }} />
+          <Typography sx={{ fontSize: '12px', fontWeight: 600 }}>New Playlist...</Typography>
+        </MenuItem>
+      </Menu>
 
-        <button
-          type="button"
-          onClick={() => clearSelection()}
-          className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition-colors ml-0.5 cursor-pointer"
-          title="Deselect All (Esc)"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
-      </div>
+      {/* Like / Unlike Button */}
+      <IconButton
+        size="small"
+        onClick={handleToggleLike}
+        sx={{
+          bgcolor: 'rgba(255, 255, 255, 0.08)',
+          color: allSelectedLiked ? '#ec4899' : 'var(--color-stop-1, #6366f1)',
+          p: 0.75,
+          borderRadius: '10px',
+          '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.15)' },
+        }}
+        title={allSelectedLiked ? 'Unlike Selected' : 'Like Selected'}
+      >
+        <Heart size={16} fill={allSelectedLiked ? '#ec4899' : 'transparent'} />
+      </IconButton>
 
+      {/* Clear Selection Button */}
+      <IconButton
+        size="small"
+        onClick={clearSelection}
+        sx={{
+          color: '#a1a1aa',
+          p: 0.75,
+          borderRadius: '10px',
+          '&:hover': { color: '#ffffff', bgcolor: 'rgba(255, 255, 255, 0.1)' },
+        }}
+        title="Clear Selection (Esc)"
+      >
+        <X size={16} />
+      </IconButton>
+
+      {/* Create Playlist Modal */}
       <CreatePlaylistModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onConfirm={handleCreatePlaylistConfirm}
-        title="New Playlist with Selection"
-        description={`Create a new playlist containing the ${selectedTrackIds.length} selected tracks.`}
+        onConfirm={(name) => {
+          createPlaylist(name);
+          setTimeout(() => {
+            const latest = usePlayerStore.getState().playlists;
+            const created = latest.find((p) => p.name === name);
+            if (created) {
+              addTracksToPlaylist(created.id, selectedTrackIds);
+            }
+          }, 50);
+        }}
       />
-    </>
+    </Box>
   );
 };

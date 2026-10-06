@@ -1,89 +1,19 @@
 import React from 'react';
+import Box from '@mui/material/Box';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { Track } from '../types/player';
-import { Play, ChevronLeft } from 'lucide-react';
-import { TrackList } from './TrackList';
-import { useTrackArt } from '../utils/useTrackArt';
-
-const AlbumSection: React.FC<{ albumName: string; tracks: Track[]; artistName: string }> = ({ albumName, tracks, artistName }) => {
-  const setQueue = usePlayerStore((s) => s.setQueue);
-  const playIndex = usePlayerStore((s) => s.playIndex);
-  const navigateToAlbum = usePlayerStore((s) => s.navigateToAlbum);
-  
-  const [isVisible, setIsVisible] = React.useState(false);
-  const ref = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) setIsVisible(true);
-      },
-      { rootMargin: '200px' }
-    );
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, []);
-
-  const art = useTrackArt(isVisible ? tracks[0] : null);
-
-  const playAlbum = () => {
-    setQueue(tracks);
-    playIndex(0);
-  };
-
-  return (
-    <div ref={ref} className="mb-8 bg-white/5 rounded-2xl p-4 sm:p-6 border border-white/10">
-      <div className="flex flex-col sm:flex-row items-center sm:items-end gap-4 sm:gap-6 mb-4 text-center sm:text-left">
-        <div 
-          className="w-28 h-28 sm:w-32 sm:h-32 rounded-xl overflow-hidden shadow-lg cursor-pointer group relative shrink-0"
-          onClick={() => navigateToAlbum(albumName)}
-        >
-          {art ? (
-            <img src={art} alt={albumName} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-          ) : (
-            <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
-              <span className="text-zinc-500">No Art</span>
-            </div>
-          )}
-          <div 
-            className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-            onClick={(e) => { e.stopPropagation(); playAlbum(); }}
-          >
-            <div 
-              className="w-10 h-10 rounded-full text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"
-              style={{
-                backgroundColor: 'var(--color-stop-1, #6366f1)',
-                boxShadow: '0 8px 24px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
-              }}
-            >
-              <Play className="w-5 h-5 fill-white ml-1" />
-            </div>
-          </div>
-        </div>
-        <div className="flex-1 min-w-0 pb-1 sm:pb-2">
-          <h3 
-            className="text-xl sm:text-2xl font-bold text-white hover:underline cursor-pointer truncate"
-            onClick={() => navigateToAlbum(albumName)}
-          >
-            {albumName}
-          </h3>
-          <p className="text-zinc-400 text-xs sm:text-sm mt-1 truncate">{artistName} • {tracks.length} songs</p>
-        </div>
-      </div>
-      <TrackList tracks={tracks} hideControls={true} autoHeight={true} />
-    </div>
-  );
-};
+import { ArtistDetailHeader } from './artists/ArtistDetailHeader';
+import { ArtistAlbumSection } from './artists/ArtistAlbumSection';
 
 export const ArtistView: React.FC = () => {
   const selectedArtist = usePlayerStore((s) => s.selectedArtist);
   const tracks = usePlayerStore((s) => s.tracks);
   const setActiveTab = usePlayerStore((s) => s.setActiveTab);
-  
+
   if (!selectedArtist) return null;
-  
+
   const artistTracks = tracks.filter((t) => t.artist === selectedArtist || t.artist?.includes(selectedArtist));
-  
+
   const albumsMap: Record<string, Track[]> = {};
   artistTracks.forEach((track) => {
     const albumName = track.album || 'Unknown Album';
@@ -92,35 +22,27 @@ export const ArtistView: React.FC = () => {
     }
     albumsMap[albumName].push(track);
   });
-  
-  // Sort albums by name or year if we had it. Let's just do name for now.
+
   const sortedAlbums = Object.keys(albumsMap).sort();
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto pr-2 pb-36 custom-scrollbar">
-      <div className="flex items-center gap-4 mb-6 sticky top-0 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl px-6 py-3.5 z-10 shadow-lg my-2">
-        <button 
-          onClick={() => setActiveTab('artists')}
-          className="p-2 rounded-full hover:bg-white/10 transition-colors"
-        >
-          <ChevronLeft className="w-6 h-6 text-white" />
-        </button>
-        <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">{selectedArtist}</h2>
-          <p className="text-zinc-400 text-sm">{artistTracks.length} total songs</p>
-        </div>
-      </div>
-      
-      <div className="flex flex-col gap-2">
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', pr: 1, pb: 16 }} className="custom-scrollbar">
+      <ArtistDetailHeader
+        artistName={selectedArtist}
+        totalSongs={artistTracks.length}
+        onBack={() => setActiveTab('artists')}
+      />
+
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         {sortedAlbums.map((albumName) => (
-          <AlbumSection 
-            key={albumName} 
-            albumName={albumName} 
-            tracks={albumsMap[albumName]} 
-            artistName={selectedArtist} 
+          <ArtistAlbumSection
+            key={albumName}
+            albumName={albumName}
+            tracks={albumsMap[albumName]}
+            artistName={selectedArtist}
           />
         ))}
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 };

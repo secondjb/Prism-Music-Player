@@ -15,6 +15,8 @@ export interface PlayerControlsProps {
   onToggleShuffle: () => void;
   repeatMode: RepeatMode;
   onCycleRepeatMode: () => void;
+  size?: 'sm' | 'md' | 'lg';
+  playButtonColor?: 'white' | 'primary';
 }
 
 export const PlayerControls: React.FC<PlayerControlsProps> = ({
@@ -26,7 +28,13 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   onToggleShuffle,
   repeatMode,
   onCycleRepeatMode,
+  size = 'md',
+  playButtonColor = 'white',
 }) => {
+  const playBtnDiameter = size === 'sm' ? 36 : size === 'lg' ? 52 : 44;
+  const mainIconSize = size === 'sm' ? 16 : size === 'lg' ? 24 : 20;
+  const navIconSize = size === 'sm' ? 16 : size === 'lg' ? 24 : 20;
+  const auxIconSize = size === 'sm' ? 14 : size === 'lg' ? 18 : 16;
   return (
     <Stack direction="row" spacing={{ xs: 1.5, sm: 2 }} sx={{ alignItems: 'center', mb: 0.5 }}>
       {/* Shuffle Button */}
@@ -47,7 +55,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
             },
           }}
         >
-          <Shuffle size={16} />
+          <Shuffle size={auxIconSize} />
         </IconButton>
       </Tooltip>
 
@@ -62,7 +70,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
             '&:hover': { color: '#ffffff' },
           }}
         >
-          <SkipBack size={20} />
+          <SkipBack size={navIconSize} />
         </IconButton>
       </Tooltip>
 
@@ -71,22 +79,25 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
         component="button"
         onClick={onTogglePlay}
         sx={{
-          width: 44,
-          height: 44,
+          width: playBtnDiameter,
+          height: playBtnDiameter,
           borderRadius: '50%',
-          bgcolor: '#ffffff',
-          color: '#09090b',
+          bgcolor: playButtonColor === 'primary' ? 'var(--color-stop-1, #6366f1)' : '#ffffff',
+          color: playButtonColor === 'primary' ? '#ffffff' : '#09090b',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 4px 16px rgba(255, 255, 255, 0.15)',
+          boxShadow:
+            playButtonColor === 'primary'
+              ? '0 4px 16px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)'
+              : '0 4px 16px rgba(255, 255, 255, 0.15)',
           cursor: 'pointer',
           border: 'none',
           outline: 'none',
-          transition: 'transform 0.15s ease',
+          transition: 'transform 0.15s ease, filter 0.15s ease',
           '&:hover': {
             transform: 'scale(1.06)',
-            bgcolor: '#ffffff',
+            filter: 'brightness(1.08)',
           },
           '&:active': {
             transform: 'scale(0.95)',
@@ -95,9 +106,13 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
         title={isPlaying ? 'Pause' : 'Play'}
       >
         {isPlaying ? (
-          <Pause size={20} fill="#09090b" />
+          <Pause size={mainIconSize} fill={playButtonColor === 'primary' ? '#ffffff' : '#09090b'} />
         ) : (
-          <Play size={20} fill="#09090b" style={{ marginLeft: 2 }} />
+          <Play
+            size={mainIconSize}
+            fill={playButtonColor === 'primary' ? '#ffffff' : '#09090b'}
+            style={{ marginLeft: 2 }}
+          />
         )}
       </Box>
 
@@ -112,7 +127,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
             '&:hover': { color: '#ffffff' },
           }}
         >
-          <SkipForward size={20} />
+          <SkipForward size={navIconSize} />
         </IconButton>
       </Tooltip>
 
@@ -143,7 +158,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
             },
           }}
         >
-          {repeatMode === 'one' ? <Repeat1 size={16} /> : <Repeat size={16} />}
+          {repeatMode === 'one' ? <Repeat1 size={auxIconSize} /> : <Repeat size={auxIconSize} />}
         </IconButton>
       </Tooltip>
     </Stack>

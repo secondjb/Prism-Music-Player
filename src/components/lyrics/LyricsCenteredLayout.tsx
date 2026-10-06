@@ -5,27 +5,19 @@ import {
   Columns2,
   ChevronLeft,
   ChevronRight,
-  Shuffle,
-  SkipBack,
-  Play,
-  Pause,
-  SkipForward,
-  Repeat,
-  Repeat1,
-  Volume2,
-  VolumeX,
   Target,
   RefreshCw,
 } from 'lucide-react';
-import { Track } from '../../types/player';
+import { Track, RepeatMode } from '../../types/player';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { MarqueeText } from '../MarqueeText';
-import { AudioSlider } from '../AudioSlider';
 import { LyricsSeekbar } from './LyricsSeekbar';
 import { LyricLineRow } from './LyricLineRow';
 import { InterludeIndicator } from '../InterludeIndicator';
 import { ParsedLyricLine } from '../../utils/lyricsParser';
 import { InterludeGap } from './types';
+import { PlayerControls } from '../player/PlayerControls';
+import { PlayerVolumeControl } from '../player/PlayerVolumeControl';
 
 export interface LyricsCenteredLayoutProps {
   currentTrack: Track | null;
@@ -43,7 +35,7 @@ export interface LyricsCenteredLayoutProps {
   isPlaying: boolean;
   nextTrack: () => void;
   cycleRepeatMode: () => void;
-  repeatMode: string;
+  repeatMode: RepeatMode;
   volRefCallback: (node: HTMLDivElement | null) => void;
   setVolume: (vol: number) => void;
   volume: number;
@@ -125,7 +117,6 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
   isCompact,
 }) => {
   const [artExpanded, setArtExpanded] = useState(false);
-  const RepeatIcon = repeatMode === 'one' ? Repeat1 : Repeat;
 
   return (
     <>
@@ -355,52 +346,18 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
           controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
         } ${isCompact ? 'max-w-[94vw] overflow-x-auto custom-scrollbar' : 'max-w-[min(72rem,calc(100vw-4rem))]'}`}
       >
-        <button
-          onClick={toggleShuffle}
-          style={shuffleEnabled ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-          className={`p-1.5 rounded-xl transition-colors shrink-0 ${
-            shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
-          }`}
-          title="Shuffle"
-        >
-          <Shuffle className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={previousTrack}
-          className="p-1.5 text-zinc-400 hover:text-white transition-colors shrink-0"
-          title="Previous"
-        >
-          <SkipBack className="w-5 h-5" />
-        </button>
-
-        <button
-          onClick={togglePlay}
-          style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-          className="w-10 h-10 rounded-full text-white flex items-center justify-center shadow-lg transition-transform active:scale-95 cursor-pointer shrink-0"
-          title={isPlaying ? 'Pause' : 'Play'}
-        >
-          {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
-        </button>
-
-        <button
-          onClick={() => nextTrack()}
-          className="p-1.5 text-zinc-400 hover:text-white transition-colors shrink-0"
-          title="Next"
-        >
-          <SkipForward className="w-5 h-5" />
-        </button>
-
-        <button
-          onClick={cycleRepeatMode}
-          style={repeatMode !== 'off' ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-          className={`p-1.5 rounded-xl transition-colors shrink-0 ${
-            repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
-          }`}
-          title="Repeat"
-        >
-          <RepeatIcon className="w-4 h-4" />
-        </button>
+        <PlayerControls
+          isPlaying={isPlaying}
+          onTogglePlay={togglePlay}
+          onNextTrack={nextTrack}
+          onPreviousTrack={previousTrack}
+          shuffleEnabled={shuffleEnabled}
+          onToggleShuffle={toggleShuffle}
+          repeatMode={repeatMode}
+          onCycleRepeatMode={cycleRepeatMode}
+          size={isCompact ? 'sm' : 'md'}
+          playButtonColor="primary"
+        />
 
         {/* Seek Bar inside floating pill - Expanded horizontally when space allows */}
         <LyricsSeekbar
@@ -417,29 +374,14 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
 
         {/* Integrated Volume control when space is compact */}
         {isCompact && (
-          <div ref={volRefCallback} className="flex items-center gap-1.5 pl-2 border-l border-white/10 shrink-0">
-            <button
-              onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
-              className="text-zinc-400 hover:text-white transition-colors p-1"
-            >
-              {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
-            </button>
-            <AudioSlider
-              value={volume}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(val) => setVolume(val)}
-              formatTooltip={(val) => `${Math.round(val * 100)}%`}
-              size="sm"
-              className="w-20"
+          <div ref={volRefCallback} className="flex items-center pl-2 border-l border-white/10 shrink-0">
+            <PlayerVolumeControl
+              volume={volume}
+              setVolume={setVolume}
+              width={130}
+              showAlways
+              showNumericInput={false}
             />
-            <span
-              style={{ color: 'var(--color-stop-1, #6366f1)' }}
-              className="text-[10px] font-mono font-bold w-8 shrink-0 text-right tabular-nums select-none"
-            >
-              {Math.round(volume * 100)}%
-            </span>
           </div>
         )}
 
@@ -462,34 +404,17 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
             y: controlsVisible ? 0 : 20,
           }}
           transition={{ duration: 0.3 }}
-          className={`fixed bottom-6 right-8 z-40 glass-panel border border-white/10 rounded-full px-4 py-2 shadow-2xl flex items-center gap-3.5 ${
+          className={`fixed bottom-6 right-8 z-40 glass-panel border border-white/10 rounded-full px-4 py-2 shadow-2xl flex items-center ${
             controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
           }`}
         >
-          <div ref={volRefCallback} className="flex items-center gap-2.5">
-            <button
-              onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
-              className="text-zinc-400 hover:text-white transition-colors p-1"
-              title={volume > 0 ? 'Mute' : 'Unmute'}
-            >
-              {volume > 0 ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-rose-400" />}
-            </button>
-            <AudioSlider
-              value={volume}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(val) => setVolume(val)}
-              formatTooltip={(val) => `${Math.round(val * 100)}%`}
-              size="md"
-              className="w-24 sm:w-28 md:w-32"
+          <div ref={volRefCallback}>
+            <PlayerVolumeControl
+              volume={volume}
+              setVolume={setVolume}
+              width={{ xs: 120, sm: 140, md: 160 }}
+              showAlways
             />
-            <span
-              style={{ color: 'var(--color-stop-1, #6366f1)' }}
-              className="text-xs font-mono font-bold min-w-[32px] text-right"
-            >
-              {Math.round(volume * 100)}%
-            </span>
           </div>
         </motion.div>
       )}

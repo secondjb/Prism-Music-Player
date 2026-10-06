@@ -4,27 +4,19 @@ import Stack from '@mui/material/Stack';
 import {
   Mic2,
   Minimize2,
-  Shuffle,
-  SkipBack,
-  Play,
-  Pause,
-  SkipForward,
-  Repeat,
-  Repeat1,
-  Volume2,
-  VolumeX,
   Target,
   RefreshCw,
 } from 'lucide-react';
-import { Track } from '../../types/player';
+import { Track, RepeatMode } from '../../types/player';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { MarqueeText } from '../MarqueeText';
-import { AudioSlider } from '../AudioSlider';
 import { LyricsSeekbar } from './LyricsSeekbar';
 import { LyricLineRow } from './LyricLineRow';
 import { InterludeIndicator } from '../InterludeIndicator';
 import { ParsedLyricLine } from '../../utils/lyricsParser';
 import { InterludeGap } from './types';
+import { PlayerControls } from '../player/PlayerControls';
+import { PlayerVolumeControl } from '../player/PlayerVolumeControl';
 
 export interface LyricsSplitLayoutProps {
   currentTrack: Track | null;
@@ -42,7 +34,7 @@ export interface LyricsSplitLayoutProps {
   isPlaying: boolean;
   nextTrack: () => void;
   cycleRepeatMode: () => void;
-  repeatMode: string;
+  repeatMode: RepeatMode;
   volRefCallback: (node: HTMLDivElement | null) => void;
   setVolume: (vol: number) => void;
   volume: number;
@@ -119,8 +111,6 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
   activeLineRef,
   handleManualRefresh,
 }) => {
-  const RepeatIcon = repeatMode === 'one' ? Repeat1 : Repeat;
-
   return (
     <Box sx={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 0, width: '100%', height: '100%', overflow: 'hidden', zIndex: 10 }}>
       {/* Left Column (50%): Dynamic Album Art, Track Info, Seekbar & Controls that never overflow */}
@@ -330,76 +320,25 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                   borderTop: '1px solid rgba(255, 255, 255, 0.1)',
                 }}
               >
-                <Stack direction="row" spacing={{ xs: 0.5, sm: 1 }} sx={{ alignItems: 'center' }}>
-                  <button
-                    onClick={toggleShuffle}
-                    style={shuffleEnabled ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-                    className={`p-[clamp(0.35rem,0.8vw,0.65rem)] rounded-2xl transition-colors hover:bg-white/10 ${
-                      shuffleEnabled ? '' : 'text-zinc-400 hover:text-white'
-                    }`}
-                    title="Shuffle"
-                  >
-                    <Shuffle className="w-[clamp(1.1rem,1.8vw,1.35rem)] h-[clamp(1.1rem,1.8vw,1.35rem)]" />
-                  </button>
-                  <button
-                    onClick={previousTrack}
-                    className="p-[clamp(0.35rem,0.8vw,0.65rem)] text-zinc-400 hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
-                    title="Previous"
-                  >
-                    <SkipBack className="w-[clamp(1.3rem,2.2vw,1.6rem)] h-[clamp(1.3rem,2.2vw,1.6rem)]" />
-                  </button>
-                  <button
-                    onClick={togglePlay}
-                    style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-                    className="w-[clamp(2.5rem,4vw,3.5rem)] h-[clamp(2.5rem,4vw,3.5rem)] rounded-full text-white flex items-center justify-center shadow-2xl transition-transform active:scale-95 cursor-pointer shrink-0 hover:scale-105"
-                    title={isPlaying ? 'Pause' : 'Play'}
-                  >
-                    {isPlaying ? (
-                      <Pause className="w-[clamp(1.2rem,2vw,1.6rem)] h-[clamp(1.2rem,2vw,1.6rem)] fill-white" />
-                    ) : (
-                      <Play className="w-[clamp(1.2rem,2vw,1.6rem)] h-[clamp(1.2rem,2vw,1.6rem)] fill-white ml-[clamp(0.1rem,0.2vw,0.125rem)]" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => nextTrack()}
-                    className="p-[clamp(0.35rem,0.8vw,0.65rem)] text-zinc-400 hover:text-white hover:bg-white/10 rounded-2xl transition-colors"
-                    title="Next"
-                  >
-                    <SkipForward className="w-[clamp(1.3rem,2.2vw,1.6rem)] h-[clamp(1.3rem,2.2vw,1.6rem)]" />
-                  </button>
-                  <button
-                    onClick={cycleRepeatMode}
-                    style={repeatMode !== 'off' ? { color: 'var(--color-stop-1, #6366f1)' } : undefined}
-                    className={`p-[clamp(0.35rem,0.8vw,0.65rem)] rounded-2xl transition-colors hover:bg-white/10 ${
-                      repeatMode !== 'off' ? '' : 'text-zinc-400 hover:text-white'
-                    }`}
-                    title="Repeat"
-                  >
-                    <RepeatIcon className="w-[clamp(1.1rem,1.8vw,1.35rem)] h-[clamp(1.1rem,1.8vw,1.35rem)]" />
-                  </button>
-                </Stack>
+                <PlayerControls
+                  isPlaying={isPlaying}
+                  onTogglePlay={togglePlay}
+                  onNextTrack={nextTrack}
+                  onPreviousTrack={previousTrack}
+                  shuffleEnabled={shuffleEnabled}
+                  onToggleShuffle={toggleShuffle}
+                  repeatMode={repeatMode}
+                  onCycleRepeatMode={cycleRepeatMode}
+                  size="md"
+                  playButtonColor="primary"
+                />
 
-                <Box ref={volRefCallback} sx={{ display: 'flex', flexDirection: 'row', gap: 0.5, alignItems: 'center' }}>
-                  <button
-                    onClick={() => setVolume(volume > 0 ? 0 : 0.8)}
-                    className="text-zinc-400 hover:text-white transition-colors p-[clamp(0.2rem,0.6vw,0.45rem)] hover:bg-white/10 rounded-xl"
-                    title={volume > 0 ? 'Mute' : 'Unmute'}
-                  >
-                    {volume > 0 ? (
-                      <Volume2 className="w-[clamp(1.1rem,1.8vw,1.35rem)] h-[clamp(1.1rem,1.8vw,1.35rem)]" />
-                    ) : (
-                      <VolumeX className="w-[clamp(1.1rem,1.8vw,1.35rem)] h-[clamp(1.1rem,1.8vw,1.35rem)] text-rose-400" />
-                    )}
-                  </button>
-                  <AudioSlider
-                    value={volume}
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    onChange={(val) => setVolume(val)}
-                    formatTooltip={(val) => `${Math.round(val * 100)}%`}
-                    size="md"
-                    className="w-[clamp(4rem,8.5vw,11rem)]"
+                <Box ref={volRefCallback}>
+                  <PlayerVolumeControl
+                    volume={volume}
+                    setVolume={setVolume}
+                    width={{ xs: 120, sm: 150, md: 180 }}
+                    showAlways
                   />
                 </Box>
               </Box>

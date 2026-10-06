@@ -4,7 +4,7 @@ export const prismDarkTheme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: 'var(--color-stop-1, #6366f1)',
+      main: '#6366f1',
     },
     background: {
       default: '#09090b',

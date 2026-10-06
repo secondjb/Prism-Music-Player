@@ -8,6 +8,21 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Lexend:wght@100..900&family=Nunito:ital,wght@0,200..1000;1,200..1000&family=Outfit:wght@100..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
     <title>Prism Music Player</title>
+    <script>
+      window.addEventListener('error', function (e) {
+        var root = document.getElementById('root');
+        if (root && (!root.children || root.children.length === 0)) {
+          var box = document.getElementById('fatal-err-box');
+          if (!box) {
+            box = document.createElement('div');
+            box.id = 'fatal-err-box';
+            box.style.cssText = 'position:fixed;inset:0;background:#09090b;color:#f87171;padding:24px;font-family:monospace;font-size:13px;z-index:999999;overflow:auto;white-space:pre-wrap;';
+            box.innerHTML = '<h3 style="color:#ef4444;margin:0 0 12px 0;">Startup Error</h3>' + (e.error ? (e.error.stack || e.error.message) : (e.message || String(e)));
+            document.body ? document.body.appendChild(box) : document.addEventListener('DOMContentLoaded', function() { document.body.appendChild(box); });
+          }
+        }
+      });
+    </script>
   </head>
 
   <body>

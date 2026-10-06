@@ -161,7 +161,8 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                 borderRadius: 'clamp(1rem, 2vw, 1.5rem)',
                 overflow: 'hidden',
                 boxShadow: 'none',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
+                border: 'none',
+                outline: 'none',
                 userSelect: 'none',
                 cursor: 'pointer',
                 transition: 'all 0.3s ease',
@@ -171,7 +172,6 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                 justifyContent: 'center',
                 '&:hover': {
                   transform: 'scale(1.01)',
-                  borderColor: 'rgba(255, 255, 255, 0.25)',
                 },
               }}
             >
@@ -184,6 +184,7 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                     height: '100%',
                     objectFit: 'contain',
                     display: 'block',
+                    borderRadius: 'clamp(1rem, 2vw, 1.5rem)',
                   }}
                 />
               ) : (

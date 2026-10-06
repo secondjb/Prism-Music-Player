@@ -248,7 +248,7 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
         >
           <div
             onClick={() => setArtExpanded(!artExpanded)}
-            className={`relative rounded-2xl overflow-hidden border border-white/10 shrink-0 group cursor-pointer transition-all duration-300 bg-transparent ${
+            className={`relative rounded-2xl overflow-hidden shrink-0 group cursor-pointer transition-all duration-300 bg-transparent ${
               artExpanded
                 ? isCompact
                   ? 'w-48 h-48 max-w-[40vh] max-h-[40vh]'
@@ -259,7 +259,7 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
             }`}
           >
             {trackArt ? (
-              <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-contain" />
+              <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-contain rounded-2xl" />
             ) : (
               <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
                 <Mic2 className="w-8 h-8" />

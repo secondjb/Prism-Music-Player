@@ -388,6 +388,7 @@ export interface LyricLineRowProps {
   onSeek: (secs: number, targetIdx?: number) => void;
   compact?: boolean;
   isTransparent?: boolean;
+  karaokeMode?: 'word' | 'line';
 }
 
 export const LyricLineRow = React.memo<LyricLineRowProps>(
@@ -410,6 +411,7 @@ export const LyricLineRow = React.memo<LyricLineRowProps>(
     onSeek,
     compact = false,
     isTransparent = false,
+    karaokeMode = 'word',
   }) => {
     if (lyricsFontSizePreset === 'maximum' && !isUnsynced && distance > 1) {
       return null;
@@ -627,7 +629,7 @@ export const LyricLineRow = React.memo<LyricLineRowProps>(
         )}
 
         {/* Granular Syllable / Word rendering with Jumping text */}
-        {line.hasSyllables && !isUnsynced ? (
+        {line.hasSyllables && !isUnsynced && karaokeMode !== 'line' ? (
           <div className="inline-flex flex-wrap justify-center items-baseline text-center max-w-full overflow-visible relative">
             {isActive ? (
               <ActiveSyllableWords
@@ -757,6 +759,7 @@ export const LyricLineRow = React.memo<LyricLineRowProps>(
         prev.line === next.line &&
         prev.compact === next.compact &&
         prev.isTransparent === next.isTransparent &&
+        prev.karaokeMode === next.karaokeMode &&
         prev.isRomanizationEnabled === next.isRomanizationEnabled &&
         prev.romanizationMode === next.romanizationMode &&
         prev.isTranslationEnabled === next.isTranslationEnabled &&
@@ -774,6 +777,7 @@ export const LyricLineRow = React.memo<LyricLineRowProps>(
       prev.line === next.line &&
       prev.compact === next.compact &&
       prev.isTransparent === next.isTransparent &&
+      prev.karaokeMode === next.karaokeMode &&
       prev.isRomanizationEnabled === next.isRomanizationEnabled &&
       prev.romanizationMode === next.romanizationMode &&
       prev.isTranslationEnabled === next.isTranslationEnabled &&

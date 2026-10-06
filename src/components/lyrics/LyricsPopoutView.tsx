@@ -7,7 +7,7 @@ import { parseRichLyrics, ParsedLyricLine } from '../../utils/lyricsParser';
 import { fetchLrclibLyrics } from '../../utils/lrclibFetcher';
 import { createRomanizer, detectScript } from 'lyric-romanizer';
 import { enrichLineWithRomanization } from '../../utils/japaneseRomanizer';
-import { InterludeGap, computeActiveLyricState, getLineEndSecs } from './types';
+import { InterludeGap, computeActiveLyricState, getLineEndSecs, ANIMATION_OPTIONS } from './types';
 import { LyricLineRow } from './LyricLineRow';
 import { calculateBalancedFontSize } from '../../utils/lyricsTypography';
 import { invoke } from '@tauri-apps/api/core';
@@ -62,6 +62,7 @@ export const LyricsPopoutView: React.FC = () => {
   const toggleTranslation = usePlayerStore((s) => s.toggleTranslation);
   const setTranslationMode = usePlayerStore((s) => s.setTranslationMode);
   const lyricsAnimationStyle = usePlayerStore((s) => s.lyricsAnimationStyle);
+  const setLyricsAnimationStyle = usePlayerStore((s) => s.setLyricsAnimationStyle);
 
   const { sendCommand } = usePopoutSync();
 
@@ -167,6 +168,7 @@ export const LyricsPopoutView: React.FC = () => {
           const pos = Array.isArray(res) ? res[0] : res;
           if (!isCancelled && typeof pos === 'number' && !isNaN(pos) && pos >= 0) {
             setCurrentTimeSecs(pos);
+            usePlayerStore.setState({ currentTime: pos });
           }
         } catch {}
       }
@@ -826,6 +828,7 @@ export const LyricsPopoutView: React.FC = () => {
               onChange={(_e, val) => {
                 const target = val as number;
                 setCurrentTimeSecs(target);
+                usePlayerStore.setState({ currentTime: target });
                 sendCommand('seek', target);
               }}
               sx={{
@@ -1128,6 +1131,49 @@ export const LyricsPopoutView: React.FC = () => {
               )}
             </div>
 
+            {/* Lyric Animation Style */}
+            <div className="space-y-1.5 pt-1 border-t border-white/10">
+              <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center justify-between">
+                <span>Lyric Animation Style</span>
+                <span className="text-[10px] text-zinc-400 font-normal">
+                  {ANIMATION_OPTIONS.find((a) => a.id === lyricsAnimationStyle)?.name || 'Lossless Glow'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {ANIMATION_OPTIONS.map((opt) => {
+                  const isSel = lyricsAnimationStyle === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => {
+                        setLyricsAnimationStyle(opt.id as any);
+                        sendCommand('setLyricsAnimationStyle', opt.id);
+                      }}
+                      style={
+                        isSel
+                          ? {
+                              borderColor: 'var(--color-stop-1, #6366f1)',
+                              backgroundColor:
+                                'color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent)',
+                            }
+                          : {}
+                      }
+                      className={`px-2.5 py-1.5 rounded-lg text-left text-xs transition-all flex items-center justify-between border ${
+                        isSel
+                          ? 'text-white font-semibold'
+                          : 'border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10'
+                      }`}
+                    >
+                      <span className="truncate">{opt.name}</span>
+                      {isSel && (
+                        <Check size={12} className="shrink-0 ml-1" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Appearance Styles */}
             <div className="space-y-2 pt-1 border-t border-white/10">
               <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
@@ -1286,6 +1332,7 @@ export const LyricsPopoutView: React.FC = () => {
           onSeek={(secs) => sendCommand('seek', secs)}
           compact
           isTransparent={isTransparent}
+          karaokeMode={popoutSettings.karaokeMode}
         />
       );
     });

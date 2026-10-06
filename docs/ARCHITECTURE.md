@@ -187,13 +187,13 @@ Prism utilizes `@revolist/react-datagrid` (RevoGrid) backed by Stencil web compo
   - Managed via Rust IPC commands: `open_lyrics_popout`, `close_lyrics_popout`, and `toggle_lyrics_popout` in `src-tauri/src/commands/playback.rs`.
   - Dedicated entrypoint in `src/main.tsx` (`?window=lyrics-popout`), directly mounting `<LyricsPopoutView />` inside `ThemeProvider (prismDarkTheme)` and completely bypassing the main player scaffolding, RevoGrid tables, and audio device polling loops for minimal CPU/GPU overhead.
 - **Cross-Window Synchronization Bus (`src/hooks/usePopoutSync.ts`)**:
-  - Employs `BroadcastChannel('prism-popout-sync')` to synchronize track changes, volume levels, play/pause states, and user commands across windows.
-  - The popout window polls `get_playback_position` directly from the Rust CPAL atomic clock at 80ms intervals, ensuring 60 FPS syllable synchronization even when the main player window is minimized or occluded by fullscreen apps/games.
+  - Employs `BroadcastChannel('prism-popout-sync')` to synchronize track changes, volume levels, play/pause states, lyric animation styles, and user commands across windows.
+  - The popout window polls `get_playback_position` directly from the Rust CPAL atomic clock at 75ms intervals and updates Zustand store `currentTime`, ensuring 60 FPS syllable synchronization and Lossless Glow/karaoke effects even when the main player window is minimized or occluded by fullscreen apps/games.
 - **Component & Typography Unification (`LyricLineRow.tsx` & `src/utils/lyricsTypography.ts`)**:
-  - Reuses `<LyricLineRow />` directly with `compact` mode, unifying word-level synchronized karaoke animations, Lossless Glow effects, syllable transitions, and dual romanization/translation rows across both full and mini players.
+  - Reuses `<LyricLineRow />` directly with `compact` mode, unifying word-level synchronized karaoke animations, selectable `ANIMATION_OPTIONS` (Lossless Glow, Apple Fluid, Karaoke Pulse, etc.), syllable transitions, and dual romanization/translation rows across both full and mini players.
   - Shares the `calculateBalancedFontSize` algorithm (`src/utils/lyricsTypography.ts`) with `LyricsView.tsx`, ensuring balanced font scaling, active/inactive parity, and 3-line visual focus consistency across any window size.
 - **Configurable Floating Widgets & Appearance**:
-  - Widget toggles persisted in `usePlayerStore` and dedicated `localStorage` (`popoutLyricsSettings` / `prism-popout-lyrics-settings`): Album Art (dynamic 1:1 split or stacked), Seekbar (interactive scrub), Playback Controls (Previous, Play/Pause, Next, Volume), and Word-by-Word karaoke vs plain line highlighting.
+  - Widget toggles persisted in `usePlayerStore` and dedicated `localStorage` (`popoutLyricsSettings` / `prism-popout-lyrics-settings`): Album Art (dynamic 1:1 split or stacked), Seekbar (interactive scrub), Playback Controls (Previous, Play/Pause, Next, Volume), Lyric Animation Style selector, and Word-by-Word karaoke vs plain line highlighting.
   - Appearance styles: *Frosted Glass* (blur), *Solid Dark* (ultra-low GPU), *Album Art Color* (dynamic color-mix matching current album palette), and *Transparent* (clean floating text with readability shadows for gaming/Discord overlays).
   - Window controls: Top drag handle (`data-tauri-drag-region`), Pin/Always-on-top toggle (`setAlwaysOnTop`), minimize, and close.
 

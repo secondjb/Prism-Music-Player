@@ -16,13 +16,14 @@ export interface PopoutSyncPayload {
   isTranslationEnabled: boolean;
   translationMode: 'below' | 'replace';
   popoutLyricsSettings: PopoutLyricsSettings;
+  lyricsAnimationStyle: string;
 }
 
 export type PopoutMessage =
   | { type: 'REQUEST_SYNC' }
   | { type: 'SYNC_STATE'; payload: PopoutSyncPayload }
   | { type: 'STATE_CHANGE'; payload: Partial<PopoutSyncPayload> }
-  | { type: 'COMMAND'; action: 'togglePlay' | 'nextTrack' | 'previousTrack' | 'seek' | 'setVolume' | 'setPopoutSettings'; value?: any };
+  | { type: 'COMMAND'; action: 'togglePlay' | 'nextTrack' | 'previousTrack' | 'seek' | 'setVolume' | 'setPopoutSettings' | 'setLyricsAnimationStyle'; value?: any };
 
 const CHANNEL_NAME = 'prism-popout-sync';
 
@@ -40,6 +41,7 @@ export function useMainWindowPopoutBridge() {
   const romanizationMode = usePlayerStore((s) => s.romanizationMode);
   const isTranslationEnabled = usePlayerStore((s) => s.isTranslationEnabled);
   const translationMode = usePlayerStore((s) => s.translationMode);
+  const lyricsAnimationStyle = usePlayerStore((s) => s.lyricsAnimationStyle);
 
   const channelRef = useRef<BroadcastChannel | null>(null);
 
@@ -58,6 +60,7 @@ export function useMainWindowPopoutBridge() {
       isTranslationEnabled: s.isTranslationEnabled,
       translationMode: s.translationMode,
       popoutLyricsSettings: s.popoutLyricsSettings,
+      lyricsAnimationStyle: s.lyricsAnimationStyle,
     };
   }, []);
 
@@ -102,6 +105,11 @@ export function useMainWindowPopoutBridge() {
               store.setPopoutLyricsSettings(msg.value);
             }
             break;
+          case 'setLyricsAnimationStyle':
+            if (typeof msg.value === 'string') {
+              store.setLyricsAnimationStyle(msg.value as any);
+            }
+            break;
         }
       }
     };
@@ -128,6 +136,7 @@ export function useMainWindowPopoutBridge() {
         romanizationMode,
         isTranslationEnabled,
         translationMode,
+        lyricsAnimationStyle,
       },
     });
   }, [
@@ -141,6 +150,7 @@ export function useMainWindowPopoutBridge() {
     romanizationMode,
     isTranslationEnabled,
     translationMode,
+    lyricsAnimationStyle,
   ]);
 }
 
@@ -172,12 +182,13 @@ export function usePopoutSync() {
           romanizationMode: msg.payload.romanizationMode,
           isTranslationEnabled: msg.payload.isTranslationEnabled,
           translationMode: msg.payload.translationMode,
+          lyricsAnimationStyle: (msg.payload.lyricsAnimationStyle as any) || usePlayerStore.getState().lyricsAnimationStyle,
         });
         if (msg.payload.popoutLyricsSettings) {
           usePlayerStore.getState().setPopoutLyricsSettings(msg.payload.popoutLyricsSettings);
         }
       } else if (msg.type === 'STATE_CHANGE' && msg.payload) {
-        usePlayerStore.setState(msg.payload);
+        usePlayerStore.setState(msg.payload as any);
       }
     };
 
@@ -190,9 +201,13 @@ export function usePopoutSync() {
     };
   }, []);
 
-  const sendCommand = useCallback((action: 'togglePlay' | 'nextTrack' | 'previousTrack' | 'seek' | 'setVolume' | 'setPopoutSettings', value?: any) => {
+  const sendCommand = useCallback((action: 'togglePlay' | 'nextTrack' | 'previousTrack' | 'seek' | 'setVolume' | 'setPopoutSettings' | 'setLyricsAnimationStyle', value?: any) => {
     if (channelRef.current) {
       channelRef.current.postMessage({ type: 'COMMAND', action, value });
+    }
+
+    if (action === 'setLyricsAnimationStyle' && typeof value === 'string') {
+      usePlayerStore.getState().setLyricsAnimationStyle(value as any);
     }
 
     // Direct Rust invocations for instant response

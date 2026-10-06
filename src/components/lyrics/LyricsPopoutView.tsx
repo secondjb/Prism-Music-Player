@@ -9,6 +9,7 @@ import { createRomanizer, detectScript } from 'lyric-romanizer';
 import { enrichLineWithRomanization } from '../../utils/japaneseRomanizer';
 import { InterludeGap, computeActiveLyricState, getLineEndSecs, ANIMATION_OPTIONS } from './types';
 import { LyricLineRow } from './LyricLineRow';
+import { InterludeIndicator } from '../InterludeIndicator';
 import { calculateBalancedFontSize } from '../../utils/lyricsTypography';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -300,19 +301,34 @@ export const LyricsPopoutView: React.FC = () => {
     return computeActiveLyricState(currentTimeSecs, lines, interludeList);
   }, [currentTimeSecs, lines, interludeList]);
 
-  const { activeIndex } = activeLyricState;
+  const { activeIndex, activeLinesKey, activeInterludeKey, isCurrentLinePassed } = activeLyricState;
 
-  const isUnsynced = lines.length > 0 && lines[0].startSecs === -1;
+  const activeLineIndices = useMemo(() => {
+    if (!activeLinesKey) return new Set<number>();
+    return new Set<number>(activeLinesKey.split(',').map(Number));
+  }, [activeLinesKey]);
 
-  // Auto-scroll logic: ensures active line is perfectly centered in the viewport
+  const activeInterlude = useMemo(() => {
+    if (!activeInterludeKey) return null;
+    return interludeList.find((item) => item.key === activeInterludeKey) || null;
+  }, [activeInterludeKey, interludeList]);
+
+  // Auto-scroll logic: ensures active line or active interlude is perfectly centered in the viewport
   const scrollToActive = useCallback(
     (smooth = true) => {
       const container = lyricsScrollRef.current;
-      if (!container || activeIndex < 0) return;
-      const activeEl =
-        activeLineRef.current ||
-        document.getElementById(`lyric-line-${activeIndex}`) ||
-        document.getElementById(`popout-lyric-${activeIndex}`);
+      if (!container) return;
+
+      let activeEl: HTMLElement | null = null;
+      if (activeInterlude) {
+        activeEl = document.getElementById(activeInterlude.key);
+      } else if (activeIndex >= 0) {
+        activeEl =
+          activeLineRef.current ||
+          document.getElementById(`lyric-line-${activeIndex}`) ||
+          document.getElementById(`popout-lyric-${activeIndex}`);
+      }
+
       if (activeEl) {
         const containerRect = container.getBoundingClientRect();
         const elRect = activeEl.getBoundingClientRect();
@@ -320,7 +336,7 @@ export const LyricsPopoutView: React.FC = () => {
         const targetScrollTop = elTopRelativeToContent - containerRect.height / 2 + elRect.height / 2;
         isProgrammaticScrollRef.current = true;
         container.scrollTo({
-          top: targetScrollTop,
+          top: Math.max(0, targetScrollTop),
           behavior: smooth ? 'smooth' : 'auto',
         });
         if (userScrollTimerRef.current) clearTimeout(userScrollTimerRef.current);
@@ -329,14 +345,14 @@ export const LyricsPopoutView: React.FC = () => {
         }, 350);
       }
     },
-    [activeIndex]
+    [activeIndex, activeInterlude]
   );
 
   useEffect(() => {
     if (!isUserScrolled) {
       scrollToActive(true);
     }
-  }, [activeIndex, isUserScrolled, scrollToActive]);
+  }, [activeIndex, activeInterlude?.key, isUserScrolled, scrollToActive]);
 
   // Timestamp formatter
   const formatTime = (secs: number) => {
@@ -1307,33 +1323,73 @@ export const LyricsPopoutView: React.FC = () => {
     const isTransparent = popoutSettings.backgroundStyle === 'transparent';
 
     return lines.map((line, idx) => {
-      const isActive = idx === activeIndex;
-      const isPast = idx < activeIndex;
-      const distance = Math.min(2, Math.abs(idx - activeIndex));
+      const isUnsynced = line.startSecs === -1;
+      const isActive =
+        !isUnsynced &&
+        !activeInterlude &&
+        (activeLineIndices ? activeLineIndices.has(idx) : idx === activeIndex);
+      const isPast =
+        !isActive &&
+        ((activeInterlude && idx < activeInterlude.insertIndex) ||
+          (!activeInterlude && activeIndex >= 0 && idx < activeIndex) ||
+          (idx === activeIndex && !isActive && isCurrentLinePassed));
+      const rawDistance = isActive
+        ? 0
+        : activeInterlude
+        ? idx < activeInterlude.insertIndex
+          ? Math.abs(activeInterlude.insertIndex - idx)
+          : Math.abs(idx - activeInterlude.insertIndex + 1)
+        : Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0));
+      const distance = Math.min(2, rawDistance);
+
+      const interludeBefore = !isUnsynced
+        ? interludeList.find((item) => item.insertIndex === idx)
+        : null;
 
       return (
-        <LyricLineRow
-          key={`${line.id}-${idx}`}
-          line={line}
-          idx={idx}
-          isActive={isActive}
-          isPast={isPast}
-          distance={distance}
-          isUnsynced={isUnsynced}
-          lyricsAnimationStyle={lyricsAnimationStyle}
-          lyricsFontSizePreset={computedFontSize.preset}
-          isRomanizationEnabled={isRomanizationEnabled}
-          romanizationMode={romanizationMode}
-          isTranslationEnabled={isTranslationEnabled}
-          translationMode={translationMode}
-          activeFontSize={computedFontSize.active}
-          inactiveFontSize={computedFontSize.inactive}
-          activeLineRef={isActive ? activeLineRef : null}
-          onSeek={(secs) => sendCommand('seek', secs)}
-          compact
-          isTransparent={isTransparent}
-          karaokeMode={popoutSettings.karaokeMode}
-        />
+        <React.Fragment key={`${line.id}-${idx}`}>
+          {interludeBefore && (
+            <InterludeIndicator
+              key={interludeBefore.key}
+              id={interludeBefore.key}
+              startSecs={interludeBefore.startSecs}
+              endSecs={interludeBefore.endSecs}
+              currentTime={currentTimeSecs}
+              isPlaying={isPlaying}
+              isActive={activeInterlude?.key === interludeBefore.key}
+              isPast={activeIndex >= interludeBefore.insertIndex}
+              distance={
+                activeInterlude?.key === interludeBefore.key
+                  ? 0
+                  : Math.min(2, Math.abs(idx - (activeIndex >= 0 ? activeIndex : 0)))
+              }
+              lyricsFontSizePreset={computedFontSize.preset}
+              activeFontSize={computedFontSize.active}
+              onSeek={(secs) => sendCommand('seek', secs)}
+            />
+          )}
+          <LyricLineRow
+            line={line}
+            idx={idx}
+            isActive={isActive}
+            isPast={isPast}
+            distance={distance}
+            isUnsynced={isUnsynced}
+            lyricsAnimationStyle={lyricsAnimationStyle}
+            lyricsFontSizePreset={computedFontSize.preset}
+            isRomanizationEnabled={isRomanizationEnabled}
+            romanizationMode={romanizationMode}
+            isTranslationEnabled={isTranslationEnabled}
+            translationMode={translationMode}
+            activeFontSize={computedFontSize.active}
+            inactiveFontSize={computedFontSize.inactive}
+            activeLineRef={isActive ? activeLineRef : null}
+            onSeek={(secs) => sendCommand('seek', secs)}
+            compact
+            isTransparent={isTransparent}
+            karaokeMode={popoutSettings.karaokeMode}
+          />
+        </React.Fragment>
       );
     });
   }

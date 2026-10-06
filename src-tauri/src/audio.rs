@@ -1004,7 +1004,15 @@ fn run_audio_engine(
                         match TrackDecoder::open(&path, replay_gain_db, start_position_secs, target_sample_rate, target_channels) {
                             Ok(t) => {
                                 let dur_ms = (t.total_duration_secs * 1000.0) as u64;
-                                state.lock().current_duration_ms.store(dur_ms, Ordering::Relaxed);
+                                let s = state.lock();
+                                s.current_duration_ms.store(dur_ms, Ordering::Relaxed);
+                                let start_pos_ms = if t.input_sample_rate > 0 {
+                                    (t.frames_emitted as f64 / t.input_sample_rate as f64 * 1000.0) as u64
+                                } else {
+                                    start_position_secs.map(|sec| (sec * 1000.0) as u64).unwrap_or(0)
+                                };
+                                s.current_position_ms.store(start_pos_ms, Ordering::Relaxed);
+                                drop(s);
                                 current_track = Some(t);
                                 if !init_paused {
                                     is_playing = true;

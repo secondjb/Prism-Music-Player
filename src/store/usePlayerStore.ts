@@ -1494,32 +1494,17 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       togglePlay: async () => {
-        const { isPlaying, currentTrack, currentTime, queue, playIndex } = get();
+        const { isPlaying, currentTrack, queue, playIndex } = get();
         if (!currentTrack) {
           if (queue.length > 0) {
             playIndex(0);
           }
           return;
         }
-        const newPlayingState = !isPlaying;
-        set({ isPlaying: newPlayingState });
-        try {
-          if (newPlayingState) {
-            if (window.__TAURI_INTERNALS__) {
-              await invoke('set_volume', { volume: get().volume });
-              await invoke('play_audio', {
-                path: currentTrack.path,
-                replayGainDb: getEffectiveReplayGain(currentTrack, get().replayGainMode, get().tracks),
-                startPositionSecs: currentTime > 0 ? currentTime : null,
-              });
-            }
-          } else {
-            if (window.__TAURI_INTERNALS__) {
-              await invoke('pause_audio');
-            }
-          }
-        } catch (e) {
-          console.warn('Rust audio toggle call error:', e);
+        if (isPlaying) {
+          await get().pause();
+        } else {
+          await get().resume();
         }
       },
 

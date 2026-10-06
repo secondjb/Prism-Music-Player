@@ -112,6 +112,7 @@ const { volume, setVolume } = usePlayerStore(
 - Bridges Zustand store events to Rust Tauri commands (`play_audio`, `pause_audio`, `resume_audio`, `stop_audio`, `seek_audio`, `set_volume`).
 - Synchronizes the Web MediaSession API (`navigator.mediaSession`) and Windows SMTC with track title, artist, album, and artwork.
 - Contains the auto-advance logic (`nextTrack()`) when tracks finish.
+- `togglePlay()` cleanly delegates to `pause()` and `resume()`, ensuring already loaded Symphonia audio streams remain active in memory without closing/re-opening the audio file from scratch.
 - `stop_audio` command explicitly flushes audio buffers, clears `current_track`, `pending_next`, and resets hardware playback position to 0 (used on `clearQueue`).
 
 ### 3.3 UI Component System & Material 3 Architecture

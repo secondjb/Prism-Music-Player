@@ -142,6 +142,7 @@ export const AudioSettingsSection: React.FC<AudioSettingsSectionProps> = ({
                   ]}
                   onChange={(_, val) => setCrossfadeDuration(val as number)}
                   valueLabelDisplay="auto"
+                  valueLabelFormat={(val) => `${val}s`}
                 />
               </div>
             </div>

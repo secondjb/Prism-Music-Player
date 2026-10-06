@@ -148,8 +148,8 @@ export const PlaylistView: React.FC = () => {
         <Box sx={{ flex: 1, minHeight: 0 }}>
           <TrackTableView
             tracks={playlistTracks}
-            playlistId={isLiked ? undefined : activePlaylist.id}
-            onRemoveFromPlaylist={isLiked ? undefined : (tid) => removeTrackFromPlaylist(activePlaylist.id, tid)}
+            playlistId={activePlaylist.id}
+            onRemoveFromPlaylist={isLiked ? (tid) => usePlayerStore.getState().toggleLikeTrack(tid) : (tid) => removeTrackFromPlaylist(activePlaylist.id, tid)}
           />
         </Box>
       </Box>

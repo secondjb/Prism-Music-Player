@@ -92,10 +92,10 @@
   }
 
   /* Global theme-reactive form inputs */
-  input[type="text"]:focus,
-  input[type="search"]:focus,
-  input[type="number"]:focus,
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="file"]):focus {
+  input[type="text"]:not(.MuiInputBase-input):focus,
+  input[type="search"]:not(.MuiInputBase-input):focus,
+  input[type="number"]:not(.MuiInputBase-input):focus,
+  input:not(.MuiInputBase-input):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="file"]):focus {
     border-color: var(--color-stop-1, #6366f1) !important;
     box-shadow: 0 0 12px color-mix(in srgb, var(--color-stop-1, #6366f1) 28%, transparent) !important;
     outline: none !important;

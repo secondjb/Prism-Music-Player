@@ -59,7 +59,7 @@ export const PlayerActions: React.FC = () => {
       </Tooltip>
 
       {/* Sleep Timer Button */}
-      <Box sx={{ position: 'relative' }}>
+      <Box sx={{ position: 'relative', display: { xs: 'none', md: 'inline-flex' } }}>
         <Tooltip title="Sleep Timer" arrow>
           <IconButton
             size="small"
@@ -97,7 +97,7 @@ export const PlayerActions: React.FC = () => {
       </Box>
 
       {/* Audio Output Devices Button */}
-      <Box sx={{ position: 'relative' }}>
+      <Box sx={{ position: 'relative', display: { xs: 'none', md: 'inline-flex' } }}>
         <Tooltip title="Audio Output & Quality" arrow>
           <IconButton
             data-audio-speaker-btn="true"

@@ -264,6 +264,9 @@ interface PlayerState {
   duration: number;
   activeTab: ActiveTab;
   searchQuery: string;
+  isSidebarVisible: boolean;
+  toggleSidebar: () => void;
+  setSidebarVisible: (visible: boolean) => void;
   crossfadeDuration: number;
   setCrossfadeDuration: (dur: number) => void;
   isGaplessEnabled: boolean;
@@ -596,6 +599,9 @@ export const usePlayerStore = create<PlayerState>()(
       duration: 0,
       activeTab: 'home',
       searchQuery: '',
+      isSidebarVisible: true,
+      toggleSidebar: () => set((s) => ({ isSidebarVisible: !s.isSidebarVisible })),
+      setSidebarVisible: (visible: boolean) => set({ isSidebarVisible: visible }),
       likedTrackIds: [],
       sleepTimer: {
         active: false,
@@ -2367,6 +2373,7 @@ export const usePlayerStore = create<PlayerState>()(
         columnOrder: state.columnOrder,
         showSubArtistUnderTitle: state.showSubArtistUnderTitle,
         mainGridSortState: state.mainGridSortState,
+        isSidebarVisible: state.isSidebarVisible,
       }),
     }
   )

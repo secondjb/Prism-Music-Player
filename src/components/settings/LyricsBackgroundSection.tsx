@@ -196,6 +196,7 @@ export const LyricsBackgroundSection: React.FC<LyricsBackgroundSectionProps> = (
                     step={2}
                     onChange={(_, val) => setBgBlurAmount(val as number)}
                     valueLabelDisplay="auto"
+                    valueLabelFormat={(val) => `${val}px`}
                   />
                 </div>
 
@@ -211,6 +212,7 @@ export const LyricsBackgroundSection: React.FC<LyricsBackgroundSectionProps> = (
                     step={0.05}
                     onChange={(_, val) => setBgDimOpacity(val as number)}
                     valueLabelDisplay="auto"
+                    valueLabelFormat={(val) => `${Math.round(val * 100)}%`}
                   />
                 </div>
               </>

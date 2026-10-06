@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
-import { FolderPlus } from 'lucide-react';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import { FolderPlus, PanelLeftClose } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { GeminiLogo } from './GeminiLogo';
@@ -13,6 +15,8 @@ export const Sidebar: React.FC = () => {
   const setActiveTab = usePlayerStore((s) => s.setActiveTab);
   const addIncludedDirectory = usePlayerStore((s) => s.addIncludedDirectory);
   const includedDirectories = usePlayerStore((s) => s.includedDirectories);
+  const isSidebarVisible = usePlayerStore((s) => s.isSidebarVisible);
+  const toggleSidebar = usePlayerStore((s) => s.toggleSidebar);
 
   const [contextMenu, setContextMenu] = useState<{
     pos: { top: number; left: number };
@@ -43,49 +47,76 @@ export const Sidebar: React.FC = () => {
     <Box
       component="aside"
       sx={{
-        width: 256,
+        width: isSidebarVisible ? 256 : 0,
+        opacity: isSidebarVisible ? 1 : 0,
+        pointerEvents: isSidebarVisible ? 'auto' : 'none',
         height: '100%',
         bgcolor: 'rgba(18, 18, 24, 0.75)',
         backdropFilter: 'blur(24px)',
         WebkitBackdropFilter: 'blur(24px)',
-        borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRight: isSidebarVisible ? '1px solid rgba(255, 255, 255, 0.08)' : 'none',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        p: 2,
+        p: isSidebarVisible ? 2 : 0,
         zIndex: 20,
         flexShrink: 0,
         userSelect: 'none',
+        overflow: 'hidden',
+        transition: 'width 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.18s ease, padding 0.22s ease',
       }}
     >
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {/* App Logo */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, width: 224 }}>
+        {/* App Logo & Collapse Button */}
         <Box
-          onClick={() => setActiveTab('library')}
           sx={{
             display: 'flex',
             alignItems: 'center',
-            gap: 1.5,
+            justifyContent: 'space-between',
             px: 1,
             pt: 1,
-            cursor: 'pointer',
           }}
         >
-          <GeminiLogo className="w-14 h-8 shrink-0" />
-          <Typography
-            variant="h5"
+          <Box
+            onClick={() => setActiveTab('library')}
             sx={{
-              fontWeight: 800,
-              letterSpacing: '0.02em',
-              lineHeight: 1,
-              background:
-                'linear-gradient(to right, var(--color-stop-1, #6366F1), var(--color-stop-2, #8B5CF6), var(--color-stop-3, #EC4899), var(--color-stop-4, #D946EF), var(--color-stop-5, #3B82F6), var(--color-stop-6, #818CF8))',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              cursor: 'pointer',
             }}
           >
-            Prism
-          </Typography>
+            <GeminiLogo className="w-14 h-8 shrink-0" />
+            <Typography
+              variant="h5"
+              sx={{
+                fontWeight: 800,
+                letterSpacing: '0.02em',
+                lineHeight: 1,
+                background:
+                  'linear-gradient(to right, var(--color-stop-1, #6366F1), var(--color-stop-2, #8B5CF6), var(--color-stop-3, #EC4899), var(--color-stop-4, #D946EF), var(--color-stop-5, #3B82F6), var(--color-stop-6, #818CF8))',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              Prism
+            </Typography>
+          </Box>
+
+          <Tooltip title="Hide sidebar" arrow placement="right">
+            <IconButton
+              size="small"
+              onClick={toggleSidebar}
+              sx={{
+                color: '#a1a1aa',
+                p: 0.75,
+                borderRadius: '8px',
+                '&:hover': { color: '#ffffff', bgcolor: 'rgba(255, 255, 255, 0.08)' },
+              }}
+            >
+              <PanelLeftClose size={18} />
+            </IconButton>
+          </Tooltip>
         </Box>
 
         {/* Quick Add Library Folder Button (only if 0 folders added) */}

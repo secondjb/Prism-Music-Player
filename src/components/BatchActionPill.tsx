@@ -16,6 +16,7 @@ import {
   Check,
   X,
   Plus,
+  Trash2,
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { Track } from '../types/player';
@@ -29,12 +30,14 @@ export const BatchActionPill: React.FC = () => {
   const userQueueTracks = usePlayerStore((s) => s.userQueue);
   const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
   const playlists = usePlayerStore((s) => s.playlists);
+  const activePlaylistId = usePlayerStore((s) => s.activePlaylistId);
   const setQueue = usePlayerStore((s) => s.setQueue);
   const playIndex = usePlayerStore((s) => s.playIndex);
   const addTracksToQueue = usePlayerStore((s) => s.addTracksToQueue);
   const playNextTracks = usePlayerStore((s) => s.playNextTracks);
   const likeMultipleTracks = usePlayerStore((s) => s.likeMultipleTracks);
   const addTracksToPlaylist = usePlayerStore((s) => s.addTracksToPlaylist);
+  const removeTracksFromPlaylist = usePlayerStore((s) => s.removeTracksFromPlaylist);
   const createPlaylist = usePlayerStore((s) => s.createPlaylist);
 
   const [batchQueueAdded, setBatchQueueAdded] = useState(false);
@@ -140,18 +143,20 @@ export const BatchActionPill: React.FC = () => {
       <Button
         size="small"
         onClick={handlePlay}
-        startIcon={<Play size={14} fill="#09090b" />}
+        startIcon={<Play size={14} fill="currentColor" />}
         sx={{
-          bgcolor: '#ffffff',
-          color: '#09090b',
+          bgcolor: 'var(--color-stop-1, #6366f1)',
+          color: '#ffffff',
           borderRadius: '10px',
           px: 1.75,
           py: 0.5,
           fontSize: '12px',
           fontWeight: 700,
           textTransform: 'none',
-          boxShadow: '0 2px 8px rgba(255, 255, 255, 0.2)',
-          '&:hover': { bgcolor: '#f4f4f5' },
+          boxShadow: '0 4px 14px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+          '&:hover': {
+            bgcolor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 85%, #000000)',
+          },
         }}
       >
         Play
@@ -213,6 +218,7 @@ export const BatchActionPill: React.FC = () => {
       <Button
         size="small"
         onClick={(e) => setPlaylistAnchorEl(e.currentTarget)}
+        onMouseEnter={(e) => setPlaylistAnchorEl(e.currentTarget)}
         startIcon={<PlusCircle size={14} style={{ color: 'var(--color-stop-1, #6366f1)' }} />}
         sx={{
           bgcolor: 'rgba(255, 255, 255, 0.08)',
@@ -228,6 +234,31 @@ export const BatchActionPill: React.FC = () => {
       >
         Playlist
       </Button>
+
+      {/* Remove from active playlist if viewing one */}
+      {activePlaylistId && activePlaylistId !== '__liked__' && (
+        <Button
+          size="small"
+          onClick={() => {
+            removeTracksFromPlaylist(activePlaylistId, selectedTrackIds);
+            clearSelection();
+          }}
+          startIcon={<Trash2 size={14} style={{ color: '#f87171' }} />}
+          sx={{
+            bgcolor: 'rgba(239, 68, 68, 0.15)',
+            color: '#f87171',
+            borderRadius: '10px',
+            px: 1.5,
+            py: 0.5,
+            fontSize: '12px',
+            fontWeight: 600,
+            textTransform: 'none',
+            '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.25)', color: '#ef4444' },
+          }}
+        >
+          Remove
+        </Button>
+      )}
 
       {/* Playlist Dropdown Menu */}
       <Menu
@@ -246,6 +277,23 @@ export const BatchActionPill: React.FC = () => {
           },
         }}
       >
+        {activePlaylistId && activePlaylistId !== '__liked__' && (
+          <>
+            <MenuItem
+              onClick={() => {
+                removeTracksFromPlaylist(activePlaylistId, selectedTrackIds);
+                clearSelection();
+                setPlaylistAnchorEl(null);
+              }}
+              sx={{ color: '#f87171', fontSize: '12px', gap: 1 }}
+            >
+              <Trash2 size={14} />
+              <span>Remove from this Playlist</span>
+            </MenuItem>
+            <Divider sx={{ my: 0.5, borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+          </>
+        )}
+
         <Typography
           variant="caption"
           sx={{
@@ -275,16 +323,20 @@ export const BatchActionPill: React.FC = () => {
               <MenuItem
                 key={pl.id}
                 onClick={() => {
-                  addTracksToPlaylist(pl.id, selectedTrackIds);
+                  if (allInPlaylist) {
+                    removeTracksFromPlaylist(pl.id, selectedTrackIds);
+                  } else {
+                    addTracksToPlaylist(pl.id, selectedTrackIds);
+                  }
                   setPlaylistAnchorEl(null);
                 }}
-                sx={{ display: 'flex', justifyContent: 'space-between' }}
+                sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}
               >
                 <Typography noWrap sx={{ fontSize: '12px', flex: 1 }}>
                   {pl.name}
                 </Typography>
                 {allInPlaylist && (
-                  <Check size={14} style={{ color: 'var(--color-stop-1, #6366f1)', marginLeft: 8 }} />
+                  <Check size={14} style={{ color: 'var(--color-stop-1, #6366f1)', flexShrink: 0 }} />
                 )}
               </MenuItem>
             );
@@ -298,9 +350,9 @@ export const BatchActionPill: React.FC = () => {
             setPlaylistAnchorEl(null);
             setShowCreateModal(true);
           }}
-          sx={{ color: 'var(--color-stop-1, #6366f1)' }}
+          sx={{ color: 'var(--color-stop-1, #6366f1)', gap: 1 }}
         >
-          <Plus size={14} style={{ marginRight: 8 }} />
+          <Plus size={14} />
           <Typography sx={{ fontSize: '12px', fontWeight: 600 }}>New Playlist...</Typography>
         </MenuItem>
       </Menu>

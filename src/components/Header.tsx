@@ -7,7 +7,7 @@ import Tooltip from '@mui/material/Tooltip';
 import InputBase from '@mui/material/InputBase';
 import SearchIcon from '@mui/icons-material/Search';
 import SettingsIcon from '@mui/icons-material/Settings';
-import { X } from 'lucide-react';
+import { X, PanelLeft } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 
 export const Header: React.FC = () => {
@@ -15,6 +15,8 @@ export const Header: React.FC = () => {
   const setSearchQuery = usePlayerStore((s) => s.setSearchQuery);
   const activeTab = usePlayerStore((s) => s.activeTab);
   const setActiveTab = usePlayerStore((s) => s.setActiveTab);
+  const isSidebarVisible = usePlayerStore((s) => s.isSidebarVisible);
+  const toggleSidebar = usePlayerStore((s) => s.toggleSidebar);
 
   const tracks = usePlayerStore((s) => s.tracks);
   const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
@@ -69,6 +71,26 @@ export const Header: React.FC = () => {
     >
       {/* Title & Count Badge */}
       <Stack direction="row" spacing={{ xs: 1.5, sm: 2 }} sx={{ alignItems: 'center', minWidth: 0 }}>
+        {!isSidebarVisible && (
+          <Tooltip title="Show sidebar" arrow>
+            <IconButton
+              size="small"
+              onClick={toggleSidebar}
+              sx={{
+                color: '#a1a1aa',
+                p: 0.75,
+                mr: 0.5,
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                bgcolor: 'rgba(255, 255, 255, 0.05)',
+                '&:hover': { color: '#ffffff', bgcolor: 'rgba(255, 255, 255, 0.12)' },
+              }}
+            >
+              <PanelLeft size={18} />
+            </IconButton>
+          </Tooltip>
+        )}
+
         <Typography
           variant="h5"
           noWrap
@@ -139,6 +161,19 @@ export const Header: React.FC = () => {
               color: '#ffffff',
               fontSize: '13px',
               width: '100%',
+              '& .MuiInputBase-input': {
+                p: 0,
+                background: 'transparent !important',
+                border: 'none !important',
+                outline: 'none !important',
+                boxShadow: 'none !important',
+                '&:focus': {
+                  background: 'transparent !important',
+                  border: 'none !important',
+                  outline: 'none !important',
+                  boxShadow: 'none !important',
+                },
+              },
               '& input::placeholder': {
                 color: '#71717a',
                 opacity: 1,

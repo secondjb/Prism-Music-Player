@@ -1107,12 +1107,15 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     lastScrollYRef.current = 0;
   };
 
+  const isPlaylist = Boolean(playlistId);
   const originalIndexMap = useMemo(() => {
     const map = new Map<string, number>();
-    const masterList = masterStoreTracks && masterStoreTracks.length > 0 ? masterStoreTracks : tracks;
+    const masterList = isPlaylist
+      ? tracks
+      : (masterStoreTracks && masterStoreTracks.length > 0 ? masterStoreTracks : tracks);
     masterList.forEach((t, i) => map.set(t.id, i + 1));
     return map;
-  }, [masterStoreTracks, tracks]);
+  }, [isPlaylist, masterStoreTracks, tracks]);
 
   const sortedTracks = useMemo(() => {
     if (!sortState) return tracks;

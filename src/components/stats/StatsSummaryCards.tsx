@@ -29,15 +29,15 @@ export const StatsSummaryCards: React.FC<StatsSummaryCardsProps> = ({
       sx={{
         display: 'grid',
         gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-        gap: 3,
+        gap: 2,
       }}
     >
       {/* Total Time Card */}
       <Box
         sx={{
           borderRadius: '16px',
-          p: 3,
-          border: '1px solid rgba(255, 255, 255, 0.1)',
+          p: 2.25,
+          border: '1px solid rgba(255, 255, 255, 0.08)',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
@@ -48,9 +48,9 @@ export const StatsSummaryCards: React.FC<StatsSummaryCardsProps> = ({
           backdropFilter: 'blur(16px)',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-          <Clock size={18} style={{ color: themeColors.stop1 }} />
-          <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 0.5 }}>
+          <Clock size={16} style={{ color: themeColors.stop1 }} />
+          <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '10px' }}>
             Total Time Listened
           </Typography>
         </Box>
@@ -60,6 +60,7 @@ export const StatsSummaryCards: React.FC<StatsSummaryCardsProps> = ({
             fontWeight: 900,
             fontFamily: 'monospace',
             letterSpacing: '-0.03em',
+            fontSize: { xs: '1.75rem', sm: '2.25rem' },
             background: `linear-gradient(to right, #ffffff, ${themeColors.stop1})`,
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
@@ -67,7 +68,7 @@ export const StatsSummaryCards: React.FC<StatsSummaryCardsProps> = ({
         >
           {formatDuration(totalListeningTime)}
         </Typography>
-        <Typography variant="caption" sx={{ color: 'text.secondary', mt: 1, fontFamily: 'monospace' }}>
+        <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5, fontFamily: 'monospace', fontSize: '11px' }}>
           {totalPlays} total plays logged
         </Typography>
       </Box>
@@ -76,11 +77,11 @@ export const StatsSummaryCards: React.FC<StatsSummaryCardsProps> = ({
       <Box
         sx={{
           borderRadius: '16px',
-          p: 3,
-          border: '1px solid rgba(255, 255, 255, 0.1)',
+          p: 2.25,
+          border: '1px solid rgba(255, 255, 255, 0.08)',
           display: 'flex',
           flexDirection: 'column',
-          gap: 2,
+          gap: 1.5,
           bgcolor: 'rgba(22, 22, 28, 0.5)',
           backdropFilter: 'blur(16px)',
         }}

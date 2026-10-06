@@ -81,10 +81,11 @@ export const BottomBar: React.FC = () => {
           flexDirection: 'column',
           alignItems: 'center',
           gap: 0.25,
-          flex: 1,
+          flex: 2,
           maxWidth: 680,
-          minWidth: 260,
-          px: { xs: 1, sm: 2 },
+          minWidth: 0,
+          px: { xs: 0.5, sm: 1.5, md: 2 },
+          overflow: 'hidden',
         }}
       >
         <PlayerControls
@@ -106,10 +107,11 @@ export const BottomBar: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
-          gap: { xs: 1, sm: 2 },
+          gap: { xs: 0.5, sm: 1, md: 1.5 },
           flex: 1,
           maxWidth: { xs: '35%', sm: '32%', md: '30%' },
-          minWidth: 160,
+          minWidth: 0,
+          flexShrink: 0,
         }}
       >
         <PlayerVolumeControl volume={volume} setVolume={setVolume} />

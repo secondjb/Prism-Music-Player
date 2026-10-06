@@ -62,25 +62,25 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
       </Stack>
 
       {/* 2-Column Leaderboards Grid */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
         {/* Top Songs Card */}
         <Box
           sx={{
             borderRadius: '16px',
-            p: 3,
-            border: '1px solid rgba(255, 255, 255, 0.1)',
+            p: 2,
+            border: '1px solid rgba(255, 255, 255, 0.08)',
             bgcolor: 'rgba(22, 22, 28, 0.5)',
             backdropFilter: 'blur(16px)',
             display: 'flex',
             flexDirection: 'column',
-            gap: 2,
+            gap: 1.5,
           }}
         >
           <Typography variant="caption" sx={{ fontWeight: 700, color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Top Tracks
           </Typography>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
             {topSongs.map((s, idx) => (
               <Box
                 key={s.name || idx}
@@ -88,7 +88,8 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  p: 1.25,
+                  py: 0.75,
+                  px: 1.25,
                   borderRadius: '10px',
                   bgcolor: 'rgba(255, 255, 255, 0.03)',
                   '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.06)' },
@@ -131,20 +132,20 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
         <Box
           sx={{
             borderRadius: '16px',
-            p: 3,
-            border: '1px solid rgba(255, 255, 255, 0.1)',
+            p: 2,
+            border: '1px solid rgba(255, 255, 255, 0.08)',
             bgcolor: 'rgba(22, 22, 28, 0.5)',
             backdropFilter: 'blur(16px)',
             display: 'flex',
             flexDirection: 'column',
-            gap: 2,
+            gap: 1.5,
           }}
         >
           <Typography variant="caption" sx={{ fontWeight: 700, color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Top Artists
           </Typography>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
             {topArtists.map((a, idx) => (
               <Box
                 key={a.name || idx}
@@ -152,7 +153,8 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  p: 1.25,
+                  py: 0.75,
+                  px: 1.25,
                   borderRadius: '10px',
                   bgcolor: 'rgba(255, 255, 255, 0.03)',
                   '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.06)' },

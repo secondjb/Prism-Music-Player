@@ -77,7 +77,7 @@ export const PlayerVolumeControl: React.FC<PlayerVolumeControlProps> = ({
       spacing={1}
       sx={{
         alignItems: 'center',
-        width: width || { xs: 110, sm: 140, md: 170 },
+        width: width || { xs: 75, sm: 105, md: 155 },
         flexShrink: 0,
         display: showAlways ? 'flex' : { xs: 'none', sm: 'flex' },
       }}
@@ -97,7 +97,7 @@ export const PlayerVolumeControl: React.FC<PlayerVolumeControlProps> = ({
         </IconButton>
       </Tooltip>
 
-      <Box sx={{ flex: 1, minWidth: 32 }}>
+      <Box sx={{ flex: 1, minWidth: 24 }}>
         <AudioSlider
           value={effectiveVol}
           min={0}
@@ -114,7 +114,7 @@ export const PlayerVolumeControl: React.FC<PlayerVolumeControlProps> = ({
 
       {/* Numeric Percentage / Direct Input */}
       {showNumericInput && (
-        <Box sx={{ width: 34, flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+        <Box sx={{ width: 34, flexShrink: 0, display: { xs: 'none', md: 'flex' }, justifyContent: 'flex-end' }}>
           {isEditingVol ? (
             <input
               type="number"

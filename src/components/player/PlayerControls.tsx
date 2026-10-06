@@ -17,6 +17,7 @@ export interface PlayerControlsProps {
   onCycleRepeatMode: () => void;
   size?: 'sm' | 'md' | 'lg';
   playButtonColor?: 'white' | 'primary';
+  hideAuxOnSmall?: boolean;
 }
 
 export const PlayerControls: React.FC<PlayerControlsProps> = ({
@@ -30,19 +31,21 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   onCycleRepeatMode,
   size = 'md',
   playButtonColor = 'white',
+  hideAuxOnSmall = true,
 }) => {
   const playBtnDiameter = size === 'sm' ? 36 : size === 'lg' ? 52 : 44;
   const mainIconSize = size === 'sm' ? 16 : size === 'lg' ? 24 : 20;
   const navIconSize = size === 'sm' ? 16 : size === 'lg' ? 24 : 20;
   const auxIconSize = size === 'sm' ? 14 : size === 'lg' ? 18 : 16;
   return (
-    <Stack direction="row" spacing={{ xs: 1.5, sm: 2 }} sx={{ alignItems: 'center', mb: 0.5 }}>
+    <Stack direction="row" spacing={{ xs: 0.75, sm: 1.5, md: 2 }} sx={{ alignItems: 'center', mb: 0.5 }}>
       {/* Shuffle Button */}
       <Tooltip title={shuffleEnabled ? 'Shuffle On' : 'Shuffle Off'} arrow>
         <IconButton
           size="small"
           onClick={onToggleShuffle}
           sx={{
+            display: hideAuxOnSmall ? { xs: 'none', sm: 'inline-flex' } : 'inline-flex',
             p: 1,
             borderRadius: '10px',
             color: shuffleEnabled ? 'var(--color-stop-1, #6366f1)' : '#a1a1aa',
@@ -146,6 +149,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
           size="small"
           onClick={onCycleRepeatMode}
           sx={{
+            display: hideAuxOnSmall ? { xs: 'none', sm: 'inline-flex' } : 'inline-flex',
             p: 1,
             borderRadius: '10px',
             color: repeatMode !== 'off' ? 'var(--color-stop-1, #6366f1)' : '#a1a1aa',

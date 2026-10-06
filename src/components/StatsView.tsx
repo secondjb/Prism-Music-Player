@@ -287,8 +287,8 @@ export const StatsView: React.FC = () => {
         mx: 'auto',
         display: 'flex',
         flexDirection: 'column',
-        gap: 3.5,
-        pb: 18,
+        gap: 2,
+        pb: 10,
         overflowY: 'auto',
         pr: 1,
         height: '100%',
@@ -296,7 +296,7 @@ export const StatsView: React.FC = () => {
       className="custom-scrollbar"
     >
       {/* Header */}
-      <Stack direction="row" spacing={2} sx={{ alignItems: 'center', pb: 2.5, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', pb: 1.5, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
         <Box
           sx={{
             width: 48,

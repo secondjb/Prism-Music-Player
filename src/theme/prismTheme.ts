@@ -68,5 +68,70 @@ export const prismDarkTheme = createTheme({
         },
       },
     },
+    MuiSlider: {
+      styleOverrides: {
+        root: {
+          color: 'var(--color-stop-1, #6366f1)',
+          height: 4,
+          padding: '13px 0',
+        },
+        thumb: {
+          height: 14,
+          width: 14,
+          backgroundColor: '#ffffff',
+          border: '2px solid var(--color-stop-1, #6366f1)',
+          boxShadow: '0 2px 6px rgba(0, 0, 0, 0.4)',
+          '&:hover, &.Mui-focusVisible, &.Mui-active': {
+            boxShadow: '0 0 0 6px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+          },
+        },
+        track: {
+          height: 4,
+          borderRadius: 2,
+          border: 'none',
+          backgroundColor: 'var(--color-stop-1, #6366f1)',
+        },
+        rail: {
+          height: 4,
+          borderRadius: 2,
+          opacity: 1,
+          backgroundColor: 'rgba(255, 255, 255, 0.15)',
+        },
+        mark: {
+          backgroundColor: 'rgba(255, 255, 255, 0.35)',
+          height: 4,
+          width: 4,
+          borderRadius: '50%',
+          '&.MuiSlider-markActive': {
+            opacity: 0.9,
+            backgroundColor: '#ffffff',
+          },
+        },
+        markLabel: {
+          color: '#71717a',
+          fontSize: '11px',
+          fontFamily: 'monospace',
+          fontWeight: 600,
+          '&.MuiSlider-markLabelActive': {
+            color: '#e4e4e7',
+          },
+        },
+        valueLabel: {
+          lineHeight: 1.2,
+          fontSize: '11px',
+          background: '#18181b',
+          padding: '3px 8px',
+          borderRadius: '8px',
+          border: '1px solid color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, rgba(255, 255, 255, 0.15))',
+          color: '#ffffff',
+          fontFamily: 'monospace',
+          fontWeight: 700,
+          boxShadow: '0 4px 14px rgba(0, 0, 0, 0.6)',
+          '&::before': {
+            display: 'none',
+          },
+        },
+      },
+    },
   },
 });

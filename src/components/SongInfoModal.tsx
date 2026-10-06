@@ -532,7 +532,7 @@ export const SongInfoModal: React.FC = () => {
                     : (typeof (activeTrack || infoModalTrack).replay_gain_album_db === 'number' ? 'None (Track)' : 'None')}
                   {typeof (activeTrack || infoModalTrack).replay_gain_album_db === 'number' && (
                     <span className="text-sm text-zinc-400 ml-2 font-normal">
-                      [Album: {(activeTrack || infoModalTrack).replay_gain_album_db! > 0 ? '+' : ''}${(activeTrack || infoModalTrack).replay_gain_album_db!.toFixed(2)} dB]
+                      [Album: {(activeTrack || infoModalTrack).replay_gain_album_db! > 0 ? '+' : ''}{(activeTrack || infoModalTrack).replay_gain_album_db!.toFixed(2)} dB]
                     </span>
                   )}
                 </span>

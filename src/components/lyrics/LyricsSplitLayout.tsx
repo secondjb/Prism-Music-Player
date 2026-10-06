@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import IconButton from '@mui/material/IconButton';
@@ -115,6 +115,26 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
   activeLineRef,
   handleManualRefresh,
 }) => {
+  const [artAspectRatio, setArtAspectRatio] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!trackArt) {
+      setArtAspectRatio(null);
+      return;
+    }
+    const img = new Image();
+    img.src = trackArt;
+    if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+      setArtAspectRatio(img.naturalWidth / img.naturalHeight);
+    } else {
+      img.onload = () => {
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          setArtAspectRatio(img.naturalWidth / img.naturalHeight);
+        }
+      };
+    }
+  }, [trackArt]);
+
   return (
     <Box sx={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 0, width: '100%', height: '100%', overflow: 'hidden', zIndex: 10 }}>
       {/* Left Column (50%): Dynamic Album Art, Track Info, Seekbar & Controls that never overflow */}
@@ -153,7 +173,7 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
               className="group"
               sx={{
                 position: 'relative',
-                aspectRatio: '1 / 1',
+                aspectRatio: artAspectRatio ? `${artAspectRatio}` : '1 / 1',
                 height: '100%',
                 maxHeight: '100%',
                 maxWidth: '100%',
@@ -179,6 +199,12 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                 <img
                   src={trackArt}
                   alt={currentTrack.title}
+                  onLoad={(e) => {
+                    const el = e.currentTarget;
+                    if (el.naturalWidth > 0 && el.naturalHeight > 0) {
+                      setArtAspectRatio(el.naturalWidth / el.naturalHeight);
+                    }
+                  }}
                   style={{
                     width: '100%',
                     height: '100%',

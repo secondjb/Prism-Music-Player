@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Mic2,
@@ -117,6 +117,25 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
   isCompact,
 }) => {
   const [artExpanded, setArtExpanded] = useState(false);
+  const [artAspectRatio, setArtAspectRatio] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!trackArt) {
+      setArtAspectRatio(null);
+      return;
+    }
+    const img = new Image();
+    img.src = trackArt;
+    if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+      setArtAspectRatio(img.naturalWidth / img.naturalHeight);
+    } else {
+      img.onload = () => {
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          setArtAspectRatio(img.naturalWidth / img.naturalHeight);
+        }
+      };
+    }
+  }, [trackArt]);
 
   return (
     <>
@@ -248,18 +267,31 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
         >
           <div
             onClick={() => setArtExpanded(!artExpanded)}
+            style={{
+              aspectRatio: artAspectRatio ? `${artAspectRatio}` : '1 / 1',
+            }}
             className={`relative rounded-2xl overflow-hidden shrink-0 group cursor-pointer transition-all duration-300 bg-transparent ${
               artExpanded
                 ? isCompact
-                  ? 'w-48 h-48 max-w-[40vh] max-h-[40vh]'
-                  : 'w-80 h-80 max-w-[45vh] max-h-[45vh]'
+                  ? 'h-48 w-auto max-w-[40vh] max-h-[40vh]'
+                  : 'h-80 w-auto max-w-[45vh] max-h-[45vh]'
                 : isCompact
                 ? 'w-14 h-14'
                 : 'w-20 h-20'
             }`}
           >
             {trackArt ? (
-              <img src={trackArt} alt={currentTrack.title} className="w-full h-full object-contain rounded-2xl" />
+              <img
+                src={trackArt}
+                alt={currentTrack.title}
+                onLoad={(e) => {
+                  const el = e.currentTarget;
+                  if (el.naturalWidth > 0 && el.naturalHeight > 0) {
+                    setArtAspectRatio(el.naturalWidth / el.naturalHeight);
+                  }
+                }}
+                className="w-full h-full object-contain rounded-2xl"
+              />
             ) : (
               <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-zinc-500">
                 <Mic2 className="w-8 h-8" />

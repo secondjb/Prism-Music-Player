@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { Track } from '../types/player';
+import { Track, PopoutLyricsSettings } from '../types/player';
 import { invoke } from '@tauri-apps/api/core';
 
 export interface PopoutSyncPayload {
@@ -15,13 +15,14 @@ export interface PopoutSyncPayload {
   romanizationMode: 'below' | 'replace';
   isTranslationEnabled: boolean;
   translationMode: 'below' | 'replace';
+  popoutLyricsSettings: PopoutLyricsSettings;
 }
 
 export type PopoutMessage =
   | { type: 'REQUEST_SYNC' }
   | { type: 'SYNC_STATE'; payload: PopoutSyncPayload }
   | { type: 'STATE_CHANGE'; payload: Partial<PopoutSyncPayload> }
-  | { type: 'COMMAND'; action: 'togglePlay' | 'nextTrack' | 'previousTrack' | 'seek' | 'setVolume'; value?: any };
+  | { type: 'COMMAND'; action: 'togglePlay' | 'nextTrack' | 'previousTrack' | 'seek' | 'setVolume' | 'setPopoutSettings'; value?: any };
 
 const CHANNEL_NAME = 'prism-popout-sync';
 
@@ -56,6 +57,7 @@ export function useMainWindowPopoutBridge() {
       romanizationMode: s.romanizationMode,
       isTranslationEnabled: s.isTranslationEnabled,
       translationMode: s.translationMode,
+      popoutLyricsSettings: s.popoutLyricsSettings,
     };
   }, []);
 
@@ -93,6 +95,11 @@ export function useMainWindowPopoutBridge() {
           case 'setVolume':
             if (typeof msg.value === 'number') {
               store.setVolume(msg.value);
+            }
+            break;
+          case 'setPopoutSettings':
+            if (msg.value) {
+              store.setPopoutLyricsSettings(msg.value);
             }
             break;
         }
@@ -166,6 +173,9 @@ export function usePopoutSync() {
           isTranslationEnabled: msg.payload.isTranslationEnabled,
           translationMode: msg.payload.translationMode,
         });
+        if (msg.payload.popoutLyricsSettings) {
+          usePlayerStore.getState().setPopoutLyricsSettings(msg.payload.popoutLyricsSettings);
+        }
       } else if (msg.type === 'STATE_CHANGE' && msg.payload) {
         usePlayerStore.setState(msg.payload);
       }
@@ -180,7 +190,7 @@ export function usePopoutSync() {
     };
   }, []);
 
-  const sendCommand = useCallback((action: 'togglePlay' | 'nextTrack' | 'previousTrack' | 'seek' | 'setVolume', value?: any) => {
+  const sendCommand = useCallback((action: 'togglePlay' | 'nextTrack' | 'previousTrack' | 'seek' | 'setVolume' | 'setPopoutSettings', value?: any) => {
     if (channelRef.current) {
       channelRef.current.postMessage({ type: 'COMMAND', action, value });
     }

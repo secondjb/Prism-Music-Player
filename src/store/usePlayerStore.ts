@@ -262,6 +262,18 @@ export const defaultPopoutLyricsSettings: PopoutLyricsSettings = {
   alwaysOnTop: true,
 };
 
+export const getStoredPopoutLyricsSettings = (): PopoutLyricsSettings => {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem('prism-popout-lyrics-settings');
+      if (raw) {
+        return { ...defaultPopoutLyricsSettings, ...JSON.parse(raw) };
+      }
+    }
+  } catch {}
+  return defaultPopoutLyricsSettings;
+};
+
 interface PlayerState {
   popoutLyricsSettings: PopoutLyricsSettings;
   setPopoutLyricsSettings: (settings: Partial<PopoutLyricsSettings>) => void;
@@ -818,11 +830,17 @@ export const usePlayerStore = create<PlayerState>()(
       lyricsArtSize: 'compact',
       setLyricsArtSize: (size) => set({ lyricsArtSize: size }),
 
-      popoutLyricsSettings: defaultPopoutLyricsSettings,
+      popoutLyricsSettings: getStoredPopoutLyricsSettings(),
       setPopoutLyricsSettings: (settings) =>
-        set((state) => ({
-          popoutLyricsSettings: { ...state.popoutLyricsSettings, ...settings },
-        })),
+        set((state) => {
+          const updated = { ...state.popoutLyricsSettings, ...settings };
+          try {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('prism-popout-lyrics-settings', JSON.stringify(updated));
+            }
+          } catch {}
+          return { popoutLyricsSettings: updated };
+        }),
 
       linkedTracks: {},
       linkModalTrack: null,

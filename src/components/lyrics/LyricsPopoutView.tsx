@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { usePlayerStore } from '../../store/usePlayerStore';
+import { PopoutLyricsSettings } from '../../types/player';
 import { useTrackArt } from '../../utils/useTrackArt';
 import { usePopoutSync } from '../../hooks/usePopoutSync';
 import { parseRichLyrics, ParsedLyricLine, isIdenticalLyricText } from '../../utils/lyricsParser';
@@ -61,6 +62,15 @@ export const LyricsPopoutView: React.FC = () => {
 
   const { sendCommand } = usePopoutSync();
 
+  // Helper to persist settings locally and broadcast to main window
+  const updateSettings = useCallback(
+    (partial: Partial<PopoutLyricsSettings>) => {
+      setPopoutSettings(partial);
+      sendCommand('setPopoutSettings', partial);
+    },
+    [setPopoutSettings, sendCommand]
+  );
+
   const [rawLrc, setRawLrc] = useState<string>('');
   const [lines, setLines] = useState<ParsedLyricLine[]>([]);
   const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
@@ -75,8 +85,10 @@ export const LyricsPopoutView: React.FC = () => {
   const lyricsScrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const [contentSize, setContentSize] = useState({ width: 440, height: 260 });
+  const [artAspectRatio, setArtAspectRatio] = useState<number | null>(null);
 
-  const trackArt = useTrackArt(currentTrack, { thumbnail: true, maxSize: 128 });
+  // Full-resolution album art (not restricted to low-res thumbnail)
+  const trackArt = useTrackArt(currentTrack);
 
   // Update album art gradient CSS variables across document
   useEffect(() => {
@@ -121,7 +133,7 @@ export const LyricsPopoutView: React.FC = () => {
   const togglePin = () => {
     const next = !isPinned;
     setIsPinned(next);
-    setPopoutSettings({ alwaysOnTop: next });
+    updateSettings({ alwaysOnTop: next });
     if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
       getCurrentWindow().setAlwaysOnTop(next).catch(() => {});
     }
@@ -410,7 +422,7 @@ export const LyricsPopoutView: React.FC = () => {
       {/* Draggable Titlebar & Window Controls */}
       <div
         data-tauri-drag-region
-        className="w-full h-8 px-3 flex items-center justify-between z-30 shrink-0 border-b border-white/5 cursor-grab active:cursor-grabbing bg-black/10"
+        className="w-full h-8 px-3 flex items-center justify-between z-30 shrink-0 cursor-grab active:cursor-grabbing bg-black/10"
       >
         {/* Left: Brand / Title */}
         <div data-tauri-drag-region className="flex items-center gap-1.5 text-xs font-semibold text-zinc-300">
@@ -596,25 +608,32 @@ export const LyricsPopoutView: React.FC = () => {
                   className="group"
                   sx={{
                     position: 'relative',
-                    aspectRatio: '1 / 1',
+                    aspectRatio: artAspectRatio ? `${artAspectRatio}` : '1 / 1',
                     height: '100%',
                     maxHeight: '100%',
                     maxWidth: '100%',
                     width: 'auto',
                     borderRadius: 'clamp(0.75rem, 2vw, 1.25rem)',
                     overflow: 'hidden',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    boxShadow: 'none',
+                    border: 'none',
+                    outline: 'none',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    bgcolor: 'rgba(24, 24, 27, 0.6)',
+                    bgcolor: 'transparent',
                   }}
                 >
                   {trackArt ? (
                     <img
                       src={trackArt}
                       alt={currentTrack?.title || 'Artwork'}
+                      onLoad={(e) => {
+                        const el = e.currentTarget;
+                        if (el.naturalWidth > 0 && el.naturalHeight > 0) {
+                          setArtAspectRatio(el.naturalWidth / el.naturalHeight);
+                        }
+                      }}
                       style={{
                         width: '100%',
                         height: '100%',
@@ -652,7 +671,7 @@ export const LyricsPopoutView: React.FC = () => {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setPopoutSettings({
+                        updateSettings({
                           layoutMode:
                             popoutSettings.layoutMode === 'split_left' ? 'split_right' : 'split_left',
                         });
@@ -766,7 +785,7 @@ export const LyricsPopoutView: React.FC = () => {
         {/* Optional Seekbar */}
         {popoutSettings.showSeekbar && (
           <div className="shrink-0 flex items-center gap-2 pt-1 z-10">
-            <span className="text-[10px] font-mono text-zinc-400 w-8 text-right">
+            <span className="text-xs font-mono font-medium text-white/90 drop-shadow w-8 text-right shrink-0">
               {formatTime(currentTimeSecs)}
             </span>
             <Slider
@@ -798,7 +817,7 @@ export const LyricsPopoutView: React.FC = () => {
                 },
               }}
             />
-            <span className="text-[10px] font-mono text-zinc-500 w-8">
+            <span className="text-xs font-mono font-medium text-white/90 drop-shadow w-8 shrink-0">
               {formatTime(duration)}
             </span>
           </div>
@@ -806,9 +825,9 @@ export const LyricsPopoutView: React.FC = () => {
 
         {/* Optional Playback Controls Bar */}
         {popoutSettings.showPlaybackControls && (
-          <div className="relative shrink-0 flex items-center justify-center w-full min-h-[40px] pt-1 z-10 border-t border-white/5">
-            {/* Playback Transport Buttons - centered horizontally on the bottom bar */}
-            <div className="flex items-center gap-1.5">
+          <div className="relative shrink-0 flex items-center justify-center w-full h-11 z-10">
+            {/* Playback Transport Buttons - centered horizontally & vertically on the bottom bar */}
+            <div className="flex items-center gap-1.5 my-auto">
               <Tooltip title="Previous Track" arrow>
                 <IconButton
                   size="small"
@@ -941,7 +960,7 @@ export const LyricsPopoutView: React.FC = () => {
                 ].map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => setPopoutSettings({ layoutMode: item.id as any })}
+                    onClick={() => updateSettings({ layoutMode: item.id as any })}
                     style={
                       popoutSettings.layoutMode === item.id
                         ? {
@@ -973,21 +992,21 @@ export const LyricsPopoutView: React.FC = () => {
                 <span>Album Art</span>
                 <ThemeSwitch
                   checked={popoutSettings.showAlbumArt}
-                  onChange={(e) => setPopoutSettings({ showAlbumArt: e.target.checked })}
+                  onChange={(e) => updateSettings({ showAlbumArt: e.target.checked })}
                 />
               </div>
               <div className="flex items-center justify-between">
                 <span>Seekbar</span>
                 <ThemeSwitch
                   checked={popoutSettings.showSeekbar}
-                  onChange={(e) => setPopoutSettings({ showSeekbar: e.target.checked })}
+                  onChange={(e) => updateSettings({ showSeekbar: e.target.checked })}
                 />
               </div>
               <div className="flex items-center justify-between">
                 <span>Playback Controls</span>
                 <ThemeSwitch
                   checked={popoutSettings.showPlaybackControls}
-                  onChange={(e) => setPopoutSettings({ showPlaybackControls: e.target.checked })}
+                  onChange={(e) => updateSettings({ showPlaybackControls: e.target.checked })}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -995,7 +1014,7 @@ export const LyricsPopoutView: React.FC = () => {
                 <ThemeSwitch
                   checked={popoutSettings.karaokeMode === 'word'}
                   onChange={(e) =>
-                    setPopoutSettings({ karaokeMode: e.target.checked ? 'word' : 'line' })
+                    updateSettings({ karaokeMode: e.target.checked ? 'word' : 'line' })
                   }
                 />
               </div>
@@ -1089,7 +1108,7 @@ export const LyricsPopoutView: React.FC = () => {
                 ].map((style) => (
                   <button
                     key={style.id}
-                    onClick={() => setPopoutSettings({ backgroundStyle: style.id as any })}
+                    onClick={() => updateSettings({ backgroundStyle: style.id as any })}
                     style={
                       popoutSettings.backgroundStyle === style.id
                         ? {
@@ -1126,7 +1145,7 @@ export const LyricsPopoutView: React.FC = () => {
                 min={0.2}
                 max={1.0}
                 step={0.05}
-                onChange={(_e, val) => setPopoutSettings({ opacity: val as number })}
+                onChange={(_e, val) => updateSettings({ opacity: val as number })}
                 sx={{
                   color: 'var(--color-stop-1, #6366f1)',
                   '& .MuiSlider-thumb': {
@@ -1148,7 +1167,7 @@ export const LyricsPopoutView: React.FC = () => {
                 {(['small', 'balanced', 'large'] as const).map((size) => (
                   <button
                     key={size}
-                    onClick={() => setPopoutSettings({ fontSize: size })}
+                    onClick={() => updateSettings({ fontSize: size })}
                     style={
                       popoutSettings.fontSize === size
                         ? {
@@ -1237,11 +1256,11 @@ export const LyricsPopoutView: React.FC = () => {
               sendCommand('seek', line.startSecs);
             }
           }}
-          className={`transition-all duration-300 cursor-pointer select-none leading-snug w-full max-w-xl mx-auto flex flex-col items-center ${
-            isLineActive ? 'scale-100 font-bold' : 'scale-95 font-medium'
+          className={`transition-colors duration-200 cursor-pointer select-none leading-snug w-full max-w-xl mx-auto flex flex-col items-center ${
+            isLineActive ? 'font-bold' : 'font-medium'
           }`}
           style={{
-            fontSize: `${isLineActive ? computedFontSize.active : computedFontSize.inactive}px`,
+            fontSize: `${computedFontSize.active}px`,
             textShadow: isTransparent
               ? '0 1px 4px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.9), 0 0 16px rgba(0,0,0,0.85)'
               : isLineActive
@@ -1268,12 +1287,10 @@ export const LyricsPopoutView: React.FC = () => {
                   return (
                     <span
                       key={sIdx}
-                      className={`inline-block transition-all duration-200 ease-out ${
+                      className={`inline-block transition-colors duration-150 ${
                         syl.hasTrailingSpace ? 'mr-[0.25em]' : ''
-                      }`}
+                      } ${isSylActive ? 'font-bold' : 'font-normal'}`}
                       style={{
-                        transform: isSylActive ? 'translate3d(0, -2px, 0) scale(1.08)' : undefined,
-                        willChange: isSylActive ? 'transform' : undefined,
                         position: isSylActive ? 'relative' : undefined,
                         zIndex: isSylActive ? 20 : undefined,
                         color: isSylActive

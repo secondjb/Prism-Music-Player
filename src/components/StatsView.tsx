@@ -1,19 +1,23 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import Box from '@mui/material/Box';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
+import { BarChart2, AlertCircle, Sparkles } from 'lucide-react';
 import { fetchListeningEvents, ListeningEvent } from '../utils/stats';
-import { 
-  getTopArtists, 
-  getTopSongs, 
-  getTopGenres, 
-  getListeningHabits, 
+import {
+  getTopArtists,
+  getTopSongs,
+  getTopGenres,
+  getListeningHabits,
   getTotalListeningTime,
   getListeningTimeByPeriod,
-  formatDuration,
   generateMockListeningEvents,
 } from '../utils/statsAggregation';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { BarChart2, AlertCircle, Clock, Sparkles } from 'lucide-react';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
-import ToggleButton from '@mui/material/ToggleButton';
+import { StatsSummaryCards } from './stats/StatsSummaryCards';
+import { StatsCharts } from './stats/StatsCharts';
+import { StatsLeaderboards } from './stats/StatsLeaderboards';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -24,9 +28,8 @@ import {
   Legend,
   ArcElement,
   PointElement,
-  LineElement
+  LineElement,
 } from 'chart.js';
-import { Bar, Doughnut, Line } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
@@ -75,7 +78,7 @@ export const StatsView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [timePeriod, setTimePeriod] = useState<'day' | 'week' | 'month'>('day');
   const [leaderboardMetric, setLeaderboardMetric] = useState<'time' | 'plays'>('time');
-  
+
   const isStatsCollectionEnabled = usePlayerStore((s) => s.isStatsCollectionEnabled);
   const showDemoStats = usePlayerStore((s) => s.showDemoStats);
   const toggleShowDemoStats = usePlayerStore((s) => s.toggleShowDemoStats);
@@ -110,11 +113,10 @@ export const StatsView: React.FC = () => {
       topGenres: getTopGenres(events, 5, leaderboardMetric),
       listeningHabits: getListeningHabits(events),
       totalListeningTime: getTotalListeningTime(events),
-      timeByPeriod: getListeningTimeByPeriod(events, timePeriod)
+      timeByPeriod: getListeningTimeByPeriod(events, timePeriod),
     };
   }, [events, timePeriod, leaderboardMetric]);
 
-  // Anonymized display names (real counts/times preserved)
   const displayStats = useMemo(() => {
     if (!anonymizeStats) return stats;
     return {
@@ -127,46 +129,58 @@ export const StatsView: React.FC = () => {
 
   if (!isStatsCollectionEnabled && !showDemoStats) {
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center p-8 gap-4 text-center">
-        <AlertCircle className="w-12 h-12 text-zinc-500 mb-2" />
-        <h2 className="text-xl font-bold text-white">Statistics Disabled</h2>
-        <p className="text-sm text-zinc-400 max-w-sm">
+      <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 4, textAlign: 'center', gap: 2 }}>
+        <AlertCircle size={48} className="text-zinc-500 mb-2" />
+        <Typography variant="h6" sx={{ fontWeight: 700, color: '#ffffff' }}>
+          Statistics Disabled
+        </Typography>
+        <Typography variant="body2" sx={{ color: 'text.secondary', maxWidth: 360 }}>
           Listening statistics are currently disabled. You can enable them in settings or preview with demo data.
-        </p>
-        <div className="flex items-center gap-3 mt-4">
-          <button
+        </Typography>
+        <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+          <Button
+            variant="contained"
             onClick={() => setTab('settings')}
-            style={{
-              background: `linear-gradient(135deg, ${themeColors.stop1}, ${themeColors.stop3})`
+            sx={{
+              bgcolor: 'var(--color-stop-1, #6366f1)',
+              color: '#ffffff',
+              borderRadius: '12px',
+              textTransform: 'none',
+              fontWeight: 600,
             }}
-            className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
           >
             Go to Settings
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outlined"
             onClick={toggleShowDemoStats}
-            className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-white/10 hover:bg-white/20 text-white border border-white/10 transition-transform hover:scale-105 active:scale-95"
+            sx={{
+              borderColor: 'rgba(255, 255, 255, 0.15)',
+              color: '#ffffff',
+              borderRadius: '12px',
+              textTransform: 'none',
+              fontWeight: 600,
+            }}
           >
             Preview Demo Stats
-          </button>
-        </div>
-      </div>
+          </Button>
+        </Stack>
+      </Box>
     );
   }
 
   if (loading) {
     return (
-      <div className="w-full h-full flex items-center justify-center">
-        <div className="animate-pulse text-zinc-400 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-indigo-400 animate-spin" />
-          <span>Loading stats...</span>
-        </div>
-      </div>
+      <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', color: 'text.secondary' }}>
+          <Sparkles size={18} style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+          <Typography variant="body2">Loading stats...</Typography>
+        </Stack>
+      </Box>
     );
   }
 
   const hoursLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
-
   const habitsData = {
     labels: hoursLabels,
     datasets: [
@@ -228,30 +242,29 @@ export const StatsView: React.FC = () => {
     },
     cutout: '70%',
   };
-  
-  // Slice to max 14 entries for chart
+
   const periodData = stats.timeByPeriod.slice(-14);
   const timeChartData = {
-    labels: periodData.map(p => p.label),
+    labels: periodData.map((p) => p.label),
     datasets: [
       {
         label: 'Listening Time (Hours)',
-        data: periodData.map(p => (p.ms / (1000 * 60 * 60)).toFixed(2)),
+        data: periodData.map((p) => (p.ms / (1000 * 60 * 60)).toFixed(2)),
         borderColor: themeColors.stop1,
-        backgroundColor: `${themeColors.stop1}33`, // 20% opacity hex
+        backgroundColor: `${themeColors.stop1}33`,
         pointBackgroundColor: themeColors.stop3,
         pointBorderColor: '#ffffff',
         fill: true,
         tension: 0.4,
-      }
-    ]
+      },
+    ],
   };
-  
+
   const timeChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: false }
+      legend: { display: false },
     },
     scales: {
       y: {
@@ -267,295 +280,114 @@ export const StatsView: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 pb-36 overflow-y-auto custom-scrollbar pr-2 h-full">
+    <Box
+      sx={{
+        width: '100%',
+        maxWidth: 1200,
+        mx: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 3.5,
+        pb: 18,
+        overflowY: 'auto',
+        pr: 1,
+        height: '100%',
+      }}
+      className="custom-scrollbar"
+    >
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-white/10 pb-5">
-        <div 
-          className="w-12 h-12 rounded-2xl flex items-center justify-center border transition-all duration-300"
-          style={{
-            backgroundColor: `${themeColors.stop1}20`,
-            borderColor: `${themeColors.stop1}50`,
-            color: themeColors.stop1
-          }}
-        >
-          <BarChart2 className="w-6 h-6" />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold text-white tracking-wide">Listening Dashboard</h2>
-          <p className="text-xs text-zinc-400 mt-0.5">Your personal music listening statistics.</p>
-        </div>
-      </div>
-
-      {showDemoStats && (
-        <div
-          className="flex items-center justify-between px-4 py-2.5 rounded-xl border text-xs animate-in fade-in"
-          style={{
-            backgroundColor: `${themeColors.stop1}15`,
-            borderColor: `${themeColors.stop1}40`,
+      <Stack direction="row" spacing={2} sx={{ alignItems: 'center', pb: 2.5, borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+        <Box
+          sx={{
+            width: 48,
+            height: 48,
+            borderRadius: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: `${themeColors.stop1}20`,
+            border: `1px solid ${themeColors.stop1}50`,
             color: themeColors.stop1,
           }}
         >
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4" style={{ color: themeColors.stop1 }} />
-            <span><strong>Showcase Demo Mode Active:</strong> Displaying simulated analytics data for screenshots and testing.</span>
-          </div>
-          <button
-            onClick={toggleShowDemoStats}
-            className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium transition-colors text-[11px]"
-          >
-            Turn Off Demo
-          </button>
-        </div>
-      )}
-      
-      {/* Hero Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Total Time Card */}
-        <div 
-          className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col justify-center transition-all duration-300 relative overflow-hidden"
-          style={{
-            background: `linear-gradient(135deg, ${themeColors.stop1}15 0%, ${themeColors.stop2}08 100%)`,
+          <BarChart2 size={24} />
+        </Box>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>
+            Listening Dashboard
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            Your personal music listening statistics.
+          </Typography>
+        </Box>
+      </Stack>
+
+      {/* Demo Banner */}
+      {showDemoStats && (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            px: 2,
+            py: 1.25,
+            borderRadius: '12px',
+            bgcolor: `${themeColors.stop1}15`,
+            border: `1px solid ${themeColors.stop1}40`,
+            color: themeColors.stop1,
+            fontSize: '12px',
           }}
         >
-          <div className="flex items-center gap-3 mb-2">
-            <Clock className="w-5 h-5" style={{ color: themeColors.stop1 }} />
-            <span className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Total Time Listened</span>
-          </div>
-          <span 
-            className="text-4xl font-black font-mono tracking-tight bg-clip-text text-transparent"
-            style={{
-              backgroundImage: `linear-gradient(to right, #ffffff, ${themeColors.stop1})`
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            <Sparkles size={16} />
+            <span>
+              <strong>Showcase Demo Mode Active:</strong> Displaying simulated analytics data for screenshots and testing.
+            </span>
+          </Stack>
+          <Button
+            size="small"
+            onClick={toggleShowDemoStats}
+            sx={{
+              color: '#ffffff',
+              bgcolor: 'rgba(255, 255, 255, 0.1)',
+              textTransform: 'none',
+              fontSize: '11px',
+              borderRadius: '8px',
+              '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' },
             }}
           >
-            {formatDuration(stats.totalListeningTime)}
-          </span>
-          <span className="text-xs text-zinc-400 mt-2 font-mono">{events.length} total plays logged</span>
-        </div>
-        
-        {/* Period Line Chart Card with Song-Themed Selector */}
-        <div className="glass-card rounded-2xl p-6 border border-white/10 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Listening History</h3>
-            
-            {/* Themed Day / Week / Month Selector */}
-            <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10 shadow-inner">
-              {(['day', 'week', 'month'] as const).map((p) => {
-                const isSelected = timePeriod === p;
-                return (
-                  <button
-                    key={p}
-                    onClick={() => setTimePeriod(p)}
-                    style={
-                      isSelected
-                        ? {
-                            background: `linear-gradient(135deg, ${themeColors.stop1}, ${themeColors.stop3})`,
-                            color: '#ffffff',
-                            boxShadow: `0 2px 8px ${themeColors.stop1}50`
-                          }
-                        : {}
-                    }
-                    className={`px-3 py-1 text-[10px] font-bold uppercase rounded-lg transition-all duration-200 ${
-                      isSelected ? '' : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="h-32 w-full relative">
-            {periodData.length === 0 ? (
-              <p className="text-sm text-zinc-500">Not enough data recorded yet.</p>
-            ) : (
-              <Line data={timeChartData} options={timeChartOptions} />
-            )}
-          </div>
-        </div>
-      </div>
+            Turn Off Demo
+          </Button>
+        </Box>
+      )}
 
-      {/* Leaderboard Section Header with Material UI Selector */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
-        <div className="flex flex-col">
-          <h3 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
-            <span>Leaderboards</span>
-            <span className="text-xs font-normal normal-case text-zinc-400">
-              (Ranked by {leaderboardMetric === 'time' ? 'Total Time' : 'Total Plays'})
-            </span>
-          </h3>
-        </div>
-        <ToggleButtonGroup
-          value={leaderboardMetric}
-          exclusive
-          onChange={(_, newVal) => {
-            if (newVal) setLeaderboardMetric(newVal);
-          }}
-          size="small"
-          sx={{
-            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-            borderRadius: '12px',
-            p: '3px',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            '& .MuiToggleButton-root': {
-              color: '#a1a1aa',
-              border: 'none',
-              borderRadius: '8px !important',
-              px: 1.75,
-              py: 0.5,
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              textTransform: 'none',
-              transition: 'all 0.2s',
-              '&.Mui-selected': {
-                color: '#ffffff',
-                backgroundColor: 'var(--color-stop-1, #6366f1)',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-                '&:hover': {
-                  backgroundColor: 'var(--color-stop-1, #6366f1)',
-                  filter: 'brightness(1.1)',
-                },
-              },
-              '&:hover': {
-                backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                color: '#ffffff',
-              },
-            },
-          }}
-        >
-          <ToggleButton value="time">
-            <Clock className="w-3.5 h-3.5 mr-1.5" />
-            Time
-          </ToggleButton>
-          <ToggleButton value="plays">
-            <BarChart2 className="w-3.5 h-3.5 mr-1.5" />
-            Plays
-          </ToggleButton>
-        </ToggleButtonGroup>
-      </div>
+      {/* 1. Summary Cards */}
+      <StatsSummaryCards
+        totalListeningTime={stats.totalListeningTime}
+        totalPlays={events.length}
+        themeColors={themeColors}
+        timePeriod={timePeriod}
+        setTimePeriod={setTimePeriod}
+        timeChartData={timeChartData}
+        timeChartOptions={timeChartOptions}
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Songs */}
-        <div className="glass-card rounded-2xl p-5 border border-white/10 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Top Songs</h3>
-            <span className="text-[11px] text-zinc-400 font-medium">
-              Sorted by {leaderboardMetric === 'time' ? 'Time Listened' : 'Plays'}
-            </span>
-          </div>
-          {displayStats.topSongs.length === 0 ? (
-            <p className="text-sm text-zinc-500">Not enough data.</p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {displayStats.topSongs.map((song, i) => (
-                <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                  <div className="flex items-center gap-3 truncate pr-2">
-                    <span 
-                      className="text-xs font-bold w-4 shrink-0"
-                      style={{ color: i === 0 ? themeColors.stop1 : i === 1 ? themeColors.stop2 : themeColors.stop3 }}
-                    >
-                      {i + 1}
-                    </span>
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-sm font-medium text-zinc-200 truncate">{song.name}</span>
-                      {song.artist && !anonymizeStats && (
-                        <span className="text-[11px] text-zinc-400 truncate">{song.artist}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end shrink-0 pl-2">
-                    {leaderboardMetric === 'time' ? (
-                      <>
-                        <span className="text-xs font-bold text-white">{formatDuration(song.listened_ms)}</span>
-                        <span className="text-[10px] text-zinc-400 font-mono">{song.count} plays</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-xs font-bold text-white">{song.count} plays</span>
-                        <span className="text-[10px] text-zinc-400 font-mono">{formatDuration(song.listened_ms)}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* 2. Leaderboards */}
+      <StatsLeaderboards
+        topSongs={displayStats.topSongs}
+        topArtists={displayStats.topArtists}
+        leaderboardMetric={leaderboardMetric}
+        onMetricChange={setLeaderboardMetric}
+        themeColors={themeColors}
+      />
 
-        {/* Top Artists */}
-        <div className="glass-card rounded-2xl p-5 border border-white/10 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Top Artists</h3>
-            <span className="text-[11px] text-zinc-400 font-medium">
-              Sorted by {leaderboardMetric === 'time' ? 'Time Listened' : 'Plays'}
-            </span>
-          </div>
-          {displayStats.topArtists.length === 0 ? (
-            <p className="text-sm text-zinc-500">Not enough data.</p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {displayStats.topArtists.map((artist, i) => (
-                <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                  <div className="flex items-center gap-3 truncate pr-2">
-                    <span 
-                      className="text-xs font-bold w-4 shrink-0"
-                      style={{ color: i === 0 ? themeColors.stop2 : i === 1 ? themeColors.stop3 : themeColors.stop4 }}
-                    >
-                      {i + 1}
-                    </span>
-                    <span 
-                      className={`text-sm font-medium text-zinc-200 truncate ${!anonymizeStats ? 'cursor-pointer hover:underline hover:text-indigo-400' : ''}`}
-                      onClick={() => {
-                        if (!anonymizeStats && artist.name && artist.name !== 'Unknown Artist') {
-                          usePlayerStore.getState().navigateToArtist(stats.topArtists[i].name);
-                        }
-                      }}
-                    >
-                      {artist.name}
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-end shrink-0 pl-2">
-                    {leaderboardMetric === 'time' ? (
-                      <>
-                        <span className="text-xs font-bold text-white">{formatDuration(artist.listened_ms)}</span>
-                        <span className="text-[10px] text-zinc-400 font-mono">{artist.count} plays</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-xs font-bold text-white">{artist.count} plays</span>
-                        <span className="text-[10px] text-zinc-400 font-mono">{formatDuration(artist.listened_ms)}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Listening Habits */}
-        <div className="glass-card rounded-2xl p-5 border border-white/10 flex flex-col gap-4 lg:col-span-2">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Listening Activity (Time of Day)</h3>
-          <div className="h-64 w-full relative">
-            {stats.listeningHabits.every(x => x === 0) ? (
-              <p className="text-sm text-zinc-500">Not enough data.</p>
-            ) : (
-              <Bar data={habitsData} options={habitsOptions} />
-            )}
-          </div>
-        </div>
-
-        {/* Top Genres */}
-        <div className="glass-card rounded-2xl p-5 border border-white/10 flex flex-col gap-4 lg:col-span-2">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Top Genres</h3>
-          {displayStats.topGenres.length === 0 ? (
-            <p className="text-sm text-zinc-500">Not enough data.</p>
-          ) : (
-            <div className="h-64 w-full relative flex items-center justify-center">
-              <Doughnut data={genresData} options={genresOptions} />
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+      {/* 3. Breakdown Charts */}
+      <StatsCharts
+        genresData={genresData}
+        genresOptions={genresOptions}
+        habitsData={habitsData}
+        habitsOptions={habitsOptions}
+      />
+    </Box>
   );
 };

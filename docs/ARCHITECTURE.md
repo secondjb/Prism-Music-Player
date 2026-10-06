@@ -13,13 +13,21 @@ Prism Music Player is built on **Tauri v2**, combining a high-performance, low-l
 +-----------------------------------------------------------------------------------+
 |                                React 18 Frontend                                  |
 |                                                                                   |
-|  [App.tsx] Router & Layout                                                        |
-|     ├── [Header / Sidebar / BottomBar / QueueDrawer]                              |
-|     ├── [TrackTableView] (RevoGrid + Stencil Virtual Cells)                       |
-|     ├── [LyricsView] (Split/Centered, Word-Sync, Romanizer, 60fps Scroll)         |
-|     ├── [SettingsView] (Categorized MUI Configs, ReplayGain, Audio Devices)       |
-|     └── [AlbumGrid / ArtistsGrid / PlaylistView / StatsView]                      |
+|  [App.tsx] Router, Root Scaffolding & ThemeProvider (prismDarkTheme)              |
+|     ├── [Header.tsx] Search & Navigation Header                                  |
+|     ├── [Sidebar.tsx] Coordinator -> [sidebar/{Nav, Playlists, ContextMenu}]      |
+|     ├── [BottomBar.tsx] Coordinator -> [player/{TrackInfo, Controls, Volume, ...}]|
+|     ├── [QueueDrawer.tsx] M3 Drawer -> [queue/{ItemRow, ContextMenu}]             |
+|     ├── [TrackTableView.tsx] RevoGrid Virtual Data Grid                           |
+|     ├── [LyricsView.tsx] Split/Centered Lyrics -> [lyrics/*]                      |
+|     ├── [SettingsView.tsx] Coordinator -> [settings/{Library, Audio, Lyrics, ...}]|
+|     ├── [AlbumGrid / AlbumView] Coordinator -> [albums/*]                         |
+|     ├── [ArtistsGrid / ArtistView] Coordinator -> [artists/*]                     |
+|     ├── [PlaylistView] Coordinator -> [playlist/*]                                |
+|     ├── [StatsView] Coordinator -> [stats/{Cards, Charts, Leaderboards}]          |
+|     └── [FilterView] Tag & Frequency Audio Filter                                 |
 |                                                                                   |
+|  Theme: [src/theme/prismTheme.ts] (MUI Dark Theme + Dynamic CSS Palette)          |
 |  State: [usePlayerStore] (Zustand + Persist)                                      |
 |  Lifecycle: [useAudioPlayback] (Sync loop, MediaSession, Web Audio Taskbar sync)  |
 +-----------------------------------------▲-----------------------------------------+
@@ -105,9 +113,19 @@ const { volume, setVolume } = usePlayerStore(
 - Synchronizes the Web MediaSession API (`navigator.mediaSession`) and Windows SMTC with track title, artist, album, and artwork.
 - Contains the auto-advance logic (`nextTrack()`) when tracks finish.
 
-### 3.3 UI Component System & Material 3 Guidelines
+### 3.3 UI Component System & Material 3 Architecture
 - **Component Preference**: Always prefer **Material 3 (MUI / Material Design 3)** UI components, controls, and scaffolding over raw/native custom CSS implementations wherever feasible.
-- **Theme Integration**: Integrate components with the existing dark theme tokens (`muiDarkTheme` in `SettingsView.tsx`, `M3Selector.tsx`) and dynamic album-derived CSS variables (`--color-stop-1` through `--color-stop-6`).
+- **Theme Integration**: Centralized in [`src/theme/prismTheme.ts`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/theme/prismTheme.ts) via `prismDarkTheme`, binding MUI components (Buttons, Sliders, Menus, Modals, Drawers, ToggleButtons) directly to dynamic album-derived CSS variables (`--color-stop-1` through `--color-stop-6`).
+- **Modular Directory Structure**: All high-complexity monolithic views are refactored into coordinator containers with dedicated subcomponent directories:
+  - [`src/components/player/`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/components/player/): `PlayerTrackInfo.tsx`, `PlayerControls.tsx`, `PlayerVolumeControl.tsx`, `PlayerActions.tsx`, `PlayerContextMenu.tsx` (replaces fragile `clamp()` dynamic sizing with responsive flex-shrink & M3 typography).
+  - [`src/components/sidebar/`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/components/sidebar/): `SidebarNav.tsx`, `SidebarPlaylists.tsx`, `SidebarContextMenu.tsx`.
+  - [`src/components/common/`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/components/common/): `ViewHeaderControls.tsx` (shared view controls: M3 menu sort & ToggleButtonGroup grid/list toggle).
+  - [`src/components/albums/`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/components/albums/): `AlbumCard.tsx`, `AlbumListRow.tsx`, `AlbumDetailHeader.tsx`.
+  - [`src/components/artists/`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/components/artists/): `ArtistCard.tsx`, `ArtistListRow.tsx`, `ArtistDetailHeader.tsx`, `ArtistAlbumSection.tsx`.
+  - [`src/components/playlist/`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/components/playlist/): `PlaylistCard.tsx`, `PlaylistListRow.tsx`, `PlaylistDetailHeader.tsx`, `PlaylistAddSongsPanel.tsx`, `PlaylistContextMenu.tsx`.
+  - [`src/components/queue/`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/components/queue/): `QueueItemRow.tsx`, `QueueContextMenu.tsx` (M3 `Drawer` with glassmorphic paper background).
+  - [`src/components/stats/`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/components/stats/): `StatsSummaryCards.tsx`, `StatsCharts.tsx`, `StatsLeaderboards.tsx`.
+  - [`src/components/settings/`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/components/settings/): `LibrarySettingsSection.tsx`, `AudioSettingsSection.tsx`, `LyricsBackgroundSection.tsx`, `LyricsTypographySection.tsx`, `StatsSettingsSection.tsx`, `SystemSettingsSection.tsx`.
 - **Resource & Performance Constraints**:
   - Keep component hierarchies shallow and avoid excessive DOM nesting to conserve CPU/memory.
   - Rely on theme overrides or lightweight Tailwind utility classes rather than heavy runtime style computations.

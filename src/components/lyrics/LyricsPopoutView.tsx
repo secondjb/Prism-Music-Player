@@ -26,7 +26,7 @@ import {
   Check,
   Disc3,
   Sliders,
-  Target,
+  RotateCcw,
   ArrowLeftRight,
   Columns2,
   Rows,
@@ -35,6 +35,7 @@ import Slider from '@mui/material/Slider';
 import Tooltip from '@mui/material/Tooltip';
 import IconButton from '@mui/material/IconButton';
 import Switch from '@mui/material/Switch';
+import Box from '@mui/material/Box';
 
 const romanizer = createRomanizer({ japaneseDictPath: '/dict' });
 
@@ -283,17 +284,20 @@ export const LyricsPopoutView: React.FC = () => {
 
   const { activeIndex } = activeLyricState;
 
-  // Auto-scroll logic
+  // Auto-scroll logic: ensures active line is perfectly centered in the viewport
   const scrollToActive = useCallback(
     (smooth = true) => {
       const container = lyricsScrollRef.current;
       if (!container || activeIndex < 0) return;
       const activeEl = document.getElementById(`popout-lyric-${activeIndex}`);
       if (activeEl) {
-        const targetTop = activeEl.offsetTop - container.clientHeight / 2 + activeEl.clientHeight / 2;
+        const containerRect = container.getBoundingClientRect();
+        const elRect = activeEl.getBoundingClientRect();
+        const elTopRelativeToContent = elRect.top - containerRect.top + container.scrollTop;
+        const targetScrollTop = elTopRelativeToContent - containerRect.height / 2 + elRect.height / 2;
         isProgrammaticScrollRef.current = true;
         container.scrollTo({
-          top: Math.max(0, targetTop),
+          top: targetScrollTop,
           behavior: smooth ? 'smooth' : 'auto',
         });
         if (userScrollTimerRef.current) clearTimeout(userScrollTimerRef.current);
@@ -319,21 +323,21 @@ export const LyricsPopoutView: React.FC = () => {
     return `${m}:${rem.toString().padStart(2, '0')}`;
   };
 
-  // Background styling & true transparency
+  // Background styling & true transparency (no ugly outlines on album art color)
   const bgStyle = useMemo(() => {
     const opacity = popoutSettings.opacity ?? 0.85;
     switch (popoutSettings.backgroundStyle) {
       case 'solid':
         return {
           backgroundColor: `rgba(9, 9, 11, ${opacity})`,
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          border: 'none',
         };
       case 'album_art_color':
         return {
           backgroundColor: `color-mix(in srgb, var(--color-stop-1, #1e1b4b) ${Math.round(
             opacity * 55
           )}%, rgba(9, 9, 11, ${opacity}))`,
-          border: '1px solid color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+          border: 'none',
         };
       case 'transparent':
         return {
@@ -347,7 +351,7 @@ export const LyricsPopoutView: React.FC = () => {
           backgroundColor: `rgba(13, 13, 18, ${opacity * 0.88})`,
           backdropFilter: 'blur(28px) saturate(160%)',
           WebkitBackdropFilter: 'blur(28px) saturate(160%)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
+          border: 'none',
         };
     }
   }, [popoutSettings.backgroundStyle, popoutSettings.opacity]);
@@ -355,9 +359,13 @@ export const LyricsPopoutView: React.FC = () => {
   // Dynamic font sizing that scales to fill the available space (Balanced mode default)
   const computedFontSize = useMemo(() => {
     const h = contentSize.height;
+    const w = contentSize.width;
+    const isSplit = popoutSettings.layoutMode === 'split_left' || popoutSettings.layoutMode === 'split_right';
+    const effectiveWidth = isSplit ? w * 0.5 : w;
+
     if (popoutSettings.fontSize === 'small') {
       return {
-        active: Math.max(14, Math.min(22, Math.round(h * 0.09))),
+        active: Math.max(14, Math.min(24, Math.round(h * 0.09))),
         inactive: Math.max(11, Math.min(16, Math.round(h * 0.06))),
         sub: Math.max(10, Math.min(13, Math.round(h * 0.05))),
       };
@@ -377,11 +385,13 @@ export const LyricsPopoutView: React.FC = () => {
     else if (textLen > 25) factor = 0.92;
     else if (textLen < 15 && textLen > 0) factor = 1.15;
 
-    const activeSize = Math.max(20, Math.min(48, Math.round(h * 0.155 * factor)));
+    const baseByHeight = h * (isSplit ? 0.16 : 0.155) * factor;
+    const maxByWidth = Math.max(18, Math.round((effectiveWidth / Math.max(10, textLen || 20)) * 1.55));
+    const activeSize = Math.max(18, Math.min(52, Math.round(Math.min(baseByHeight, maxByWidth))));
     const inactiveSize = Math.max(13, Math.round(activeSize * 0.65));
     const subSize = Math.max(11, Math.round(activeSize * 0.52));
     return { active: activeSize, inactive: inactiveSize, sub: subSize };
-  }, [contentSize.height, popoutSettings.fontSize, lines, activeIndex]);
+  }, [contentSize.height, contentSize.width, popoutSettings.fontSize, popoutSettings.layoutMode, lines, activeIndex]);
 
   // Volume wheel handler
   const handleVolumeWheel = (e: React.WheelEvent) => {
@@ -408,8 +418,7 @@ export const LyricsPopoutView: React.FC = () => {
             className="w-3.5 h-3.5 animate-spin"
             style={{ animationDuration: '8s', color: 'var(--color-stop-1, #6366f1)' }}
           />
-          <span className="tracking-wide">Prism</span>
-          <span className="text-[10px] text-zinc-500 font-mono">Mini</span>
+          <span className="tracking-wide font-semibold text-zinc-200">Prism Mini</span>
         </div>
 
         {/* Right: Window Controls */}
@@ -524,68 +533,214 @@ export const LyricsPopoutView: React.FC = () => {
               onTouchMove={() => {
                 if (!isProgrammaticScrollRef.current) setIsUserScrolled(true);
               }}
-              className="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col items-center gap-4 py-8 px-2 text-center relative"
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col items-center gap-4 px-2 text-center relative"
             >
+              <div style={{ height: `${Math.max(60, Math.round(contentSize.height / 2 - (computedFontSize.active * 0.7)))}px`, flexShrink: 0 }} />
               {renderLyricsContent()}
+              <div style={{ height: `${Math.max(60, Math.round(contentSize.height / 2 - (computedFontSize.active * 0.7)))}px`, flexShrink: 0 }} />
             </div>
           </>
         )}
 
-        {/* LAYOUT B & C: SPLIT VIEW (Art Left or Art Right) */}
+        {/* LAYOUT B & C: SPLIT VIEW (Art Left or Art Right) with 50/50 1:1 ratio matching main app */}
         {(popoutSettings.layoutMode === 'split_left' || popoutSettings.layoutMode === 'split_right') && (
-          <div
-            className={`flex-1 min-h-0 flex ${
-              popoutSettings.layoutMode === 'split_right' ? 'flex-row-reverse' : 'flex-row'
-            } items-center gap-4 px-2 py-1 overflow-hidden`}
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              minWidth: 0,
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              flexDirection: popoutSettings.layoutMode === 'split_right' ? 'row-reverse' : 'row',
+              alignItems: 'stretch',
+              gap: { xs: 1.5, sm: 2.5 },
+              px: { xs: 1, sm: 2 },
+              py: 1,
+              overflow: 'hidden',
+            }}
           >
-            {/* Split Column 1: Big Album Art + Song & Artist */}
-            <div className="w-[38%] max-w-[200px] min-w-[110px] flex flex-col items-center justify-center shrink-0 text-center gap-2">
-              <div className="relative group w-full aspect-square max-w-[170px] rounded-xl overflow-hidden shadow-2xl border border-white/10 bg-zinc-900">
-                {trackArt ? (
-                  <img src={trackArt} alt="Artwork" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-zinc-600">
-                    <Music className="w-10 h-10" />
-                  </div>
-                )}
-                {/* Swap button on hover */}
-                <button
-                  onClick={() =>
-                    setPopoutSettings({
-                      layoutMode: popoutSettings.layoutMode === 'split_left' ? 'split_right' : 'split_left',
-                    })
-                  }
-                  className="absolute top-1.5 right-1.5 p-1 rounded-lg bg-black/60 hover:bg-black/90 text-white/80 hover:text-white backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Swap Left / Right"
-                >
-                  <ArrowLeftRight size={12} />
-                </button>
-              </div>
-
-              <div className="w-full px-1">
-                <div className="text-xs sm:text-sm font-bold text-white truncate leading-tight">
-                  {currentTrack?.title || 'No track playing'}
-                </div>
-                <div className="text-[11px] sm:text-xs text-zinc-400 truncate leading-tight mt-0.5">
-                  {currentTrack?.artist || 'Prism'}
-                </div>
-              </div>
-            </div>
-
-            {/* Split Column 2: Scrolling Lyrics */}
-            <div
-              ref={lyricsScrollRef}
-              onWheel={() => {
-                if (!isProgrammaticScrollRef.current) setIsUserScrolled(true);
+            {/* Split Column 1: Album Art (Strict 1:1 aspect ratio, taking up to 50% width and full column height) + Track Info */}
+            <Box
+              sx={{
+                flex: '1 1 50%',
+                width: '50%',
+                maxWidth: '50%',
+                height: '100%',
+                minWidth: 0,
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                p: { xs: 0.5, sm: 1 },
+                overflow: 'hidden',
               }}
-              onTouchMove={() => {
-                if (!isProgrammaticScrollRef.current) setIsUserScrolled(true);
-              }}
-              className="flex-1 h-full min-w-0 overflow-y-auto custom-scrollbar flex flex-col items-center gap-4 py-8 px-2 text-center relative"
             >
-              {renderLyricsContent()}
-            </div>
-          </div>
+              {/* Centered Artwork Container: strictly 1:1 square that dynamically scales as space grows */}
+              <Box
+                sx={{
+                  flex: 1,
+                  minHeight: 0,
+                  minWidth: 0,
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  p: { xs: 0.5, sm: 1 },
+                  overflow: 'hidden',
+                }}
+              >
+                <Box
+                  className="group"
+                  sx={{
+                    position: 'relative',
+                    aspectRatio: '1 / 1',
+                    height: '100%',
+                    maxHeight: '100%',
+                    maxWidth: '100%',
+                    width: 'auto',
+                    borderRadius: 'clamp(0.75rem, 2vw, 1.25rem)',
+                    overflow: 'hidden',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: 'rgba(24, 24, 27, 0.6)',
+                  }}
+                >
+                  {trackArt ? (
+                    <img
+                      src={trackArt}
+                      alt={currentTrack?.title || 'Artwork'}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        display: 'block',
+                        borderRadius: 'clamp(0.75rem, 2vw, 1.25rem)',
+                      }}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'rgb(113, 113, 122)',
+                      }}
+                    >
+                      <Music style={{ width: '3rem', height: '3rem' }} />
+                    </Box>
+                  )}
+
+                  {/* Swap Left / Right Quick Button on Hover */}
+                  <Box
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    sx={{
+                      position: 'absolute',
+                      top: 6,
+                      right: 6,
+                      zIndex: 10,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPopoutSettings({
+                          layoutMode:
+                            popoutSettings.layoutMode === 'split_left' ? 'split_right' : 'split_left',
+                        });
+                      }}
+                      className="p-1.5 rounded-lg bg-black/75 hover:bg-black/95 text-white/80 hover:text-white backdrop-blur-md transition-all border border-white/20 shadow-lg cursor-pointer"
+                      title="Swap Left / Right"
+                    >
+                      <ArrowLeftRight size={13} />
+                    </button>
+                  </Box>
+                </Box>
+              </Box>
+
+              {/* Title & Artist Underneath with Responsive Typography */}
+              <Box
+                sx={{
+                  flexShrink: 0,
+                  width: '100%',
+                  maxWidth: '100%',
+                  textAlign: 'center',
+                  pt: 0.75,
+                  pb: 0.25,
+                  px: 1,
+                  minWidth: 0,
+                }}
+              >
+                <Box
+                  sx={{
+                    fontWeight: 800,
+                    color: '#ffffff',
+                    fontSize: 'clamp(0.85rem, 1.8vw, 1.25rem)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {currentTrack?.title || 'No track playing'}
+                </Box>
+                <Box
+                  sx={{
+                    fontWeight: 500,
+                    color: 'rgba(255, 255, 255, 0.65)',
+                    fontSize: 'clamp(0.75rem, 1.4vw, 0.95rem)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    lineHeight: 1.2,
+                    mt: 0.5,
+                  }}
+                >
+                  {currentTrack?.artist || 'Prism Music Player'}
+                </Box>
+              </Box>
+            </Box>
+
+            {/* Split Column 2: Scrolling Lyrics (50% width) */}
+            <Box
+              sx={{
+                flex: '1 1 50%',
+                width: '50%',
+                maxWidth: '50%',
+                height: '100%',
+                minWidth: 0,
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                position: 'relative',
+              }}
+            >
+              <div
+                ref={lyricsScrollRef}
+                onWheel={() => {
+                  if (!isProgrammaticScrollRef.current) setIsUserScrolled(true);
+                }}
+                onTouchMove={() => {
+                  if (!isProgrammaticScrollRef.current) setIsUserScrolled(true);
+                }}
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                className="w-full h-full min-w-0 overflow-y-auto no-scrollbar flex flex-col items-center gap-4 px-2 text-center relative"
+              >
+                <div style={{ height: `${Math.max(60, Math.round(contentSize.height / 2 - (computedFontSize.active * 0.7)))}px`, flexShrink: 0 }} />
+                {renderLyricsContent()}
+                <div style={{ height: `${Math.max(60, Math.round(contentSize.height / 2 - (computedFontSize.active * 0.7)))}px`, flexShrink: 0 }} />
+              </div>
+            </Box>
+          </Box>
         )}
 
         {/* Floating Re-sync to Music Button */}
@@ -603,7 +758,7 @@ export const LyricsPopoutView: React.FC = () => {
             }}
             className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3 py-1 rounded-full text-white text-[11px] font-semibold shadow-xl backdrop-blur-md cursor-pointer hover:brightness-110 active:scale-95 transition-all"
           >
-            <Target className="w-3.5 h-3.5" />
+            <RotateCcw className="w-3.5 h-3.5" />
             <span>Re-sync</span>
           </button>
         )}
@@ -651,55 +806,77 @@ export const LyricsPopoutView: React.FC = () => {
 
         {/* Optional Playback Controls Bar */}
         {popoutSettings.showPlaybackControls && (
-          <div className="shrink-0 flex items-center justify-between pt-0.5 z-10 border-t border-white/5">
-            {/* Playback Transport Buttons */}
-            <div className="flex items-center gap-1 mx-auto">
-              <IconButton
-                size="small"
-                onClick={() => sendCommand('previousTrack')}
-                sx={{
-                  color: 'rgba(255,255,255,0.8)',
-                  p: 0.75,
-                  '&:hover': { color: '#ffffff', bgcolor: 'rgba(255,255,255,0.1)' },
-                }}
-              >
-                <SkipBack size={15} />
-              </IconButton>
+          <div className="relative shrink-0 flex items-center justify-center w-full min-h-[40px] pt-1 z-10 border-t border-white/5">
+            {/* Playback Transport Buttons - centered horizontally on the bottom bar */}
+            <div className="flex items-center gap-1.5">
+              <Tooltip title="Previous Track" arrow>
+                <IconButton
+                  size="small"
+                  onClick={() => sendCommand('previousTrack')}
+                  sx={{
+                    p: 0.8,
+                    color: '#a1a1aa',
+                    '&:hover': { color: '#ffffff' },
+                  }}
+                >
+                  <SkipBack size={18} />
+                </IconButton>
+              </Tooltip>
 
-              <IconButton
-                size="small"
+              <Box
+                component="button"
                 onClick={() => sendCommand('togglePlay')}
                 sx={{
-                  color: '#ffffff',
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
                   bgcolor: 'var(--color-stop-1, #6366f1)',
-                  p: 0.85,
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow:
+                    '0 4px 16px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                  cursor: 'pointer',
+                  border: 'none',
+                  outline: 'none',
+                  transition: 'transform 0.15s ease, filter 0.15s ease',
                   '&:hover': {
-                    bgcolor: 'var(--color-stop-1, #6366f1)',
-                    filter: 'brightness(1.15)',
                     transform: 'scale(1.05)',
+                    filter: 'brightness(1.12)',
+                  },
+                  '&:active': {
+                    transform: 'scale(0.95)',
                   },
                 }}
+                title={isPlaying ? 'Pause' : 'Play'}
               >
-                {isPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
-              </IconButton>
+                {isPlaying ? (
+                  <Pause size={17} fill="#ffffff" />
+                ) : (
+                  <Play size={17} fill="#ffffff" style={{ marginLeft: 2 }} />
+                )}
+              </Box>
 
-              <IconButton
-                size="small"
-                onClick={() => sendCommand('nextTrack')}
-                sx={{
-                  color: 'rgba(255,255,255,0.8)',
-                  p: 0.75,
-                  '&:hover': { color: '#ffffff', bgcolor: 'rgba(255,255,255,0.1)' },
-                }}
-              >
-                <SkipForward size={15} />
-              </IconButton>
+              <Tooltip title="Next Track" arrow>
+                <IconButton
+                  size="small"
+                  onClick={() => sendCommand('nextTrack')}
+                  sx={{
+                    p: 0.8,
+                    color: '#a1a1aa',
+                    '&:hover': { color: '#ffffff' },
+                  }}
+                >
+                  <SkipForward size={18} />
+                </IconButton>
+              </Tooltip>
             </div>
 
-            {/* Quick Volume with Mouse Wheel Scrolling */}
+            {/* Quick Volume with Mouse Wheel Scrolling - anchored to the right */}
             <div
               onWheel={handleVolumeWheel}
-              className="flex items-center gap-1 w-20 shrink-0 cursor-pointer"
+              className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1 w-24 shrink-0 cursor-pointer"
               title="Scroll to change volume"
             >
               <IconButton
@@ -729,8 +906,11 @@ export const LyricsPopoutView: React.FC = () => {
 
       {/* Settings Overlay Drawer */}
       {showSettingsDrawer && (
-        <div className="absolute inset-0 z-40 bg-zinc-950/95 backdrop-blur-md p-4 flex flex-col justify-between overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex items-center justify-between pb-2 border-b border-white/10">
+        <div
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          className="absolute inset-0 z-40 bg-zinc-950/95 backdrop-blur-md p-4 flex flex-col justify-between overflow-x-hidden overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-200"
+        >
+          <div className="flex items-center justify-between pb-2 border-b border-white/10 shrink-0">
             <span className="text-xs font-bold text-white flex items-center gap-1.5">
               <Sliders size={14} style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               Mini Player Settings
@@ -744,7 +924,10 @@ export const LyricsPopoutView: React.FC = () => {
             </IconButton>
           </div>
 
-          <div className="flex-1 py-3 space-y-3 text-xs overflow-y-auto">
+          <div
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            className="flex-1 py-3 space-y-3 text-xs overflow-x-hidden overflow-y-auto no-scrollbar"
+          >
             {/* Layout Mode Selector */}
             <div className="space-y-1.5">
               <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
@@ -1085,17 +1268,22 @@ export const LyricsPopoutView: React.FC = () => {
                   return (
                     <span
                       key={sIdx}
-                      className={`inline-block transition-colors duration-150 ${
+                      className={`inline-block transition-all duration-200 ease-out ${
                         syl.hasTrailingSpace ? 'mr-[0.25em]' : ''
                       }`}
                       style={{
+                        transform: isSylActive ? 'translate3d(0, -2px, 0) scale(1.08)' : undefined,
+                        willChange: isSylActive ? 'transform' : undefined,
+                        position: isSylActive ? 'relative' : undefined,
+                        zIndex: isSylActive ? 20 : undefined,
                         color: isSylActive
-                          ? 'var(--color-stop-1, #a5b4fc)'
-                          : isSylPassed
                           ? '#ffffff'
-                          : 'rgba(255, 255, 255, 0.40)',
+                          : isSylPassed
+                          ? 'rgba(255, 255, 255, 0.90)'
+                          : 'rgba(255, 255, 255, 0.45)',
+                        opacity: isSylActive ? 1 : isSylPassed ? 0.9 : 0.45,
                         textShadow: isSylActive
-                          ? '0 0 14px var(--color-stop-1, #6366f1)'
+                          ? '0 0 12px var(--color-stop-1, #6366f1), 0 0 24px var(--color-stop-2, #818cf8)'
                           : undefined,
                       }}
                     >

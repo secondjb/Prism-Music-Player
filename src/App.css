@@ -85,6 +85,16 @@
     background: transparent !important;
   }
 
+  .no-scrollbar {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
   /* Global theme-reactive text selection */
   ::selection {
     background-color: color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent) !important;

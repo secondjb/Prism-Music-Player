@@ -342,7 +342,7 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
           y: controlsVisible ? 0 : 20,
         }}
         transition={{ duration: 0.3 }}
-        className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-40 glass-panel border border-white/10 rounded-full px-5 py-2.5 shadow-2xl flex items-center justify-center gap-3 sm:gap-4 md:gap-5 ${
+        className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-40 glass-panel border border-white/10 rounded-full px-5 py-2 shadow-2xl flex items-center justify-center gap-3 sm:gap-4 md:gap-5 overflow-visible ${
           controlsVisible ? 'pointer-events-auto' : 'pointer-events-none'
         } ${isCompact ? 'max-w-[94vw] overflow-x-auto custom-scrollbar' : 'max-w-[min(72rem,calc(100vw-4rem))]'}`}
       >

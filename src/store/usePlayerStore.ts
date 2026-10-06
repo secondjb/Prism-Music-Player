@@ -4,6 +4,7 @@ import { Track, ActiveTab, SleepTimer, RepeatMode, Playlist, RefreshLibraryResul
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { fetchLatestRelease, UpdateCheckResult } from '../utils/updateChecker';
+import { invalidateTrackArtCache } from '../utils/useTrackArt';
 
 export type TrackColumnId =
   | 'order'
@@ -1149,6 +1150,10 @@ export const usePlayerStore = create<PlayerState>()(
             });
 
             setTracks(res.tracks);
+            try {
+              await invoke('clear_art_cache');
+            } catch {}
+            invalidateTrackArtCache();
             const updatedInfo = res.updated_count ? `${res.updated_count} metadata updated, ` : '';
             set({
               isRefreshingLibrary: false,

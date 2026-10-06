@@ -48,6 +48,11 @@ fn get_art_cache() -> &'static parking_lot::Mutex<std::collections::HashMap<Stri
     ART_CACHE.get_or_init(|| parking_lot::Mutex::new(std::collections::HashMap::with_capacity(512)))
 }
 
+pub fn clear_art_cache() {
+    let cache = get_art_cache();
+    cache.lock().clear();
+}
+
 pub fn extract_track_art(path_str: &str) -> Option<String> {
     let cache = get_art_cache();
     {
@@ -70,6 +75,28 @@ pub fn extract_track_art(path_str: &str) -> Option<String> {
             let encoded = STANDARD.encode(&pic.data);
             found_art = Some(format!("data:{};base64,{}", mime, encoded));
             break;
+        }
+    }
+
+    // Secondary: Read embedded artwork from MP3, M4A, AAC, OGG, etc. via lofty
+    if found_art.is_none() {
+        use lofty::file::TaggedFileExt;
+        use lofty::probe::Probe;
+        if let Ok(tagged_file) = Probe::open(path).and_then(|p| p.read()) {
+            for tag in tagged_file.tags() {
+                if let Some(pic) = tag.pictures().first() {
+                    let mime = match pic.mime_type() {
+                        Some(lofty::picture::MimeType::Jpeg) => "image/jpeg".to_string(),
+                        Some(lofty::picture::MimeType::Png) => "image/png".to_string(),
+                        Some(lofty::picture::MimeType::Bmp) => "image/bmp".to_string(),
+                        Some(lofty::picture::MimeType::Gif) => "image/gif".to_string(),
+                        _ => "image/jpeg".to_string(),
+                    };
+                    let encoded = STANDARD.encode(pic.data());
+                    found_art = Some(format!("data:{};base64,{}", mime, encoded));
+                    break;
+                }
+            }
         }
     }
 
@@ -1078,7 +1105,8 @@ pub fn purge_missing_from_library(app_data_path: &Path) -> Result<RefreshLibrary
     let final_tracks: Vec<TrackMetadata> = existing_tracks
         .into_iter()
         .filter(|t| {
-            if t.missing_since.is_some() {
+            let is_missing = t.missing_since.is_some() || !Path::new(&t.path).exists();
+            if is_missing {
                 let display_name = if t.artist.is_empty() || t.artist == "Unknown Artist" {
                     t.title.clone()
                 } else {

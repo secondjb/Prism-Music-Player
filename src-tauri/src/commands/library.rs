@@ -150,6 +150,11 @@ pub async fn get_track_art(path: String) -> Option<String> {
 }
 
 #[tauri::command]
+pub fn clear_art_cache() {
+    metadata::clear_art_cache();
+}
+
+#[tauri::command]
 pub async fn get_track_lyrics(path: String) -> Option<String> {
     tokio::task::spawn_blocking(move || extract_track_lyrics(&path))
         .await

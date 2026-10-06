@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useMemo, useCallback, useDeferredValue, lazy, Suspense } from 'react';
 import { usePlayerStore, getEffectiveReplayGain } from './store/usePlayerStore';
 import { Track, LibraryChunkResponse } from './types/player';
-import { useTrackArt } from './utils/useTrackArt';
+import { useTrackArt, invalidateTrackArtCache } from './utils/useTrackArt';
 import { useAudioPlayback } from './hooks/useAudioPlayback';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -102,6 +102,12 @@ export const App: React.FC = () => {
           // Instantly sync stored volume level to Rust audio engine on startup
           await invoke('set_volume', { volume: store.volume });
 
+          // Invalidate artwork caches on startup so newly embedded/modified art refreshes immediately
+          try {
+            await invoke('clear_art_cache');
+          } catch {}
+          invalidateTrackArtCache();
+
           let savedTracks: Track[] = [];
 
           try {
@@ -136,7 +142,7 @@ export const App: React.FC = () => {
           }
 
           if (savedTracks.length > 0) {
-            // Re-enrich hydrated store tracks with their full metadata (lyrics, replaygain, key, bpm) from disk library
+            // Re-enrich hydrated store tracks with their full metadata (artist, title, album, art, lyrics, replaygain, key, bpm) from disk library
             const trackMap = new Map<string, Track>(savedTracks.map((t: Track) => [t.id, t]));
             const state = usePlayerStore.getState();
             let needsUpdate = false;
@@ -146,6 +152,10 @@ export const App: React.FC = () => {
               if (full) {
                 enrichedCurrentTrack = {
                   ...state.currentTrack,
+                  title: full.title,
+                  artist: full.artist,
+                  album: full.album,
+                  embedded_art_base64: full.embedded_art_base64,
                   unsynced_lyrics: full.unsynced_lyrics ?? state.currentTrack.unsynced_lyrics,
                   replay_gain_db: full.replay_gain_db ?? state.currentTrack.replay_gain_db,
                   replay_gain_peak: full.replay_gain_peak ?? state.currentTrack.replay_gain_peak,
@@ -163,6 +173,10 @@ export const App: React.FC = () => {
                 needsUpdate = true;
                 return {
                   ...t,
+                  title: full.title,
+                  artist: full.artist,
+                  album: full.album,
+                  embedded_art_base64: full.embedded_art_base64,
                   unsynced_lyrics: full.unsynced_lyrics ?? t.unsynced_lyrics,
                   replay_gain_db: full.replay_gain_db ?? t.replay_gain_db,
                   replay_gain_peak: full.replay_gain_peak ?? t.replay_gain_peak,

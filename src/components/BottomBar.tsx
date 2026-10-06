@@ -85,7 +85,8 @@ export const BottomBar: React.FC = () => {
           maxWidth: 680,
           minWidth: 0,
           px: { xs: 0.5, sm: 1.5, md: 2 },
-          overflow: 'hidden',
+          overflow: 'visible',
+          py: 0.5,
         }}
       >
         <PlayerControls

@@ -191,6 +191,8 @@ Prism utilizes `@revolist/react-datagrid` (RevoGrid) backed by Stencil web compo
 
 ### 6.2 Metadata Reading & Embedding (`src-tauri/src/metadata.rs`)
 - Extracted tags: Title, Artist, Album, Year, Date, Genre, Track Number, Bit Depth, Sample Rate, Bitrate, Channels, Embedded Art Base64, and Unsynced Lyrics.
+- Artwork extraction (`extract_track_art`): Extracts embedded artwork across FLAC (`metaflac`) and MP3/M4A/MP4/Vorbis (`lofty`), with fallback to directory cover images (`cover.jpg`, etc.). Results are cached in `ART_CACHE`.
+- Cache invalidation: Both backend (`clear_art_cache`) and frontend (`invalidateTrackArtCache` in `useTrackArt.ts`) caches can be cleared dynamically on startup, library refresh, or tag embedding.
 - `embed_lyrics`: Modifies ID3v2 USLT / Vorbis `LYRICS` tags directly on disk when user edits or saves fetched lyrics.
 
 ---

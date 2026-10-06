@@ -33,12 +33,12 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   playButtonColor = 'white',
   hideAuxOnSmall = true,
 }) => {
-  const playBtnDiameter = size === 'sm' ? 36 : size === 'lg' ? 52 : 44;
-  const mainIconSize = size === 'sm' ? 16 : size === 'lg' ? 24 : 20;
-  const navIconSize = size === 'sm' ? 16 : size === 'lg' ? 24 : 20;
+  const playBtnDiameter = size === 'sm' ? 36 : size === 'lg' ? 48 : 42;
+  const mainIconSize = size === 'sm' ? 16 : size === 'lg' ? 22 : 18;
+  const navIconSize = size === 'sm' ? 16 : size === 'lg' ? 22 : 18;
   const auxIconSize = size === 'sm' ? 14 : size === 'lg' ? 18 : 16;
   return (
-    <Stack direction="row" spacing={{ xs: 0.75, sm: 1.5, md: 2 }} sx={{ alignItems: 'center', mb: 0.5 }}>
+    <Stack direction="row" spacing={{ xs: 0.75, sm: 1.5, md: 2 }} sx={{ alignItems: 'center', my: 0 }}>
       {/* Shuffle Button */}
       <Tooltip title={shuffleEnabled ? 'Shuffle On' : 'Shuffle Off'} arrow>
         <IconButton
@@ -99,11 +99,11 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
           outline: 'none',
           transition: 'transform 0.15s ease, filter 0.15s ease',
           '&:hover': {
-            transform: 'scale(1.06)',
+            transform: 'scale(1.04)',
             filter: 'brightness(1.08)',
           },
           '&:active': {
-            transform: 'scale(0.95)',
+            transform: 'scale(0.96)',
           },
         }}
         title={isPlaying ? 'Pause' : 'Play'}

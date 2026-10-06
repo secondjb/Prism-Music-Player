@@ -35,6 +35,23 @@ function setThumbnail(key: string, thumb: string) {
   thumbnailCache.set(key, thumb);
 }
 
+export function invalidateTrackArtCache(path?: string) {
+  if (path) {
+    fullArtCache.delete(path);
+    pendingRequests.delete(path);
+    for (const k of Array.from(thumbnailCache.keys())) {
+      if (k.startsWith(path)) {
+        thumbnailCache.delete(k);
+      }
+    }
+  } else {
+    fullArtCache.clear();
+    thumbnailCache.clear();
+    thumbPromiseCache.clear();
+    pendingRequests.clear();
+  }
+}
+
 /**
  * Creates a lightweight downscaled JPEG thumbnail (~3KB) from a high-res image data URL.
  * Memoized by source length + sample prefix to prevent re-rendering canvases for identical covers.

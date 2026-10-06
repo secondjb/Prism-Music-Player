@@ -148,6 +148,7 @@ pub fn run() {
             commands::load_library,
             commands::load_library_chunk,
             commands::get_track_art,
+            commands::clear_art_cache,
             commands::get_track_lyrics,
             commands::embed_lyrics,
             commands::play_audio,

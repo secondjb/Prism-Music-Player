@@ -1,8 +1,12 @@
 import React from 'react';
+import Box from '@mui/material/Box';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import InputBase from '@mui/material/InputBase';
 import SearchIcon from '@mui/icons-material/Search';
 import SettingsIcon from '@mui/icons-material/Settings';
-import Tooltip from '@mui/material/Tooltip';
 import { X } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 
@@ -16,8 +20,7 @@ export const Header: React.FC = () => {
   const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setSearchQuery(val);
+    setSearchQuery(e.target.value);
   };
 
   const getTitle = () => {
@@ -47,74 +50,126 @@ export const Header: React.FC = () => {
     }
   };
 
+  const trackCount = activeTab === 'liked' ? likedTrackIds.length : tracks.length;
+
   return (
-    <header className="w-full py-3 sm:py-4 px-4 sm:px-8 flex items-center justify-between z-10 shrink-0 gap-3">
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-        <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight truncate">{getTitle()}</h2>
+    <Box
+      component="header"
+      sx={{
+        width: '100%',
+        py: { xs: 1.5, sm: 2 },
+        px: { xs: 2, sm: 4 },
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        zIndex: 10,
+        flexShrink: 0,
+        gap: 2,
+      }}
+    >
+      {/* Title & Count Badge */}
+      <Stack direction="row" spacing={{ xs: 1.5, sm: 2 }} sx={{ alignItems: 'center', minWidth: 0 }}>
+        <Typography
+          variant="h5"
+          noWrap
+          sx={{
+            fontWeight: 700,
+            color: '#ffffff',
+            letterSpacing: '-0.02em',
+            fontSize: { xs: '1.25rem', sm: '1.5rem' },
+          }}
+        >
+          {getTitle()}
+        </Typography>
+
         {(activeTab === 'library' || activeTab === 'liked') && (
-          <span
-            className="px-2 sm:px-2.5 py-0.5 rounded-full text-[11px] sm:text-xs font-mono font-semibold border shrink-0 hidden xs:inline sm:inline"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+          <Box
+            component="span"
+            sx={{
+              px: { xs: 1, sm: 1.25 },
+              py: 0.25,
+              borderRadius: '9999px',
+              fontSize: { xs: '11px', sm: '12px' },
+              fontFamily: 'monospace',
+              fontWeight: 600,
+              bgcolor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
               color: 'var(--color-stop-1, #6366f1)',
-              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+              flexShrink: 0,
+              display: { xs: 'none', sm: 'inline-block' },
             }}
           >
-            {activeTab === 'liked' ? `${likedTrackIds.length} tracks` : `${tracks.length} tracks`}
-          </span>
+            {trackCount} tracks
+          </Box>
         )}
-      </div>
+      </Stack>
 
-      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-        <div className="relative w-48 sm:w-64 md:w-72">
-          <SearchIcon className="w-5 h-5 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
+      {/* Search Input & Settings Button */}
+      <Stack direction="row" spacing={{ xs: 1.5, sm: 2 }} sx={{ alignItems: 'center', flexShrink: 0 }}>
+        <Box
+          sx={{
+            position: 'relative',
+            width: { xs: 180, sm: 240, md: 300 },
+            borderRadius: '12px',
+            bgcolor: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid',
+            borderColor: searchQuery.trim()
+              ? 'var(--color-stop-1, #6366f1)'
+              : 'rgba(255, 255, 255, 0.1)',
+            boxShadow: searchQuery.trim()
+              ? '0 0 12px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)'
+              : 'none',
+            display: 'flex',
+            alignItems: 'center',
+            px: 1.5,
+            py: 0.5,
+            transition: 'border-color 0.2s, box-shadow 0.2s',
+            '&:focus-within': {
+              borderColor: 'var(--color-stop-1, #6366f1)',
+              boxShadow: '0 0 12px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+            },
+          }}
+        >
+          <SearchIcon sx={{ color: '#a1a1aa', fontSize: 20, mr: 1, flexShrink: 0 }} />
+          <InputBase
             value={searchQuery}
             onChange={handleChange}
-            placeholder="Search tracks, artists, albums, lyrics..."
-            className="w-full bg-white/5 border rounded-xl pl-10 pr-9 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none transition-all"
-            style={{
-              borderColor: searchQuery.trim()
-                ? 'var(--color-stop-1, #6366f1)'
-                : 'rgba(255, 255, 255, 0.1)',
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = 'var(--color-stop-1, #6366f1)';
-              e.currentTarget.style.boxShadow =
-                '0 0 12px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)';
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = searchQuery.trim()
-                ? 'var(--color-stop-1, #6366f1)'
-                : 'rgba(255, 255, 255, 0.1)';
-              e.currentTarget.style.boxShadow = '';
+            placeholder="Search tracks, artists, albums..."
+            sx={{
+              color: '#ffffff',
+              fontSize: '13px',
+              width: '100%',
+              '& input::placeholder': {
+                color: '#71717a',
+                opacity: 1,
+              },
             }}
           />
           {searchQuery && (
-            <button
-              type="button"
+            <IconButton
+              size="small"
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white p-0.5 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
-              title="Clear search"
+              sx={{ p: 0.25, color: '#a1a1aa', '&:hover': { color: '#ffffff' } }}
             >
-              <X className="w-4 h-4" />
-            </button>
+              <X size={14} />
+            </IconButton>
           )}
-        </div>
+        </Box>
 
         {/* Settings Button */}
-        <Tooltip title="Library Folders & Settings">
+        <Tooltip title="Library Folders & Settings" arrow>
           <IconButton
             onClick={() => setActiveTab('settings')}
             sx={{
               color: activeTab === 'settings' ? '#ffffff' : '#a1a1aa',
-              backgroundColor: activeTab === 'settings' ? 'var(--color-stop-1, #4f46e5)' : 'rgba(255, 255, 255, 0.05)',
+              bgcolor: activeTab === 'settings' ? 'var(--color-stop-1, #4f46e5)' : 'rgba(255, 255, 255, 0.05)',
               border: '1px solid rgba(255, 255, 255, 0.1)',
               borderRadius: '12px',
-              padding: '8px',
+              p: 1,
               '&:hover': {
-                backgroundColor: activeTab === 'settings' ? 'color-mix(in srgb, var(--color-stop-1, #4f46e5) 85%, black)' : 'rgba(255, 255, 255, 0.12)',
+                bgcolor: activeTab === 'settings'
+                  ? 'color-mix(in srgb, var(--color-stop-1, #4f46e5) 85%, black)'
+                  : 'rgba(255, 255, 255, 0.12)',
                 color: '#ffffff',
               },
             }}
@@ -122,8 +177,7 @@ export const Header: React.FC = () => {
             <SettingsIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-      </div>
-    </header>
+      </Stack>
+    </Box>
   );
 };
-

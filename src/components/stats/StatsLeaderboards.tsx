@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -30,7 +30,6 @@ interface LeaderboardItemRowProps {
   rank: number;
   matchedTrack?: Track;
   leaderboardMetric: 'time' | 'plays';
-  themeColor: string;
   onClick: () => void;
 }
 
@@ -40,19 +39,37 @@ const LeaderboardItemRow: React.FC<LeaderboardItemRowProps> = React.memo(({
   rank,
   matchedTrack,
   leaderboardMetric,
-  themeColor,
   onClick,
 }) => {
-  const art = useTrackArt(matchedTrack ?? null, { thumbnail: true, maxSize: 96 });
+  const [isVisible, setIsVisible] = useState(false);
+  const rowRef = useRef<HTMLDivElement>(null);
 
-  // Podium Rank Badging
+  // Lazy-list virtualization: only decode artwork when scrolled near the viewport
+  useEffect(() => {
+    if (!rowRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '300px' }
+    );
+    observer.observe(rowRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const art = useTrackArt(isVisible ? (matchedTrack ?? null) : null, { thumbnail: true, maxSize: 96 });
+
+  // Outlined Podium Medals (1: Gold, 2: Silver, 3: Bronze)
   const rankStyle = useMemo(() => {
     if (rank === 1) {
       return {
-        bgcolor: `${themeColor}25`,
-        border: `1px solid ${themeColor}70`,
-        color: themeColor,
-        boxShadow: `0 0 10px ${themeColor}35`,
+        bgcolor: 'rgba(234, 179, 8, 0.16)',
+        border: '1px solid rgba(234, 179, 8, 0.55)',
+        color: '#facc15',
+        boxShadow: '0 0 10px rgba(234, 179, 8, 0.25)',
       };
     }
     if (rank === 2) {
@@ -74,9 +91,9 @@ const LeaderboardItemRow: React.FC<LeaderboardItemRowProps> = React.memo(({
       border: '1px solid transparent',
       color: 'rgba(255, 255, 255, 0.45)',
     };
-  }, [rank, themeColor]);
+  }, [rank]);
 
-  // Secondary text label
+  // Clean secondary label
   const subtitle = useMemo(() => {
     if (type === 'track') {
       return item.artist || 'Unknown Artist';
@@ -84,9 +101,8 @@ const LeaderboardItemRow: React.FC<LeaderboardItemRowProps> = React.memo(({
     if (type === 'album') {
       return item.artist || 'Unknown Artist';
     }
-    // For artist: show play count or subtitle
-    return `${item.count} plays logged`;
-  }, [type, item.artist, item.count]);
+    return 'Artist';
+  }, [type, item.artist]);
 
   const tooltipText = type === 'track'
     ? matchedTrack ? `Click to play "${item.name}"` : item.name
@@ -97,6 +113,7 @@ const LeaderboardItemRow: React.FC<LeaderboardItemRowProps> = React.memo(({
   return (
     <Tooltip title={tooltipText} enterDelay={500} placement="top" arrow>
       <Box
+        ref={rowRef}
         onClick={onClick}
         sx={{
           display: 'flex',
@@ -109,6 +126,9 @@ const LeaderboardItemRow: React.FC<LeaderboardItemRowProps> = React.memo(({
           bgcolor: 'rgba(255, 255, 255, 0.03)',
           border: '1px solid transparent',
           cursor: 'pointer',
+          width: '100%',
+          boxSizing: 'border-box',
+          overflow: 'hidden',
           transition: 'all 0.15s ease',
           '&:hover': {
             bgcolor: 'rgba(255, 255, 255, 0.07)',
@@ -118,8 +138,8 @@ const LeaderboardItemRow: React.FC<LeaderboardItemRowProps> = React.memo(({
         }}
       >
         {/* Left Stack: Rank + Thumbnail + Title/Artist (All vertically centered) */}
-        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0, flex: 1 }}>
-          {/* Centered Rank Badge */}
+        <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1, mr: 1.5, overflow: 'hidden' }}>
+          {/* Centered Rank Medal Badge */}
           <Box
             sx={{
               width: 24,
@@ -132,6 +152,7 @@ const LeaderboardItemRow: React.FC<LeaderboardItemRowProps> = React.memo(({
               fontSize: '11px',
               fontWeight: 800,
               fontFamily: 'monospace',
+              mr: 1.25,
               ...rankStyle,
             }}
           >
@@ -152,6 +173,7 @@ const LeaderboardItemRow: React.FC<LeaderboardItemRowProps> = React.memo(({
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
+              mr: 1.25,
             }}
           >
             {art ? (
@@ -190,44 +212,91 @@ const LeaderboardItemRow: React.FC<LeaderboardItemRowProps> = React.memo(({
             )}
           </Box>
 
-          {/* Centered 2-Line Text Content */}
-          <Box sx={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          {/* Centered 2-Line Text Content with Ellipsis */}
+          <Box sx={{ minWidth: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <Typography
               noWrap
               variant="body2"
-              sx={{ fontSize: '13px', fontWeight: 600, color: '#ffffff', lineHeight: 1.25 }}
+              sx={{
+                fontSize: '13px',
+                fontWeight: 600,
+                color: '#ffffff',
+                lineHeight: 1.25,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                width: '100%',
+                display: 'block',
+              }}
             >
               {item.name}
             </Typography>
             <Typography
               noWrap
               variant="caption"
-              sx={{ color: '#a1a1aa', fontSize: '11px', lineHeight: 1.25, mt: '2px' }}
+              sx={{
+                color: '#a1a1aa',
+                fontSize: '11px',
+                lineHeight: 1.25,
+                mt: '2px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                width: '100%',
+                display: 'block',
+              }}
             >
               {subtitle}
             </Typography>
           </Box>
-        </Stack>
+        </Box>
 
-        {/* Right Stat Pill (Vertically Centered) */}
+        {/* Right Stacked Stat Pill (Time + Plays both visible and vertically centered) */}
         <Box
           sx={{
             display: 'flex',
-            alignItems: 'center',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            minWidth: 68,
             px: 1,
-            py: 0.35,
-            borderRadius: '6px',
+            py: 0.4,
+            borderRadius: '8px',
             bgcolor: 'rgba(255, 255, 255, 0.04)',
             border: '1px solid rgba(255, 255, 255, 0.06)',
-            fontFamily: 'monospace',
-            fontSize: '11px',
-            fontWeight: 600,
-            color: 'text.secondary',
-            ml: 1.5,
             flexShrink: 0,
           }}
         >
-          {leaderboardMetric === 'time' ? formatDuration(item.listened_ms) : `${item.count} plays`}
+          {/* Primary sorted metric */}
+          <Typography
+            variant="caption"
+            sx={{
+              fontFamily: 'monospace',
+              fontSize: '11px',
+              fontWeight: 700,
+              color: '#ffffff',
+              lineHeight: 1.2,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {leaderboardMetric === 'time' ? formatDuration(item.listened_ms) : `${item.count} plays`}
+          </Typography>
+
+          {/* Secondary companion metric */}
+          <Typography
+            variant="caption"
+            sx={{
+              fontFamily: 'monospace',
+              fontSize: '10px',
+              fontWeight: 500,
+              color: '#a1a1aa',
+              lineHeight: 1.2,
+              mt: '2px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {leaderboardMetric === 'time' ? `${item.count} plays` : formatDuration(item.listened_ms)}
+          </Typography>
         </Box>
       </Box>
     </Tooltip>
@@ -250,9 +319,7 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
     albums: 5,
   });
 
-  const tracksScrollRef = useRef<HTMLDivElement>(null);
-  const artistsScrollRef = useRef<HTMLDivElement>(null);
-  const albumsScrollRef = useRef<HTMLDivElement>(null);
+  const leaderboardsRootRef = useRef<HTMLDivElement>(null);
 
   const navigateToArtist = usePlayerStore((s) => s.navigateToArtist);
   const navigateToAlbum = usePlayerStore((s) => s.navigateToAlbum);
@@ -293,12 +360,8 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
       ...prev,
       [cat]: 5,
     }));
-    const ref = cat === 'tracks'
-      ? tracksScrollRef
-      : cat === 'artists'
-      ? artistsScrollRef
-      : albumsScrollRef;
-    ref.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    // Smoothly scroll back to the leaderboard section header
+    leaderboardsRootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
 
   const handleTrackClick = (item: TopItem) => {
@@ -323,7 +386,6 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
     title: string,
     IconComponent: React.ComponentType<{ size: number; className?: string }>,
     items: TopItem[],
-    scrollRef: React.RefObject<HTMLDivElement | null>,
     onItemClick: (item: TopItem) => void
   ) => {
     const count = visibleCounts[catKey];
@@ -342,7 +404,8 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
           display: 'flex',
           flexDirection: 'column',
           gap: 1.5,
-          minHeight: 380,
+          width: '100%',
+          boxSizing: 'border-box',
         }}
       >
         {/* Card Header */}
@@ -375,23 +438,19 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
           </Typography>
         </Stack>
 
-        {/* Scrollable Rows Container */}
+        {/* Natural-flowing list with no inner scrollbar (scrolls with entire page) */}
         <Box
-          ref={scrollRef}
           sx={{
             display: 'flex',
             flexDirection: 'column',
             gap: 0.75,
-            maxHeight: 320,
-            overflowY: 'auto',
-            pr: 0.5,
-            flex: 1,
+            width: '100%',
+            overflow: 'visible',
           }}
-          className="custom-scrollbar"
         >
           {visibleItems.length === 0 ? (
             <Box sx={{ py: 6, textAlign: 'center', color: 'text.secondary' }}>
-              <Typography variant="caption">No plays logged yet</Typography>
+              <Typography variant="caption">No plays logged in this time range</Typography>
             </Box>
           ) : (
             visibleItems.map((item, idx) => {
@@ -413,7 +472,6 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
                   rank={idx + 1}
                   matchedTrack={matched}
                   leaderboardMetric={leaderboardMetric}
-                  themeColor={themeColors.stop1}
                   onClick={() => onItemClick(item)}
                 />
               );
@@ -495,7 +553,7 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Box ref={leaderboardsRootRef} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {/* Top Header Toolbar: Category Tabs + Time/Plays Metric Toggle */}
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
@@ -587,16 +645,17 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
             ? { xs: '1fr', md: 'repeat(3, 1fr)' }
             : '1fr',
           gap: 2,
+          width: '100%',
         }}
       >
         {(activeCategory === 'all' || activeCategory === 'tracks') &&
-          renderCategoryCard('tracks', 'Top Tracks', Music, topSongs, tracksScrollRef, handleTrackClick)}
+          renderCategoryCard('tracks', 'Top Tracks', Music, topSongs, handleTrackClick)}
 
         {(activeCategory === 'all' || activeCategory === 'artists') &&
-          renderCategoryCard('artists', 'Top Artists', User, topArtists, artistsScrollRef, handleArtistClick)}
+          renderCategoryCard('artists', 'Top Artists', User, topArtists, handleArtistClick)}
 
         {(activeCategory === 'all' || activeCategory === 'albums') &&
-          renderCategoryCard('albums', 'Top Albums', Disc, topAlbums, albumsScrollRef, handleAlbumClick)}
+          renderCategoryCard('albums', 'Top Albums', Disc, topAlbums, handleAlbumClick)}
       </Box>
     </Box>
   );

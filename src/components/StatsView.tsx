@@ -3,7 +3,9 @@ import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
-import { BarChart2, AlertCircle, Sparkles } from 'lucide-react';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import ToggleButton from '@mui/material/ToggleButton';
+import { BarChart2, AlertCircle, Sparkles, Calendar } from 'lucide-react';
 import { fetchListeningEvents, ListeningEvent } from '../utils/stats';
 import {
   getTopArtists,
@@ -14,6 +16,8 @@ import {
   getTotalListeningTime,
   getListeningTimeByPeriod,
   generateMockListeningEvents,
+  StatsTimeRange,
+  filterEventsByTimeRange,
 } from '../utils/statsAggregation';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { StatsSummaryCards } from './stats/StatsSummaryCards';
@@ -79,6 +83,7 @@ export const StatsView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [timePeriod, setTimePeriod] = useState<'day' | 'week' | 'month'>('day');
   const [leaderboardMetric, setLeaderboardMetric] = useState<'time' | 'plays'>('time');
+  const [statsRange, setStatsRange] = useState<StatsTimeRange>('all');
 
   const isStatsCollectionEnabled = usePlayerStore((s) => s.isStatsCollectionEnabled);
   const showDemoStats = usePlayerStore((s) => s.showDemoStats);
@@ -107,17 +112,21 @@ export const StatsView: React.FC = () => {
     loadData();
   }, [isStatsCollectionEnabled, showDemoStats, libraryTracks]);
 
+  const filteredEvents = useMemo(() => {
+    return filterEventsByTimeRange(events, statsRange);
+  }, [events, statsRange]);
+
   const stats = useMemo(() => {
     return {
-      topArtists: getTopArtists(events, 100, leaderboardMetric),
-      topSongs: getTopSongs(events, 100, leaderboardMetric),
-      topAlbums: getTopAlbums(events, 100, leaderboardMetric),
-      topGenres: getTopGenres(events, 5, leaderboardMetric),
-      listeningHabits: getListeningHabits(events),
-      totalListeningTime: getTotalListeningTime(events),
-      timeByPeriod: getListeningTimeByPeriod(events, timePeriod),
+      topArtists: getTopArtists(filteredEvents, 100, leaderboardMetric),
+      topSongs: getTopSongs(filteredEvents, 100, leaderboardMetric),
+      topAlbums: getTopAlbums(filteredEvents, 100, leaderboardMetric),
+      topGenres: getTopGenres(filteredEvents, 5, leaderboardMetric),
+      listeningHabits: getListeningHabits(filteredEvents),
+      totalListeningTime: getTotalListeningTime(filteredEvents),
+      timeByPeriod: getListeningTimeByPeriod(filteredEvents, timePeriod),
     };
-  }, [events, timePeriod, leaderboardMetric]);
+  }, [filteredEvents, timePeriod, leaderboardMetric]);
 
   const displayStats = useMemo(() => {
     if (!anonymizeStats) return stats;
@@ -299,30 +308,79 @@ export const StatsView: React.FC = () => {
       className="custom-scrollbar"
     >
       {/* Header */}
-      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', pb: 1.5, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
-        <Box
-          sx={{
-            width: 48,
-            height: 48,
-            borderRadius: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            bgcolor: `${themeColors.stop1}20`,
-            border: `1px solid ${themeColors.stop1}50`,
-            color: themeColors.stop1,
-          }}
-        >
-          <BarChart2 size={24} />
-        </Box>
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>
-            Listening Dashboard
-          </Typography>
-          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-            Your personal music listening statistics.
-          </Typography>
-        </Box>
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        spacing={2}
+        sx={{
+          alignItems: { xs: 'flex-start', md: 'center' },
+          justifyContent: 'space-between',
+          pb: 1.5,
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        }}
+      >
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+          <Box
+            sx={{
+              width: 48,
+              height: 48,
+              borderRadius: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              bgcolor: `${themeColors.stop1}20`,
+              border: `1px solid ${themeColors.stop1}50`,
+              color: themeColors.stop1,
+            }}
+          >
+            <BarChart2 size={24} />
+          </Box>
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 800, color: '#ffffff', letterSpacing: '-0.02em' }}>
+              Listening Dashboard
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              Your personal music listening statistics.
+            </Typography>
+          </Box>
+        </Stack>
+
+        {/* stats.fm-style Time Range Selector */}
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          <Calendar size={15} className="text-zinc-400" />
+          <ToggleButtonGroup
+            size="small"
+            value={statsRange}
+            exclusive
+            onChange={(_, val) => {
+              if (val) setStatsRange(val);
+            }}
+            sx={{
+              bgcolor: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '10px',
+              p: 0.25,
+              '& .MuiToggleButtonGroup-grouped': {
+                border: 0,
+                borderRadius: '6px !important',
+                px: 1.5,
+                py: 0.45,
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#a1a1aa',
+                textTransform: 'none',
+                '&.Mui-selected': {
+                  bgcolor: 'var(--color-stop-1, #6366f1)',
+                  color: '#ffffff',
+                },
+              },
+            }}
+          >
+            <ToggleButton value="today">Today</ToggleButton>
+            <ToggleButton value="7days">7 Days</ToggleButton>
+            <ToggleButton value="30days">4 Weeks</ToggleButton>
+            <ToggleButton value="all">All Time</ToggleButton>
+          </ToggleButtonGroup>
+        </Stack>
       </Stack>
 
       {/* Demo Banner */}
@@ -367,7 +425,7 @@ export const StatsView: React.FC = () => {
       {/* 1. Summary Cards */}
       <StatsSummaryCards
         totalListeningTime={stats.totalListeningTime}
-        totalPlays={events.length}
+        totalPlays={filteredEvents.length}
         themeColors={themeColors}
         timePeriod={timePeriod}
         setTimePeriod={setTimePeriod}
@@ -375,7 +433,15 @@ export const StatsView: React.FC = () => {
         timeChartOptions={timeChartOptions}
       />
 
-      {/* 2. Leaderboards */}
+      {/* 2. Breakdown Charts (Genres & Habits) */}
+      <StatsCharts
+        genresData={genresData}
+        genresOptions={genresOptions}
+        habitsData={habitsData}
+        habitsOptions={habitsOptions}
+      />
+
+      {/* 3. Leaderboards (Tracks, Artists, Albums with natural page scroll) */}
       <StatsLeaderboards
         topSongs={displayStats.topSongs}
         topArtists={displayStats.topArtists}
@@ -384,14 +450,6 @@ export const StatsView: React.FC = () => {
         onMetricChange={setLeaderboardMetric}
         themeColors={themeColors}
         libraryTracks={libraryTracks}
-      />
-
-      {/* 3. Breakdown Charts */}
-      <StatsCharts
-        genresData={genresData}
-        genresOptions={genresOptions}
-        habitsData={habitsData}
-        habitsOptions={habitsOptions}
       />
     </Box>
   );

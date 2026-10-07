@@ -22,6 +22,33 @@ export function formatDuration(ms: number): string {
   return `${totalSeconds}s`;
 }
 
+export type StatsTimeRange = 'today' | '7days' | '30days' | 'all';
+
+export function filterEventsByTimeRange(
+  events: ListeningEvent[],
+  range: StatsTimeRange
+): ListeningEvent[] {
+  if (range === 'all') return events;
+  const now = Date.now();
+  let cutoff = 0;
+  if (range === 'today') {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    cutoff = today.getTime();
+  } else if (range === '7days') {
+    cutoff = now - 7 * 24 * 60 * 60 * 1000;
+  } else if (range === '30days') {
+    cutoff = now - 30 * 24 * 60 * 60 * 1000;
+  }
+
+  return events.filter((e) => {
+    if (!e.played_at) return false;
+    const timeStr = e.played_at.endsWith('Z') ? e.played_at : `${e.played_at.replace(' ', 'T')}Z`;
+    const t = new Date(timeStr).getTime();
+    return !isNaN(t) && t >= cutoff;
+  });
+}
+
 export function getTotalListeningTime(events: ListeningEvent[]): number {
   return events.reduce((acc, e) => acc + (e.duration_ms || 0), 0);
 }

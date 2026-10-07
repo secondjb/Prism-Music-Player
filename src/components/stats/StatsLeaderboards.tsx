@@ -105,13 +105,13 @@ const LeaderboardItemRow: React.FC<LeaderboardItemRowProps> = React.memo(({
   }, [type, item.artist]);
 
   const tooltipText = type === 'track'
-    ? matchedTrack ? `Click to play "${item.name}"` : item.name
+    ? `${item.name} — ${item.artist || 'Unknown Artist'}${matchedTrack ? ' • Click to play' : ''}`
     : type === 'artist'
-    ? `View artist page for "${item.name}"`
-    : `View album page for "${item.name}"`;
+    ? `${item.name} • Click to view artist`
+    : `${item.name} — ${item.artist || 'Unknown Artist'} • Click to view album`;
 
   return (
-    <Tooltip title={tooltipText} enterDelay={500} placement="top" arrow>
+    <Tooltip title={tooltipText} enterDelay={400} placement="top" arrow>
       <Box
         ref={rowRef}
         onClick={onClick}
@@ -212,8 +212,18 @@ const LeaderboardItemRow: React.FC<LeaderboardItemRowProps> = React.memo(({
             )}
           </Box>
 
-          {/* Centered 2-Line Text Content with Ellipsis */}
-          <Box sx={{ minWidth: 0, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          {/* Centered 2-Line Text Content with strict Ellipsis truncation */}
+          <Box
+            sx={{
+              minWidth: 0,
+              flex: 1,
+              maxWidth: { xs: 'calc(100% - 70px)', sm: 340, md: 440, lg: 500 },
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+            }}
+          >
             <Typography
               noWrap
               variant="body2"
@@ -313,11 +323,8 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
   libraryTracks = [],
 }) => {
   const [activeCategory, setActiveCategory] = useState<LeaderboardCategory>('all');
-  const [visibleCounts, setVisibleCounts] = useState<{ tracks: number; artists: number; albums: number }>({
-    tracks: 5,
-    artists: 5,
-    albums: 5,
-  });
+  // Single shared visible count across all 3 categories so they stay perfectly in sync
+  const [visibleCount, setVisibleCount] = useState<number>(5);
 
   const leaderboardsRootRef = useRef<HTMLDivElement>(null);
 
@@ -348,19 +355,20 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
     return { bySong, byArtist, byAlbum };
   }, [libraryTracks]);
 
-  const handleMore = (cat: 'tracks' | 'artists' | 'albums') => {
-    setVisibleCounts((prev) => ({
-      ...prev,
-      [cat]: prev[cat] + 5,
-    }));
+  // Max items across active categories
+  const maxAvailable = useMemo(() => {
+    if (activeCategory === 'tracks') return topSongs.length;
+    if (activeCategory === 'artists') return topArtists.length;
+    if (activeCategory === 'albums') return topAlbums.length;
+    return Math.max(topSongs.length, topArtists.length, topAlbums.length);
+  }, [activeCategory, topSongs.length, topArtists.length, topAlbums.length]);
+
+  const handleShowMoreAll = () => {
+    setVisibleCount((prev) => prev + 5);
   };
 
-  const handleCollapse = (cat: 'tracks' | 'artists' | 'albums') => {
-    setVisibleCounts((prev) => ({
-      ...prev,
-      [cat]: 5,
-    }));
-    // Smoothly scroll back to the leaderboard section header
+  const handleCollapseAll = () => {
+    setVisibleCount(5);
     leaderboardsRootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
 
@@ -388,10 +396,7 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
     items: TopItem[],
     onItemClick: (item: TopItem) => void
   ) => {
-    const count = visibleCounts[catKey];
-    const visibleItems = items.slice(0, count);
-    const hasMore = items.length > count;
-    const isExpanded = count > 5;
+    const visibleItems = items.slice(0, visibleCount);
 
     return (
       <Box
@@ -438,7 +443,7 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
           </Typography>
         </Stack>
 
-        {/* Natural-flowing list with no inner scrollbar (scrolls with entire page) */}
+        {/* Natural-flowing list with no inner scrollbar (all categories stay equal height) */}
         <Box
           sx={{
             display: 'flex',
@@ -478,76 +483,6 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
             })
           )}
         </Box>
-
-        {/* Card Footer with "More" & "Collapse" controls */}
-        {items.length > 0 && (
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              pt: 1.25,
-              mt: 'auto',
-              borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-            }}
-          >
-            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '11px' }}>
-              {`Showing ${Math.min(count, items.length)} of ${items.length}`}
-            </Typography>
-
-            <Stack direction="row" spacing={1}>
-              {hasMore && (
-                <Button
-                  size="small"
-                  onClick={() => handleMore(catKey)}
-                  endIcon={<ChevronDown size={14} />}
-                  sx={{
-                    bgcolor: 'rgba(255, 255, 255, 0.06)',
-                    color: '#ffffff',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    textTransform: 'none',
-                    py: 0.35,
-                    px: 1.25,
-                    borderRadius: '8px',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    '&:hover': {
-                      bgcolor: 'rgba(255, 255, 255, 0.12)',
-                      borderColor: 'rgba(255, 255, 255, 0.16)',
-                    },
-                  }}
-                >
-                  More
-                </Button>
-              )}
-
-              {isExpanded && (
-                <Button
-                  size="small"
-                  onClick={() => handleCollapse(catKey)}
-                  endIcon={<ChevronUp size={14} />}
-                  sx={{
-                    bgcolor: 'rgba(255, 255, 255, 0.04)',
-                    color: 'text.secondary',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    textTransform: 'none',
-                    py: 0.35,
-                    px: 1.25,
-                    borderRadius: '8px',
-                    border: '1px solid rgba(255, 255, 255, 0.06)',
-                    '&:hover': {
-                      bgcolor: 'rgba(255, 255, 255, 0.08)',
-                      color: '#ffffff',
-                    },
-                  }}
-                >
-                  Collapse
-                </Button>
-              )}
-            </Stack>
-          </Box>
-        )}
       </Box>
     );
   };
@@ -657,6 +592,89 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
         {(activeCategory === 'all' || activeCategory === 'albums') &&
           renderCategoryCard('albums', 'Top Albums', Disc, topAlbums, handleAlbumClick)}
       </Box>
+
+      {/* Consolidated Master Pagination Controls (Increases/Collapses all categories together) */}
+      {maxAvailable > 0 && (
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            p: 1.75,
+            borderRadius: '16px',
+            bgcolor: 'rgba(22, 22, 28, 0.5)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            gap: 1.5,
+            width: '100%',
+            boxSizing: 'border-box',
+          }}
+        >
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: '#ffffff', fontSize: '12px' }}>
+              {`Showing Top ${Math.min(visibleCount, maxAvailable)} across ${
+                activeCategory === 'all' ? 'all categories' : activeCategory
+              }`}
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '11px', fontFamily: 'monospace' }}>
+              {`(${maxAvailable} total logged)`}
+            </Typography>
+          </Stack>
+
+          <Stack direction="row" spacing={1.25}>
+            {visibleCount < maxAvailable && (
+              <Button
+                size="small"
+                variant="contained"
+                onClick={handleShowMoreAll}
+                endIcon={<ChevronDown size={14} />}
+                sx={{
+                  bgcolor: 'var(--color-stop-1, #6366f1)',
+                  color: '#ffffff',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  px: 2,
+                  py: 0.6,
+                  borderRadius: '8px',
+                  '&:hover': {
+                    bgcolor: 'var(--color-stop-1, #6366f1)',
+                    opacity: 0.9,
+                  },
+                }}
+              >
+                Show More (+5)
+              </Button>
+            )}
+
+            {visibleCount > 5 && (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={handleCollapseAll}
+                endIcon={<ChevronUp size={14} />}
+                sx={{
+                  borderColor: 'rgba(255, 255, 255, 0.15)',
+                  color: '#ffffff',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  px: 2,
+                  py: 0.6,
+                  borderRadius: '8px',
+                  '&:hover': {
+                    bgcolor: 'rgba(255, 255, 255, 0.08)',
+                    borderColor: 'rgba(255, 255, 255, 0.25)',
+                  },
+                }}
+              >
+                Collapse to Top 5
+              </Button>
+            )}
+          </Stack>
+        </Box>
+      )}
     </Box>
   );
 };

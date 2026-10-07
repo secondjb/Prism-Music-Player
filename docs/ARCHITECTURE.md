@@ -151,8 +151,9 @@ Prism utilizes `@revolist/react-datagrid` (RevoGrid) backed by Stencil web compo
 - Native Stencil cells are used for simple text/metadata properties to minimize React root overhead.
 
 ### 4.2 Grid Sorting & Smooth Data Updates
-- **Smooth Re-ordering**: To prevent the table from flashing blank and unmounting all virtual DOM nodes and cell components on every sort, `sortState` is intentionally **excluded** from `gridKey`.
-- Instead, `sortedTracks` seamlessly updates the `source` prop passed to `<RevoGrid source={source} />`, while `columns` headers receive dynamic `order: 'asc' | 'desc'` and are synchronized via `gridRef.current.updateColumns(columns)`.
+- **Headless React Sorting**: To resolve conflicts between RevoGrid's internal sorting state and React's `usePlayerStore` state, we use an industry-standard "dumb grid" pattern. RevoGrid's built-in sorting (`sortable: true`) is completely disabled.
+- **Explicit React Column Headers**: The `ColumnHeader` component explicitly receives React's authoritative `sortState` and `onSort` click handlers via custom props (`columnHeaderTemplate`). This guarantees the UI arrow and click behavior never drift out of sync, because RevoGrid has zero internal sorting state.
+- **Smooth Re-ordering**: To prevent the table from flashing blank and unmounting virtual nodes on every sort, `sortState` is **excluded** from `gridKey`. `sortedTracks` seamlessly calculates the sorted array and provides it to the `<RevoGrid source={source} />` prop.
 - **Reset Grid Defaults**: Invoking `resetGrid()` resets custom column widths, density, visibility, order, and resets `sortState` (`mainGridSortState` and `localSortState`) to `null` to return to the natural track sequence.
 
 ### 4.3 Album Art & Thumbnail High-Performance Pipeline

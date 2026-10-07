@@ -288,11 +288,20 @@ const PROP_TO_COL_ID: Record<string, TrackColumnId> = {
 const ColumnHeader: React.FC<any> = (props) => {
   const isDuration = props.prop === 'duration_secs';
   const isOrder = props.prop === 'order';
-  const order = props.order; // 'asc' | 'desc' | undefined
+  
+  // Use React's authoritative sort state rather than RevoGrid's internal mutable state
+  const isSorted = props.sortState?.prop === props.prop || 
+                   (props.prop === 'date' && props.sortState?.prop === 'year') ||
+                   (props.prop === 'duration' && props.sortState?.prop === 'duration_secs');
+  const order = isSorted ? props.sortState.order : undefined;
 
   if (isDuration) {
     return (
       <div
+        onClick={(e) => {
+          e.stopPropagation();
+          props.onSort?.(props.prop);
+        }}
         className="relative flex items-center justify-end w-full h-full select-none text-zinc-400 hover:text-white transition-colors cursor-pointer pr-3 overflow-visible"
         title="Sort by Duration"
       >
@@ -317,9 +326,13 @@ const ColumnHeader: React.FC<any> = (props) => {
 
   return (
     <div
-      className={`flex items-center gap-1.5 w-full h-full select-none text-[11px] font-semibold uppercase tracking-wider text-[#b3b3b3] hover:text-white transition-colors ${
-        props.sortable ? 'cursor-pointer' : ''
-      } ${isOrder ? 'justify-center' : 'justify-start'}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        props.onSort?.(props.prop);
+      }}
+      className={`flex items-center gap-1.5 w-full h-full select-none text-[11px] font-semibold uppercase tracking-wider text-[#b3b3b3] hover:text-white transition-colors cursor-pointer ${
+        isOrder ? 'justify-center' : 'justify-start'
+      }`}
     >
       {isOrder ? (
         <span className="pointer-events-none">#</span>
@@ -1066,6 +1079,22 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     [isMainGrid, setMainGridSortState, localSortState]
   );
 
+  const handleHeaderClick = useCallback((prop: string) => {
+    let mappedProp = prop;
+    if (prop === 'year') mappedProp = 'date';
+    else if (prop === 'duration_secs') mappedProp = 'duration';
+
+    setSortState((prev) => {
+      if (prev && prev.prop === mappedProp) {
+        return { prop: mappedProp, order: prev.order === 'asc' ? 'desc' : 'asc' };
+      }
+      const match = SORT_OPTIONS.find((opt) => opt.prop === mappedProp || opt.id === mappedProp);
+      return { prop: mappedProp, order: match ? match.defaultOrder : 'asc' };
+    });
+    gridRef.current?.scrollToCoordinate?.({ y: 0 });
+    lastScrollYRef.current = 0;
+  }, [setSortState]);
+
   const handleResetGrid = useCallback(() => {
     resetGrid();
     setSortState(null);
@@ -1211,28 +1240,10 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     return `rg-${containerWidth}-${trackGridDensity}-${visibleTrackColumns.length}-${columnOrder.join(',')}-${isSearchActive ? 'search' : 'all'}`;
   }, [containerWidth, trackGridDensity, visibleTrackColumns.length, columnOrder, isSearchActive]);
 
-  // Synchronize RevoGrid sorting lifecycle with React state cleanly without feedback loops
+  // Synchronize viewport scroll position
   useEffect(() => {
     const gridEl = gridRef.current;
     if (!gridEl) return;
-
-    const handleBeforeSorting = (e: any) => {
-      e.preventDefault();
-      const { column, order } = e.detail || {};
-      const prop = column?.prop;
-      if (!prop) return;
-
-      if (order === 'asc' || order === 'desc') {
-        setSortState({ prop, order });
-      } else {
-        setSortState((prev) => {
-          if (prev && prev.prop === prop) {
-            return { prop, order: prev.order === 'asc' ? 'desc' : 'asc' };
-          }
-          return { prop, order: 'asc' };
-        });
-      }
-    };
 
     const handleViewportScroll = (e: any) => {
       if (e?.detail?.dimension === 'rgRow' && typeof e.detail.coordinate === 'number') {
@@ -1240,13 +1251,11 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       }
     };
 
-    gridEl.addEventListener('beforesorting', handleBeforeSorting);
     gridEl.addEventListener('viewportscroll', handleViewportScroll);
     return () => {
-      gridEl.removeEventListener('beforesorting', handleBeforeSorting);
       gridEl.removeEventListener('viewportscroll', handleViewportScroll);
     };
-  }, [gridKey, setSortState]);
+  }, [gridKey]);
 
   // Restore vertical scroll position after grid remounts on window/container resize
   useEffect(() => {
@@ -1442,7 +1451,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
   const bitrateCellTemplate = useMemo(() => createTextCellTemplate((t) => (t.bit_rate_kbps ? `${t.bit_rate_kbps} kbps` : '—'), { isMono: true }), []);
   const sampleRateCellTemplate = useMemo(() => createTextCellTemplate((t) => (t.sample_rate ? `${(t.sample_rate / 1000).toFixed(1)} kHz` : '—'), { isMono: true }), []);
   const bitDepthCellTemplate = useMemo(() => createTextCellTemplate((t) => (t.bit_depth ? `${t.bit_depth}-bit` : '—'), { isMono: true }), []);
-  const columnHeaderTemplate = useMemo(() => createReactCellTemplate(ColumnHeader), [sortState]);
+  const columnHeaderTemplate = useMemo(() => createReactCellTemplate(ColumnHeader, { sortState, onSort: handleHeaderClick }), [sortState, handleHeaderClick]);
   const favoriteCellTemplate = useMemo(() => createReactCellTemplate(FavoriteCell), []);
   const playNextCellTemplate = useMemo(() => createReactCellTemplate(PlayNextCell), []);
   const addToQueueCellTemplate = useMemo(() => createReactCellTemplate(AddToQueueCell), []);
@@ -1523,12 +1532,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.order,
         minSize: MIN_COLUMN_WIDTHS.order,
-        sortable: true,
-        order: sortState?.prop === 'order' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: orderCellTemplate,
-        cellCompare: createSpacerAwareCompare('order'),
       },
       art: {
         prop: 'art',
@@ -1536,7 +1542,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.art,
         minSize: MIN_COLUMN_WIDTHS.art,
-        sortable: false,
         filter: false,
         cellTemplate: artCellTemplate,
       },
@@ -1546,12 +1551,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.title,
         minSize: MIN_COLUMN_WIDTHS.title,
-        sortable: true,
-        order: sortState?.prop === 'title' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: titleCellTemplate,
-        cellCompare: createSpacerAwareCompare('title'),
       },
       artist: {
         prop: 'artist',
@@ -1559,12 +1561,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.artist,
         minSize: MIN_COLUMN_WIDTHS.artist,
-        sortable: true,
-        order: sortState?.prop === 'artist' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: artistCellTemplate,
-        cellCompare: createSpacerAwareCompare('artist'),
       },
       album: {
         prop: 'album',
@@ -1572,12 +1571,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.album,
         minSize: MIN_COLUMN_WIDTHS.album,
-        sortable: true,
-        order: sortState?.prop === 'album' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: albumCellTemplate,
-        cellCompare: createSpacerAwareCompare('album'),
       },
       date: {
         prop: 'year',
@@ -1585,12 +1581,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.date,
         minSize: MIN_COLUMN_WIDTHS.date,
-        sortable: true,
-        order: sortState?.prop === 'year' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: dateCellTemplate,
-        cellCompare: createSpacerAwareCompare('year'),
       },
       genre: {
         prop: 'genre',
@@ -1598,12 +1591,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.genre,
         minSize: MIN_COLUMN_WIDTHS.genre,
-        sortable: true,
-        order: sortState?.prop === 'genre' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: genreCellTemplate,
-        cellCompare: createSpacerAwareCompare('genre'),
       },
       duration: {
         prop: 'duration_secs',
@@ -1611,12 +1601,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.duration,
         minSize: MIN_COLUMN_WIDTHS.duration,
-        sortable: true,
-        order: sortState?.prop === 'duration_secs' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: durationCellTemplate,
-        cellCompare: createSpacerAwareCompare('duration_secs'),
       },
       bitrate: {
         prop: 'bit_rate_kbps',
@@ -1624,12 +1611,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.bitrate,
         minSize: MIN_COLUMN_WIDTHS.bitrate,
-        sortable: true,
-        order: sortState?.prop === 'bit_rate_kbps' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: bitrateCellTemplate,
-        cellCompare: createSpacerAwareCompare('bit_rate_kbps'),
       },
       sampleRate: {
         prop: 'sample_rate',
@@ -1637,12 +1621,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.sampleRate,
         minSize: MIN_COLUMN_WIDTHS.sampleRate,
-        sortable: true,
-        order: sortState?.prop === 'sample_rate' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: sampleRateCellTemplate,
-        cellCompare: createSpacerAwareCompare('sample_rate'),
       },
       bitDepth: {
         prop: 'bit_depth',
@@ -1650,12 +1631,9 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.bitDepth,
         minSize: MIN_COLUMN_WIDTHS.bitDepth,
-        sortable: true,
-        order: sortState?.prop === 'bit_depth' ? sortState.order : undefined,
         filter: false,
         columnTemplate: columnHeaderTemplate,
         cellTemplate: bitDepthCellTemplate,
-        cellCompare: createSpacerAwareCompare('bit_depth'),
       },
       favorite: {
         prop: 'favorite',
@@ -1663,7 +1641,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.favorite,
         minSize: MIN_COLUMN_WIDTHS.favorite,
-        sortable: false,
         filter: false,
         cellTemplate: favoriteCellTemplate,
       },
@@ -1673,7 +1650,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.playNext,
         minSize: MIN_COLUMN_WIDTHS.playNext,
-        sortable: false,
         filter: false,
         cellTemplate: playNextCellTemplate,
       },
@@ -1683,7 +1659,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.addToQueue,
         minSize: MIN_COLUMN_WIDTHS.addToQueue,
-        sortable: false,
         filter: false,
         cellTemplate: addToQueueCellTemplate,
       },
@@ -1693,7 +1668,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.addToPlaylist,
         minSize: MIN_COLUMN_WIDTHS.addToPlaylist,
-        sortable: false,
         filter: false,
         cellTemplate: addToPlaylistCellTemplate,
       },
@@ -1703,7 +1677,6 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
         readonly: true,
         size: widths.actions,
         minSize: MIN_COLUMN_WIDTHS.actions,
-        sortable: false,
         filter: false,
         cellTemplate: actionsCellTemplate,
       },

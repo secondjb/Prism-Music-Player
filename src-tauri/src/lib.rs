@@ -138,6 +138,13 @@ pub fn run() {
         .manage(engine)
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                if window.label() == "main" {
+                    std::process::exit(0);
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::scan_directory,
             commands::scan_libraries,

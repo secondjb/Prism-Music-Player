@@ -53,8 +53,8 @@
 
 ## ⚠️ Critical Architectural Gotchas & Pitfalls
 
-1. **RevoGrid Stale Sorting & Key Invalidation**:
-   * RevoGrid caches internal row representations. Whenever changing sort orders or reordering columns, **`sortState` must be included in `gridKey`** and the latest store `sortState` must be passed directly into the grid's props. Never mutate grid sources in-place.
+1. **RevoGrid Headless Sorting**:
+   * We disabled RevoGrid's built-in sorting (`sortable: false`). Do not re-enable it. Sorting is handled strictly by React via `sortedTracks` updating the `source` array. The column headers are interactive via `ColumnHeader` React click handlers. `sortState` MUST remain EXCLUDED from `gridKey` to prevent the UI from flashing blank on every sort.
 2. **Lyrics View Rendering & Performance**:
    * Lyrics progress runs at 60 FPS. **Never** subscribe components directly to `currentTime` inside `usePlayerStore` if they render large trees. Use `requestAnimationFrame` or localized timer subscriptions (e.g. `LyricsSeekbar` or syllable highlighter memoization).
    * Always use `useShallow` when pulling multiple actions/properties from `usePlayerStore`.

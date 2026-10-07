@@ -8,6 +8,7 @@ import { fetchListeningEvents, ListeningEvent } from '../utils/stats';
 import {
   getTopArtists,
   getTopSongs,
+  getTopAlbums,
   getTopGenres,
   getListeningHabits,
   getTotalListeningTime,
@@ -108,8 +109,9 @@ export const StatsView: React.FC = () => {
 
   const stats = useMemo(() => {
     return {
-      topArtists: getTopArtists(events, 5, leaderboardMetric),
-      topSongs: getTopSongs(events, 5, leaderboardMetric),
+      topArtists: getTopArtists(events, 100, leaderboardMetric),
+      topSongs: getTopSongs(events, 100, leaderboardMetric),
+      topAlbums: getTopAlbums(events, 100, leaderboardMetric),
       topGenres: getTopGenres(events, 5, leaderboardMetric),
       listeningHabits: getListeningHabits(events),
       totalListeningTime: getTotalListeningTime(events),
@@ -121,8 +123,9 @@ export const StatsView: React.FC = () => {
     if (!anonymizeStats) return stats;
     return {
       ...stats,
-      topSongs: stats.topSongs.map((s, i) => ({ ...s, name: `Song ${i + 1}` })),
+      topSongs: stats.topSongs.map((s, i) => ({ ...s, name: `Song ${i + 1}`, artist: `Artist ${i + 1}` })),
       topArtists: stats.topArtists.map((a, i) => ({ ...a, name: `Artist ${i + 1}` })),
+      topAlbums: stats.topAlbums.map((a, i) => ({ ...a, name: `Album ${i + 1}`, artist: `Artist ${i + 1}` })),
       topGenres: stats.topGenres.map((g, i) => ({ ...g, name: `Genre ${i + 1}` })),
     };
   }, [stats, anonymizeStats]);
@@ -376,9 +379,11 @@ export const StatsView: React.FC = () => {
       <StatsLeaderboards
         topSongs={displayStats.topSongs}
         topArtists={displayStats.topArtists}
+        topAlbums={displayStats.topAlbums}
         leaderboardMetric={leaderboardMetric}
         onMetricChange={setLeaderboardMetric}
         themeColors={themeColors}
+        libraryTracks={libraryTracks}
       />
 
       {/* 3. Breakdown Charts */}

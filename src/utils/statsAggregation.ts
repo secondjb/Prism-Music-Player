@@ -5,6 +5,7 @@ export interface TopItem {
   count: number;
   listened_ms: number;
   artist?: string;
+  album?: string;
 }
 
 export function formatDuration(ms: number): string {
@@ -27,7 +28,7 @@ export function getTotalListeningTime(events: ListeningEvent[]): number {
 
 export function getTopArtists(
   events: ListeningEvent[],
-  limit: number = 10,
+  limit: number = 100,
   sortBy: 'time' | 'plays' = 'time'
 ): TopItem[] {
   const map: Record<string, TopItem> = {};
@@ -49,7 +50,7 @@ export function getTopArtists(
 
 export function getTopSongs(
   events: ListeningEvent[],
-  limit: number = 10,
+  limit: number = 100,
   sortBy: 'time' | 'plays' = 'time'
 ): TopItem[] {
   const map: Record<string, TopItem> = {};
@@ -57,7 +58,31 @@ export function getTopSongs(
     if (e.song_title) {
       const artist = e.artist_name || 'Unknown Artist';
       const key = `${e.song_title} - ${artist}`;
-      if (!map[key]) map[key] = { name: e.song_title, count: 0, listened_ms: 0, artist };
+      if (!map[key]) map[key] = { name: e.song_title, count: 0, listened_ms: 0, artist, album: e.album_name || undefined };
+      map[key].count += 1;
+      map[key].listened_ms += (e.duration_ms || 0);
+    }
+  });
+  return Object.values(map)
+    .sort((a, b) =>
+      sortBy === 'time'
+        ? (b.listened_ms - a.listened_ms || b.count - a.count)
+        : (b.count - a.count || b.listened_ms - a.listened_ms)
+    )
+    .slice(0, limit);
+}
+
+export function getTopAlbums(
+  events: ListeningEvent[],
+  limit: number = 100,
+  sortBy: 'time' | 'plays' = 'time'
+): TopItem[] {
+  const map: Record<string, TopItem> = {};
+  events.forEach((e) => {
+    if (e.album_name) {
+      const artist = e.artist_name || 'Unknown Artist';
+      const key = `${e.album_name} - ${artist}`;
+      if (!map[key]) map[key] = { name: e.album_name, count: 0, listened_ms: 0, artist };
       map[key].count += 1;
       map[key].listened_ms += (e.duration_ms || 0);
     }
@@ -73,7 +98,7 @@ export function getTopSongs(
 
 export function getTopGenres(
   events: ListeningEvent[],
-  limit: number = 5,
+  limit: number = 10,
   sortBy: 'time' | 'plays' = 'time'
 ): TopItem[] {
   const map: Record<string, TopItem> = {};

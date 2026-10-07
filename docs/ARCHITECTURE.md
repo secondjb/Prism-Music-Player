@@ -132,7 +132,7 @@ const { volume, setVolume } = usePlayerStore(
   - [`src/components/artists/`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/components/artists/): `ArtistCard.tsx`, `ArtistListRow.tsx`, `ArtistDetailHeader.tsx`, `ArtistAlbumSection.tsx`.
   - [`src/components/playlist/`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/components/playlist/): `PlaylistCard.tsx`, `PlaylistListRow.tsx`, `PlaylistDetailHeader.tsx`, `PlaylistAddSongsPanel.tsx`, `PlaylistContextMenu.tsx`.
   - [`src/components/queue/`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/components/queue/): `QueueItemRow.tsx`, `QueueContextMenu.tsx` (M3 `Drawer` with glassmorphic paper background).
-  - [`src/components/stats/`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/components/stats/): `StatsSummaryCards.tsx`, `StatsCharts.tsx`, `StatsLeaderboards.tsx` (compact padding, responsive cards, and clean typography).
+  - [`src/components/stats/`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/components/stats/): `StatsSummaryCards.tsx`, `StatsCharts.tsx`, `StatsLeaderboards.tsx` (industry-standard music analytics across Tracks, Artists, and Albums with vertically-centered row alignment, dynamic "+ More" / "Collapse" pagination, smooth-scrolling containers, podium rank badges, and track artwork).
   - [`src/components/settings/`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/src/components/settings/): `LibrarySettingsSection.tsx`, `AudioSettingsSection.tsx`, `LyricsBackgroundSection.tsx`, `LyricsTypographySection.tsx`, `StatsSettingsSection.tsx`, `SystemSettingsSection.tsx`.
 - **Resource & Performance Constraints**:
   - Keep component hierarchies shallow and avoid excessive DOM nesting to conserve CPU/memory.

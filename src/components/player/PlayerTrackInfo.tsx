@@ -72,7 +72,7 @@ export const PlayerTrackInfo: React.FC<PlayerTrackInfoProps> = ({
 
   if (!currentTrack) {
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 200, flex: 1, maxWidth: '30%' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 200, flex: 1, maxWidth: { xs: '35%', sm: '40%', md: '35%', lg: '30%' } }}>
         <Box
           sx={{
             width: 52,
@@ -111,7 +111,7 @@ export const PlayerTrackInfo: React.FC<PlayerTrackInfoProps> = ({
         gap: 1.5,
         minWidth: 0,
         flex: 1,
-        maxWidth: { xs: '35%', sm: '32%', md: '28%' },
+        maxWidth: { xs: '35%', sm: '40%', md: '35%', lg: '30%' },
       }}
     >
       {/* Album Art (Drag source) */}

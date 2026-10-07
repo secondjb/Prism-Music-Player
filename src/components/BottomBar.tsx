@@ -110,7 +110,7 @@ export const BottomBar: React.FC = () => {
           justifyContent: 'flex-end',
           gap: { xs: 0.5, sm: 1, md: 1.5 },
           flex: 1,
-          maxWidth: { xs: '35%', sm: '32%', md: '30%' },
+          maxWidth: { xs: '35%', sm: '40%', md: '35%', lg: '30%' },
           minWidth: 0,
           flexShrink: 0,
         }}

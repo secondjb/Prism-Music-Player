@@ -79,10 +79,10 @@ export const PlayerVolumeControl: React.FC<PlayerVolumeControlProps> = ({
       spacing={size === 'lg' ? 1.25 : 1}
       sx={{
         alignItems: 'center',
-        width: width || { xs: 75, sm: 105, md: 155 },
+        width: width || { xs: 80, sm: 110, md: 155 },
         maxWidth: '100%',
-        minWidth: 0,
-        flexShrink: 1,
+        minWidth: { xs: 80, sm: 110, md: 120 }, // Enforce minimum width so it cannot squash
+        flexShrink: 0, // Prevent container from squashing the slider
         display: showAlways ? 'flex' : { xs: 'none', sm: 'flex' },
       }}
       title="Scroll wheel to adjust volume"
@@ -105,7 +105,7 @@ export const PlayerVolumeControl: React.FC<PlayerVolumeControlProps> = ({
         </IconButton>
       </Tooltip>
 
-      <Box sx={{ flex: 1, minWidth: 24 }}>
+      <Box sx={{ flex: 1, minWidth: { xs: 46, sm: 50, md: 60 } }}>
         <AudioSlider
           value={effectiveVol}
           min={0}

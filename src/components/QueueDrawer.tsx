@@ -33,6 +33,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
   const currentIndex = usePlayerStore((s) => s.currentIndex);
   const removeFromUserQueue = usePlayerStore((s) => s.removeFromUserQueue);
   const reorderUserQueue = usePlayerStore((s) => s.reorderUserQueue);
+  const reorderContextQueue = usePlayerStore((s) => s.reorderContextQueue);
   const playIndex = usePlayerStore((s) => s.playIndex);
   const clearQueue = usePlayerStore((s) => s.clearQueue);
   const playlists = usePlayerStore((s) => s.playlists);
@@ -43,6 +44,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
   const playNext = usePlayerStore((s) => s.playNext);
   const setInfoModalTrack = usePlayerStore((s) => s.setInfoModalTrack);
 
+  const [draggedType, setDraggedType] = useState<'user' | 'context' | null>(null);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
@@ -84,25 +86,48 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
     playIndex(absoluteIndex);
   };
 
-  const handleDragStart = (idx: number) => {
+  const handleUserDragStart = (idx: number) => {
+    setDraggedType('user');
     setDraggedIdx(idx);
   };
 
-  const handleDragEnter = (idx: number) => {
-    setDragOverIdx(idx);
+  const handleUserDragEnter = (idx: number) => {
+    if (draggedType === 'user') setDragOverIdx(idx);
   };
 
-  const handleDragEnd = () => {
+  const handleUserDragEnd = () => {
+    setDraggedType(null);
     setDraggedIdx(null);
     setDragOverIdx(null);
   };
 
-  const handleDrop = (targetIdx: number) => {
-    if (draggedIdx !== null && draggedIdx !== targetIdx) {
+  const handleUserDrop = (targetIdx: number) => {
+    if (draggedType === 'user' && draggedIdx !== null && draggedIdx !== targetIdx) {
       reorderUserQueue(draggedIdx, targetIdx);
     }
+    handleUserDragEnd();
+  };
+
+  const handleCtxDragStart = (idx: number) => {
+    setDraggedType('context');
+    setDraggedIdx(idx);
+  };
+
+  const handleCtxDragEnter = (idx: number) => {
+    if (draggedType === 'context') setDragOverIdx(idx);
+  };
+
+  const handleCtxDragEnd = () => {
+    setDraggedType(null);
     setDraggedIdx(null);
     setDragOverIdx(null);
+  };
+
+  const handleCtxDrop = (targetIdx: number) => {
+    if (draggedType === 'context' && draggedIdx !== null && draggedIdx !== targetIdx) {
+      reorderContextQueue(draggedIdx, targetIdx);
+    }
+    handleCtxDragEnd();
   };
 
   return (
@@ -247,12 +272,12 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                       removeAction: () => removeFromUserQueue(idx),
                     });
                   }}
-                  onDragStart={handleDragStart}
-                  onDragEnter={handleDragEnter}
-                  onDragEnd={handleDragEnd}
-                  onDrop={handleDrop}
-                  isDragging={draggedIdx === idx}
-                  isDragOver={dragOverIdx === idx}
+                  onDragStart={handleUserDragStart}
+                  onDragEnter={handleUserDragEnter}
+                  onDragEnd={handleUserDragEnd}
+                  onDrop={handleUserDrop}
+                  isDragging={draggedType === 'user' && draggedIdx === idx}
+                  isDragOver={draggedType === 'user' && dragOverIdx === idx}
                 />
               ))}
             </Box>
@@ -292,6 +317,12 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                       },
                     });
                   }}
+                  onDragStart={handleCtxDragStart}
+                  onDragEnter={handleCtxDragEnter}
+                  onDragEnd={handleCtxDragEnd}
+                  onDrop={handleCtxDrop}
+                  isDragging={draggedType === 'context' && draggedIdx === idx}
+                  isDragOver={draggedType === 'context' && dragOverIdx === idx}
                 />
               ))}
             </Box>

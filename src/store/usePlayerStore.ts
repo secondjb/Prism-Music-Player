@@ -1726,8 +1726,7 @@ export const usePlayerStore = create<PlayerState>()(
         set((state) => {
           const newUserQueue = [...state.userQueue];
           const [moved] = newUserQueue.splice(fromIndex, 1);
-          const finalIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
-          newUserQueue.splice(finalIndex, 0, moved);
+          newUserQueue.splice(toIndex, 0, moved);
           return { userQueue: newUserQueue };
         });
       },
@@ -1746,8 +1745,7 @@ export const usePlayerStore = create<PlayerState>()(
         }
         const updated = [...queue];
         const [moved] = updated.splice(absoluteFrom, 1);
-        const finalIndex = absoluteFrom < absoluteTo ? absoluteTo - 1 : absoluteTo;
-        updated.splice(finalIndex, 0, moved);
+        updated.splice(absoluteTo, 0, moved);
         set({ queue: updated });
       },
 

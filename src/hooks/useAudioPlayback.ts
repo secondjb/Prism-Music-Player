@@ -23,6 +23,26 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
   const sleepTimer = usePlayerStore((s) => s.sleepTimer);
   const tickSleepTimerSecond = usePlayerStore((s) => s.tickSleepTimerSecond);
 
+  // Auto-sync backend next track whenever queue or playback state changes
+  useEffect(() => {
+    const unsub = usePlayerStore.subscribe((state, prevState) => {
+      if (
+        state.userQueue !== prevState.userQueue ||
+        state.queue !== prevState.queue ||
+        state.currentIndex !== prevState.currentIndex ||
+        state.repeatMode !== prevState.repeatMode ||
+        state.linkedTracks !== prevState.linkedTracks ||
+        state.alwaysGaplessForLinkedSongs !== prevState.alwaysGaplessForLinkedSongs ||
+        state.alwaysGaplessSongIds !== prevState.alwaysGaplessSongIds ||
+        state.currentTrack !== prevState.currentTrack ||
+        state.replayGainMode !== prevState.replayGainMode
+      ) {
+        state.syncNextTrackToBackend();
+      }
+    });
+    return unsub;
+  }, []);
+
   const isTransitioningRef = useRef(false);
   const lastPosRef = useRef(-1);
   const stallCountRef = useRef(0);

@@ -259,6 +259,55 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
 
     const unlistens: (() => void)[] = [];
     if (window.__TAURI_INTERNALS__) {
+      listen('track-transitioned', () => {
+        usePlayerStore.getState().onTrackTransitioned();
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
+      listen('track-finished', () => {
+        usePlayerStore.getState().nextTrack(false);
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
+      listen<{ current: number; total: number; track_id: string; bpm?: number; key?: string }>(
+        'audio_analysis_progress',
+        (e) => {
+          const { current, total, track_id, bpm, key } = e.payload;
+          const store = usePlayerStore.getState();
+          const currentTracks = Array.isArray(store.tracks) ? store.tracks : [];
+          const updated = currentTracks.map((t) =>
+            t.id === track_id
+              ? {
+                  ...t,
+                  ...(bpm !== undefined ? { bpm } : {}),
+                  ...(key !== undefined ? { key } : {}),
+                }
+              : t
+          );
+          usePlayerStore.setState({
+            tracks: updated,
+            audioAnalysisProgress: { current, total },
+          });
+        }
+      ).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
+      listen<any[]>('audio_analysis_completed', (e) => {
+        if (Array.isArray(e.payload) && e.payload.length > 0) {
+          usePlayerStore.setState({
+            tracks: e.payload,
+            audioAnalysisProgress: null,
+          });
+        } else {
+          usePlayerStore.setState({ audioAnalysisProgress: null });
+        }
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
       listen<string>('media-control', (event) => {
         const store = usePlayerStore.getState();
         switch (event.payload) {

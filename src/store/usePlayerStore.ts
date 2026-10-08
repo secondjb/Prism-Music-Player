@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { Track, ActiveTab, SleepTimer, RepeatMode, Playlist, RefreshLibraryResult, BackgroundType, LyricsLayoutMode, LyricsArtSize, PopoutLyricsSettings } from '../types/player';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { fetchLatestRelease, UpdateCheckResult } from '../utils/updateChecker';
 import { invalidateTrackArtCache } from '../utils/useTrackArt';
 
@@ -2417,45 +2416,4 @@ export const usePlayerStore = create<PlayerState>()(
   )
 );
 
-if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
-  listen('track-transitioned', () => {
-    usePlayerStore.getState().onTrackTransitioned();
-  });
 
-  listen('track-finished', () => {
-    usePlayerStore.getState().nextTrack(false);
-  });
-
-  listen<{ current: number; total: number; track_id: string; bpm?: number; key?: string }>(
-    'audio_analysis_progress',
-    (e) => {
-      const { current, total, track_id, bpm, key } = e.payload;
-      const store = usePlayerStore.getState();
-      const currentTracks = Array.isArray(store.tracks) ? store.tracks : [];
-      const updated = currentTracks.map((t) =>
-        t.id === track_id
-          ? {
-              ...t,
-              ...(bpm !== undefined ? { bpm } : {}),
-              ...(key !== undefined ? { key } : {}),
-            }
-          : t
-      );
-      usePlayerStore.setState({
-        tracks: updated,
-        audioAnalysisProgress: { current, total },
-      });
-    }
-  );
-
-  listen<Track[]>('audio_analysis_completed', (e) => {
-    if (Array.isArray(e.payload) && e.payload.length > 0) {
-      usePlayerStore.setState({
-        tracks: e.payload,
-        audioAnalysisProgress: null,
-      });
-    } else {
-      usePlayerStore.setState({ audioAnalysisProgress: null });
-    }
-  });
-}

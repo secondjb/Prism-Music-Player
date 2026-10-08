@@ -162,7 +162,7 @@ export interface SleepTimer {
   remainingTracks: number;
 }
 
-export type PopoutBackgroundStyle = 'frosted' | 'solid' | 'album_art_color' | 'transparent';
+export type PopoutBackgroundStyle = 'frosted' | 'solid' | 'album_art_color' | 'transparent' | 'album_art_blur';
 export type PopoutLayoutMode = 'stacked' | 'split_left' | 'split_right';
 export type PopoutFontSize = 'small' | 'balanced' | 'large';
 
@@ -176,4 +176,6 @@ export interface PopoutLyricsSettings {
   opacity: number;
   karaokeMode: 'word' | 'line';
   alwaysOnTop: boolean;
+  bgBlurAmount?: number;
+  bgDimOverlay?: number;
 }

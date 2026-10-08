@@ -82,6 +82,7 @@ export const LyricsPopoutView: React.FC = () => {
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [isPinned, setIsPinned] = useState(popoutSettings.alwaysOnTop ?? true);
   const [currentTimeSecs, setCurrentTimeSecs] = useState(0);
+  const [dragSeekVal, setDragSeekVal] = useState<number | null>(null);
 
   const [isUserScrolled, setIsUserScrolled] = useState(false);
   const isProgrammaticScrollRef = useRef(false);
@@ -393,6 +394,7 @@ export const LyricsPopoutView: React.FC = () => {
           border: 'none',
         };
       case 'transparent':
+      case 'album_art_blur':
         return {
           backgroundColor: 'transparent',
           border: 'none',
@@ -480,6 +482,27 @@ export const LyricsPopoutView: React.FC = () => {
       className="relative w-screen h-screen flex flex-col justify-between overflow-hidden select-none text-white transition-colors duration-300"
       style={bgStyle}
     >
+      {/* Album Artwork Blur Layer */}
+      {popoutSettings.backgroundStyle === 'album_art_blur' && (
+        <div
+          className="absolute inset-0 -z-10 pointer-events-none overflow-hidden"
+          style={{ opacity: popoutSettings.opacity ?? 0.85 }}
+        >
+          <div
+            className="absolute inset-0 bg-cover bg-center transition-all duration-700 scale-110"
+            style={{
+              backgroundImage: `url(${trackArt})`,
+              filter: `blur(${popoutSettings.bgBlurAmount ?? 80}px)`,
+            }}
+          />
+          {/* Dimmer overlay */}
+          <div
+            className="absolute inset-0 transition-opacity duration-300"
+            style={{ backgroundColor: `rgba(9, 9, 11, ${(popoutSettings.bgDimOverlay ?? 75) / 100})` }}
+          />
+        </div>
+      )}
+
       {/* Draggable Titlebar & Window Controls */}
       <div
         data-tauri-drag-region
@@ -851,20 +874,21 @@ export const LyricsPopoutView: React.FC = () => {
         {popoutSettings.showSeekbar && (
           <div className="shrink-0 flex items-center gap-2 pt-1 z-10">
             <span className="text-xs font-mono font-medium text-white/90 drop-shadow w-8 text-right shrink-0">
-              {formatTime(currentTimeSecs)}
+              {formatTime(dragSeekVal !== null ? dragSeekVal : currentTimeSecs)}
             </span>
             <Slider
               size="small"
-              value={currentTimeSecs}
+              value={dragSeekVal !== null ? dragSeekVal : currentTimeSecs}
               min={0}
               max={duration || 1}
               step={0.5}
               onChange={(_e, val) => {
                 const target = val as number;
-                setCurrentTimeSecs(target);
+                setDragSeekVal(target);
               }}
               onChangeCommitted={(_e, val) => {
                 const target = val as number;
+                setDragSeekVal(null);
                 setCurrentTimeSecs(target);
                 usePlayerStore.setState({ currentTime: target });
                 sendCommand('seek', target);
@@ -1220,8 +1244,9 @@ export const LyricsPopoutView: React.FC = () => {
               <div className="grid grid-cols-2 gap-1.5">
                 {[
                   { id: 'frosted', label: 'Frosted Glass' },
-                  { id: 'solid', label: 'Solid Dark' },
+                  { id: 'album_art_blur', label: 'Album Artwork Blur' },
                   { id: 'album_art_color', label: 'Album Art Color' },
+                  { id: 'solid', label: 'Solid Dark' },
                   { id: 'transparent', label: 'Transparent' },
                 ].map((style) => (
                   <button
@@ -1236,20 +1261,64 @@ export const LyricsPopoutView: React.FC = () => {
                           }
                         : {}
                     }
-                    className={`px-2.5 py-1.5 rounded-lg text-left text-xs transition-all flex items-center justify-between border ${
+                    className={`px-2.5 py-1.5 rounded-lg text-left text-[11px] transition-all flex items-center justify-between border ${
                       popoutSettings.backgroundStyle === style.id
                         ? 'text-white font-semibold'
                         : 'border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10'
                     }`}
                   >
-                    <span>{style.label}</span>
+                    <span className="truncate pr-1">{style.label}</span>
                     {popoutSettings.backgroundStyle === style.id && (
-                      <Check size={12} style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                      <Check size={12} className="shrink-0" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                     )}
                   </button>
                 ))}
               </div>
             </div>
+
+            {/* Album Art Blur Settings (only show when album_art_blur is selected) */}
+            {popoutSettings.backgroundStyle === 'album_art_blur' && (
+              <div className="space-y-3 pt-2 pb-1 border-t border-white/5">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-zinc-400 text-[11px]">
+                    <span>Blur Amount</span>
+                    <span className="font-mono">{popoutSettings.bgBlurAmount ?? 80}px</span>
+                  </div>
+                  <Slider
+                    size="small"
+                    value={popoutSettings.bgBlurAmount ?? 80}
+                    min={0}
+                    max={200}
+                    step={1}
+                    onChange={(_e, val) => updateSettings({ bgBlurAmount: val as number })}
+                    sx={{
+                      color: 'var(--color-stop-1, #6366f1)',
+                      p: '4px 0',
+                      '& .MuiSlider-thumb': { width: 10, height: 10 },
+                    }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-zinc-400 text-[11px]">
+                    <span>Dim Tint Overlay</span>
+                    <span className="font-mono">{popoutSettings.bgDimOverlay ?? 75}%</span>
+                  </div>
+                  <Slider
+                    size="small"
+                    value={popoutSettings.bgDimOverlay ?? 75}
+                    min={0}
+                    max={100}
+                    step={1}
+                    onChange={(_e, val) => updateSettings({ bgDimOverlay: val as number })}
+                    sx={{
+                      color: 'var(--color-stop-1, #6366f1)',
+                      p: '4px 0',
+                      '& .MuiSlider-thumb': { width: 10, height: 10 },
+                    }}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Background Opacity */}
             <div className="space-y-1 pt-1">

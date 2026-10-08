@@ -259,6 +259,8 @@ export const defaultPopoutLyricsSettings: PopoutLyricsSettings = {
   opacity: 0.85,
   karaokeMode: 'word',
   alwaysOnTop: true,
+  bgBlurAmount: 80,
+  bgDimOverlay: 75,
 };
 
 export const getStoredPopoutLyricsSettings = (): PopoutLyricsSettings => {

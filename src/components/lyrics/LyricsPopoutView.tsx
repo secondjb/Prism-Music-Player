@@ -862,6 +862,10 @@ export const LyricsPopoutView: React.FC = () => {
               onChange={(_e, val) => {
                 const target = val as number;
                 setCurrentTimeSecs(target);
+              }}
+              onChangeCommitted={(_e, val) => {
+                const target = val as number;
+                setCurrentTimeSecs(target);
                 usePlayerStore.setState({ currentTime: target });
                 sendCommand('seek', target);
               }}

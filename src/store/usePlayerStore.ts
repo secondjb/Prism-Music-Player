@@ -435,7 +435,13 @@ interface PlayerState {
   setScanStatusMessage: (msg: string | null) => void;
   isScanningReplayGain: boolean;
   replayGainScanProgress: { current: number; total: number; path: string; isFinished?: boolean } | null;
-  startReplayGainScan: (options?: { untaggedOnly?: boolean; writeToFiles?: boolean }) => Promise<void>;
+  startReplayGainScan: (options?: {
+    untaggedOnly?: boolean;
+    includeZeroDb?: boolean;
+    writeToFiles?: boolean;
+    targetPaths?: string[];
+  }) => Promise<void>;
+  scanTrackReplayGain: (path: string, writeToFile?: boolean) => Promise<{ gain: number | null; peak: number | null } | null>;
   cancelReplayGainScan: () => Promise<void>;
   setReplayGainScanProgress: (progress: { current: number; total: number; path: string; isFinished?: boolean } | null) => void;
   updateTrackReplayGain: (path: string, gain_db?: number | null, peak?: number | null) => void;
@@ -1271,6 +1277,10 @@ export const usePlayerStore = create<PlayerState>()(
             state.currentTrack?.path === path
               ? { ...state.currentTrack, replay_gain_db: gain_db, replay_gain_peak: peak }
               : state.currentTrack;
+          const updatedInfoModal =
+            state.infoModalTrack?.path === path
+              ? { ...state.infoModalTrack, replay_gain_db: gain_db, replay_gain_peak: peak }
+              : state.infoModalTrack;
           const updatedQueue = state.queue.map(enrich);
           const updatedUserQueue = state.userQueue.map(enrich);
 
@@ -1282,18 +1292,54 @@ export const usePlayerStore = create<PlayerState>()(
           return {
             tracks: updatedTracks,
             currentTrack: updatedCurrent,
+            infoModalTrack: updatedInfoModal,
             queue: updatedQueue,
             userQueue: updatedUserQueue,
           };
         });
       },
 
+      scanTrackReplayGain: async (path, writeToFile = true) => {
+        if (!window.__TAURI_INTERNALS__) return null;
+        try {
+          const results: Array<{
+            path: string;
+            replay_gain_db: number | null;
+            replay_gain_peak: number | null;
+            error: string | null;
+          }> = await invoke('scan_replaygain_batch', {
+            trackPaths: [path],
+            writeToFiles: Boolean(writeToFile),
+          });
+
+          if (results && results.length > 0 && results[0].replay_gain_db != null) {
+            const res = results[0];
+            get().updateTrackReplayGain(path, res.replay_gain_db, res.replay_gain_peak);
+            await invoke('save_library', { tracks: get().tracks }).catch(() => {});
+            return { gain: res.replay_gain_db, peak: res.replay_gain_peak };
+          }
+          return null;
+        } catch (e) {
+          console.warn('Single track ReplayGain scan error:', e);
+          return null;
+        }
+      },
+
       startReplayGainScan: async (options = {}) => {
-        const { untaggedOnly = true, writeToFiles = false } = options;
+        const { untaggedOnly = true, includeZeroDb = true, writeToFiles = false, targetPaths } = options;
         const allTracks = get().tracks;
-        const targetTracks = untaggedOnly
-          ? allTracks.filter((t) => t.replay_gain_db == null)
-          : allTracks;
+        let targetTracks: Track[];
+        if (targetPaths && targetPaths.length > 0) {
+          targetTracks = allTracks.filter((t) => targetPaths.includes(t.path));
+        } else if (untaggedOnly) {
+          targetTracks = allTracks.filter((t) => {
+            if (t.replay_gain_db == null) return true;
+            if (includeZeroDb && Math.abs(t.replay_gain_db) < 0.001) return true;
+            return false;
+          });
+        } else {
+          targetTracks = allTracks;
+        }
 
         if (targetTracks.length === 0) {
           set({ isScanningReplayGain: false, replayGainScanProgress: null });
@@ -1332,6 +1378,7 @@ export const usePlayerStore = create<PlayerState>()(
               };
               const updatedTracks = state.tracks.map(enrich);
               const updatedCurrent = state.currentTrack ? enrich(state.currentTrack) : state.currentTrack;
+              const updatedInfoModal = state.infoModalTrack ? enrich(state.infoModalTrack) : state.infoModalTrack;
               const updatedQueue = state.queue.map(enrich);
               const updatedUserQueue = state.userQueue.map(enrich);
 
@@ -1343,6 +1390,7 @@ export const usePlayerStore = create<PlayerState>()(
               return {
                 tracks: updatedTracks,
                 currentTrack: updatedCurrent,
+                infoModalTrack: updatedInfoModal,
                 queue: updatedQueue,
                 userQueue: updatedUserQueue,
               };

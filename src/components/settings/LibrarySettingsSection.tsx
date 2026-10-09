@@ -10,6 +10,7 @@ import {
   RotateCcw,
   Volume2,
   ChevronDown,
+  Search,
 } from 'lucide-react';
 import Checkbox from '@mui/material/Checkbox';
 import LinearProgress from '@mui/material/LinearProgress';
@@ -28,6 +29,8 @@ export const LibrarySettingsSection: React.FC<LibrarySettingsSectionProps> = ({
   shouldShow,
 }) => {
   const tracks = usePlayerStore((s) => s.tracks);
+  const setActiveTab = usePlayerStore((s) => s.setActiveTab);
+  const setSearchQuery = usePlayerStore((s) => s.setSearchQuery);
   const includedDirectories = usePlayerStore((s) => s.includedDirectories);
   const excludedDirectories = usePlayerStore((s) => s.excludedDirectories);
   const addIncludedDirectory = usePlayerStore((s) => s.addIncludedDirectory);
@@ -47,6 +50,7 @@ export const LibrarySettingsSection: React.FC<LibrarySettingsSectionProps> = ({
   const cancelReplayGainScan = usePlayerStore((s) => s.cancelReplayGainScan);
 
   const [scanUntaggedOnly, setScanUntaggedOnly] = React.useState(true);
+  const [includeZeroDb, setIncludeZeroDb] = React.useState(true);
   const [writeRgTagsToFiles, setWriteRgTagsToFiles] = React.useState(false);
   const [isScanningLocal, setIsScanningLocal] = React.useState(false);
   const [isAnalyzingAudio, setIsAnalyzingAudio] = React.useState(false);
@@ -58,7 +62,19 @@ export const LibrarySettingsSection: React.FC<LibrarySettingsSectionProps> = ({
   const keyCount = React.useMemo(() => tracks.filter((t) => t.key && t.key.trim()).length, [tracks]);
   const bpmCount = React.useMemo(() => tracks.filter((t) => t.bpm && t.bpm > 0).length, [tracks]);
   const keyOrBpmCount = React.useMemo(() => tracks.filter((t) => (t.key && t.key.trim()) || (t.bpm && t.bpm > 0)).length, [tracks]);
-  const replayGainCount = React.useMemo(() => tracks.filter((t) => t.replay_gain_db !== undefined && t.replay_gain_db !== null).length, [tracks]);
+  const zeroDbGainCount = React.useMemo(
+    () => tracks.filter((t) => t.replay_gain_db != null && Math.abs(t.replay_gain_db) < 0.001).length,
+    [tracks]
+  );
+  const completelyUntaggedCount = React.useMemo(
+    () => tracks.filter((t) => t.replay_gain_db == null).length,
+    [tracks]
+  );
+  const validReplayGainCount = React.useMemo(
+    () => tracks.filter((t) => t.replay_gain_db != null && Math.abs(t.replay_gain_db) >= 0.001).length,
+    [tracks]
+  );
+  const untaggedOrZeroCount = completelyUntaggedCount + zeroDbGainCount;
 
   const isScanning = isScanningLocal;
   const isRefreshing = isRefreshingLibrary;
@@ -315,9 +331,12 @@ export const LibrarySettingsSection: React.FC<LibrarySettingsSectionProps> = ({
             <div className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col gap-0.5">
               <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">ReplayGain</span>
               <span className="text-xl font-bold font-mono text-white">
-                {totalTracks > 0 ? `${Math.round((replayGainCount / totalTracks) * 100)}%` : '0%'}
+                {totalTracks > 0 ? `${Math.round((validReplayGainCount / totalTracks) * 100)}%` : '0%'}
               </span>
-              <span className="text-[10px] text-zinc-500 font-mono truncate">{replayGainCount} / {totalTracks}</span>
+              <span className="text-[10px] text-zinc-500 font-mono truncate">
+                {validReplayGainCount} / {totalTracks}
+                {zeroDbGainCount > 0 ? ` • ${zeroDbGainCount} at 0.00 dB` : ''}
+              </span>
             </div>
           </div>
 
@@ -401,7 +420,27 @@ export const LibrarySettingsSection: React.FC<LibrarySettingsSectionProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 flex-wrap">
+                {!isScanningReplayGain && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('replaygain:0');
+                      setActiveTab('library');
+                    }}
+                    disabled={untaggedOrZeroCount === 0}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{
+                      backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 15%, transparent)',
+                      borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+                      color: 'var(--color-stop-1, #6366f1)',
+                    }}
+                    title="Search and display all tracks without tags or at 0.00 dB in the library"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    <span>Search Untagged / 0.00 dB ({untaggedOrZeroCount})</span>
+                  </button>
+                )}
+
                 {isScanningReplayGain ? (
                   <button
                     onClick={cancelReplayGainScan}
@@ -411,7 +450,13 @@ export const LibrarySettingsSection: React.FC<LibrarySettingsSectionProps> = ({
                   </button>
                 ) : (
                   <button
-                    onClick={() => startReplayGainScan({ untaggedOnly: scanUntaggedOnly, writeToFiles: writeRgTagsToFiles })}
+                    onClick={() =>
+                      startReplayGainScan({
+                        untaggedOnly: scanUntaggedOnly,
+                        includeZeroDb,
+                        writeToFiles: writeRgTagsToFiles,
+                      })
+                    }
                     disabled={totalTracks === 0}
                     className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
@@ -422,7 +467,9 @@ export const LibrarySettingsSection: React.FC<LibrarySettingsSectionProps> = ({
                     <Volume2 className="w-3.5 h-3.5" />
                     <span>
                       {scanUntaggedOnly
-                        ? `Scan Untagged Tracks (${totalTracks - replayGainCount})`
+                        ? includeZeroDb
+                          ? `Scan Untagged & 0.00 dB (${untaggedOrZeroCount})`
+                          : `Scan Untagged (${completelyUntaggedCount})`
                         : `Recalculate All (${totalTracks})`}
                     </span>
                   </button>
@@ -446,6 +493,29 @@ export const LibrarySettingsSection: React.FC<LibrarySettingsSectionProps> = ({
                   />
                   <span>Scan untagged tracks only (Skip already analyzed)</span>
                 </label>
+
+                {scanUntaggedOnly && (
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <Checkbox
+                      checked={includeZeroDb}
+                      onChange={(e) => setIncludeZeroDb(e.target.checked)}
+                      size="small"
+                      sx={{
+                        color: 'var(--color-stop-1, #6366f1)',
+                        '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                        p: 0.25,
+                      }}
+                    />
+                    <span className="flex items-center gap-1.5">
+                      Include 0.00 dB tracks (Treat 0.00 dB as missing / dummy tags)
+                      {zeroDbGainCount > 0 && (
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          {zeroDbGainCount} found
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                )}
 
                 <label className="flex items-center gap-1.5 cursor-pointer select-none">
                   <Checkbox

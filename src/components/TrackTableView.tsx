@@ -96,6 +96,7 @@ import {
   ArrowUpDown,
   ArrowDown,
   ArrowUp,
+  Volume2,
 } from 'lucide-react';
 
 import { Track } from '../types/player';
@@ -1235,6 +1236,16 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
 
   const searchQuery = usePlayerStore((s) => s.searchQuery);
   const isSearchActive = Boolean(searchQuery && searchQuery.trim());
+  const isRgSearchActive = useMemo(() => {
+    if (!searchQuery || !searchQuery.trim()) return false;
+    const q = searchQuery.trim().toLowerCase();
+    return (
+      q === 'replaygain' ||
+      q === 'rg' ||
+      q === 'has:no-replaygain' ||
+      /\b(replaygain|rg):(missing|none|untagged|0|0\.00|zero)\b/i.test(q)
+    );
+  }, [searchQuery]);
 
   const gridKey = useMemo(() => {
     return `rg-${containerWidth}-${trackGridDensity}-${visibleTrackColumns.length}-${columnOrder.join(',')}-${isSearchActive ? 'search' : 'all'}`;
@@ -1922,6 +1933,27 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
             <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-white/10 text-zinc-300">
               {tracks.length}
             </span>
+            {isRgSearchActive && (
+              <span
+                className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-1.5 border"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+                  color: 'var(--color-stop-1, #6366f1)',
+                }}
+              >
+                <Volume2 className="w-3 h-3" />
+                <span>ReplayGain: Untagged or 0.00 dB</span>
+                <button
+                  type="button"
+                  onClick={() => usePlayerStore.getState().setSearchQuery('')}
+                  className="hover:opacity-75 cursor-pointer ml-0.5 text-zinc-300 hover:text-white"
+                  title="Clear ReplayGain Filter"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
             {selectedTrackIds.length > 1 && (
               <span
                 className="px-2 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-1.5"

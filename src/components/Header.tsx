@@ -156,7 +156,8 @@ export const Header: React.FC = () => {
           <InputBase
             value={searchQuery}
             onChange={handleChange}
-            placeholder="Search tracks, artists, albums..."
+            placeholder="Search tracks, artists, or 'replaygain:0'..."
+            title="Search tracks, artists, albums, or type 'replaygain:0' / 'replaygain:missing' to find tracks without tags or at 0.00 dB"
             sx={{
               color: '#ffffff',
               fontSize: '13px',

@@ -222,6 +222,9 @@ Prism utilizes `@revolist/react-datagrid` (RevoGrid) backed by Stencil web compo
 - Complies with ITU-R BS.1770-4 / EBU R128 standards.
 - Computes integrated loudness (LUFS) and true peak across each audio file.
 - Calculates target gain offset to normalize playback to -18 LUFS (or user preference).
+- **Corrupted / 0.00 dB Tag Handling & Scanning**: Many bad audio encoders write placeholder `0.00 dB` tags. Prism detects tracks with missing tags or `0.00 dB` (`Math.abs(replay_gain_db) < 0.001`), supporting an `includeZeroDb` toggle in the batch scanner (`startReplayGainScan`) to recalibrate them.
+- **Dedicated Search Directive**: The global search filter recognizes `replaygain:0`, `replaygain:0.00`, `replaygain:missing`, `replaygain:none`, `replaygain:untagged`, `rg:0`, `rg:missing`, and `replaygain` to instantly isolate tracks without valid loudness tags in the library.
+- **Song Info Modal Integration**: `SongInfoModal` highlights unanalyzed or `0.00 dB` tags with status badges and provides inline single-track calibration via `scanTrackReplayGain` as well as a one-click shortcut to search untagged tracks in the library.
 
 ### 7.2 BPM & Key Analysis (`src-tauri/src/audio_analysis.rs`)
 - Fast Fourier Transform (FFT) and peak tracking to estimate musical key (Camelot / standard notation) and BPM.

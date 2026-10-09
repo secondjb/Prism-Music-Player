@@ -255,7 +255,35 @@ export const App: React.FC = () => {
       if (activeTab === 'liked') return tracks.filter((t) => likedTrackIds.includes(t.id));
       return tracks;
     }
-    const q = deferredSearchQuery.trim().toLowerCase();
+    const rawQ = deferredSearchQuery.trim().toLowerCase();
+
+    // Check for ReplayGain search filters (untagged or at 0.00 dB)
+    const isRgMissingDirect =
+      rawQ === 'replaygain' ||
+      rawQ === 'rg' ||
+      rawQ === 'has:no-replaygain';
+
+    const rgFilterRegex = /\b(replaygain|rg):(missing|none|untagged|0|0\.00|zero|tagged|valid)\b/gi;
+    const hasRgFilterMatch = isRgMissingDirect || rgFilterRegex.test(rawQ);
+
+    let isRgMissing = isRgMissingDirect;
+    let isRgTagged = false;
+    let textFilter = rawQ;
+
+    if (hasRgFilterMatch && !isRgMissingDirect) {
+      const match = rawQ.match(rgFilterRegex);
+      if (match) {
+        const directive = match[0].toLowerCase();
+        if (directive.includes('tagged') || directive.includes('valid')) {
+          isRgTagged = true;
+        } else {
+          isRgMissing = true;
+        }
+      }
+      textFilter = rawQ.replace(rgFilterRegex, '').trim();
+    } else if (isRgMissingDirect) {
+      textFilter = '';
+    }
 
     const metadataMatches: typeof tracks = [];
     const lyricsOnlyMatches: typeof tracks = [];
@@ -263,15 +291,28 @@ export const App: React.FC = () => {
     for (const t of tracks) {
       if (activeTab === 'liked' && !likedTrackIds.includes(t.id)) continue;
 
-      const titleMatch = t.title?.toLowerCase().includes(q);
-      const artistMatch = t.artist?.toLowerCase().includes(q);
-      const albumMatch = t.album?.toLowerCase().includes(q);
+      if (isRgMissing) {
+        const lacksOrZero = t.replay_gain_db == null || Math.abs(t.replay_gain_db) < 0.001;
+        if (!lacksOrZero) continue;
+      } else if (isRgTagged) {
+        const hasValid = t.replay_gain_db != null && Math.abs(t.replay_gain_db) >= 0.001;
+        if (!hasValid) continue;
+      }
+
+      if (!textFilter) {
+        metadataMatches.push(t);
+        continue;
+      }
+
+      const titleMatch = t.title?.toLowerCase().includes(textFilter);
+      const artistMatch = t.artist?.toLowerCase().includes(textFilter);
+      const albumMatch = t.album?.toLowerCase().includes(textFilter);
 
       if (titleMatch || artistMatch || albumMatch) {
         metadataMatches.push(t);
       } else if (t.unsynced_lyrics) {
         const cleanLyrics = t.unsynced_lyrics.replace(/\[\d+:\d+(\.\d+)?\]/g, ' ');
-        if (cleanLyrics.toLowerCase().includes(q)) {
+        if (cleanLyrics.toLowerCase().includes(textFilter)) {
           lyricsOnlyMatches.push(t);
         }
       }

@@ -24,6 +24,7 @@ import {
   Check,
   Activity,
   Radio,
+  Volume2,
 } from 'lucide-react';
 import Checkbox from '@mui/material/Checkbox';
 import { fetchListeningEvents } from '../utils/stats';
@@ -183,6 +184,9 @@ export const SongInfoModal: React.FC = () => {
   const toggleSongAlwaysGapless = usePlayerStore((s) => s.toggleSongAlwaysGapless);
   const alwaysGaplessSongIds = usePlayerStore((s) => s.alwaysGaplessSongIds);
   const tracks = usePlayerStore((s) => s.tracks);
+  const scanTrackReplayGain = usePlayerStore((s) => s.scanTrackReplayGain);
+  const setActiveTab = usePlayerStore((s) => s.setActiveTab);
+  const setGlobalSearchQuery = usePlayerStore((s) => s.setSearchQuery);
 
   const [onlineData, setOnlineData] = useState<ITunesResult | null>(null);
   const [isLoadingOnline, setIsLoadingOnline] = useState(false);
@@ -191,6 +195,10 @@ export const SongInfoModal: React.FC = () => {
   // Embedded Song Linking Search & Add state
   const [searchQuery, setSearchQuery] = useState('');
   const [linkSuccessMsg, setLinkSuccessMsg] = useState<string | null>(null);
+
+  // Single-track ReplayGain scan state
+  const [isScanningRg, setIsScanningRg] = useState(false);
+  const [rgScanFeedback, setRgScanFeedback] = useState<string | null>(null);
 
   // Drag-and-drop state for linked sequence
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -261,6 +269,32 @@ export const SongInfoModal: React.FC = () => {
       isMounted = false;
     };
   }, [activeTrack?.id, activeTrack?.title, activeTrack?.artist]);
+
+  const handleScanThisTrackRg = async () => {
+    const target = activeTrack || infoModalTrack;
+    if (!target || isScanningRg) return;
+    setIsScanningRg(true);
+    setRgScanFeedback(null);
+    try {
+      const res = await scanTrackReplayGain(target.path, true);
+      if (res && typeof res.gain === 'number') {
+        setRgScanFeedback(`Loudness analyzed: ${res.gain > 0 ? '+' : ''}${res.gain.toFixed(2)} dB`);
+      } else {
+        setRgScanFeedback('Scan completed');
+      }
+    } catch {
+      setRgScanFeedback('Failed to analyze track loudness');
+    } finally {
+      setIsScanningRg(false);
+      setTimeout(() => setRgScanFeedback(null), 4000);
+    }
+  };
+
+  const handleSearchUntaggedRg = () => {
+    setInfoModalTrack(null);
+    setGlobalSearchQuery('replaygain:0');
+    setActiveTab('library');
+  };
 
   const localRelativeDate = useMemo(() => {
     const raw = (activeTrack || infoModalTrack)?.date || (activeTrack || infoModalTrack)?.year;
@@ -524,18 +558,73 @@ export const SongInfoModal: React.FC = () => {
                 <span className="text-xl font-mono text-white">{formatDuration((activeTrack || infoModalTrack).duration_secs)}</span>
               </div>
 
-              <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col gap-1">
-                <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest">ReplayGain (Track / Album)</span>
-                <span className="text-xl font-mono text-white">
-                  {typeof (activeTrack || infoModalTrack).replay_gain_db === 'number'
-                    ? `${(activeTrack || infoModalTrack).replay_gain_db! > 0 ? '+' : ''}${(activeTrack || infoModalTrack).replay_gain_db!.toFixed(2)} dB`
-                    : (typeof (activeTrack || infoModalTrack).replay_gain_album_db === 'number' ? 'None (Track)' : 'None')}
-                  {typeof (activeTrack || infoModalTrack).replay_gain_album_db === 'number' && (
-                    <span className="text-sm text-zinc-400 ml-2 font-normal">
-                      [Album: {(activeTrack || infoModalTrack).replay_gain_album_db! > 0 ? '+' : ''}{(activeTrack || infoModalTrack).replay_gain_album_db!.toFixed(2)} dB]
+              <div className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-col justify-between gap-3">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest flex items-center gap-1.5">
+                      <Volume2 className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                      ReplayGain (Track / Album)
+                    </span>
+                    {typeof (activeTrack || infoModalTrack).replay_gain_db === 'number' &&
+                    Math.abs((activeTrack || infoModalTrack).replay_gain_db!) < 0.001 ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        0.00 dB (Dummy / Unanalyzed)
+                      </span>
+                    ) : (activeTrack || infoModalTrack).replay_gain_db == null ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-zinc-700/50 text-zinc-400 border border-white/10">
+                        Untagged
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
+                        Calibrated
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="text-xl font-mono text-white">
+                      {typeof (activeTrack || infoModalTrack).replay_gain_db === 'number'
+                        ? `${(activeTrack || infoModalTrack).replay_gain_db! > 0 ? '+' : ''}${(activeTrack || infoModalTrack).replay_gain_db!.toFixed(2)} dB`
+                        : (typeof (activeTrack || infoModalTrack).replay_gain_album_db === 'number' ? 'None (Track)' : 'None')}
+                    </span>
+                    {typeof (activeTrack || infoModalTrack).replay_gain_album_db === 'number' && (
+                      <span className="text-sm font-mono text-zinc-400">
+                        [Album: {(activeTrack || infoModalTrack).replay_gain_album_db! > 0 ? '+' : ''}{(activeTrack || infoModalTrack).replay_gain_album_db!.toFixed(2)} dB]
+                      </span>
+                    )}
+                  </div>
+                  {rgScanFeedback && (
+                    <span className="text-[11px] text-emerald-400 font-mono animate-in fade-in duration-150">
+                      ✓ {rgScanFeedback}
                     </span>
                   )}
-                </span>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1 border-t border-white/5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleScanThisTrackRg}
+                    disabled={isScanningRg}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      backgroundColor: 'var(--color-stop-1, #6366f1)',
+                      color: 'var(--color-stop-1-text, #ffffff)',
+                    }}
+                    title="Calculate EBU R128 loudness and embed tags for this track"
+                  >
+                    <Volume2 className={`w-3 h-3 ${isScanningRg ? 'animate-spin' : ''}`} />
+                    <span>{isScanningRg ? 'Calculating Loudness...' : 'Scan / Fix Loudness'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSearchUntaggedRg}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 transition-colors cursor-pointer"
+                    title="Search and view all tracks without ReplayGain tags or at 0.00 dB in your library"
+                  >
+                    <Search className="w-3 h-3 text-zinc-400" />
+                    <span>Find Untagged & 0.00 dB</span>
+                  </button>
+                </div>
               </div>
 
               {/* Per-Track Always Gapless Playback Toggle */}

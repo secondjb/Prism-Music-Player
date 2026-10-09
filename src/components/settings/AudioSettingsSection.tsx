@@ -36,9 +36,11 @@ export const AudioSettingsSection: React.FC<AudioSettingsSectionProps> = ({
   const replayGainMode = usePlayerStore((s) => s.replayGainMode);
   const setReplayGainMode = usePlayerStore((s) => s.setReplayGainMode);
 
-  const totalTracks = tracks.length;
-  const replayGainCount = React.useMemo(
-    () => tracks.filter((t) => t.replay_gain_db !== undefined && t.replay_gain_db !== null).length,
+  const untaggedOrZeroCount = React.useMemo(
+    () =>
+      tracks.filter(
+        (t) => t.replay_gain_db == null || Math.abs(t.replay_gain_db) < 0.001
+      ).length,
     [tracks]
   );
 
@@ -165,12 +167,11 @@ export const AudioSettingsSection: React.FC<AudioSettingsSectionProps> = ({
                     const newMode = val as any;
                     setReplayGainMode(newMode);
                     if (newMode !== 'off') {
-                      const untagged = totalTracks - replayGainCount;
-                      if (untagged > 0) {
+                      if (untaggedOrZeroCount > 0) {
                         onNotifyReplayGain(
-                          `ReplayGain (${newMode} mode) enabled. ${untagged} track${
-                            untagged === 1 ? '' : 's'
-                          } lack loudness data — run the ReplayGain Scanner in Library Settings to normalize.`
+                          `ReplayGain (${newMode} mode) enabled. ${untaggedOrZeroCount} track${
+                            untaggedOrZeroCount === 1 ? '' : 's'
+                          } lack loudness data or are at 0.00 dB — run the ReplayGain Scanner in Library Settings to normalize.`
                         );
                       }
                     }

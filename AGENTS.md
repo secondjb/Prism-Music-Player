@@ -81,6 +81,11 @@ Whenever you make changes to:
 
 ---
 
+## 📦 Rule for Agents: Releasing
+Whenever you are asked to prepare, check, or publish a new release, you **must consult and follow** the checklist in [`docs/RELEASE_GUIDE.md`](file:///c:/Users/b1a7e/Desktop/Prism%20Music%20Player/docs/RELEASE_GUIDE.md).
+
+---
+
 ## 🚀 Rule for Agents: Commit & Push
 👉 **Always commit and push your changes to remote (`git add`, `git commit`, and `git push`) before concluding your response or task.** Ensure commit messages are concise, clear, and descriptive.
 

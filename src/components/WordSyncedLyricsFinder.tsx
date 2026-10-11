@@ -43,7 +43,7 @@ export interface WordSyncCandidate {
   hasWordSync?: boolean;
   hasTranslation?: boolean;
   isSynced?: boolean;
-  source?: 'Lyrics+' | 'Unison' | 'SyncLRC' | 'NetEase' | 'LRCLIB';
+  source?: 'Apple Music' | 'Lyrics+' | 'BetterLyrics' | 'Kugou' | 'Unison' | 'SyncLRC' | 'NetEase' | 'LRCLIB';
 }
 
 export function getCandidateFeatures(c: WordSyncCandidate, inferWordSync?: boolean) {
@@ -51,7 +51,7 @@ export function getCandidateFeatures(c: WordSyncCandidate, inferWordSync?: boole
   const isSynced = c.isSynced !== undefined ? c.isSynced : hasLrcTimestamps(c.lyrics);
   const hasWordSync = hasNativeWordSync || Boolean(inferWordSync && isSynced);
   const hasTranslation = c.hasTranslation !== undefined ? c.hasTranslation : hasTranslationInLyrics(c.lyrics);
-  return { hasWordSync, hasNativeWordSync, hasTranslation, isSynced, source: c.source || (hasWordSync ? 'Lyrics+' : 'LRCLIB') };
+  return { hasWordSync, hasNativeWordSync, hasTranslation, isSynced, source: c.source || (hasWordSync ? 'Apple Music' : 'LRCLIB') };
 }
 
 function formatTime(secs: number): string {
@@ -333,37 +333,58 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
       }
     >
   >({
+    applemusic: {
+      name: 'Apple Music',
+      tier: 'Tier 1 (Apple TTML)',
+      features: 'iTunes Search + Paxsenix word/syllable TTML (<mm:ss.xx>)',
+      endpoint: 'itunes.apple.com + lyrics.paxsenix.org',
+      status: 'idle',
+    },
     lyricsplus: {
       name: 'Lyrics+',
-      tier: 'Tier 1 (Primary)',
+      tier: 'Tier 2 (Primary Syllables)',
       features: 'Word-by-word syllables (<mm:ss.xx>) & translations',
       endpoint: 'lyricsplus.prjktla.my.id',
       status: 'idle',
     },
+    betterlyrics: {
+      name: 'BetterLyrics',
+      tier: 'Tier 3 (TTML Word-Sync)',
+      features: 'Cached TTML syllable-synced lyrics',
+      endpoint: 'lyrics-api.boidu.dev',
+      status: 'idle',
+    },
+    kugou: {
+      name: 'Kugou Music',
+      tier: 'Tier 4 (Karaoke KRC)',
+      features: 'Direct decrypted KRC word-level karaoke sync',
+      endpoint: 'lyrics.kugou.com',
+      status: 'idle',
+    },
     unison: {
       name: 'Unison',
-      tier: 'Tier 2 (TTML/Synced)',
+      tier: 'Tier 5 (TTML/Synced)',
       features: 'Community TTML word-sync & romanizations',
       endpoint: 'unison.boidu.dev',
       status: 'idle',
     },
     synclrc: {
       name: 'SyncLRC',
-      tier: 'Tier 3 (Karaoke)',
+      tier: 'Tier 6 (Karaoke)',
       features: 'Multi-source karaoke word-sync & synced lyrics',
       endpoint: 'github.com/TharukRenuja/SyncLRC',
       status: 'idle',
     },
     netease: {
       name: 'NetEase Cloud Music',
-      tier: 'Tier 4 (CJK Translations)',
+      tier: 'Tier 7 (CJK Translations)',
       features: 'Line-synced lyrics & CJK translations merge',
       endpoint: 'netease-cloud-music-api',
       status: 'idle',
     },
     lrclib: {
       name: 'LRCLIB',
-      tier: 'Tier 5 (Fallback)',
+      tier: 'Tier 8 (Fallback)',
       features: 'Standard line-synced & plain text lyrics',
       endpoint: 'lrclib.net',
       status: 'idle',
@@ -373,7 +394,10 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
   const checkAllServices = useCallback(async () => {
     setIsCheckingServices(true);
     setServiceStatuses((prev) => ({
+      applemusic: { ...prev.applemusic, status: 'checking' },
       lyricsplus: { ...prev.lyricsplus, status: 'checking' },
+      betterlyrics: { ...prev.betterlyrics, status: 'checking' },
+      kugou: { ...prev.kugou, status: 'checking' },
       unison: { ...prev.unison, status: 'checking' },
       synclrc: { ...prev.synclrc, status: 'checking' },
       netease: { ...prev.netease, status: 'checking' },
@@ -383,7 +407,7 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
     const ping = async (
       url: string,
       validator: (res: Response) => Promise<boolean> | boolean,
-      timeoutMs = 3000
+      timeoutMs = 3500
     ): Promise<'online' | 'offline'> => {
       const c = new AbortController();
       const t = setTimeout(() => c.abort(), timeoutMs);
@@ -401,9 +425,15 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
       }
     };
 
-    const [lpStatus, unisonStatus, synclrcStatus, neteaseStatus, lrclibStatus] = await Promise.all([
+    const [amStatus, lpStatus, blStatus, kgStatus, unisonStatus, synclrcStatus, neteaseStatus, lrclibStatus] = await Promise.all([
+      // Apple Music (Paxsenix)
+      ping('https://itunes.apple.com/search?term=test&media=music&limit=1', (r) => r.status === 200),
       // Lyrics+
       ping('https://lyricsplus.prjktla.my.id/v2/lyrics/get?title=test&artist=test', (r) => r.status === 200 || r.status === 404),
+      // BetterLyrics
+      ping('https://lyrics-api.boidu.dev/getLyrics?s=test&a=test', (r) => r.status === 200 || r.status === 401 || r.status === 404),
+      // Kugou
+      ping('https://lyrics.kugou.com/search?ver=1&man=yes&client=pc&keyword=test', (r) => r.status === 200),
       // Unison
       ping('https://unison.boidu.dev/lyrics?song=test&artist=test', async (r) => {
         try {
@@ -429,7 +459,10 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
     ]);
 
     setServiceStatuses((prev) => ({
+      applemusic: { ...prev.applemusic, status: amStatus },
       lyricsplus: { ...prev.lyricsplus, status: lpStatus },
+      betterlyrics: { ...prev.betterlyrics, status: blStatus },
+      kugou: { ...prev.kugou, status: kgStatus },
       unison: { ...prev.unison, status: unisonStatus },
       synclrc: { ...prev.synclrc, status: synclrcStatus },
       netease: { ...prev.netease, status: neteaseStatus },

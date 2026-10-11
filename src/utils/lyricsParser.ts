@@ -150,15 +150,18 @@ export function convertTtmlToLrc(ttmlStr: string): string {
   if (!ttmlStr || typeof ttmlStr !== 'string') return '';
   if (!isTtmlContent(ttmlStr)) return ttmlStr.trim();
 
+  // Normalize backslash-escaped quotes if returned inside a raw JSON string
+  const cleanTtml = ttmlStr.replace(/\\"/g, '"');
+
   const lines: string[] = [];
   const pRegex = /<p\b([^>]*)>([\s\S]*?)<\/p>/gi;
   let pMatch: RegExpExecArray | null;
 
-  while ((pMatch = pRegex.exec(ttmlStr)) !== null) {
+  while ((pMatch = pRegex.exec(cleanTtml)) !== null) {
     const pAttrs = pMatch[1];
     const pContent = pMatch[2];
 
-    const beginMatch = pAttrs.match(/\bbegin="([^"]+)"/i);
+    const beginMatch = pAttrs.match(/\bbegin=["']?([^"'\s>]+)/i);
     const lineStartMs = beginMatch ? parseTtmlTime(beginMatch[1]) : 0;
     const lineTag = formatLrcTag(lineStartMs);
 
@@ -182,7 +185,7 @@ export function convertTtmlToLrc(ttmlStr: string): string {
       if (!spanText) continue;
 
       hasWordSpans = true;
-      const spanBeginMatch = spanAttrs.match(/\bbegin="([^"]+)"/i);
+      const spanBeginMatch = spanAttrs.match(/\bbegin=["']?([^"'\s>]+)/i);
       const spanStartMs = spanBeginMatch ? parseTtmlTime(spanBeginMatch[1]) : lineStartMs;
       const inlineTag = formatInlineTag(spanStartMs);
 

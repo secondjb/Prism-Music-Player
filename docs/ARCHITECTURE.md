@@ -167,10 +167,15 @@ Prism utilizes `@revolist/react-datagrid` (RevoGrid) backed by Stencil web compo
 
 ### 5.1 Format Support & Parsing (`src/utils/lyricsParser.ts`)
 - **Standard LRC**: Line timestamps `[mm:ss.xx] Line text`.
-- **Enhanced Word-Synced LRC**: Word timestamps inside lines:
-  `[01:12.30] Hello <01:12.50> World <01:13.10> !`
-- **Syllable Timings**: Character or syllable start/end offsets.
-- **Translations & Duets**: Inline secondary translations and multi-singer markers (`v1:`, `v2:`).
+- **Multi-Source Provider Cascade (`src/utils/lrclibFetcher.ts`)**:
+  - **Tier 1 (Apple Music)**: iTunes Search API resolving `trackId` -> Paxsenix/Lyrically aggregator for Apple Music word/syllable TTML (`<span begin end>`).
+  - **Tier 2 (Lyrics+)**: High-precision word-by-word syllables & translations via `lyricsplus.prjktla.my.id`.
+  - **Tier 3 (BetterLyrics)**: Cached TTML syllable-synced lyrics (`lyrics-api.boidu.dev`).
+  - **Tier 4 (Kugou Music)**: Real-time decryption of Kugou `.krc` XOR-encrypted and zlib-compressed karaoke syllable streams into `<mm:ss.xx>` enhanced word-sync.
+  - **Tier 5 (Unison)**: Community-backed TTML word-sync and romanizations (`unison.boidu.dev`).
+  - **Tier 6 (SyncLRC)**: Multi-source karaoke word-sync API.
+  - **Tier 7 (NetEase Cloud Music)**: Timestamp-aligned original lyric + CJK translation merging.
+  - **Tier 8 (LRCLIB)**: Millisecond line-synced and plain text fallback.
 
 ### 5.2 Romanization Pipeline (`src/utils/romanization.ts`)
 - Automatically detects Japanese (Kanji/Kana), Korean (Hangul), and Chinese (Hanzi).

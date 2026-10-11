@@ -5,7 +5,6 @@ import { KugouLyricsProvider } from './kugouProvider';
 import { LrclibLyricsProvider } from './lrclibProvider';
 import { NeteaseLyricsProvider } from './neteaseProvider';
 import { hasLrcTimestamps, isWordSyncedLrc } from './providerUtils';
-import { SyncLrcLyricsProvider } from './syncLrcProvider';
 import type { DiscoveredLyrics, LyricsProvider, LyricsSearchQuery } from './types';
 import { UnisonLyricsProvider } from './unisonProvider';
 
@@ -24,10 +23,9 @@ export { LrclibLyricsProvider } from './lrclibProvider';
  */
 export const LYRIC_PROVIDERS: readonly LyricsProvider[] = [
   new AppleMusicLyricsProvider(),
-  new BetterLyricsProvider(),
   new KugouLyricsProvider(),
+  new BetterLyricsProvider(),
   new UnisonLyricsProvider(),
-  new SyncLrcLyricsProvider(),
   new NeteaseLyricsProvider(),
   new LrclibLyricsProvider(),
 ];

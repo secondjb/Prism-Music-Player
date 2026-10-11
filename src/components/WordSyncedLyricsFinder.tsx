@@ -745,8 +745,8 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
           }
         }
 
-        // Pacing delay
-        await new Promise((r) => setTimeout(r, 60));
+        // Pacing delay to avoid triggering external IP rate limits during library-wide scans
+        await new Promise((r) => setTimeout(r, 220));
       }
     } finally {
       activeWorkersCountRef.current--;

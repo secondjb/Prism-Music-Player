@@ -32,7 +32,7 @@ export class KugouLyricsProvider implements LyricsProvider {
         durParam ? `&duration=${durParam}` : ''
       }`;
 
-      const searchRes = await fetchWithTimeout(
+      let searchRes = await fetchWithTimeout(
         searchUrl,
         {
           headers: {
@@ -41,13 +41,41 @@ export class KugouLyricsProvider implements LyricsProvider {
           },
           signal,
         },
-        3500
+        3000
       );
 
-      if (!searchRes.ok) return null;
-      const searchData = await searchRes.json();
-      const candidates = searchData?.candidates;
-      if (!Array.isArray(candidates) || candidates.length === 0) return null;
+      let candidates: any[] = [];
+      if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        if (Array.isArray(searchData?.candidates)) {
+          candidates = searchData.candidates;
+        }
+      }
+
+      // If artist - title produced 0 results, retry with title alone without duration constraint
+      if (candidates.length === 0 && cArtist) {
+        if (signal?.aborted) return null;
+        const retryUrl = `https://lyrics.kugou.com/search?ver=1&man=yes&client=pc&keyword=${encodeURIComponent(cTitle)}`;
+        searchRes = await fetchWithTimeout(
+          retryUrl,
+          {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              Accept: 'application/json',
+            },
+            signal,
+          },
+          3000
+        );
+        if (searchRes.ok) {
+          const retryData = await searchRes.json();
+          if (Array.isArray(retryData?.candidates)) {
+            candidates = retryData.candidates;
+          }
+        }
+      }
+
+      if (candidates.length === 0) return null;
 
       // Pick candidate with smallest duration delta if duration was provided
       let best = candidates[0];

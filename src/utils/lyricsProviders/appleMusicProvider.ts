@@ -2,6 +2,9 @@ import { convertTtmlToLrc, isTtmlContent } from '../lyricsParser';
 import { cleanArtist, cleanTitle, fetchWithTimeout } from './providerUtils';
 import type { LyricsProvider, LyricsSearchQuery } from './types';
 
+// Circuit breaker to avoid hammering iTunes when Akamai/Apple applies rate limiting (403/429)
+let itunesCircuitBrokenUntil = 0;
+
 /**
  * Apple Music Syllable-synced & TTML Lyrics provider.
  * Uses iTunes Search API to resolve trackId, then queries Paxsenix/Lyrically aggregator for TTML/syllable sync.
@@ -16,6 +19,7 @@ export class AppleMusicLyricsProvider implements LyricsProvider {
   async fetch(query: LyricsSearchQuery): Promise<string | null> {
     const { trackName, artistName, albumName, durationSecs, signal } = query;
     if (signal?.aborted) return null;
+    if (Date.now() < itunesCircuitBrokenUntil) return null;
 
     const cTitle = cleanTitle(trackName);
     const cArtist = cleanArtist(artistName);
@@ -34,8 +38,14 @@ export class AppleMusicLyricsProvider implements LyricsProvider {
           },
           signal,
         },
-        3500
+        3000
       );
+
+      if (itunesResp.status === 403 || itunesResp.status === 429) {
+        // Back off for 60 seconds if Apple rate limits the IP so subsequent songs can immediately hit Kugou/LRCLIB
+        itunesCircuitBrokenUntil = Date.now() + 60 * 1000;
+        return null;
+      }
 
       if (!itunesResp.ok) return null;
       const itunesData = await itunesResp.json();

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore, sanitizeTrackForStorage } from '../store/usePlayerStore';
 import { Track } from '../types/player';
-import { searchEnhancedLyrics, isWordSyncedLrc, hasLrcTimestamps, isLyricsPlusServiceAvailable, resetLyricsPlusCircuitBreaker } from '../utils/lrclibFetcher';
+import { searchEnhancedLyrics, isWordSyncedLrc, hasLrcTimestamps, LYRIC_PROVIDERS } from '../utils/lrclibFetcher';
 import { parseRichLyrics, ParsedLyricLine, hasTranslationInLyrics } from '../utils/lyricsParser';
 import { createRomanizer, detectScript } from 'lyric-romanizer';
 import { useTrackArt } from '../utils/useTrackArt';
@@ -148,7 +148,6 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
   const [onlyMissingWordSync, setOnlyMissingWordSync] = useState(true);
   const [onlyMissingTranslation, setOnlyMissingTranslation] = useState(false);
   const [strictWordSyncOnly, setStrictWordSyncOnly] = useState(false);
-  const [lyricsPlusAvailable, setLyricsPlusAvailable] = useState(() => isLyricsPlusServiceAvailable());
   const [scanConcurrency, setScanConcurrency] = useState<number>(4);
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<{
@@ -332,142 +331,48 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
         status: 'online' | 'offline' | 'checking' | 'idle';
       }
     >
-  >({
-    applemusic: {
-      name: 'Apple Music',
-      tier: 'Tier 1 (Apple TTML)',
-      features: 'iTunes Search + Paxsenix word/syllable TTML (<mm:ss.xx>)',
-      endpoint: 'itunes.apple.com + lyrics.paxsenix.org',
-      status: 'idle',
-    },
-    lyricsplus: {
-      name: 'Lyrics+',
-      tier: 'Tier 2 (Primary Syllables)',
-      features: 'Word-by-word syllables (<mm:ss.xx>) & translations',
-      endpoint: 'lyricsplus.prjktla.my.id',
-      status: 'idle',
-    },
-    betterlyrics: {
-      name: 'BetterLyrics',
-      tier: 'Tier 3 (TTML Word-Sync)',
-      features: 'Cached TTML syllable-synced lyrics',
-      endpoint: 'lyrics-api.boidu.dev',
-      status: 'idle',
-    },
-    kugou: {
-      name: 'Kugou Music',
-      tier: 'Tier 4 (Karaoke KRC)',
-      features: 'Direct decrypted KRC word-level karaoke sync',
-      endpoint: 'lyrics.kugou.com',
-      status: 'idle',
-    },
-    unison: {
-      name: 'Unison',
-      tier: 'Tier 5 (TTML/Synced)',
-      features: 'Community TTML word-sync & romanizations',
-      endpoint: 'unison.boidu.dev',
-      status: 'idle',
-    },
-    synclrc: {
-      name: 'SyncLRC',
-      tier: 'Tier 6 (Karaoke)',
-      features: 'Multi-source karaoke word-sync & synced lyrics',
-      endpoint: 'github.com/TharukRenuja/SyncLRC',
-      status: 'idle',
-    },
-    netease: {
-      name: 'NetEase Cloud Music',
-      tier: 'Tier 7 (CJK Translations)',
-      features: 'Line-synced lyrics & CJK translations merge',
-      endpoint: 'netease-cloud-music-api',
-      status: 'idle',
-    },
-    lrclib: {
-      name: 'LRCLIB',
-      tier: 'Tier 8 (Fallback)',
-      features: 'Standard line-synced & plain text lyrics',
-      endpoint: 'lrclib.net',
-      status: 'idle',
-    },
+  >(() => {
+    const initial: Record<string, any> = {};
+    for (const p of LYRIC_PROVIDERS) {
+      initial[p.name] = {
+        name: p.name,
+        tier: p.tier,
+        features: p.description,
+        endpoint: p.endpoint,
+        status: 'idle',
+      };
+    }
+    return initial;
   });
 
   const checkAllServices = useCallback(async () => {
     setIsCheckingServices(true);
-    setServiceStatuses((prev) => ({
-      applemusic: { ...prev.applemusic, status: 'checking' },
-      lyricsplus: { ...prev.lyricsplus, status: 'checking' },
-      betterlyrics: { ...prev.betterlyrics, status: 'checking' },
-      kugou: { ...prev.kugou, status: 'checking' },
-      unison: { ...prev.unison, status: 'checking' },
-      synclrc: { ...prev.synclrc, status: 'checking' },
-      netease: { ...prev.netease, status: 'checking' },
-      lrclib: { ...prev.lrclib, status: 'checking' },
-    }));
-
-    const ping = async (
-      url: string,
-      validator: (res: Response) => Promise<boolean> | boolean,
-      timeoutMs = 3500
-    ): Promise<'online' | 'offline'> => {
-      const c = new AbortController();
-      const t = setTimeout(() => c.abort(), timeoutMs);
-      try {
-        const res = await fetch(url, {
-          signal: c.signal,
-          headers: { 'User-Agent': 'PrismMusicPlayer/1.0.0' },
-        });
-        clearTimeout(t);
-        const ok = await validator(res);
-        return ok ? 'online' : 'offline';
-      } catch {
-        clearTimeout(t);
-        return 'offline';
+    setServiceStatuses((prev) => {
+      const next = { ...prev };
+      for (const p of LYRIC_PROVIDERS) {
+        if (next[p.name]) {
+          next[p.name] = { ...next[p.name], status: 'checking' };
+        }
       }
-    };
+      return next;
+    });
 
-    const [amStatus, lpStatus, blStatus, kgStatus, unisonStatus, synclrcStatus, neteaseStatus, lrclibStatus] = await Promise.all([
-      // Apple Music (Paxsenix)
-      ping('https://itunes.apple.com/search?term=test&media=music&limit=1', (r) => r.status === 200),
-      // Lyrics+
-      ping('https://lyricsplus.prjktla.my.id/v2/lyrics/get?title=test&artist=test', (r) => r.status === 200 || r.status === 404),
-      // BetterLyrics
-      ping('https://lyrics-api.boidu.dev/getLyrics?s=test&a=test', (r) => r.status === 200 || r.status === 401 || r.status === 404),
-      // Kugou
-      ping('https://lyrics.kugou.com/search?ver=1&man=yes&client=pc&keyword=test', (r) => r.status === 200),
-      // Unison
-      ping('https://unison.boidu.dev/lyrics?song=test&artist=test', async (r) => {
-        try {
-          const text = await r.text();
-          return text.includes('Lyrics not found') || text.includes('success') || r.status === 200;
-        } catch {
-          return false;
-        }
-      }),
-      // SyncLRC
-      ping('https://synclrc.tharuk.pro/api/v1/lyrics?track=test&artist=test', (r) => r.status === 200 || r.status === 404),
-      // NetEase
-      ping('https://netease-cloud-music-api-external.vercel.app/search?keywords=test&type=1', async (r) => {
-        try {
-          const text = await r.text();
-          return r.status === 200 && !text.includes('DEPLOYMENT_NOT_FOUND');
-        } catch {
-          return false;
-        }
-      }),
-      // LRCLIB
-      ping('https://lrclib.net/api/get?track_name=test&artist_name=test', (r) => r.status === 200 || r.status === 404),
-    ]);
+    const results = await Promise.all(
+      LYRIC_PROVIDERS.map(async (p) => {
+        const status = await p.ping();
+        return { name: p.name, status };
+      })
+    );
 
-    setServiceStatuses((prev) => ({
-      applemusic: { ...prev.applemusic, status: amStatus },
-      lyricsplus: { ...prev.lyricsplus, status: lpStatus },
-      betterlyrics: { ...prev.betterlyrics, status: blStatus },
-      kugou: { ...prev.kugou, status: kgStatus },
-      unison: { ...prev.unison, status: unisonStatus },
-      synclrc: { ...prev.synclrc, status: synclrcStatus },
-      netease: { ...prev.netease, status: neteaseStatus },
-      lrclib: { ...prev.lrclib, status: lrclibStatus },
-    }));
+    setServiceStatuses((prev) => {
+      const next = { ...prev };
+      for (const res of results) {
+        if (next[res.name]) {
+          next[res.name] = { ...next[res.name], status: res.status };
+        }
+      }
+      return next;
+    });
     setIsCheckingServices(false);
   }, []);
 
@@ -796,9 +701,6 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
             strictWordSyncOnly
           );
 
-          // Update service availability state
-          setLyricsPlusAvailable(isLyricsPlusServiceAvailable());
-
           // Mark track as scanned
           scannedTrackIdsRef.current.add(track.id);
 
@@ -1092,27 +994,6 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
               </div>
             </div>
           </div>
-
-      {/* Server Status Warning / Circuit Breaker Banner */}
-      {!lyricsPlusAvailable && (
-        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-xs text-amber-200 animate-in fade-in">
-          <div className="flex items-center gap-2.5">
-            <span className="text-base">⚠️</span>
-            <span>
-              <strong>Lyrics+ Server Offline / Unreachable:</strong> Word-by-word lyrics server is currently not responding. Searches will automatically cascade to Unison, NetEase, and LRCLIB.
-            </span>
-          </div>
-          <button
-            onClick={() => {
-              resetLyricsPlusCircuitBreaker();
-              setLyricsPlusAvailable(true);
-            }}
-            className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] font-bold text-amber-100 shrink-0 cursor-pointer"
-          >
-            Retry Connection
-          </button>
-        </div>
-      )}
 
       {/* Filter Options */}
       <div className="flex flex-col gap-2 p-3.5 rounded-xl bg-white/5 border border-white/5">

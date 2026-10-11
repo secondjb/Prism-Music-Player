@@ -167,15 +167,16 @@ Prism utilizes `@revolist/react-datagrid` (RevoGrid) backed by Stencil web compo
 
 ### 5.1 Format Support & Parsing (`src/utils/lyricsParser.ts`)
 - **Standard LRC**: Line timestamps `[mm:ss.xx] Line text`.
-- **Multi-Source Provider Cascade (`src/utils/lrclibFetcher.ts`)**:
-  - **Tier 1 (Apple Music)**: iTunes Search API resolving `trackId` -> Paxsenix/Lyrically aggregator for Apple Music word/syllable TTML (`<span begin end>`).
-  - **Tier 2 (Lyrics+)**: High-precision word-by-word syllables & translations via `lyricsplus.prjktla.my.id`.
-  - **Tier 3 (BetterLyrics)**: Cached TTML syllable-synced lyrics (`lyrics-api.boidu.dev`).
-  - **Tier 4 (Kugou Music)**: Real-time decryption of Kugou `.krc` XOR-encrypted and zlib-compressed karaoke syllable streams into `<mm:ss.xx>` enhanced word-sync.
-  - **Tier 5 (Unison)**: Community-backed TTML word-sync and romanizations (`unison.boidu.dev`).
-  - **Tier 6 (SyncLRC)**: Multi-source karaoke word-sync API.
-  - **Tier 7 (NetEase Cloud Music)**: Timestamp-aligned original lyric + CJK translation merging.
-  - **Tier 8 (LRCLIB)**: Millisecond line-synced and plain text fallback.
+- **Modular Strategy Pattern Provider Architecture (`src/utils/lyricsProviders/`)**:
+  - Each lyric provider is an isolated component implementing the `LyricsProvider` interface with its own `fetch(query)` and health `ping()` methods:
+    - **Apple Music (`appleMusicProvider.ts`)**: iTunes Search API resolving `trackId` -> Paxsenix/Lyrically aggregator for Apple Music word/syllable TTML (`<span begin end>`).
+    - **BetterLyrics (`betterLyricsProvider.ts`)**: Cached TTML syllable-synced lyrics (`lyrics-api.boidu.dev`).
+    - **Kugou Music (`kugouProvider.ts`)**: Real-time decryption of Kugou `.krc` XOR-encrypted and zlib-compressed (`DecompressionStream`) karaoke syllable streams into `<mm:ss.xx>` enhanced word-sync.
+    - **Unison (`unisonProvider.ts`)**: Community-backed TTML word-sync and romanizations (`unison.boidu.dev`).
+    - **SyncLRC (`syncLrcProvider.ts`)**: Multi-source karaoke word-sync API.
+    - **NetEase Cloud Music (`neteaseProvider.ts`)**: Timestamp-aligned original lyric + CJK translation merging.
+    - **LRCLIB (`lrclibProvider.ts`)**: Millisecond line-synced and plain text fallback.
+  - Providers are orchestrated by `src/utils/lyricsProviders/index.ts` with backward-compatible facades re-exported through `src/utils/lrclibFetcher.ts`.
 
 ### 5.2 Romanization Pipeline (`src/utils/romanization.ts`)
 - Automatically detects Japanese (Kanji/Kana), Korean (Hangul), and Chinese (Hanzi).

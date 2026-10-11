@@ -2,8 +2,99 @@ import { convertTtmlToLrc, isTtmlContent } from '../lyricsParser';
 import { cleanArtist, cleanTitle, fetchWithTimeout } from './providerUtils';
 import type { LyricsProvider, LyricsSearchQuery } from './types';
 
-// Circuit breaker to avoid hammering iTunes when Akamai/Apple applies rate limiting (403/429)
-let itunesCircuitBrokenUntil = 0;
+// Mutual exclusion & pacing queue for iTunes Search API to avoid Akamai/Apple daiquiri 403 blocks
+let itunesQueuePromise: Promise<void> = Promise.resolve();
+let lastItunesCallTime = 0;
+let itunesCooldownUntil = 0;
+const MIN_ITUNES_INTERVAL_MS = 2500; // Pacing: minimum 2.5s between calls (~24 req/min)
+
+/**
+ * Returns remaining cooldown seconds if iTunes is currently rate-limited (403/429)
+ */
+export function getAppleMusicCooldownRemaining(): number {
+  return Math.max(0, Math.ceil((itunesCooldownUntil - Date.now()) / 1000));
+}
+
+/**
+ * Resets the iTunes rate limit cooldown timer manually
+ */
+export function resetAppleMusicCooldown(): void {
+  itunesCooldownUntil = 0;
+}
+
+/**
+ * Checks if iTunes API is currently in rate limit cooldown
+ */
+export function isAppleMusicRateLimited(): boolean {
+  return Date.now() < itunesCooldownUntil;
+}
+
+/**
+ * Acquires a paced execution slot for an iTunes API request.
+ * Enforces mutual exclusion and minimum interval between calls, plus handles cooldown waiting.
+ */
+async function acquireItunesSlot(
+  signal?: AbortSignal,
+  waitForRateLimit: boolean = true,
+  onRateLimitWait?: (remainingSecs: number, providerName: string) => void
+): Promise<boolean> {
+  let releaseSlot: () => void = () => {};
+  const currentSlot = new Promise<void>((resolve) => {
+    releaseSlot = resolve;
+  });
+
+  const prevQueue = itunesQueuePromise;
+  itunesQueuePromise = currentSlot;
+
+  try {
+    await prevQueue;
+  } catch {
+    // Continue even if previous item encountered an error
+  }
+
+  if (signal?.aborted) {
+    releaseSlot();
+    return false;
+  }
+
+  // Handle rate limit cooldown
+  while (Date.now() < itunesCooldownUntil) {
+    if (signal?.aborted) {
+      releaseSlot();
+      return false;
+    }
+    if (!waitForRateLimit) {
+      // Fast mode: immediately bypass Apple Music
+      releaseSlot();
+      return false;
+    }
+    const remSec = Math.ceil((itunesCooldownUntil - Date.now()) / 1000);
+    onRateLimitWait?.(remSec, 'Apple Music');
+    const sleepMs = Math.min(1000, itunesCooldownUntil - Date.now());
+    await new Promise((r) => setTimeout(r, sleepMs));
+  }
+
+  // Enforce pacing interval between requests
+  const elapsed = Date.now() - lastItunesCallTime;
+  if (elapsed < MIN_ITUNES_INTERVAL_MS) {
+    const waitMs = MIN_ITUNES_INTERVAL_MS - elapsed;
+    if (signal?.aborted) {
+      releaseSlot();
+      return false;
+    }
+    await new Promise((r) => setTimeout(r, waitMs));
+  }
+
+  if (signal?.aborted) {
+    releaseSlot();
+    return false;
+  }
+
+  lastItunesCallTime = Date.now();
+  // Release slot after MIN_ITUNES_INTERVAL_MS to ensure next queued request is evenly spaced
+  setTimeout(releaseSlot, MIN_ITUNES_INTERVAL_MS);
+  return true;
+}
 
 /**
  * Apple Music Syllable-synced & TTML Lyrics provider.
@@ -17,19 +108,22 @@ export class AppleMusicLyricsProvider implements LyricsProvider {
   readonly supportsWordSync = true;
 
   async fetch(query: LyricsSearchQuery): Promise<string | null> {
-    const { trackName, artistName, albumName, durationSecs, signal } = query;
+    const { trackName, artistName, albumName, durationSecs, signal, waitForRateLimit = true, onRateLimitWait } = query;
     if (signal?.aborted) return null;
-    if (Date.now() < itunesCircuitBrokenUntil) return null;
 
     const cTitle = cleanTitle(trackName);
     const cArtist = cleanArtist(artistName);
     if (!cTitle) return null;
 
+    // Acquire slot in iTunes request queue
+    const slotGranted = await acquireItunesSlot(signal, waitForRateLimit, onRateLimitWait);
+    if (!slotGranted || signal?.aborted) return null;
+
     try {
       const term = cArtist ? `${cArtist} ${cTitle}` : cTitle;
       const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&media=music&entity=song&limit=5`;
 
-      const itunesResp = await fetchWithTimeout(
+      let itunesResp = await fetchWithTimeout(
         itunesUrl,
         {
           headers: {
@@ -38,13 +132,41 @@ export class AppleMusicLyricsProvider implements LyricsProvider {
           },
           signal,
         },
-        3000
+        4500
       );
 
+      // Handle Akamai daiquiri 403 or 429 rate limiting
       if (itunesResp.status === 403 || itunesResp.status === 429) {
-        // Back off for 60 seconds if Apple rate limits the IP so subsequent songs can immediately hit Kugou/LRCLIB
-        itunesCircuitBrokenUntil = Date.now() + 60 * 1000;
-        return null;
+        itunesCooldownUntil = Date.now() + 65 * 1000;
+        console.warn(`[AppleMusicProvider] 403/429 rate limit hit from Apple. Cooldown active for 65s.`);
+
+        if (waitForRateLimit && !signal?.aborted) {
+          // Patiently wait out cooldown so this track is not dropped or skipped
+          while (Date.now() < itunesCooldownUntil) {
+            if (signal?.aborted) return null;
+            const remaining = Math.ceil((itunesCooldownUntil - Date.now()) / 1000);
+            onRateLimitWait?.(remaining, 'Apple Music');
+            const sleepMs = Math.min(1000, itunesCooldownUntil - Date.now());
+            await new Promise((r) => setTimeout(r, sleepMs));
+          }
+
+          if (signal?.aborted) return null;
+
+          // Retry request once
+          itunesResp = await fetchWithTimeout(
+            itunesUrl,
+            {
+              headers: {
+                'User-Agent': 'PrismMusicPlayer/1.0.0 (https://github.com/prism-player)',
+                Accept: 'application/json',
+              },
+              signal,
+            },
+            4500
+          );
+        } else {
+          return null;
+        }
       }
 
       if (!itunesResp.ok) return null;
@@ -89,7 +211,7 @@ export class AppleMusicLyricsProvider implements LyricsProvider {
           },
           signal,
         },
-        3500
+        4500
       );
 
       if (ttmlResp.ok) {
@@ -121,7 +243,7 @@ export class AppleMusicLyricsProvider implements LyricsProvider {
           },
           signal,
         },
-        3500
+        4500
       );
 
       if (envResp.ok) {
@@ -179,6 +301,9 @@ export class AppleMusicLyricsProvider implements LyricsProvider {
   }
 
   async ping(): Promise<'online' | 'offline'> {
+    if (isAppleMusicRateLimited()) {
+      return 'offline';
+    }
     try {
       const res = await fetchWithTimeout(
         'https://itunes.apple.com/search?term=test&media=music&limit=1',

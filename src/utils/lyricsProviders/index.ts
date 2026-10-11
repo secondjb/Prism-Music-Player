@@ -5,12 +5,17 @@ import { KugouLyricsProvider } from './kugouProvider';
 import { LrclibLyricsProvider } from './lrclibProvider';
 import { NeteaseLyricsProvider } from './neteaseProvider';
 import { hasLrcTimestamps, isWordSyncedLrc } from './providerUtils';
-import type { DiscoveredLyrics, LyricsProvider, LyricsSearchQuery } from './types';
+import type { DiscoveredLyrics, LyricsProvider, LyricsSearchQuery, ProviderStrategy, SearchLyricsOptions } from './types';
 import { UnisonLyricsProvider } from './unisonProvider';
 
 export * from './types';
 export * from './providerUtils';
-export { AppleMusicLyricsProvider } from './appleMusicProvider';
+export {
+  AppleMusicLyricsProvider,
+  getAppleMusicCooldownRemaining,
+  resetAppleMusicCooldown,
+  isAppleMusicRateLimited,
+} from './appleMusicProvider';
 export { BetterLyricsProvider } from './betterLyricsProvider';
 export { KugouLyricsProvider } from './kugouProvider';
 export { UnisonLyricsProvider } from './unisonProvider';
@@ -32,17 +37,54 @@ export const LYRIC_PROVIDERS: readonly LyricsProvider[] = [
 
 /**
  * Searches across lyric APIs in cascade order using the registered modular providers.
+ * Supports configurable strategy ('patient-fallback', 'apple-only', 'fast-cascade')
+ * and iTunes rate limit cooldown waiting.
  */
 export async function searchEnhancedLyrics(
   trackName: string,
   artistName: string,
   albumName?: string,
   durationSecs?: number,
-  signal?: AbortSignal,
-  requireWordSync?: boolean
+  signalOrOptions?: AbortSignal | SearchLyricsOptions,
+  requireWordSyncArg?: boolean,
+  extraOptions?: SearchLyricsOptions
 ): Promise<DiscoveredLyrics | null> {
-  if (signal?.aborted) return null;
   if (!trackName || !trackName.trim()) return null;
+
+  let signal: AbortSignal | undefined;
+  let requireWordSync = false;
+  let strategy: ProviderStrategy = 'patient-fallback';
+  let waitForRateLimit = true;
+  let onRateLimitWait: ((remainingSecs: number, providerName: string) => void) | undefined;
+
+  if (signalOrOptions instanceof AbortSignal) {
+    signal = signalOrOptions;
+    requireWordSync = Boolean(requireWordSyncArg);
+    if (extraOptions) {
+      if (extraOptions.strategy) strategy = extraOptions.strategy;
+      if (extraOptions.waitForRateLimit !== undefined) waitForRateLimit = extraOptions.waitForRateLimit;
+      if (extraOptions.onRateLimitWait) onRateLimitWait = extraOptions.onRateLimitWait;
+    }
+  } else if (signalOrOptions && typeof signalOrOptions === 'object') {
+    signal = signalOrOptions.signal;
+    requireWordSync = Boolean(signalOrOptions.requireWordSync);
+    if (signalOrOptions.strategy) strategy = signalOrOptions.strategy;
+    if (signalOrOptions.waitForRateLimit !== undefined) waitForRateLimit = signalOrOptions.waitForRateLimit;
+    if (signalOrOptions.onRateLimitWait) onRateLimitWait = signalOrOptions.onRateLimitWait;
+  } else {
+    requireWordSync = Boolean(requireWordSyncArg);
+    if (extraOptions) {
+      if (extraOptions.strategy) strategy = extraOptions.strategy;
+      if (extraOptions.waitForRateLimit !== undefined) waitForRateLimit = extraOptions.waitForRateLimit;
+      if (extraOptions.onRateLimitWait) onRateLimitWait = extraOptions.onRateLimitWait;
+    }
+  }
+
+  if (signal?.aborted) return null;
+
+  if (strategy === 'fast-cascade') {
+    waitForRateLimit = false;
+  }
 
   const query: LyricsSearchQuery = {
     trackName,
@@ -50,9 +92,16 @@ export async function searchEnhancedLyrics(
     albumName,
     durationSecs,
     signal,
+    waitForRateLimit,
+    onRateLimitWait,
   };
 
-  for (const provider of LYRIC_PROVIDERS) {
+  const providersToQuery =
+    strategy === 'apple-only'
+      ? LYRIC_PROVIDERS.filter((p) => p.name === 'Apple Music')
+      : LYRIC_PROVIDERS;
+
+  for (const provider of providersToQuery) {
     if (signal?.aborted) return null;
 
     // If caller specifically requested word-sync only, skip providers that can never produce it

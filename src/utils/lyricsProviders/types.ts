@@ -8,6 +8,8 @@ export interface LyricsSearchQuery {
   albumName?: string;
   durationSecs?: number;
   signal?: AbortSignal;
+  waitForRateLimit?: boolean;
+  onRateLimitWait?: (remainingSecs: number, providerName: string) => void;
 }
 
 export type LyricProviderSource =
@@ -18,6 +20,16 @@ export type LyricProviderSource =
   | 'SyncLRC'
   | 'NetEase'
   | 'LRCLIB';
+
+export type ProviderStrategy = 'patient-fallback' | 'apple-only' | 'fast-cascade';
+
+export interface SearchLyricsOptions {
+  signal?: AbortSignal;
+  requireWordSync?: boolean;
+  strategy?: ProviderStrategy;
+  waitForRateLimit?: boolean;
+  onRateLimitWait?: (remainingSecs: number, providerName: string) => void;
+}
 
 export interface DiscoveredLyrics {
   lyrics: string;
@@ -47,3 +59,4 @@ export interface LyricsProvider {
   /** Check if the service is alive/online */
   ping(): Promise<'online' | 'offline'>;
 }
+

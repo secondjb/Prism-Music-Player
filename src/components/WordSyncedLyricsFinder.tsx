@@ -2,7 +2,16 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore, sanitizeTrackForStorage } from '../store/usePlayerStore';
 import { Track } from '../types/player';
-import { searchEnhancedLyrics, isWordSyncedLrc, hasLrcTimestamps, LYRIC_PROVIDERS } from '../utils/lrclibFetcher';
+import {
+  searchEnhancedLyrics,
+  isWordSyncedLrc,
+  hasLrcTimestamps,
+  LYRIC_PROVIDERS,
+  ProviderStrategy,
+  resetAppleMusicCooldown,
+  isAppleMusicRateLimited,
+  getAppleMusicCooldownRemaining,
+} from '../utils/lrclibFetcher';
 import { parseRichLyrics, ParsedLyricLine, hasTranslationInLyrics } from '../utils/lyricsParser';
 import { createRomanizer, detectScript } from 'lyric-romanizer';
 import { useTrackArt } from '../utils/useTrackArt';
@@ -156,6 +165,27 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
     currentTitle: string;
     activeWorkers?: number;
   } | null>(null);
+
+  const [providerStrategy, setProviderStrategy] = useState<ProviderStrategy>(() => {
+    try {
+      const saved = localStorage.getItem('prism_word_sync_provider_strategy');
+      if (saved === 'apple-only' || saved === 'fast-cascade' || saved === 'patient-fallback') {
+        return saved as ProviderStrategy;
+      }
+    } catch {}
+    return 'patient-fallback';
+  });
+
+  const [rateLimitStatus, setRateLimitStatus] = useState<{
+    provider: string;
+    remainingSecs: number;
+  } | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('prism_word_sync_provider_strategy', providerStrategy);
+    } catch {}
+  }, [providerStrategy]);
 
   // Persistence across app sessions
   const [candidates, setCandidates] = useState<WordSyncCandidate[]>(() => {
@@ -698,8 +728,19 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
             track.album,
             track.duration_secs,
             abortControllerRef.current?.signal,
-            strictWordSyncOnly
+            strictWordSyncOnly,
+            {
+              strategy: providerStrategy,
+              waitForRateLimit: providerStrategy !== 'fast-cascade',
+              onRateLimitWait: (remSec, prov) => {
+                setRateLimitStatus({ provider: prov, remainingSecs: remSec });
+              },
+            }
           );
+
+          if (!isAppleMusicRateLimited()) {
+            setRateLimitStatus(null);
+          }
 
           // Mark track as scanned
           scannedTrackIdsRef.current.add(track.id);
@@ -768,6 +809,7 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
         setIsScanning(false);
         isScanningRef.current = false;
         setScanProgress(null);
+        setRateLimitStatus(null);
         abortControllerRef.current = null;
       }
     }
@@ -842,6 +884,7 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
     isScanningRef.current = false;
     setIsScanning(false);
     setScanProgress(null);
+    setRateLimitStatus(null);
 
     try {
       localStorage.setItem(
@@ -1073,6 +1116,94 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
         </div>
       </div>
 
+      {/* Provider Quality & Rate Limit Strategy Selector */}
+      <div className="flex flex-col gap-2.5 p-3.5 rounded-xl bg-white/5 border border-white/5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-3">
+            <Server className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+            <div className="flex flex-col">
+              <span className="text-xs font-semibold text-white">Lyric Provider Strategy</span>
+              <span className="text-[11px] text-zinc-400">
+                Control provider priority and whether to wait out Apple Music rate limits
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10 shrink-0 self-start sm:self-auto flex-wrap">
+            <button
+              onClick={() => setProviderStrategy('patient-fallback')}
+              disabled={isScanning}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer disabled:opacity-50 ${
+                providerStrategy === 'patient-fallback'
+                  ? 'text-white shadow-md font-semibold'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+              style={
+                providerStrategy === 'patient-fallback'
+                  ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                  : undefined
+              }
+              title="Ensures every single track attempts Apple Music first (paces requests and waits out iTunes rate limits). Cascades to Kugou/LRCLIB if Apple has no match."
+            >
+              Apple Music + Fallback
+            </button>
+            <button
+              onClick={() => setProviderStrategy('apple-only')}
+              disabled={isScanning}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer disabled:opacity-50 ${
+                providerStrategy === 'apple-only'
+                  ? 'text-white shadow-md font-semibold'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+              style={
+                providerStrategy === 'apple-only'
+                  ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                  : undefined
+              }
+              title="Strictly queries Apple Music only for official studio syllables. Waits out rate limits patiently. Never falls back to community providers."
+            >
+              Only Best Provider (Apple Only)
+            </button>
+            <button
+              onClick={() => setProviderStrategy('fast-cascade')}
+              disabled={isScanning}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer disabled:opacity-50 ${
+                providerStrategy === 'fast-cascade'
+                  ? 'text-white shadow-md font-semibold'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+              style={
+                providerStrategy === 'fast-cascade'
+                  ? { backgroundColor: 'var(--color-stop-1, #6366f1)' }
+                  : undefined
+              }
+              title="Fastest scan speed. Queries Apple Music first, but if rate-limited, immediately skips Apple Music and uses Kugou/LRCLIB without waiting."
+            >
+              Fast Cascade (Skip Limit)
+            </button>
+          </div>
+        </div>
+
+        <div className="text-[11px] px-2.5 py-1.5 rounded-lg bg-black/20 border border-white/5 text-zinc-400 flex items-center justify-between">
+          <span>
+            {providerStrategy === 'patient-fallback' && (
+              <>
+                <strong className="text-zinc-200">Apple Music + Fallback (Recommended):</strong> Every track is guaranteed an Apple Music check. Paces calls (~2.5s) and pauses on 403 cooldowns so no track skips Apple Music. Falls back to Kugou, BetterLyrics, and LRCLIB only if not in Apple's catalog.
+              </>
+            )}
+            {providerStrategy === 'apple-only' && (
+              <>
+                <strong className="text-zinc-200">Only Best Provider (Apple Music Only):</strong> Exclusively queries Apple Music for studio-grade syllable TTML. Waits out Akamai rate limits patiently and never imports community or basic line-synced lyrics.
+              </>
+            )}
+            {providerStrategy === 'fast-cascade' && (
+              <>
+                <strong className="text-zinc-200">Fast Cascade:</strong> Tries Apple Music, but if rate-limited, subsequent songs skip Apple Music and immediately cascade down to Kugou and LRCLIB without waiting.
+              </>
+            )}
+          </span>
+        </div>
+      </div>
+
       {/* Parallel Worker Agents Selector */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5 gap-3">
         <div className="flex items-center gap-3">
@@ -1176,25 +1307,43 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-[10px] text-zinc-500 font-mono">{service.tier}</span>
-                        <span
-                          className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${
-                            isOnline
-                              ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                        {key === 'Apple Music' && isAppleMusicRateLimited() ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30 animate-pulse">
+                              Rate Limited ({getAppleMusicCooldownRemaining()}s)
+                            </span>
+                            <button
+                              onClick={() => {
+                                resetAppleMusicCooldown();
+                                checkAllServices();
+                              }}
+                              className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+                              title="Reset Apple Music rate limit timer"
+                            >
+                              Reset
+                            </button>
+                          </div>
+                        ) : (
+                          <span
+                            className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${
+                              isOnline
+                                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                                : isOffline
+                                ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                                : isChecking
+                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                                : 'bg-zinc-500/10 text-zinc-400 border-zinc-500/30'
+                            }`}
+                          >
+                            {isOnline
+                              ? 'Online'
                               : isOffline
-                              ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                              ? 'Offline'
                               : isChecking
-                              ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                              : 'bg-zinc-500/10 text-zinc-400 border-zinc-500/30'
-                          }`}
-                        >
-                          {isOnline
-                            ? 'Online'
-                            : isOffline
-                            ? 'Offline'
-                            : isChecking
-                            ? 'Checking...'
-                            : 'Standby'}
-                        </span>
+                              ? 'Checking...'
+                              : 'Standby'}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="text-[11px] text-zinc-400 flex items-center justify-between gap-2">
@@ -1208,6 +1357,33 @@ export const WordSyncedLyricsFinder: React.FC<WordSyncedLyricsFinderProps> = ({
           </div>
         )}
       </div>
+
+      {/* Live Rate Limit Wait Status Banner */}
+      {isScanning && rateLimitStatus && rateLimitStatus.remainingSecs > 0 && (
+        <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Activity className="w-4 h-4 text-amber-400 animate-pulse shrink-0" />
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-semibold text-amber-200">
+                {rateLimitStatus.provider} Rate Limit Active — Pausing for {rateLimitStatus.remainingSecs}s
+              </span>
+              <span className="text-[11px] text-amber-300/80 truncate">
+                Waiting out Akamai/Apple cooldown so every track is guaranteed an Apple Music check without skipping.
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              resetAppleMusicCooldown();
+              setRateLimitStatus(null);
+            }}
+            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/30 transition-all cursor-pointer shrink-0"
+            title="Force bypass the cooldown timer immediately"
+          >
+            Force Resume
+          </button>
+        </div>
+      )}
 
       {/* Live Scanning Progress Bar */}
       {isScanning && scanProgress && (

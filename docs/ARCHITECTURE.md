@@ -123,7 +123,7 @@ const { volume, setVolume } = usePlayerStore(
   - Bottom player bar employs responsive flex-shrink, `overflow: 'hidden'`, and automatic collapsing of auxiliary controls (`Shuffle`, `Repeat`, sleep timer, speaker) on thin window sizes to prevent element collision.
 - **Playlist Grid & Batch Actions**:
   - Playlist view (`PlaylistView.tsx`) passes `playlistId` into `TrackTableView.tsx`, isolating sort states and scoping `originalIndexMap` to relative track positions (1–N, e.g. 1–40) rather than whole-library indices.
-  - Multi-selection pill (`BatchActionPill.tsx`) utilizes theme-reactive primary button styling, inline removal when viewing playlists, and hover/click playlist dropdown menu with toggleable addition/removal.
+  - Multi-selection pill (`BatchActionPill.tsx`) utilizes theme-reactive primary button styling, inline removal strictly when actively viewing playlists (`activeTab === 'playlists' && activePlaylistId`), and a click-toggled glassmorphic playlist dropdown menu styled consistently with the right-click context menu (avoiding blocking backdrops and portal coordinate miscalculations).
 - **Modular Directory Structure**: All high-complexity monolithic views are refactored into coordinator containers with dedicated subcomponent directories:
   - [`src/components/player/`](src/components/player/): `PlayerTrackInfo.tsx`, `PlayerControls.tsx`, `PlayerVolumeControl.tsx`, `PlayerActions.tsx`, `PlayerContextMenu.tsx` (replaces fragile `clamp()` dynamic sizing with responsive flex-shrink & M3 typography).
   - [`src/components/sidebar/`](src/components/sidebar/): `SidebarNav.tsx`, `SidebarPlaylists.tsx`, `SidebarContextMenu.tsx`.

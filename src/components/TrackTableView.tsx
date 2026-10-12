@@ -1388,11 +1388,13 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
     };
 
     container.addEventListener('prism-open-context-menu', handleOpenMenu);
+    window.addEventListener('prism-open-context-menu', handleOpenMenu);
     container.addEventListener('prism-play-track', handlePlayTrackEvt);
     container.addEventListener('prism-row-select', handleRowSelectEvt);
 
     return () => {
       container.removeEventListener('prism-open-context-menu', handleOpenMenu);
+      window.removeEventListener('prism-open-context-menu', handleOpenMenu);
       container.removeEventListener('prism-play-track', handlePlayTrackEvt);
       container.removeEventListener('prism-row-select', handleRowSelectEvt);
     };
@@ -1409,6 +1411,7 @@ export const TrackTableView: React.FC<TrackTableViewProps> = ({
       // Do not clear if clicking context menu, batch action bar, modals, inputs, or interactive buttons
       if (
         target.closest('.context-menu-container') ||
+        target.closest('.batch-action-bar') ||
         target.closest('[role="dialog"]') ||
         target.closest('input') ||
         target.closest('textarea')

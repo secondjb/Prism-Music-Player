@@ -387,7 +387,7 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
             const allTracks = store.tracks || [];
             let matchedTrack = allTracks.find((t) => {
               if (targetFn) {
-                const fn = normalize(t.path ? t.path.split(/[/\\\\/]).pop() : (t.file_name || ''));
+                const fn = normalize(t.path ? t.path.replace(/\\/g, "/").split("/").pop() : "");
                 if (fn && fn === targetFn) return true;
               }
               if (targetTitle && normalize(t.title) === targetTitle) {
@@ -401,7 +401,7 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
             if (!matchedTrack && store.queue && store.queue.length > 0) {
               matchedTrack = store.queue.find((t) => {
                 if (targetFn) {
-                  const fn = normalize(t.path ? t.path.split(/[/\\\\/]).pop() : (t.file_name || ''));
+                  const fn = normalize(t.path ? t.path.replace(/\\/g, "/").split("/").pop() : "");
                   if (fn && fn === targetFn) return true;
                 }
                 if (targetTitle && normalize(t.title) === targetTitle) return true;
@@ -409,8 +409,16 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
               });
             }
 
+            if (!matchedTrack && targetTitle) {
+              matchedTrack = allTracks.find((t) => normalize(t.title) === targetTitle) || (store.queue || []).find((t) => normalize(t.title) === targetTitle);
+            }
             if (matchedTrack) {
-              store.playTrack(matchedTrack);
+              const queueIdx = (store.queue || []).findIndex((t) => t.id === matchedTrack.id);
+              if (queueIdx !== -1) {
+                store.playIndex(queueIdx);
+              } else {
+                store.playTrack(matchedTrack);
+              }
               broadcastStateSync(true);
             }
             break;

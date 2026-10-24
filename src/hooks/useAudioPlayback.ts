@@ -375,7 +375,7 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
 
       // P2P Companion remote command handling
       listen('p2p-command', (event: any) => {
-        const { action, seekPositionMs, volume, repeatMode, trackFilename, trackTitle, trackArtist } = event.payload || {};
+        const { action, seekPositionMs, volume, repeatMode, trackFilename, trackTitle, trackArtist, queueFilenames } = event.payload || {};
         const store = usePlayerStore.getState();
         switch (action) {
           case 'PLAY_TRACK': {
@@ -413,13 +413,51 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
               matchedTrack = allTracks.find((t) => normalize(t.title) === targetTitle) || (store.queue || []).find((t) => normalize(t.title) === targetTitle);
             }
             if (matchedTrack) {
+              let contextTracks: any[] = [];
+              if (Array.isArray(queueFilenames) && queueFilenames.length > 0) {
+                const mapByFn = new Map<string, any>();
+                for (const t of allTracks) {
+                  const fn = normalize(t.path ? t.path.replace(/\\/g, "/").split("/").pop() : "");
+                  if (fn) mapByFn.set(fn, t);
+                  const tit = normalize(t.title);
+                  if (tit) mapByFn.set(tit, t);
+                }
+                for (const qf of queueFilenames) {
+                  const found = mapByFn.get(normalize(qf));
+                  if (found) contextTracks.push(found);
+                }
+              }
+              if (contextTracks.length === 0) {
+                contextTracks = allTracks;
+              }
+
               const queueIdx = (store.queue || []).findIndex((t) => t.id === matchedTrack.id);
               if (queueIdx !== -1) {
                 store.playIndex(queueIdx);
               } else {
-                store.playTrack(matchedTrack);
+                store.playTrack(matchedTrack, contextTracks);
               }
               broadcastStateSync(true);
+            } else {
+              broadcastTrackNotFound(trackTitle || '', trackArtist || '', trackFilename || '');
+            }
+            break;
+          }
+          case 'REQUEST_FILE_DOWNLOAD': {
+            const normalize = (s?: string) => (s || '').toLowerCase().trim();
+            const targetFn = trackFilename ? normalize(trackFilename) : '';
+            const allTracks = store.tracks || [];
+            const matched = allTracks.find((t) => {
+              if (targetFn) {
+                const fn = normalize(t.path ? t.path.replace(/\\/g, "/").split("/").pop() : "");
+                if (fn && fn === targetFn) return true;
+              }
+              if (trackTitle && normalize(t.title) === normalize(trackTitle)) return true;
+              return false;
+            });
+            if (matched && matched.path) {
+              const fileId = matched.path.replace(/\\/g, '/').split('/').pop() || 'track.mp3';
+              sendP2pFile(matched.path, fileId).catch(console.error);
             }
             break;
           }
@@ -514,7 +552,7 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
       listen('p2p-file-received', (event: any) => {
         console.log('[P2P Sync] Incoming audio file received from companion:', event.payload);
         const store = usePlayerStore.getState();
-        store.refreshLibrary?.();
+        store.rescanConfiguredLibraries?.();
       }).then((unlistenFn) => {
         unlistens.push(unlistenFn);
       });

@@ -40,7 +40,6 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
   const p2pSyncInfo = usePlayerStore((s) => s.p2pSyncInfo);
   const setP2pSyncInfo = usePlayerStore((s) => s.setP2pSyncInfo);
   const p2pConnectedClients = usePlayerStore((s) => s.p2pConnectedClients);
-  const p2pActiveDeviceId = usePlayerStore((s) => s.p2pActiveDeviceId);
   const setP2pActiveDeviceId = usePlayerStore((s) => s.setP2pActiveDeviceId);
   const p2pPairedClients = usePlayerStore((s) => s.p2pPairedClients);
   const removeP2pPairedClient = usePlayerStore((s) => s.removeP2pPairedClient);

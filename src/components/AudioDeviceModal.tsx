@@ -379,6 +379,73 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
           )}
         </div>
 
+        {/* Multi-Device Simultaneous Output Routing */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5">
+              <Volume2 className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+              Simultaneous Audio Output Routing
+            </span>
+            <span className="text-[10px] text-zinc-400">Multi-room Sync</span>
+          </div>
+          <div className="flex flex-col gap-1.5 p-2 rounded-xl bg-black/20 border border-white/5">
+            <label className="flex items-center justify-between p-2 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer">
+              <div className="flex items-center gap-2">
+                <Monitor className="w-4 h-4 text-indigo-400" />
+                <div>
+                  <div className="text-xs font-medium text-white">This Computer Speakers</div>
+                  <div className="text-[10px] text-zinc-400">Direct bit-perfect WASAPI audio</div>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={isDesktopAudioEnabled}
+                onChange={(e) => {
+                  const en = e.target.checked;
+                  setIsDesktopAudioEnabled(en);
+                  if (!en && isPlaying) togglePlay();
+                  else if (en && !isPlaying) togglePlay();
+                }}
+                className="w-4 h-4 rounded text-indigo-500 accent-indigo-500 cursor-pointer"
+              />
+            </label>
+
+            <label className="flex items-center justify-between p-2 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer">
+              <div className="flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-emerald-400" />
+                <div>
+                  <div className="text-xs font-medium text-white">Companion Phone Output</div>
+                  <div className="text-[10px] text-zinc-400">
+                    {p2pConnectedClients > 0
+                      ? `${p2pConnectedClients} device(s) synchronized`
+                      : 'Syncs playback to paired Android phone'}
+                  </div>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={isCompanionAudioEnabled}
+                onChange={async (e) => {
+                  const en = e.target.checked;
+                  setIsCompanionAudioEnabled(en);
+                  const target = en ? (isDesktopAudioEnabled ? 'both' : 'local') : 'desktop';
+                  setP2pActiveDeviceId(target);
+                  try {
+                    await setP2pActiveDevice(target);
+                    await broadcastP2pFrame({
+                      type: 'command',
+                      action: en ? 'PLAY' : 'PAUSE',
+                    });
+                  } catch (err) {
+                    console.error('Failed to set companion target:', err);
+                  }
+                }}
+                className="w-4 h-4 rounded text-emerald-500 accent-emerald-500 cursor-pointer"
+              />
+            </label>
+          </div>
+        </div>
+
         {/* Section 2: Output Devices & Hardware Capabilities */}
         <div className="flex flex-col gap-2 pt-1">
           <div className="flex items-center justify-between">

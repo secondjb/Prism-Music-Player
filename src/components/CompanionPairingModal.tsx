@@ -27,6 +27,7 @@ import {
   setP2pActiveDevice,
   setupAdbReverse,
   broadcastP2pFrame,
+  broadcastRoutingSync,
 } from '../utils/p2pSync';
 
 interface CompanionPairingModalProps {

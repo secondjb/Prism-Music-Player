@@ -334,6 +334,8 @@ export const App: React.FC = () => {
     const threshold = durSecs > 0 ? Math.min(30000, Math.max(5000, (durSecs * 1000) / 2)) : 15000;
     if (ms >= threshold) {
       logListeningEvent(track.title, track.artist, track.album, track.genre || null, ms);
+      // Auto-broadcast new stats to connected companion over P2P
+      invoke('send_p2p_stats_sync').catch(() => {});
     }
   }, [isStatsCollectionEnabled]);
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -94,12 +95,23 @@ export const StatsView: React.FC = () => {
   const themeColors = useThemeColors();
 
   useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+    const unlisten = listen<number>('p2p-stats-synced', async () => {
+      const data = await fetchListeningEvents();
+      setEvents(data);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  useEffect(() => {
     async function loadData() {
       if (showDemoStats) {
         setEvents(generateMockListeningEvents(libraryTracks));
       } else if (isStatsCollectionEnabled) {
         const data = await fetchListeningEvents();
-        if (data.length === 0) {
+        if (data.length === 0 && showDemoStats) {
           setEvents(generateMockListeningEvents(libraryTracks));
         } else {
           setEvents(data);

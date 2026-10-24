@@ -16,6 +16,17 @@ use tokio_tungstenite::tungstenite::Message;
 pub use crate::stats::SyncListeningEvent;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ManifestTrackEntry {
+    pub filename: String,
+    pub title: String,
+    pub artist: String,
+    #[serde(rename = "sizeBytes", default)]
+    pub size_bytes: i64,
+    #[serde(rename = "durationSecs", default)]
+    pub duration_secs: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum SyncFrame {
     #[serde(rename = "handshake_req")]
@@ -64,6 +75,8 @@ pub enum SyncFrame {
         track_filename: Option<String>,
         #[serde(rename = "trackUri", default)]
         track_uri: Option<String>,
+        #[serde(rename = "queueFilenames", default)]
+        queue_filenames: Option<Vec<String>>,
     },
     #[serde(rename = "swap_device")]
     SwapDevice {
@@ -74,6 +87,43 @@ pub enum SyncFrame {
     StatsSync {
         events: Vec<SyncListeningEvent>,
     },
+    #[serde(rename = "track_not_found")]
+    TrackNotFound {
+        #[serde(rename = "trackTitle")]
+        track_title: String,
+        #[serde(rename = "trackArtist")]
+        track_artist: String,
+        #[serde(rename = "trackFilename")]
+        track_filename: String,
+    },
+    #[serde(rename = "manifest_req")]
+    ManifestReq {
+        #[serde(rename = "clientType", default = "default_client_type")]
+        client_type: String,
+    },
+    #[serde(rename = "manifest_resp")]
+    ManifestResp {
+        tracks: Vec<ManifestTrackEntry>,
+    },
+    #[serde(rename = "file_chunk")]
+    FileChunk {
+        #[serde(rename = "fileId")]
+        file_id: String,
+        #[serde(rename = "chunkIndex")]
+        chunk_index: usize,
+        #[serde(rename = "totalChunks")]
+        total_chunks: usize,
+        #[serde(rename = "dataBase64")]
+        data_base64: String,
+        #[serde(rename = "sizeBytes")]
+        size_bytes: i64,
+        #[serde(rename = "isLast")]
+        is_last: bool,
+    },
+}
+
+fn default_client_type() -> String {
+    "desktop".to_string()
 }
 
 fn default_client_version() -> String {
@@ -430,6 +480,7 @@ async fn handle_client_connection(
                             track_artist,
                             track_filename,
                             track_uri,
+                            queue_filenames,
                         } => {
                             if !is_authenticated {
                                 continue;
@@ -442,7 +493,8 @@ async fn handle_client_connection(
                                 "trackTitle": track_title,
                                 "trackArtist": track_artist,
                                 "trackFilename": track_filename,
-                                "trackUri": track_uri
+                                "trackUri": track_uri,
+                                "queueFilenames": queue_filenames
                             }));
                         }
                         SyncFrame::SwapDevice { target_device_id } => {
@@ -465,6 +517,69 @@ async fn handle_client_connection(
                                             eprintln!("[P2P Sync] Synced {} new listening stats events from companion", inserted);
                                             let _ = app_handle.emit("p2p-stats-synced", inserted);
                                         }
+                                    }
+                                }
+                            }
+                        }
+                        SyncFrame::ManifestReq { client_type } => {
+                            if !is_authenticated {
+                                continue;
+                            }
+                            eprintln!("[P2P Sync] Received ManifestReq from {}", client_type);
+                            let _ = app_handle.emit("p2p-manifest-req", ());
+                        }
+                        SyncFrame::ManifestResp { tracks } => {
+                            if !is_authenticated {
+                                continue;
+                            }
+                            let _ = app_handle.emit("p2p-manifest-resp", serde_json::to_value(&tracks).unwrap_or_default());
+                        }
+                        SyncFrame::TrackNotFound { track_title, track_artist, track_filename } => {
+                            if !is_authenticated {
+                                continue;
+                            }
+                            let _ = app_handle.emit("p2p-track-not-found", serde_json::json!({
+                                "trackTitle": track_title,
+                                "trackArtist": track_artist,
+                                "trackFilename": track_filename
+                            }));
+                        }
+                        SyncFrame::FileChunk {
+                            file_id,
+                            chunk_index,
+                            total_chunks: _,
+                            data_base64,
+                            size_bytes: _,
+                            is_last,
+                        } => {
+                            if !is_authenticated {
+                                continue;
+                            }
+                            use base64::prelude::*;
+                            if let Ok(bytes) = BASE64_STANDARD.decode(&data_base64) {
+                                let music_dir = std::env::var("USERPROFILE")
+                                    .map(|u| std::path::PathBuf::from(u).join("Music"))
+                                    .unwrap_or_else(|_| std::path::PathBuf::from("."));
+                                let prism_dir = music_dir.join("Prism");
+                                let _ = std::fs::create_dir_all(&prism_dir);
+                                let tmp_file = prism_dir.join(format!("{}.tmp", file_id));
+
+                                use std::io::Write;
+                                if chunk_index == 0 {
+                                    let _ = std::fs::remove_file(&tmp_file);
+                                }
+                                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&tmp_file) {
+                                    let _ = f.write_all(&bytes);
+                                }
+
+                                if is_last {
+                                    let target_file = prism_dir.join(&file_id);
+                                    if !target_file.exists() {
+                                        let _ = std::fs::rename(&tmp_file, &target_file);
+                                        eprintln!("[P2P Sync] Successfully received file from companion: {:?}", target_file);
+                                        let _ = app_handle.emit("p2p-file-received", target_file.to_string_lossy().to_string());
+                                    } else {
+                                        let _ = std::fs::remove_file(&tmp_file);
                                     }
                                 }
                             }
@@ -596,5 +711,61 @@ pub fn set_p2p_active_device(sync_state: State<'_, Arc<SyncState>>, device_id: S
     if let Ok(json) = serde_json::to_string(&frame) {
         let _ = sync_state.broadcast_tx.send(json);
     }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn send_p2p_file(
+    sync_state: State<'_, Arc<SyncState>>,
+    file_path: String,
+    file_id: String,
+) -> Result<(), String> {
+    use std::io::Read;
+    use base64::prelude::*;
+
+    let path = std::path::PathBuf::from(&file_path);
+    if !path.exists() {
+        return Err(format!("File not found: {}", file_path));
+    }
+
+    let mut file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+    let total_size = file.metadata().map(|m| m.len()).unwrap_or(0);
+
+    const CHUNK_SIZE: usize = 512 * 1024;
+    let total_chunks = ((total_size as f64) / (CHUNK_SIZE as f64)).ceil() as usize;
+    let total_chunks = if total_chunks == 0 { 1 } else { total_chunks };
+
+    let mut buffer = vec![0u8; CHUNK_SIZE];
+    let mut chunk_index = 0;
+
+    loop {
+        let bytes_read = file.read(&mut buffer).map_err(|e| e.to_string())?;
+        if bytes_read == 0 && chunk_index > 0 {
+            break;
+        }
+
+        let is_last = bytes_read < CHUNK_SIZE || chunk_index + 1 >= total_chunks;
+        let data_base64 = BASE64_STANDARD.encode(&buffer[..bytes_read]);
+
+        let frame = SyncFrame::FileChunk {
+            file_id: file_id.clone(),
+            chunk_index,
+            total_chunks,
+            data_base64,
+            size_bytes: total_size as i64,
+            is_last,
+        };
+
+        if let Ok(json) = serde_json::to_string(&frame) {
+            let _ = sync_state.broadcast_tx.send(json);
+        }
+
+        chunk_index += 1;
+        if is_last {
+            break;
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
+    }
+
     Ok(())
 }

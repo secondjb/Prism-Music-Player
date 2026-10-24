@@ -407,11 +407,15 @@ interface PlayerState {
   p2pActiveDeviceId: string;
   p2pConnectedClients: number;
   p2pPairedClients: Array<{ name: string; version: string; pairedAt: number }>;
+  isDesktopAudioEnabled: boolean;
+  isCompanionAudioEnabled: boolean;
   isPairingModalOpen: boolean;
   setIsPairingModalOpen: (open: boolean) => void;
   setP2pSyncInfo: (info: P2pSyncInfo | null) => void;
   setP2pConnectedClients: (count: number) => void;
   setP2pActiveDeviceId: (id: string) => void;
+  setIsDesktopAudioEnabled: (enabled: boolean) => void;
+  setIsCompanionAudioEnabled: (enabled: boolean) => void;
   addP2pPairedClient: (client: { name: string; version: string; pairedAt: number }) => void;
   removeP2pPairedClient: (name: string) => void;
 
@@ -1097,11 +1101,15 @@ export const usePlayerStore = create<PlayerState>()(
       p2pActiveDeviceId: 'desktop',
       p2pConnectedClients: 0,
       p2pPairedClients: [],
+      isDesktopAudioEnabled: true,
+      isCompanionAudioEnabled: false,
       isPairingModalOpen: false,
       setIsPairingModalOpen: (open) => set({ isPairingModalOpen: open }),
       setP2pSyncInfo: (info) => set({ p2pSyncInfo: info }),
       setP2pConnectedClients: (count) => set({ p2pConnectedClients: count }),
       setP2pActiveDeviceId: (id) => set({ p2pActiveDeviceId: id }),
+      setIsDesktopAudioEnabled: (enabled) => set({ isDesktopAudioEnabled: enabled }),
+      setIsCompanionAudioEnabled: (enabled) => set({ isCompanionAudioEnabled: enabled }),
       addP2pPairedClient: (client) =>
         set((state) => ({
           p2pPairedClients: [

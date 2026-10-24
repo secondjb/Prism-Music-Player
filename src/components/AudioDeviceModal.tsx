@@ -1,9 +1,12 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { setP2pActiveDevice, broadcastP2pFrame } from '../utils/p2pSync';
 import { invoke } from '@tauri-apps/api/core';
 import {
   Speaker,
   X,
+  Smartphone,
+  Monitor,
   CheckCircle2,
   Activity,
   Music2,
@@ -46,6 +49,14 @@ interface AudioDeviceModalProps {
 
 export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onClose }) => {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
+  const isDesktopAudioEnabled = usePlayerStore((s) => s.isDesktopAudioEnabled);
+  const setIsDesktopAudioEnabled = usePlayerStore((s) => s.setIsDesktopAudioEnabled);
+  const isCompanionAudioEnabled = usePlayerStore((s) => s.isCompanionAudioEnabled);
+  const setIsCompanionAudioEnabled = usePlayerStore((s) => s.setIsCompanionAudioEnabled);
+  const p2pConnectedClients = usePlayerStore((s) => s.p2pConnectedClients);
+  const setP2pActiveDeviceId = usePlayerStore((s) => s.setP2pActiveDeviceId);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const togglePlay = usePlayerStore((s) => s.togglePlay);
 
   const [details, setDetails] = useState<AudioOutputDetails | null>(null);
   const [isLoading, setIsLoading] = useState(false);

@@ -36,6 +36,20 @@ let lastBroadcastTime = 0;
 let pendingBroadcastTimeout: any = null;
 
 /**
+ * Broadcasts arbitrary P2P frame to all connected companion devices.
+ */
+export async function broadcastP2pFrame(frame: any): Promise<void> {
+  if (!window.__TAURI_INTERNALS__) return;
+  try {
+    await invoke('broadcast_p2p_frame', {
+      frameJson: JSON.stringify(frame),
+    });
+  } catch (e) {
+    console.debug('[P2P Sync] Failed to broadcast frame:', e);
+  }
+}
+
+/**
  * Broadcasts the current player store state to all connected P2P companion clients.
  * Debounced to prevent saturating the LAN network during rapid position updates.
  */
@@ -86,13 +100,25 @@ export async function broadcastStateSync(forceImmediate = false): Promise<void> 
     playbackState,
   };
 
-  try {
-    await invoke('broadcast_p2p_frame', {
-      frameJson: JSON.stringify(frame),
-    });
-  } catch (e) {
-    console.debug('[P2P Sync] Failed to broadcast state:', e);
-  }
+  await broadcastP2pFrame(frame);
+}
+
+export async function broadcastTrackNotFound(
+  trackTitle: string,
+  trackArtist: string,
+  trackFilename: string
+): Promise<void> {
+  await broadcastP2pFrame({
+    type: 'track_not_found',
+    trackTitle,
+    trackArtist,
+    trackFilename,
+  });
+}
+
+export async function sendP2pFile(filePath: string, fileId: string): Promise<void> {
+  if (!window.__TAURI_INTERNALS__) return;
+  await invoke('send_p2p_file', { filePath, fileId });
 }
 
 export async function fetchP2pSyncInfo(): Promise<P2pSyncInfo> {
@@ -120,4 +146,3 @@ export interface AdbReverseResult {
 export async function setupAdbReverse(): Promise<AdbReverseResult> {
   return await invoke<AdbReverseResult>('setup_adb_reverse');
 }
-

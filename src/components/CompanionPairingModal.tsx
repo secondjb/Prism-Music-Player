@@ -16,6 +16,7 @@ import {
   X,
   ExternalLink,
   Radio,
+  Volume2,
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import {
@@ -24,6 +25,7 @@ import {
   sendP2pStatsSync,
   setP2pActiveDevice,
   setupAdbReverse,
+  broadcastP2pFrame,
 } from '../utils/p2pSync';
 
 interface CompanionPairingModalProps {
@@ -42,6 +44,12 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
   const setP2pActiveDeviceId = usePlayerStore((s) => s.setP2pActiveDeviceId);
   const p2pPairedClients = usePlayerStore((s) => s.p2pPairedClients);
   const removeP2pPairedClient = usePlayerStore((s) => s.removeP2pPairedClient);
+  const isDesktopAudioEnabled = usePlayerStore((s) => s.isDesktopAudioEnabled);
+  const setIsDesktopAudioEnabled = usePlayerStore((s) => s.setIsDesktopAudioEnabled);
+  const isCompanionAudioEnabled = usePlayerStore((s) => s.isCompanionAudioEnabled);
+  const setIsCompanionAudioEnabled = usePlayerStore((s) => s.setIsCompanionAudioEnabled);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const togglePlay = usePlayerStore((s) => s.togglePlay);
 
   const [connectionMode, setConnectionMode] = useState<'wifi' | 'usb'>('wifi');
   const [copiedType, setCopiedType] = useState<'uri' | 'string' | null>(null);
@@ -92,13 +100,27 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
     }
   };
 
-  const handleToggleActiveDevice = async () => {
-    const nextTarget = p2pActiveDeviceId === 'desktop' ? 'local' : 'desktop';
-    setP2pActiveDeviceId(nextTarget);
+  const handleToggleDesktop = (enabled: boolean) => {
+    setIsDesktopAudioEnabled(enabled);
+    if (!enabled && isPlaying) {
+      togglePlay();
+    } else if (enabled && !isPlaying) {
+      togglePlay();
+    }
+  };
+
+  const handleToggleCompanion = async (enabled: boolean) => {
+    setIsCompanionAudioEnabled(enabled);
+    const target = enabled ? (isDesktopAudioEnabled ? 'both' : 'local') : 'desktop';
+    setP2pActiveDeviceId(target);
     try {
-      await setP2pActiveDevice(nextTarget);
+      await setP2pActiveDevice(target);
+      await broadcastP2pFrame({
+        type: 'command',
+        action: enabled ? 'PLAY' : 'PAUSE',
+      });
     } catch (e) {
-      console.error('Failed to switch active device:', e);
+      console.error('Failed to update companion audio status:', e);
     }
   };
 
@@ -139,13 +161,16 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
       slotProps={{
         paper: {
           sx: {
-            bgcolor: '#121217',
+            bgcolor: 'rgba(18, 18, 23, 0.90)',
+            backgroundImage:
+              'radial-gradient(circle at 10% 15%, color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent), transparent 60%), radial-gradient(circle at 90% 85%, color-mix(in srgb, var(--color-stop-2, #8b5cf6) 18%, transparent), transparent 60%)',
             color: '#ffffff',
             borderRadius: '24px',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+            border: '1px solid color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, rgba(255, 255, 255, 0.12))',
+            boxShadow:
+              '0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 45px color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
             overflow: 'hidden',
-            backdropFilter: 'blur(20px)',
+            backdropFilter: 'blur(28px)',
           },
         },
       }}
@@ -154,11 +179,12 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
       <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center border"
+            className="w-10 h-10 rounded-xl flex items-center justify-center border shadow-sm transition-all"
             style={{
               backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
-              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, transparent)',
+              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
               color: 'var(--color-stop-1, #6366f1)',
+              boxShadow: '0 0 15px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
             }}
           >
             <Smartphone className="w-5 h-5" />
@@ -172,7 +198,7 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
               </span>
             </h2>
             <p className="text-xs text-zinc-400">
-              Connect your Android phone over LAN for remote control & stats sync
+              Connect your Android phone over LAN for remote control, smart sync & stats
             </p>
           </div>
         </div>
@@ -188,7 +214,7 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
       <DialogContent sx={{ p: { xs: 3, sm: 4 } }}>
         <div className="flex flex-col items-center">
           {/* Status Badges */}
-          <div className="w-full flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-white/[0.03] border border-white/5 mb-5 text-xs text-zinc-300">
+          <div className="w-full flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-white/[0.03] border border-white/5 mb-4 text-xs text-zinc-300">
             <div className="flex items-center gap-2">
               <Radio className="w-4 h-4 text-emerald-400" />
               <span>mDNS Beacon: <strong className="text-white font-mono">_prism-sync._tcp</strong></span>
@@ -276,7 +302,7 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
           <div className="p-4 bg-white rounded-2xl shadow-2xl border-4 border-white/10 mb-4 transition-transform hover:scale-[1.01]">
             <QRCodeSVG
               value={pairingUri}
-              size={210}
+              size={200}
               level="M"
               includeMargin={false}
               bgColor="#ffffff"
@@ -288,7 +314,7 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
             Scan with the built-in QR scanner in the <strong className="text-white">Prism Android app</strong> to instantly establish paired LAN control.
           </p>
 
-          {/* Fallback Connection Code */}
+          {/* Direct Pairing Code Box */}
           <div className="w-full p-3.5 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between gap-3 mb-4">
             <div className="min-w-0 flex-1">
               <div className="text-[11px] font-medium text-zinc-400 mb-0.5">Direct Pairing Code</div>
@@ -326,18 +352,66 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
             </div>
           </div>
 
-          {/* Paired Companion Devices */}
+          {/* Simultaneous Audio Output Routing Checkboxes */}
+          <div className="w-full bg-white/[0.03] border border-white/10 rounded-xl p-3.5 mb-4">
+            <div className="text-xs font-semibold text-zinc-300 mb-2.5 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Volume2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                Simultaneous Audio Output Routing
+              </span>
+              <span className="text-[10px] text-zinc-400">Multi-device sync</span>
+            </div>
+            <div className="space-y-2">
+              <label className="flex items-center justify-between p-2.5 rounded-lg bg-black/25 border border-white/5 cursor-pointer hover:bg-white/[0.05] transition-colors">
+                <div className="flex items-center gap-2.5">
+                  <Monitor className="w-4 h-4 text-indigo-400" />
+                  <div>
+                    <div className="text-xs font-medium text-white">This Computer (Speakers / DAC)</div>
+                    <div className="text-[10px] text-zinc-400">Direct bit-perfect WASAPI output</div>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={isDesktopAudioEnabled}
+                  onChange={(e) => handleToggleDesktop(e.target.checked)}
+                  className="w-4 h-4 rounded text-indigo-500 accent-indigo-500 focus:ring-0 cursor-pointer"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-2.5 rounded-lg bg-black/25 border border-white/5 cursor-pointer hover:bg-white/[0.05] transition-colors">
+                <div className="flex items-center gap-2.5">
+                  <Smartphone className="w-4 h-4 text-emerald-400" />
+                  <div>
+                    <div className="text-xs font-medium text-white">Companion Phone (Mobile Output)</div>
+                    <div className="text-[10px] text-zinc-400">
+                      {p2pConnectedClients > 0
+                        ? `${p2pConnectedClients} device(s) synchronized`
+                        : 'Plays synchronized audio on paired Android device'}
+                    </div>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={isCompanionAudioEnabled}
+                  onChange={(e) => handleToggleCompanion(e.target.checked)}
+                  className="w-4 h-4 rounded text-emerald-500 accent-emerald-500 focus:ring-0 cursor-pointer"
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Paired Companion Devices Container (with mb-5 and custom-scrollbar) */}
           {p2pPairedClients.length > 0 && (
-            <div className="w-full bg-white/[0.03] border border-white/10 rounded-xl p-3">
+            <div className="w-full bg-white/[0.03] border border-white/10 rounded-xl p-3 mb-5">
               <div className="text-[12px] font-semibold text-zinc-300 mb-2 flex items-center justify-between">
                 <span>Paired Companion Devices</span>
                 <span className="text-[10px] text-zinc-500 font-normal">{p2pPairedClients.length} paired</span>
               </div>
-              <div className="space-y-1.5 max-h-36 overflow-y-auto">
+              <div className="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1">
                 {p2pPairedClients.map((client) => (
                   <div
                     key={client.name}
-                    className="flex items-center justify-between p-2 rounded-lg bg-black/20 border border-white/5"
+                    className="flex items-center justify-between p-2 rounded-lg bg-black/20 border border-white/5 hover:border-white/10 transition-colors"
                   >
                     <div className="flex items-center gap-2">
                       <Smartphone className="w-4 h-4 text-emerald-400" />
@@ -362,7 +436,7 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
           )}
 
           {/* Action Row */}
-          <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div className="w-full grid grid-cols-2 gap-3">
             <Button
               variant="outlined"
               size="small"
@@ -407,34 +481,6 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
               }}
             >
               Sync Stats Now
-            </Button>
-
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={handleToggleActiveDevice}
-              startIcon={
-                p2pActiveDeviceId === 'desktop' ? (
-                  <Smartphone className="w-3.5 h-3.5 text-indigo-400" />
-                ) : (
-                  <Monitor className="w-3.5 h-3.5 text-emerald-400" />
-                )
-              }
-              sx={{
-                borderColor: 'rgba(255, 255, 255, 0.12)',
-                color: '#e4e4e7',
-                borderRadius: '12px',
-                py: 1,
-                fontSize: '11px',
-                textTransform: 'none',
-                bgcolor: 'rgba(255, 255, 255, 0.03)',
-                '&:hover': {
-                  borderColor: 'rgba(255, 255, 255, 0.25)',
-                  bgcolor: 'rgba(255, 255, 255, 0.08)',
-                },
-              }}
-            >
-              {p2pActiveDeviceId === 'desktop' ? 'Handoff to Phone' : 'Return to Desktop'}
             </Button>
           </div>
 

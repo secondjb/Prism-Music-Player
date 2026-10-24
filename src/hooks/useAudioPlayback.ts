@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { broadcastStateSync } from '../utils/p2pSync';
+import { broadcastStateSync, broadcastP2pFrame, broadcastTrackNotFound, sendP2pFile } from '../utils/p2pSync';
 
 interface UseAudioPlaybackOptions {
   trackArt?: string | null;
@@ -485,6 +485,36 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
       // P2P Companion requested instantaneous state sync (e.g. after handshake approval)
       listen('p2p-request-state-sync', () => {
         broadcastStateSync(true);
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
+      // P2P Companion library manifest diff request
+      listen('p2p-manifest-req', () => {
+        const store = usePlayerStore.getState();
+        const tracks = (store.tracks || []).map((t) => {
+          const fn = t.path ? t.path.replace(/\\/g, '/').split('/').pop() || '' : '';
+          return {
+            filename: fn,
+            title: t.title || '',
+            artist: t.artist || '',
+            sizeBytes: (t as any).size_bytes || 25_000_000,
+            durationSecs: t.duration_secs || 0,
+          };
+        });
+        broadcastP2pFrame({
+          type: 'manifest_resp',
+          tracks,
+        }).catch(console.error);
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
+      // P2P Companion file chunk transfer completed
+      listen('p2p-file-received', (event: any) => {
+        console.log('[P2P Sync] Incoming audio file received from companion:', event.payload);
+        const store = usePlayerStore.getState();
+        store.refreshLibrary?.();
       }).then((unlistenFn) => {
         unlistens.push(unlistenFn);
       });

@@ -212,52 +212,80 @@ const LeaderboardItemRow: React.FC<LeaderboardItemRowProps> = React.memo(({
             )}
           </Box>
 
-          {/* Centered 2-Line Text Content with strict Ellipsis truncation */}
+          {/* Centered 2-Line Text Content with strict Ellipsis truncation and MUI Box scaffolding */}
           <Box
             sx={{
               minWidth: 0,
               flex: 1,
-              maxWidth: '100%',
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
             }}
           >
-            <Typography
-              noWrap
-              variant="body2"
+            {/* Title Scaffolding */}
+            <Box
               sx={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: '#ffffff',
-                lineHeight: 1.25,
+                minWidth: 0,
+                maxWidth: {
+                  xs: '100%',
+                  sm: 'min(100%, 280px)',
+                  md: 'min(100%, 340px)',
+                  lg: 'min(100%, 420px)',
+                },
                 overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                width: '100%',
-                display: 'block',
               }}
             >
-              {item.name}
-            </Typography>
-            <Typography
-              noWrap
-              variant="caption"
+              <Typography
+                noWrap
+                variant="body2"
+                sx={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: '#ffffff',
+                  lineHeight: 1.25,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  width: '100%',
+                  display: 'block',
+                }}
+              >
+                {item.name}
+              </Typography>
+            </Box>
+
+            {/* Capped Subtitle (Artist / Metadata) Scaffolding */}
+            <Box
               sx={{
-                color: '#a1a1aa',
-                fontSize: '11px',
-                lineHeight: 1.25,
+                minWidth: 0,
+                maxWidth: {
+                  xs: '100%',
+                  sm: 'min(100%, 220px)',
+                  md: 'min(100%, 260px)',
+                  lg: 'min(100%, 300px)',
+                },
+                overflow: 'hidden',
                 mt: '2px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                width: '100%',
-                display: 'block',
               }}
             >
-              {subtitle}
-            </Typography>
+              <Typography
+                noWrap
+                variant="caption"
+                sx={{
+                  color: '#a1a1aa',
+                  fontSize: '11px',
+                  lineHeight: 1.25,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  width: '100%',
+                  display: 'block',
+                }}
+              >
+                {subtitle}
+              </Typography>
+            </Box>
           </Box>
         </Box>
 
@@ -410,6 +438,7 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
           flexDirection: 'column',
           gap: 1.5,
           width: '100%',
+          minWidth: 0,
           boxSizing: 'border-box',
         }}
       >
@@ -577,8 +606,8 @@ export const StatsLeaderboards: React.FC<StatsLeaderboardsProps> = ({
         sx={{
           display: 'grid',
           gridTemplateColumns: activeCategory === 'all'
-            ? { xs: '1fr', md: 'repeat(3, 1fr)' }
-            : '1fr',
+            ? { xs: '1fr', md: 'repeat(3, minmax(0, 1fr))' }
+            : 'minmax(0, 1fr)',
           gap: 2,
           width: '100%',
         }}

@@ -100,7 +100,7 @@ Whenever you are asked to prepare, check, or publish a new release, you **must c
    ```
 2. Pull down the updated changes in the standalone Desktop replica (`Desktop/Prism Music Player`):
    ```bash
-   git -C "C:\Users\b1a7e\Desktop\Prism Music Player" pull origin master
+   git -C "../Prism Music Player" pull origin master
    ```
 Ensure commit messages are concise, clear, and descriptive.
 

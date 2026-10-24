@@ -179,7 +179,7 @@ impl SyncState {
             .map(|ip| ip.to_string())
             .unwrap_or_else(|_| "127.0.0.1".to_string());
 
-        let token = generate_token();
+        let token = get_or_create_persistent_token();
 
         Self {
             token: RwLock::new(token),
@@ -272,6 +272,36 @@ impl SyncState {
             let _ = daemon.shutdown();
         }
         self.register_mdns_services();
+    }
+}
+
+fn get_pairing_token_path() -> Option<std::path::PathBuf> {
+    if let Ok(app_data) = std::env::var("APPDATA") {
+        let dir = std::path::PathBuf::from(app_data).join("com.prism.musicplayer");
+        let _ = std::fs::create_dir_all(&dir);
+        return Some(dir.join("p2p_pairing_token.txt"));
+    }
+    None
+}
+
+pub fn get_or_create_persistent_token() -> String {
+    if let Some(path) = get_pairing_token_path() {
+        if let Ok(token) = std::fs::read_to_string(&path) {
+            let trimmed = token.trim().to_string();
+            if trimmed.len() >= 8 {
+                return trimmed;
+            }
+        }
+        let new_token = generate_token();
+        let _ = std::fs::write(&path, &new_token);
+        return new_token;
+    }
+    generate_token()
+}
+
+pub fn save_persistent_token(token: &str) {
+    if let Some(path) = get_pairing_token_path() {
+        let _ = std::fs::write(path, token);
     }
 }
 
@@ -487,26 +517,30 @@ async fn handle_client_connection(
                                 // Trigger state sync to companion immediately
                                 let _ = app_handle.emit("p2p-request-state-sync", ());
 
-                                // Automatically send listening statistics to companion on connect
-                                let events_to_sync: Option<Vec<SyncListeningEvent>> = {
-                                    if let Some(db_state) = app_handle.try_state::<crate::stats::DbState>() {
-                                        if let Ok(lock) = db_state.db.lock() {
-                                            if let Some(conn) = lock.as_ref() {
-                                                crate::stats::fetch_synced_events_internal(conn).ok()
+                                // Automatically send listening statistics to companion on connect asynchronously
+                                let app_handle_for_stats = app_handle.clone();
+                                let outgoing_tx_for_stats = outgoing_tx.clone();
+                                tokio::task::spawn(async move {
+                                    let events = tokio::task::spawn_blocking(move || {
+                                        if let Some(db_state) = app_handle_for_stats.try_state::<crate::stats::DbState>() {
+                                            if let Ok(lock) = db_state.db.lock() {
+                                                if let Some(conn) = lock.as_ref() {
+                                                    crate::stats::fetch_synced_events_internal(conn).ok()
+                                                } else { None }
                                             } else { None }
                                         } else { None }
-                                    } else { None }
-                                };
+                                    }).await.unwrap_or(None);
 
-                                if let Some(events) = events_to_sync {
-                                    if !events.is_empty() {
-                                        let stats_frame = SyncFrame::StatsSync { events };
-                                        if let Ok(json) = serde_json::to_string(&stats_frame) {
-                                            let _ = outgoing_tx.send(json).await;
-                                            eprintln!("[P2P Sync] Dispatched stats sync to connected companion");
+                                    if let Some(events) = events {
+                                        if !events.is_empty() {
+                                            let stats_frame = SyncFrame::StatsSync { events };
+                                            if let Ok(json) = serde_json::to_string(&stats_frame) {
+                                                let _ = outgoing_tx_for_stats.send(json).await;
+                                                eprintln!("[P2P Sync] Dispatched stats sync to connected companion");
+                                            }
                                         }
                                     }
-                                }
+                                });
                             } else {
                                 let resp = SyncFrame::HandshakeResp {
                                     is_approved: false,
@@ -741,6 +775,7 @@ pub fn get_p2p_sync_info(sync_state: State<'_, Arc<SyncState>>) -> P2pSyncInfo {
 #[tauri::command]
 pub fn regenerate_p2p_pairing_token(sync_state: State<'_, Arc<SyncState>>) -> P2pSyncInfo {
     let new_token = generate_token();
+    save_persistent_token(&new_token);
     *sync_state.token.write() = new_token;
     sync_state.refresh_local_ip();
     sync_state.update_mdns_token();

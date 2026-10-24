@@ -166,16 +166,13 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
       slotProps={{
         paper: {
           sx: {
-            bgcolor: 'rgba(18, 18, 23, 0.90)',
-            backgroundImage:
-              'radial-gradient(circle at 10% 15%, color-mix(in srgb, var(--color-stop-1, #6366f1) 22%, transparent), transparent 60%), radial-gradient(circle at 90% 85%, color-mix(in srgb, var(--color-stop-2, #8b5cf6) 18%, transparent), transparent 60%)',
+            bgcolor: '#141419',
             color: '#ffffff',
-            borderRadius: '24px',
-            border: '1px solid color-mix(in srgb, var(--color-stop-1, #6366f1) 35%, rgba(255, 255, 255, 0.12))',
-            boxShadow:
-              '0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 45px color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
+            borderRadius: '20px',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.7)',
             overflow: 'hidden',
-            backdropFilter: 'blur(28px)',
+            backdropFilter: 'blur(20px)',
           },
         },
       }}
@@ -184,12 +181,11 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
       <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center border shadow-sm transition-all"
+            className="w-10 h-10 rounded-xl flex items-center justify-center border transition-all"
             style={{
-              backgroundColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
-              borderColor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              borderColor: 'rgba(255, 255, 255, 0.1)',
               color: 'var(--color-stop-1, #6366f1)',
-              boxShadow: '0 0 15px color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
             }}
           >
             <Smartphone className="w-5 h-5" />
@@ -197,9 +193,9 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
           <div>
             <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
               Prism Companion Pairing
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              <span className="relative flex items-center justify-center w-2.5 h-2.5 shrink-0 self-center">
+                <span className="animate-ping absolute inset-0 rounded-full bg-emerald-400/80" />
+                <span className="relative rounded-full w-2 h-2 bg-emerald-500 shrink-0" />
               </span>
             </h2>
             <p className="text-xs text-zinc-400">

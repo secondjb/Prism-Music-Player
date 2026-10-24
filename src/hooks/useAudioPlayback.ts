@@ -375,9 +375,46 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
 
       // P2P Companion remote command handling
       listen('p2p-command', (event: any) => {
-        const { action, seekPositionMs, volume, repeatMode } = event.payload || {};
+        const { action, seekPositionMs, volume, repeatMode, trackFilename, trackTitle, trackArtist } = event.payload || {};
         const store = usePlayerStore.getState();
         switch (action) {
+          case 'PLAY_TRACK': {
+            const normalize = (s?: string) => (s || '').toLowerCase().trim();
+            const targetFn = trackFilename ? normalize(trackFilename) : '';
+            const targetTitle = normalize(trackTitle);
+            const targetArtist = normalize(trackArtist);
+
+            const allTracks = store.tracks || [];
+            let matchedTrack = allTracks.find((t) => {
+              if (targetFn) {
+                const fn = normalize(t.path ? t.path.split(/[/\\\\/]).pop() : (t.file_name || ''));
+                if (fn && fn === targetFn) return true;
+              }
+              if (targetTitle && normalize(t.title) === targetTitle) {
+                if (!targetArtist || normalize(t.artist).includes(targetArtist) || targetArtist.includes(normalize(t.artist))) {
+                  return true;
+                }
+              }
+              return false;
+            });
+
+            if (!matchedTrack && store.queue && store.queue.length > 0) {
+              matchedTrack = store.queue.find((t) => {
+                if (targetFn) {
+                  const fn = normalize(t.path ? t.path.split(/[/\\\\/]).pop() : (t.file_name || ''));
+                  if (fn && fn === targetFn) return true;
+                }
+                if (targetTitle && normalize(t.title) === targetTitle) return true;
+                return false;
+              });
+            }
+
+            if (matchedTrack) {
+              store.playTrack(matchedTrack);
+              broadcastStateSync(true);
+            }
+            break;
+          }
           case 'PLAY':
             if (!store.isPlaying) store.togglePlay();
             break;

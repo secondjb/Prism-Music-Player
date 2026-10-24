@@ -56,6 +56,14 @@ pub enum SyncFrame {
         volume: Option<f32>,
         #[serde(rename = "repeatMode", default)]
         repeat_mode: Option<String>,
+        #[serde(rename = "trackTitle", default)]
+        track_title: Option<String>,
+        #[serde(rename = "trackArtist", default)]
+        track_artist: Option<String>,
+        #[serde(rename = "trackFilename", default)]
+        track_filename: Option<String>,
+        #[serde(rename = "trackUri", default)]
+        track_uri: Option<String>,
     },
     #[serde(rename = "swap_device")]
     SwapDevice {
@@ -413,7 +421,16 @@ async fn handle_client_connection(
                                 break;
                             }
                         }
-                        SyncFrame::Command { action, seek_position_ms, volume, repeat_mode } => {
+                        SyncFrame::Command {
+                            action,
+                            seek_position_ms,
+                            volume,
+                            repeat_mode,
+                            track_title,
+                            track_artist,
+                            track_filename,
+                            track_uri,
+                        } => {
                             if !is_authenticated {
                                 continue;
                             }
@@ -421,7 +438,11 @@ async fn handle_client_connection(
                                 "action": action,
                                 "seekPositionMs": seek_position_ms,
                                 "volume": volume,
-                                "repeatMode": repeat_mode
+                                "repeatMode": repeat_mode,
+                                "trackTitle": track_title,
+                                "trackArtist": track_artist,
+                                "trackFilename": track_filename,
+                                "trackUri": track_uri
                             }));
                         }
                         SyncFrame::SwapDevice { target_device_id } => {

@@ -242,7 +242,47 @@ Prism utilizes `@revolist/react-datagrid` (RevoGrid) backed by Stencil web compo
 
 ---
 
-## 8. Common Maintenance Workflows for AI Agents
+## 8. Peer-to-Peer (P2P) LAN Synchronization Subsystem
+
+Prism features a native LAN peer-to-peer synchronization engine enabling bi-directional pairing with the **Prism Android** companion mobile application.
+
+```
+┌──────────────────────────────────────┐             ┌────────────────────────────────────────┐
+│            PRISM WINDOWS             │             │             PRISM ANDROID              │
+│  - Tokio WebSocket Server (:9876)    │  WebSocket  │  - OkHttp WebSocket Client             │
+│  - mDNS Beacon (_prism-sync._tcp)    │ ◄─────────► │  - NsdManager / QR Code Scanner        │
+│  - Bi-directional State Sync         │  (LAN/WiFi) │  - Remote Controller                   │
+│  - Listening History (SQLite)        │             │  - Listening History (SQLite)          │
+└──────────────────────────────────────┘             └────────────────────────────────────────┘
+```
+
+### 8.1 Rust Server & Discovery (`src-tauri/src/sync/mod.rs`)
+- **WebSocket Listener**:
+  - Bound on `0.0.0.0:9876` (`ws://<ip>:9876/prism-sync`) with a dedicated multi-threaded Tokio runtime.
+  - Authenticates connections via the `X-Prism-Auth-Token` HTTP header or immediate `handshake_req` with `clientToken` against the local cryptographic 16-character pairing secret.
+- **mDNS Service Advertising (`mdns-sd`)**:
+  - Registers `_prism._tcp.local.` (for Android `NsdManager`) and `_prism-sync._tcp.local.` with TXT records containing the pairing secret token, protocol version (`1.0.0`), and host display name.
+- **SQLite Stats Sync (`listening_stats.db`)**:
+  - Inserts companion listening events idempotently with duplicate prevention (`insert_synced_events`).
+  - Broadcasts local play events to paired companions on request.
+
+### 8.2 Frontend Bridge & Framing Protocol (`src/utils/p2pSync.ts`)
+- **State Sync (`state_sync`)**:
+  - Automatically serializes and debounces desktop playback state (`currentTrack`, `isPlaying`, `positionMs`, `durationMs`, `volume`, `repeatMode`, `isShuffled`, and `queue`) to companions.
+- **Remote Commands (`command`)**:
+  - Executes incoming commands from companion (`PLAY`, `PAUSE`, `TOGGLE_PLAY_PAUSE`, `SEEK`, `SKIP_NEXT`, `SKIP_PREVIOUS`, `SET_VOLUME`, `TOGGLE_SHUFFLE`, `SET_REPEAT`).
+- **Device Hand-off (`swap_device`)**:
+  - Smoothly transfers audio output between desktop and companion. When transferred to phone, desktop audio automatically pauses; returning to desktop resumes playback seamlessly.
+- **QR Code Pairing Modal (`src/components/CompanionPairingModal.tsx`)**:
+  - Generates SVG QR code encoding `prism://pair?host=<ip>&port=9876&token=<token>&name=<name>`.
+  - Provides direct pairing code fallback string (`<ip>:9876:<token>`), token rotation, manual stats sync, and quick output target handoff.
+- **Header & Settings Integration**:
+  - Header companion badge indicates live connected companion count and opens pairing modal with 1 click.
+  - `SettingsView.tsx` includes dedicated `CompanionSyncSection` for pairing, server status, and diagnostics.
+
+---
+
+## 9. Common Maintenance Workflows for AI Agents
 
 ### Adding a New Setting
 1. Add property and setter to `usePlayerStore.ts` state interface.

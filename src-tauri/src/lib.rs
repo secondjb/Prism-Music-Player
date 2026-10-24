@@ -4,6 +4,7 @@ pub mod commands;
 pub mod loudness;
 pub mod metadata;
 pub mod stats;
+pub mod sync;
 #[cfg(target_os = "windows")]
 pub mod taskbar;
 
@@ -45,10 +46,16 @@ pub fn run() {
     let engine_warm = engine.clone();
     let engine_setup = engine.clone();
 
+    let sync_state = std::sync::Arc::new(sync::SyncState::new(9876));
+    let sync_state_server = sync_state.clone();
+
     tauri::Builder::default()
         .setup(move |app| {
             engine_setup.set_app_handle(app.handle().clone());
             let app_handle = app.handle().clone();
+
+            // Initialize P2P LAN WebSocket sync server & mDNS beacon
+            sync::start_p2p_sync_server(app_handle.clone(), sync_state_server);
 
             #[cfg(desktop)]
             {
@@ -136,6 +143,7 @@ pub fn run() {
             Ok(())
         })
         .manage(engine)
+        .manage(sync_state)
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .on_window_event(|window, event| {
@@ -186,6 +194,11 @@ pub fn run() {
             commands::open_lyrics_popout,
             commands::close_lyrics_popout,
             commands::toggle_lyrics_popout,
+            sync::get_p2p_sync_info,
+            sync::regenerate_p2p_pairing_token,
+            sync::broadcast_p2p_frame,
+            sync::send_p2p_stats_sync,
+            sync::set_p2p_active_device,
             log_frontend_message
         ])
         .run(tauri::generate_context!())

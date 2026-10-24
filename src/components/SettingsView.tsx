@@ -11,28 +11,31 @@ import {
   Volume2,
   Search,
   ShieldAlert,
+  Smartphone,
 } from 'lucide-react';
 import { WordSyncedLyricsFinder } from './WordSyncedLyricsFinder';
 import { LibrarySettingsSection } from './settings/LibrarySettingsSection';
 import { AudioSettingsSection } from './settings/AudioSettingsSection';
+import { CompanionSyncSection } from './settings/CompanionSyncSection';
 import { LyricsBackgroundSection } from './settings/LyricsBackgroundSection';
 import { LyricsTypographySection } from './settings/LyricsTypographySection';
 import { StatsSettingsSection } from './settings/StatsSettingsSection';
 import { SystemSettingsSection } from './settings/SystemSettingsSection';
 import { prismDarkTheme } from '../theme/prismTheme';
 
-type SettingsCategory = 'all' | 'library' | 'audio' | 'lyrics' | 'stats' | 'system';
+type SettingsCategory = 'all' | 'library' | 'audio' | 'sync' | 'lyrics' | 'stats' | 'system';
 
 const CATEGORIES: { id: SettingsCategory; label: string; icon: React.ReactNode }[] = [
   { id: 'all', label: 'All Settings', icon: <Settings2 className="w-3.5 h-3.5" /> },
   { id: 'library', label: 'Library & Folders', icon: <Folder className="w-3.5 h-3.5" /> },
   { id: 'audio', label: 'Audio & Playback', icon: <Volume2 className="w-3.5 h-3.5" /> },
+  { id: 'sync', label: 'Companion & Sync', icon: <Smartphone className="w-3.5 h-3.5" /> },
   { id: 'lyrics', label: 'Lyrics & Visuals', icon: <Mic2 className="w-3.5 h-3.5" /> },
   { id: 'stats', label: 'Stats & Analytics', icon: <BarChart2 className="w-3.5 h-3.5" /> },
   { id: 'system', label: 'System & Danger', icon: <ShieldAlert className="w-3.5 h-3.5" /> },
 ];
 
-const ALL_SECTION_IDS = ['library', 'audio', 'lyrics_bg', 'lyrics_typo', 'lyrics_finder', 'stats', 'system'];
+const ALL_SECTION_IDS = ['library', 'audio', 'sync', 'lyrics_bg', 'lyrics_typo', 'lyrics_finder', 'stats', 'system'];
 const SETTINGS_COLLAPSE_STORAGE_KEY = 'prism_settings_collapsed_sections';
 
 let savedSettingsScrollTop = 0;
@@ -50,6 +53,7 @@ export const SettingsView: React.FC = () => {
   const includedDirectories = usePlayerStore((s) => s.includedDirectories);
   const refreshConfiguredLibraries = usePlayerStore((s) => s.refreshConfiguredLibraries);
   const isRefreshingLibrary = usePlayerStore((s) => s.isRefreshingLibrary);
+  const setIsPairingModalOpen = usePlayerStore((s) => s.setIsPairingModalOpen);
 
   const [rgToastMessage, setRgToastMessage] = useState<string | null>(null);
   const rgToastTimeoutRef = useRef<any>(null);
@@ -314,6 +318,14 @@ export const SettingsView: React.FC = () => {
           onToggleCollapse={() => toggleSection('audio')}
           shouldShow={shouldShowSection('audio', 'audio gapless replaygain volume normalization sound playback engine')}
           onNotifyReplayGain={handleNotifyReplayGain}
+        />
+
+        {/* SECTION 3: COMPANION & P2P SYNC */}
+        <CompanionSyncSection
+          isCollapsed={collapsedSections.has('sync')}
+          onToggleCollapse={() => toggleSection('sync')}
+          shouldShow={shouldShowSection('sync', 'companion sync android phone pairing remote control mdns qr wifi')}
+          onOpenPairingModal={() => setIsPairingModalOpen(true)}
         />
 
         {/* SECTION 3: LYRICS BACKGROUND & ATMOSPHERE */}

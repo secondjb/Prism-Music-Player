@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { broadcastStateSync } from '../utils/p2pSync';
 
 interface UseAudioPlaybackOptions {
   trackArt?: string | null;
@@ -38,6 +39,20 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
         state.replayGainMode !== prevState.replayGainMode
       ) {
         state.syncNextTrackToBackend();
+      }
+
+      if (
+        state.currentTrack !== prevState.currentTrack ||
+        state.isPlaying !== prevState.isPlaying ||
+        state.volume !== prevState.volume ||
+        state.repeatMode !== prevState.repeatMode ||
+        state.shuffleEnabled !== prevState.shuffleEnabled ||
+        state.queue !== prevState.queue ||
+        state.userQueue !== prevState.userQueue ||
+        state.currentIndex !== prevState.currentIndex ||
+        state.p2pActiveDeviceId !== prevState.p2pActiveDeviceId
+      ) {
+        broadcastStateSync();
       }
     });
     return unsub;
@@ -129,6 +144,11 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
             }
           } else {
             stallCountRef.current = 0;
+          }
+
+          // Periodic P2P Companion state sync update
+          if (tickCount % 8 === 0) {
+            broadcastStateSync();
           }
           lastPosRef.current = pos;
 
@@ -349,6 +369,85 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
 
       listen('media-next', () => {
         usePlayerStore.getState().nextTrack();
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
+      // P2P Companion remote command handling
+      listen('p2p-command', (event: any) => {
+        const { action, seekPositionMs, volume, repeatMode } = event.payload || {};
+        const store = usePlayerStore.getState();
+        switch (action) {
+          case 'PLAY':
+            if (!store.isPlaying) store.togglePlay();
+            break;
+          case 'PAUSE':
+            if (store.isPlaying) store.togglePlay();
+            break;
+          case 'TOGGLE_PLAY_PAUSE':
+            store.togglePlay();
+            break;
+          case 'SEEK':
+            if (typeof seekPositionMs === 'number') {
+              store.seek(seekPositionMs / 1000);
+            }
+            break;
+          case 'SKIP_NEXT':
+            store.nextTrack(true);
+            break;
+          case 'SKIP_PREVIOUS':
+            store.previousTrack();
+            break;
+          case 'SET_VOLUME':
+            if (typeof volume === 'number') {
+              store.setVolume(Math.max(0, Math.min(1, volume)));
+            }
+            break;
+          case 'TOGGLE_SHUFFLE':
+            store.toggleShuffle();
+            break;
+          case 'SET_REPEAT':
+            if (repeatMode === 'OFF') store.setRepeatMode('off');
+            else if (repeatMode === 'ALL') store.setRepeatMode('all');
+            else if (repeatMode === 'ONE') store.setRepeatMode('one');
+            break;
+        }
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
+      // P2P Companion audio output target handoff (desktop vs android companion)
+      listen('p2p-swap-device', (event: any) => {
+        const { targetDeviceId } = event.payload || {};
+        const store = usePlayerStore.getState();
+        store.setP2pActiveDeviceId(targetDeviceId);
+        if (targetDeviceId === 'local' || targetDeviceId === 'android') {
+          // Playback handed off to Android companion -> pause desktop engine
+          if (store.isPlaying) {
+            store.togglePlay();
+          }
+        } else if (targetDeviceId === 'desktop') {
+          // Playback returned to desktop -> resume if paused
+          if (!store.isPlaying) {
+            store.togglePlay();
+          }
+        }
+        broadcastStateSync(true);
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
+      // P2P Companion requested instantaneous state sync (e.g. after handshake approval)
+      listen('p2p-request-state-sync', () => {
+        broadcastStateSync(true);
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
+      // P2P Connected companion device count updates
+      listen('p2p-client-count-changed', (event: any) => {
+        const count = typeof event.payload === 'number' ? event.payload : 0;
+        usePlayerStore.getState().setP2pConnectedClients(count);
       }).then((unlistenFn) => {
         unlistens.push(unlistenFn);
       });

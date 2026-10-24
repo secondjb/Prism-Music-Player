@@ -4,10 +4,11 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
+import Badge from '@mui/material/Badge';
 import InputBase from '@mui/material/InputBase';
 import SearchIcon from '@mui/icons-material/Search';
 import SettingsIcon from '@mui/icons-material/Settings';
-import { X, PanelLeft } from 'lucide-react';
+import { X, PanelLeft, Smartphone } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 
 export const Header: React.FC = () => {
@@ -17,6 +18,8 @@ export const Header: React.FC = () => {
   const setActiveTab = usePlayerStore((s) => s.setActiveTab);
   const isSidebarVisible = usePlayerStore((s) => s.isSidebarVisible);
   const toggleSidebar = usePlayerStore((s) => s.toggleSidebar);
+  const p2pConnectedClients = usePlayerStore((s) => s.p2pConnectedClients);
+  const setIsPairingModalOpen = usePlayerStore((s) => s.setIsPairingModalOpen);
 
   const tracks = usePlayerStore((s) => s.tracks);
   const likedTrackIds = usePlayerStore((s) => s.likedTrackIds);
@@ -191,6 +194,50 @@ export const Header: React.FC = () => {
             </IconButton>
           )}
         </Box>
+
+        {/* Android Companion Pairing Button */}
+        <Tooltip title="Android Companion Pairing & Remote" arrow>
+          <IconButton
+            onClick={() => setIsPairingModalOpen(true)}
+            sx={{
+              color: p2pConnectedClients > 0 ? '#34d399' : '#a1a1aa',
+              bgcolor:
+                p2pConnectedClients > 0
+                  ? 'rgba(16, 185, 129, 0.15)'
+                  : 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid',
+              borderColor:
+                p2pConnectedClients > 0
+                  ? 'rgba(16, 185, 129, 0.3)'
+                  : 'rgba(255, 255, 255, 0.1)',
+              borderRadius: '12px',
+              p: 1,
+              '&:hover': {
+                bgcolor:
+                  p2pConnectedClients > 0
+                    ? 'rgba(16, 185, 129, 0.25)'
+                    : 'rgba(255, 255, 255, 0.12)',
+                color: '#ffffff',
+              },
+            }}
+          >
+            <Badge
+              badgeContent={p2pConnectedClients}
+              color="success"
+              invisible={p2pConnectedClients === 0}
+              sx={{
+                '& .MuiBadge-badge': {
+                  fontSize: '9px',
+                  height: 16,
+                  minWidth: 16,
+                  bgcolor: '#10b981',
+                },
+              }}
+            >
+              <Smartphone size={18} />
+            </Badge>
+          </IconButton>
+        </Tooltip>
 
         {/* Settings Button */}
         <Tooltip title="Library Folders & Settings" arrow>

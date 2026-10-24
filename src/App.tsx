@@ -11,6 +11,7 @@ import { BottomBar } from './components/BottomBar';
 import { BatchActionPill } from './components/BatchActionPill';
 import { LyricsView } from './components/LyricsView';
 import { QueueDrawer } from './components/QueueDrawer';
+import { CompanionPairingModal } from './components/CompanionPairingModal';
 import { ThemeProvider } from '@mui/material/styles';
 import { prismDarkTheme } from './theme/prismTheme';
 import { invoke } from '@tauri-apps/api/core';
@@ -70,6 +71,8 @@ export const App: React.FC = () => {
   const infoModalTrack = usePlayerStore((s) => s.infoModalTrack);
   const isStatsCollectionEnabled = usePlayerStore((s) => s.isStatsCollectionEnabled);
   const trackFinishCount = usePlayerStore((s) => s.trackFinishCount);
+  const isPairingModalOpen = usePlayerStore((s) => s.isPairingModalOpen);
+  const setIsPairingModalOpen = usePlayerStore((s) => s.setIsPairingModalOpen);
 
   const silentAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -514,6 +517,12 @@ export const App: React.FC = () => {
         <Suspense fallback={null}>
           <LinkTrackModal />
         </Suspense>
+
+        {/* Companion QR Pairing Modal */}
+        <CompanionPairingModal
+          open={isPairingModalOpen}
+          onClose={() => setIsPairingModalOpen(false)}
+        />
       </div>
     </ThemeProvider>
   );

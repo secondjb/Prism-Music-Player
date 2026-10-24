@@ -38,7 +38,11 @@ lofty = "0.21"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 rustfft = "6.4.1"
 stratum-dsp = "1.0.0"
-tokio = { version = "1", features = ["rt-multi-thread"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "macros", "time", "io-util"] }
+tokio-tungstenite = "0.24"
+mdns-sd = "0.13"
+local-ip-address = "0.6"
+rand = "0.8"
 futures = "0.3"
 num_cpus = "1.16"
 rubato = "0.12"

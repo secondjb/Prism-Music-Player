@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { Track, ActiveTab, SleepTimer, RepeatMode, Playlist, RefreshLibraryResult, BackgroundType, LyricsLayoutMode, LyricsArtSize, PopoutLyricsSettings } from '../types/player';
+import { P2pSyncInfo } from '../types/sync';
 import { invoke } from '@tauri-apps/api/core';
 import { fetchLatestRelease, UpdateCheckResult } from '../utils/updateChecker';
 import { invalidateTrackArtCache } from '../utils/useTrackArt';
@@ -397,8 +398,19 @@ interface PlayerState {
   // Shuffle & Repeat
   shuffleEnabled: boolean;
   repeatMode: RepeatMode;
+  setRepeatMode: (mode: RepeatMode) => void;
   shuffleHistory: number[];
   originalQueue: Track[];
+
+  // Android Companion P2P Sync
+  p2pSyncInfo: P2pSyncInfo | null;
+  p2pActiveDeviceId: string;
+  p2pConnectedClients: number;
+  isPairingModalOpen: boolean;
+  setIsPairingModalOpen: (open: boolean) => void;
+  setP2pSyncInfo: (info: P2pSyncInfo | null) => void;
+  setP2pConnectedClients: (count: number) => void;
+  setP2pActiveDeviceId: (id: string) => void;
 
   // Playlists
   playlists: Playlist[];
@@ -1073,8 +1085,19 @@ export const usePlayerStore = create<PlayerState>()(
       // Shuffle & Repeat
       shuffleEnabled: false,
       repeatMode: 'off',
+      setRepeatMode: (mode) => set({ repeatMode: mode }),
       shuffleHistory: [],
       originalQueue: [],
+
+      // Android Companion P2P Sync
+      p2pSyncInfo: null,
+      p2pActiveDeviceId: 'desktop',
+      p2pConnectedClients: 0,
+      isPairingModalOpen: false,
+      setIsPairingModalOpen: (open) => set({ isPairingModalOpen: open }),
+      setP2pSyncInfo: (info) => set({ p2pSyncInfo: info }),
+      setP2pConnectedClients: (count) => set({ p2pConnectedClients: count }),
+      setP2pActiveDeviceId: (id) => set({ p2pActiveDeviceId: id }),
 
       // Playlists
       playlists: [],

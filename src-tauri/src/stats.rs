@@ -3,6 +3,66 @@ use std::sync::Mutex;
 use tauri::{AppHandle, State, Manager};
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncListeningEvent {
+    pub song_title: String,
+    pub artist_name: String,
+    pub album_name: Option<String>,
+    pub genre: Option<String>,
+    pub duration_ms: i64,
+    pub played_at: String,
+}
+
+pub fn insert_synced_events(conn: &Connection, events: &[SyncListeningEvent]) -> Result<usize, String> {
+    let mut inserted = 0;
+    for ev in events {
+        let rows = conn.execute(
+            "INSERT INTO listening_events (song_title, artist_name, album_name, genre, duration_ms, played_at)
+             SELECT ?1, ?2, ?3, ?4, ?5, ?6
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM listening_events 
+                 WHERE song_title = ?1 AND artist_name = ?2 AND duration_ms = ?5 AND played_at = ?6
+             )",
+            rusqlite::params![
+                ev.song_title,
+                ev.artist_name,
+                ev.album_name,
+                ev.genre,
+                ev.duration_ms,
+                ev.played_at
+            ],
+        ).map_err(|e| e.to_string())?;
+        inserted += rows;
+    }
+    Ok(inserted)
+}
+
+pub fn fetch_synced_events_internal(conn: &Connection) -> Result<Vec<SyncListeningEvent>, String> {
+    let mut stmt = conn.prepare(
+        "SELECT song_title, artist_name, album_name, genre, duration_ms, played_at 
+         FROM listening_events ORDER BY played_at DESC LIMIT 500"
+    ).map_err(|e| e.to_string())?;
+
+    let events = stmt.query_map([], |row| {
+        Ok(SyncListeningEvent {
+            song_title: row.get(0)?,
+            artist_name: row.get(1)?,
+            album_name: row.get(2)?,
+            genre: row.get(3)?,
+            duration_ms: row.get(4)?,
+            played_at: row.get(5)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    let mut result = Vec::new();
+    for event in events {
+        if let Ok(e) = event {
+            result.push(e);
+        }
+    }
+    Ok(result)
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ListeningEvent {
     pub id: i64,

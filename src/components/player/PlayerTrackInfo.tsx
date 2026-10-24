@@ -112,6 +112,7 @@ export const PlayerTrackInfo: React.FC<PlayerTrackInfoProps> = ({
         minWidth: 0,
         flex: 1,
         maxWidth: { xs: '35%', sm: '40%', md: '35%', lg: '30%' },
+        overflow: 'hidden',
       }}
     >
       {/* Album Art (Drag source) */}
@@ -160,7 +161,7 @@ export const PlayerTrackInfo: React.FC<PlayerTrackInfoProps> = ({
 
       {/* Song Details & Badges */}
       <Box sx={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
-        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
           <Typography
             noWrap
             title={currentTrack.title}
@@ -170,6 +171,11 @@ export const PlayerTrackInfo: React.FC<PlayerTrackInfoProps> = ({
               color: 'text.primary',
               minWidth: 0,
               flexShrink: 1,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              display: 'block',
+              maxWidth: '100%',
             }}
           >
             {currentTrack.title}
@@ -205,6 +211,10 @@ export const PlayerTrackInfo: React.FC<PlayerTrackInfoProps> = ({
             color: '#a1a1aa',
             cursor: 'pointer',
             minWidth: 0,
+            maxWidth: '100%',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
             display: 'block',
             '&:hover': {
               color: 'var(--color-stop-1, #818cf8)',

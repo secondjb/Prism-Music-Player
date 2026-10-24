@@ -617,7 +617,7 @@ const TitleCell: React.FC<any> = ({ model, value }) => {
                 e.stopPropagation();
                 usePlayerStore.getState().navigateToArtist(track.artist);
               }}
-              className={`text-zinc-400 truncate hover:underline hover:text-indigo-400 cursor-pointer shrink-0 max-w-full leading-tight ${
+              className={`text-zinc-400 truncate hover:underline hover:text-indigo-400 cursor-pointer min-w-0 max-w-full leading-tight ${
                 trackGridDensity === 'massive'
                   ? 'text-sm'
                   : trackGridDensity === 'huge'
@@ -676,7 +676,7 @@ const ArtistCell: React.FC<any> = ({ model }) => {
             e.stopPropagation();
             usePlayerStore.getState().navigateToArtist(track.artist);
           }}
-          className={`truncate text-zinc-300 hover:underline hover:text-indigo-400 cursor-pointer shrink-0 max-w-full ${
+          className={`truncate text-zinc-300 hover:underline hover:text-indigo-400 cursor-pointer min-w-0 max-w-full ${
             trackGridDensity === 'massive'
               ? 'text-base'
               : trackGridDensity === 'huge'
@@ -733,7 +733,7 @@ const AlbumCell: React.FC<any> = ({ model }) => {
             e.stopPropagation();
             usePlayerStore.getState().navigateToAlbum(track.album);
           }}
-          className={`truncate text-zinc-400 hover:underline hover:text-indigo-400 cursor-pointer shrink-0 max-w-full ${
+          className={`truncate text-zinc-400 hover:underline hover:text-indigo-400 cursor-pointer min-w-0 max-w-full ${
             trackGridDensity === 'massive'
               ? 'text-base'
               : trackGridDensity === 'huge'

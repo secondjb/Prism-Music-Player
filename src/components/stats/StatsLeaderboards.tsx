@@ -217,7 +217,7 @@ const LeaderboardItemRow: React.FC<LeaderboardItemRowProps> = React.memo(({
             sx={{
               minWidth: 0,
               flex: 1,
-              maxWidth: { xs: 'calc(100% - 70px)', sm: 340, md: 440, lg: 500 },
+              maxWidth: '100%',
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',

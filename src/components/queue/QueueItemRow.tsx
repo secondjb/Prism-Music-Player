@@ -193,7 +193,7 @@ export const QueueItemRow: React.FC<QueueItemRowProps> = ({
         </Box>
 
         {/* Title & Artist */}
-        <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Box sx={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
           <Typography
             noWrap
             variant="body2"

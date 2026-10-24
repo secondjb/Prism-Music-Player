@@ -199,6 +199,7 @@ pub fn run() {
             sync::broadcast_p2p_frame,
             sync::send_p2p_stats_sync,
             sync::set_p2p_active_device,
+            sync::setup_adb_reverse,
             log_frontend_message
         ])
         .run(tauri::generate_context!())

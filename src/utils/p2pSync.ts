@@ -110,3 +110,14 @@ export async function sendP2pStatsSync(): Promise<number> {
 export async function setP2pActiveDevice(deviceId: string): Promise<void> {
   await invoke('set_p2p_active_device', { deviceId });
 }
+
+export interface AdbReverseResult {
+  success: boolean;
+  message: string;
+  device_found: boolean;
+}
+
+export async function setupAdbReverse(): Promise<AdbReverseResult> {
+  return await invoke<AdbReverseResult>('setup_adb_reverse');
+}
+

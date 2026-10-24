@@ -23,6 +23,7 @@ import {
   regenerateP2pToken,
   sendP2pStatsSync,
   setP2pActiveDevice,
+  setupAdbReverse,
 } from '../utils/p2pSync';
 
 interface CompanionPairingModalProps {
@@ -40,10 +41,13 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
   const p2pActiveDeviceId = usePlayerStore((s) => s.p2pActiveDeviceId);
   const setP2pActiveDeviceId = usePlayerStore((s) => s.setP2pActiveDeviceId);
 
+  const [connectionMode, setConnectionMode] = useState<'wifi' | 'usb'>('wifi');
   const [copiedType, setCopiedType] = useState<'uri' | 'string' | null>(null);
   const [isRotating, setIsRotating] = useState(false);
   const [isSyncingStats, setIsSyncingStats] = useState(false);
   const [statsSyncMessage, setStatsSyncMessage] = useState<string | null>(null);
+  const [isSettingUpAdb, setIsSettingUpAdb] = useState(false);
+  const [adbMessage, setAdbMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -96,12 +100,33 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
     }
   };
 
-  const pairingUri =
-    p2pSyncInfo?.pairing_uri ||
-    `prism://pair?host=${p2pSyncInfo?.host || '127.0.0.1'}&port=9876&token=${p2pSyncInfo?.token || ''}`;
-  const rawString =
-    p2pSyncInfo?.raw_pairing_string ||
-    `${p2pSyncInfo?.host || '127.0.0.1'}:9876:${p2pSyncInfo?.token || ''}`;
+  const handleSetupAdb = async () => {
+    setIsSettingUpAdb(true);
+    setAdbMessage(null);
+    try {
+      const res = await setupAdbReverse();
+      setAdbMessage(res.message);
+      if (res.success) {
+        setConnectionMode('usb');
+      }
+    } catch (e: any) {
+      setAdbMessage(`ADB error: ${e?.message || e}`);
+    } finally {
+      setIsSettingUpAdb(false);
+    }
+  };
+
+  const effectiveHost = connectionMode === 'usb' ? '127.0.0.1' : p2pSyncInfo?.host || '127.0.0.1';
+  const effectivePort = p2pSyncInfo?.port || 9876;
+  const token = p2pSyncInfo?.token || '';
+  const deviceName = encodeURIComponent(
+    connectionMode === 'usb'
+      ? `${p2pSyncInfo?.device_name || 'Prism Desktop'} (USB)`
+      : p2pSyncInfo?.device_name || 'Prism Desktop'
+  );
+
+  const pairingUri = `prism://pair?host=${effectiveHost}&port=${effectivePort}&token=${token}&name=${deviceName}`;
+  const rawString = `${effectiveHost}:${effectivePort}:${token}`;
 
   return (
     <Dialog
@@ -184,6 +209,66 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
               />
             </div>
           </div>
+
+          {/* Connection Mode Switcher */}
+          <div className="w-full flex items-center justify-center p-1 rounded-xl bg-white/[0.04] border border-white/5 mb-4">
+            <button
+              onClick={() => setConnectionMode('wifi')}
+              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
+                connectionMode === 'wifi'
+                  ? 'bg-white/10 text-white shadow-sm'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              Wi-Fi LAN (Auto Discovery)
+            </button>
+            <button
+              onClick={() => setConnectionMode('usb')}
+              className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                connectionMode === 'usb'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              USB Cable (Bypass Isolated Wi-Fi)
+            </button>
+          </div>
+
+          {/* USB Bypass Explainer / ADB Button */}
+          {connectionMode === 'usb' && (
+            <div className="w-full p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 mb-4 text-xs">
+              <div className="font-semibold text-emerald-300 mb-1 flex items-center justify-between">
+                <span>Apartment / Dorm Wi-Fi Bypass (0ms Latency)</span>
+                <Button
+                  size="small"
+                  variant="contained"
+                  onClick={handleSetupAdb}
+                  disabled={isSettingUpAdb}
+                  sx={{
+                    bgcolor: '#10b981',
+                    color: '#ffffff',
+                    fontSize: '10px',
+                    py: 0.25,
+                    px: 1.5,
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    borderRadius: '8px',
+                    '&:hover': { bgcolor: '#059669' },
+                  }}
+                >
+                  {isSettingUpAdb ? 'Forwarding...' : '1-Click Reverse Proxy'}
+                </Button>
+              </div>
+              <p className="text-[11px] text-zinc-300 leading-relaxed mb-1">
+                Routes <code className="text-emerald-400 font-mono">localhost:{effectivePort}</code> directly over your USB charging cable. Completely bypasses router AP client isolation and firewall drops.
+              </p>
+              {adbMessage && (
+                <div className="mt-1.5 text-[11px] font-mono text-emerald-400 bg-black/40 p-1.5 rounded">
+                  {adbMessage}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* QR Code Container */}
           <div className="p-4 bg-white rounded-2xl shadow-2xl border-4 border-white/10 mb-4 transition-transform hover:scale-[1.01]">

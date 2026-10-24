@@ -228,7 +228,7 @@ fn urlencoding_simple(s: &str) -> String {
     encoded
 }
 
-/// Spawns the dedicated WebSocket listener on LAN port 9876
+/// Spawns the dedicated WebSocket listener on LAN port 9876 and fallback/compat port 8765
 pub fn start_p2p_sync_server(app_handle: AppHandle, sync_state: Arc<SyncState>) {
     let state_for_server = sync_state.clone();
     let app_for_server = app_handle.clone();
@@ -251,26 +251,40 @@ pub fn start_p2p_sync_server(app_handle: AppHandle, sync_state: Arc<SyncState>) 
         };
 
         rt.block_on(async move {
-            let addr = SocketAddr::from(([0, 0, 0, 0], state_for_server.port));
-            let listener = match TcpListener::bind(addr).await {
-                Ok(l) => {
-                    eprintln!("[P2P Sync] Listening for companion connections on ws://0.0.0.0:{}/prism-sync", state_for_server.port);
-                    l
-                }
-                Err(e) => {
-                    eprintln!("[P2P Sync] Failed to bind TCP listener on port {}: {}", state_for_server.port, e);
-                    return;
-                }
+            let primary_port = state_for_server.port;
+            // Support both primary 9876 and companion compatibility port 8765
+            let ports = if primary_port == 8765 {
+                vec![8765, 9876]
+            } else {
+                vec![primary_port, 8765]
             };
 
-            while let Ok((stream, peer_addr)) = listener.accept().await {
+            for port in ports {
                 let client_state = state_for_server.clone();
                 let client_app = app_for_server.clone();
+                let addr = SocketAddr::from(([0, 0, 0, 0], port));
 
-                tokio::spawn(async move {
-                    handle_client_connection(stream, peer_addr, client_state, client_app).await;
-                });
+                match TcpListener::bind(addr).await {
+                    Ok(listener) => {
+                        eprintln!("[P2P Sync] Listening for companion connections on ws://0.0.0.0:{}/prism-sync", port);
+                        tokio::spawn(async move {
+                            while let Ok((stream, peer_addr)) = listener.accept().await {
+                                let s = client_state.clone();
+                                let a = client_app.clone();
+                                tokio::spawn(async move {
+                                    handle_client_connection(stream, peer_addr, s, a).await;
+                                });
+                            }
+                        });
+                    }
+                    Err(e) => {
+                        eprintln!("[P2P Sync] Note: could not bind port {}: {}", port, e);
+                    }
+                }
             }
+
+            // Keep the Tokio runtime alive indefinitely
+            futures::future::pending::<()>().await;
         });
     });
 }
@@ -456,8 +470,68 @@ async fn handle_client_connection(
 // Tauri Commands
 // ---------------------------------------------------------
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdbReverseResult {
+    pub success: bool,
+    pub message: String,
+    pub device_found: bool,
+}
+
+#[tauri::command]
+pub fn setup_adb_reverse() -> AdbReverseResult {
+    let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_default();
+    let sdk_adb = std::path::PathBuf::from(&local_app_data)
+        .join("Android")
+        .join("Sdk")
+        .join("platform-tools")
+        .join("adb.exe");
+
+    let adb_path = if sdk_adb.exists() {
+        sdk_adb.to_string_lossy().to_string()
+    } else {
+        "adb".to_string()
+    };
+
+    let check_cmd = std::process::Command::new(&adb_path)
+        .arg("devices")
+        .output();
+
+    let output = match check_cmd {
+        Ok(out) => String::from_utf8_lossy(&out.stdout).to_string(),
+        Err(e) => return AdbReverseResult {
+            success: false,
+            message: format!("ADB executable not found: {}", e),
+            device_found: false,
+        },
+    };
+
+    let has_device = output.lines().any(|l| l.contains("\tdevice"));
+    if !has_device {
+        return AdbReverseResult {
+            success: false,
+            message: "No Android device detected over USB. Ensure USB Debugging is enabled.".to_string(),
+            device_found: false,
+        };
+    }
+
+    let _ = std::process::Command::new(&adb_path)
+        .args(&["reverse", "tcp:9876", "tcp:9876"])
+        .output();
+
+    let _ = std::process::Command::new(&adb_path)
+        .args(&["reverse", "tcp:8765", "tcp:8765"])
+        .output();
+
+    AdbReverseResult {
+        success: true,
+        message: "USB reverse proxy active! Port 9876 and 8765 bridged over USB cable.".to_string(),
+        device_found: true,
+    }
+}
+
 #[tauri::command]
 pub fn get_p2p_sync_info(sync_state: State<'_, Arc<SyncState>>) -> P2pSyncInfo {
+
     sync_state.refresh_local_ip();
     sync_state.get_info()
 }

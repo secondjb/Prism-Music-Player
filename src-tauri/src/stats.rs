@@ -40,7 +40,7 @@ pub fn insert_synced_events(conn: &Connection, events: &[SyncListeningEvent]) ->
 pub fn fetch_synced_events_internal(conn: &Connection) -> Result<Vec<SyncListeningEvent>, String> {
     let mut stmt = conn.prepare(
         "SELECT song_title, artist_name, album_name, genre, duration_ms, played_at 
-         FROM listening_events ORDER BY played_at DESC LIMIT 500"
+         FROM listening_events ORDER BY played_at DESC"
     ).map_err(|e| e.to_string())?;
 
     let events = stmt.query_map([], |row| {

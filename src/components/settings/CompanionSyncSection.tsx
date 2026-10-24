@@ -9,6 +9,9 @@ import {
   Monitor,
   Check,
   Copy,
+  Laptop,
+  ShieldCheck,
+  KeyRound,
 } from 'lucide-react';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -180,16 +183,16 @@ export const CompanionSyncSection: React.FC<CompanionSyncSectionProps> = ({
             </div>
           </div>
 
-          {/* Quick Pairing Card */}
+          {/* Quick Pairing & Connect Card */}
           <div className="p-4 rounded-xl bg-black/30 border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-white">
                 <QrCode className="w-5 h-5" />
               </div>
               <div>
-                <div className="text-xs font-bold text-white mb-0.5">Quick Pairing QR Code</div>
+                <div className="text-xs font-bold text-white mb-0.5">Quick Pairing & Remote Control</div>
                 <div className="text-[11px] text-zinc-400">
-                  Scan with Prism Android to pair without entering IP or secret credentials manually.
+                  Scan QR with your phone, or connect two laptops manually with the pairing code.
                 </div>
               </div>
             </div>
@@ -214,19 +217,22 @@ export const CompanionSyncSection: React.FC<CompanionSyncSectionProps> = ({
                   },
                 }}
               >
-                View Pairing QR Code
+                Pair / Connect Laptop
               </Button>
             </div>
           </div>
 
-          {/* Direct Code & Fallback */}
-          <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between gap-3 text-xs">
-            <div className="min-w-0">
-              <span className="text-zinc-400 mr-2">Pairing Secret:</span>
-              <span className="font-mono text-zinc-200 truncate select-all">{rawString}</span>
+          {/* Direct Code & Manual Entry (No Camera) */}
+          <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-medium text-zinc-400 flex items-center gap-1.5 mb-1">
+                <KeyRound className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Manual Pairing Code (For Devices Without Camera):</span>
+              </div>
+              <div className="font-mono text-emerald-400 truncate select-all">{rawString}</div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Tooltip title={copied ? 'Copied!' : 'Copy Code'} arrow>
+              <Tooltip title={copied ? 'Copied code!' : 'Copy Code (host:port:token)'} arrow>
                 <IconButton
                   size="small"
                   onClick={() => {
@@ -251,6 +257,14 @@ export const CompanionSyncSection: React.FC<CompanionSyncSectionProps> = ({
                 </IconButton>
               </Tooltip>
             </div>
+          </div>
+
+          {/* Hardened Security Assurance Banner */}
+          <div className="flex items-center gap-2 p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[11px] text-zinc-300">
+            <ShieldCheck className="w-4 h-4 text-indigo-400 shrink-0" />
+            <span>
+              <strong>Hardened LAN Isolation:</strong> The 32-character authentication secret is never broadcast over mDNS. Only devices holding this exact pairing code can connect. Remote commands are strictly limited to playback controls.
+            </span>
           </div>
 
           {/* Controls Row */}

@@ -12,8 +12,107 @@ use tokio_tungstenite::accept_hdr_async;
 use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
 use tokio_tungstenite::tungstenite::http::StatusCode;
 use tokio_tungstenite::tungstenite::Message;
+use std::time::{Duration, Instant};
 
 pub use crate::stats::SyncListeningEvent;
+
+/// Constant-time string comparison to defend against timing side-channel attacks on tokens
+pub fn constant_time_eq(a: &str, b: &str) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.bytes().zip(b.bytes()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
+/// In-memory rate limiter tracking failed authentication attempts per IP
+pub struct AuthRateLimiter {
+    attempts: RwLock<HashMap<std::net::IpAddr, (u32, Instant)>>,
+}
+
+impl AuthRateLimiter {
+    pub fn new() -> Self {
+        Self {
+            attempts: RwLock::new(HashMap::new()),
+        }
+    }
+
+    pub fn is_ip_blocked(&self, ip: &std::net::IpAddr) -> bool {
+        let attempts = self.attempts.read();
+        if let Some(&(count, last_attempt)) = attempts.get(ip) {
+            if count >= 5 && last_attempt.elapsed() < Duration::from_secs(60) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn record_failure(&self, ip: std::net::IpAddr) {
+        let mut attempts = self.attempts.write();
+        let entry = attempts.entry(ip).or_insert((0, Instant::now()));
+        if entry.1.elapsed() > Duration::from_secs(60) {
+            *entry = (1, Instant::now());
+        } else {
+            entry.0 += 1;
+            entry.1 = Instant::now();
+        }
+    }
+
+    pub fn record_success(&self, ip: &std::net::IpAddr) {
+        let mut attempts = self.attempts.write();
+        attempts.remove(ip);
+    }
+}
+
+use sha2::{Sha256, Digest};
+use base64::prelude::*;
+
+/// Pre-Shared Key (PSK) Stream Cipher using SHA-256 in counter mode (CTR)
+pub fn encrypt_payload(plaintext: &[u8], token: &str) -> (String, String) {
+    use rand::RngCore;
+    let mut nonce_bytes = [0u8; 12];
+    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+
+    let ciphertext = apply_stream_keystream(plaintext, token.as_bytes(), &nonce_bytes);
+    let nonce_b64 = BASE64_STANDARD.encode(&nonce_bytes);
+    let data_b64 = BASE64_STANDARD.encode(&ciphertext);
+
+    (nonce_b64, data_b64)
+}
+
+pub fn decrypt_payload(nonce_b64: &str, data_b64: &str, token: &str) -> Result<Vec<u8>, String> {
+    let nonce_bytes = BASE64_STANDARD.decode(nonce_b64).map_err(|e| e.to_string())?;
+    let ciphertext = BASE64_STANDARD.decode(data_b64).map_err(|e| e.to_string())?;
+
+    let plaintext = apply_stream_keystream(&ciphertext, token.as_bytes(), &nonce_bytes);
+    Ok(plaintext)
+}
+
+fn apply_stream_keystream(data: &[u8], token: &[u8], nonce: &[u8]) -> Vec<u8> {
+    let mut result = Vec::with_capacity(data.len());
+    let mut counter: u32 = 0;
+    let mut offset = 0;
+
+    while offset < data.len() {
+        let mut hasher = Sha256::new();
+        hasher.update(token);
+        hasher.update(nonce);
+        hasher.update(&counter.to_be_bytes());
+        let block = hasher.finalize();
+
+        let chunk_size = std::cmp::min(block.len(), data.len() - offset);
+        for i in 0..chunk_size {
+            result.push(data[offset + i] ^ block[i]);
+        }
+        offset += chunk_size;
+        counter += 1;
+    }
+
+    result
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ManifestTrackEntry {
@@ -133,6 +232,11 @@ pub enum SyncFrame {
         #[serde(rename = "starredDeviceId", default)]
         starred_device_id: Option<String>,
     },
+    #[serde(rename = "enc")]
+    Encrypted {
+        n: String,
+        d: String,
+    },
 }
 
 fn default_client_type() -> String {
@@ -165,6 +269,7 @@ pub struct SyncState {
     pub connected_clients: Arc<AtomicUsize>,
     pub broadcast_tx: tokio::sync::broadcast::Sender<String>,
     pub mdns_daemon: RwLock<Option<ServiceDaemon>>,
+    pub rate_limiter: Arc<AuthRateLimiter>,
 }
 
 impl SyncState {
@@ -190,6 +295,7 @@ impl SyncState {
             connected_clients: Arc::new(AtomicUsize::new(0)),
             broadcast_tx,
             mdns_daemon: RwLock::new(None),
+            rate_limiter: Arc::new(AuthRateLimiter::new()),
         }
     }
 
@@ -230,11 +336,11 @@ impl SyncState {
         if let Ok(daemon) = ServiceDaemon::new() {
             let host_name = format!("{}.local.", std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Desktop".to_string()));
             let instance_name = format!("Prism-Windows-{}", std::env::var("COMPUTERNAME").unwrap_or_else(|_| "Desktop".to_string()));
-            let token = self.token.read().clone();
             let ip = self.local_ip.read().clone();
 
             let mut properties = HashMap::new();
-            properties.insert("token".to_string(), token.clone());
+            // SECURITY: Do NOT broadcast the pairing token in mDNS TXT records over LAN.
+            // Pairing secret must only be obtained directly via physical QR scan or manual code entry.
             properties.insert("version".to_string(), "1.0.0".to_string());
             properties.insert("name".to_string(), self.device_name.clone());
 
@@ -263,7 +369,7 @@ impl SyncState {
             }
 
             *self.mdns_daemon.write() = Some(daemon);
-            eprintln!("[mDNS] Advertised _prism._tcp and _prism-sync._tcp on {}:{}", ip, self.port);
+            eprintln!("[mDNS] Advertised _prism._tcp and _prism-sync._tcp on {}:{} (secure: token excluded)", ip, self.port);
         }
     }
 
@@ -288,7 +394,8 @@ pub fn get_or_create_persistent_token() -> String {
     if let Some(path) = get_pairing_token_path() {
         if let Ok(token) = std::fs::read_to_string(&path) {
             let trimmed = token.trim().to_string();
-            if trimmed.len() >= 8 {
+            // Upgraded to 32-character high entropy token
+            if trimmed.len() >= 32 {
                 return trimmed;
             }
         }
@@ -309,7 +416,7 @@ pub fn generate_token() -> String {
     use rand::Rng;
     const CHARSET: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
     let mut rng = rand::thread_rng();
-    (0..16)
+    (0..32)
         .map(|_| {
             let idx = rng.gen_range(0..CHARSET.len());
             CHARSET[idx] as char
@@ -396,10 +503,18 @@ async fn handle_client_connection(
     sync_state: Arc<SyncState>,
     app_handle: AppHandle,
 ) {
-    let mut pre_authenticated = false;
-    let expected_token = sync_state.token.read().clone();
+    let peer_ip = peer_addr.ip();
+    if sync_state.rate_limiter.is_ip_blocked(&peer_ip) {
+        eprintln!("[P2P Sync] Security: Blocked connection from {} due to rate-limit lock (excessive failed auth attempts)", peer_addr);
+        return;
+    }
 
-    let callback = |req: &Request, resp: Response| {
+    let pre_authenticated = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let pre_auth_for_cb = pre_authenticated.clone();
+    let expected_token = sync_state.token.read().clone();
+    let rate_limiter_for_cb = sync_state.rate_limiter.clone();
+
+    let callback = move |req: &Request, resp: Response| {
         let path = req.uri().path();
         if path != "/prism-sync" && path != "/" {
             let err_resp = Response::builder()
@@ -409,17 +524,28 @@ async fn handle_client_connection(
             return Err(err_resp);
         }
 
-        if let Some(token_header) = req.headers().get("X-Prism-Auth-Token") {
-            if let Ok(token_str) = token_header.to_str() {
-                if token_str == expected_token {
-                    pre_authenticated = true;
-                } else {
-                    let err_resp = Response::builder()
-                        .status(StatusCode::UNAUTHORIZED)
-                        .body(Some("Unauthorized: Invalid token".to_string()))
-                        .unwrap();
-                    return Err(err_resp);
-                }
+        // Check header token
+        let token_from_header = req.headers().get("X-Prism-Auth-Token")
+            .and_then(|h| h.to_str().ok());
+
+        // Check query param token (?token=...)
+        let token_from_query = req.uri().query().and_then(|q| {
+            q.split('&')
+                .find(|pair| pair.starts_with("token="))
+                .map(|pair| &pair[6..])
+        });
+
+        if let Some(token_cand) = token_from_header.or(token_from_query) {
+            if constant_time_eq(token_cand, &expected_token) {
+                pre_auth_for_cb.store(true, Ordering::SeqCst);
+                rate_limiter_for_cb.record_success(&peer_ip);
+            } else {
+                rate_limiter_for_cb.record_failure(peer_ip);
+                let err_resp = Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .body(Some("Unauthorized: Invalid token".to_string()))
+                    .unwrap();
+                return Err(err_resp);
             }
         }
         Ok(resp)
@@ -440,10 +566,15 @@ async fn handle_client_connection(
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let mut broadcast_rx = sync_state.broadcast_tx.subscribe();
 
-    let mut is_authenticated = pre_authenticated;
+    let mut is_authenticated = pre_authenticated.load(Ordering::SeqCst);
+    let auth_deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
     let (outgoing_tx, mut outgoing_rx) = tokio::sync::mpsc::channel::<String>(128);
 
-    // Outgoing forwarder task with 3-second heartbeat ping
+    let client_prefers_encrypted = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let prefers_enc_for_writer = client_prefers_encrypted.clone();
+    let token_for_writer = sync_state.token.read().clone();
+
+    // Outgoing forwarder task with 3-second heartbeat ping and payload encryption
     let writer_task = tokio::spawn(async move {
         let mut ping_interval = tokio::time::interval(tokio::time::Duration::from_secs(3));
         ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
@@ -455,12 +586,24 @@ async fn handle_client_connection(
                     }
                 }
                 Some(direct_msg) = outgoing_rx.recv() => {
-                    if let Err(_) = ws_sender.send(Message::Text(direct_msg)).await {
+                    let msg_to_send = if prefers_enc_for_writer.load(Ordering::SeqCst) {
+                        let (n, d) = encrypt_payload(direct_msg.as_bytes(), &token_for_writer);
+                        serde_json::json!({ "type": "enc", "n": n, "d": d }).to_string()
+                    } else {
+                        direct_msg
+                    };
+                    if let Err(_) = ws_sender.send(Message::Text(msg_to_send)).await {
                         break;
                     }
                 }
                 Ok(broadcast_msg) = broadcast_rx.recv() => {
-                    if let Err(_) = ws_sender.send(Message::Text(broadcast_msg)).await {
+                    let msg_to_send = if prefers_enc_for_writer.load(Ordering::SeqCst) {
+                        let (n, d) = encrypt_payload(broadcast_msg.as_bytes(), &token_for_writer);
+                        serde_json::json!({ "type": "enc", "n": n, "d": d }).to_string()
+                    } else {
+                        broadcast_msg
+                    };
+                    if let Err(_) = ws_sender.send(Message::Text(msg_to_send)).await {
                         break;
                     }
                 }
@@ -474,13 +617,28 @@ async fn handle_client_connection(
         let _ = app_handle.emit("p2p-request-state-sync", ());
     }
 
-    // Incoming reader loop with 7-second dead-peer detection
+    // Incoming reader loop with 7-second dead-peer detection (or 5s strict auth window for unauthenticated sockets)
     loop {
-        let msg_result = match tokio::time::timeout(tokio::time::Duration::from_secs(7), ws_receiver.next()).await {
+        let read_timeout_duration = if !is_authenticated {
+            let now = tokio::time::Instant::now();
+            if now >= auth_deadline {
+                eprintln!("[P2P Sync] Security: Client {} timed out without authenticating (dropping)", peer_addr);
+                break;
+            }
+            auth_deadline - now
+        } else {
+            tokio::time::Duration::from_secs(7)
+        };
+
+        let msg_result = match tokio::time::timeout(read_timeout_duration, ws_receiver.next()).await {
             Ok(Some(res)) => res,
             Ok(None) => break,
             Err(_) => {
-                eprintln!("[P2P Sync] Activity timeout from {} (companion disconnected/unplugged)", peer_addr);
+                if !is_authenticated {
+                    eprintln!("[P2P Sync] Security: Client {} timed out waiting for authentication handshake", peer_addr);
+                } else {
+                    eprintln!("[P2P Sync] Activity timeout from {} (companion disconnected/unplugged)", peer_addr);
+                }
                 break;
             }
         };
@@ -494,12 +652,33 @@ async fn handle_client_connection(
 
         match msg {
             Message::Text(text) => {
-                if let Ok(frame) = serde_json::from_str::<SyncFrame>(&text) {
+                let effective_text = if let Ok(SyncFrame::Encrypted { n, d }) = serde_json::from_str::<SyncFrame>(&text) {
+                    client_prefers_encrypted.store(true, Ordering::SeqCst);
+                    let valid_token = sync_state.token.read().clone();
+                    match decrypt_payload(&n, &d, &valid_token) {
+                        Ok(bytes) => match String::from_utf8(bytes) {
+                            Ok(s) => s,
+                            Err(_) => {
+                                eprintln!("[P2P Sync] Security: Decrypted payload from {} is not valid UTF-8", peer_addr);
+                                continue;
+                            }
+                        },
+                        Err(e) => {
+                            eprintln!("[P2P Sync] Security: Decryption error from {}: {}", peer_addr, e);
+                            continue;
+                        }
+                    }
+                } else {
+                    text
+                };
+
+                if let Ok(frame) = serde_json::from_str::<SyncFrame>(&effective_text) {
                     match frame {
                         SyncFrame::HandshakeReq { client_token, device_name, client_version } => {
                             let valid_token = sync_state.token.read().clone();
-                            if client_token == valid_token {
+                            if constant_time_eq(&client_token, &valid_token) {
                                 is_authenticated = true;
+                                sync_state.rate_limiter.record_success(&peer_ip);
                                 let session_id = format!("sess_{:x}", rand::random::<u32>());
                                 let resp = SyncFrame::HandshakeResp {
                                     is_approved: true,
@@ -509,7 +688,7 @@ async fn handle_client_connection(
                                 if let Ok(resp_json) = serde_json::to_string(&resp) {
                                     let _ = outgoing_tx.send(resp_json).await;
                                 }
-                                eprintln!("[P2P Sync] Handshake approved for device '{}' (v{})", device_name, client_version);
+                                eprintln!("[P2P Sync] Handshake approved for device '{}' (v{}) from {}", device_name, client_version, peer_addr);
                                 let _ = app_handle.emit("p2p-client-paired", serde_json::json!({
                                     "deviceName": device_name,
                                     "clientVersion": client_version
@@ -542,6 +721,7 @@ async fn handle_client_connection(
                                     }
                                 });
                             } else {
+                                sync_state.rate_limiter.record_failure(peer_ip);
                                 let resp = SyncFrame::HandshakeResp {
                                     is_approved: false,
                                     server_device_name: sync_state.device_name.clone(),
@@ -550,7 +730,7 @@ async fn handle_client_connection(
                                 if let Ok(resp_json) = serde_json::to_string(&resp) {
                                     let _ = outgoing_tx.send(resp_json).await;
                                 }
-                                eprintln!("[P2P Sync] Handshake rejected for device '{}' (invalid token)", device_name);
+                                eprintln!("[P2P Sync] Security: Handshake rejected for device '{}' (invalid token) from {}", device_name, peer_addr);
                                 break;
                             }
                         }
@@ -568,13 +748,47 @@ async fn handle_client_connection(
                             sleep_timer_value,
                         } => {
                             if !is_authenticated {
+                                eprintln!("[P2P Sync] Security: Dropping unauthenticated Command frame from {}", peer_addr);
+                                break;
+                            }
+
+                            // Strict whitelist of permitted playback actions
+                            const ALLOWED_ACTIONS: &[&str] = &[
+                                "PLAY",
+                                "PAUSE",
+                                "TOGGLE_PLAY_PAUSE",
+                                "SEEK",
+                                "SKIP_NEXT",
+                                "SKIP_PREVIOUS",
+                                "SET_VOLUME",
+                                "TOGGLE_SHUFFLE",
+                                "SET_REPEAT",
+                                "PLAY_TRACK",
+                                "PLAY_NEXT",
+                                "ADD_TO_QUEUE",
+                                "REQUEST_FILE_DOWNLOAD",
+                                "SET_SLEEP_TIMER",
+                                "CANCEL_SLEEP_TIMER",
+                            ];
+
+                            if !ALLOWED_ACTIONS.contains(&action.as_str()) {
+                                eprintln!("[P2P Sync] Security: Disallowed command action '{}' from {}", action, peer_addr);
                                 continue;
                             }
+
+                            // Sanitize and clamp numeric parameters
+                            let sanitized_volume = volume.map(|v| v.clamp(0.0, 1.0));
+                            let sanitized_seek = seek_position_ms.map(|s| s.max(0));
+                            let sanitized_repeat = repeat_mode.and_then(|r| match r.as_str() {
+                                "OFF" | "ALL" | "ONE" => Some(r),
+                                _ => None,
+                            });
+
                             let _ = app_handle.emit("p2p-command", serde_json::json!({
                                 "action": action,
-                                "seekPositionMs": seek_position_ms,
-                                "volume": volume,
-                                "repeatMode": repeat_mode,
+                                "seekPositionMs": sanitized_seek,
+                                "volume": sanitized_volume,
+                                "repeatMode": sanitized_repeat,
                                 "trackTitle": track_title,
                                 "trackArtist": track_artist,
                                 "trackFilename": track_filename,
@@ -586,7 +800,7 @@ async fn handle_client_connection(
                         }
                         SyncFrame::SwapDevice { target_device_id } => {
                             if !is_authenticated {
-                                continue;
+                                break;
                             }
                             *sync_state.active_device_id.write() = target_device_id.clone();
                             let _ = app_handle.emit("p2p-swap-device", serde_json::json!({
@@ -595,7 +809,7 @@ async fn handle_client_connection(
                         }
                         SyncFrame::RoutingSync { is_desktop_enabled, is_companion_enabled, starred_device_id } => {
                             if !is_authenticated {
-                                continue;
+                                break;
                             }
                             let _ = app_handle.emit("p2p-routing-sync", serde_json::json!({
                                 "isDesktopEnabled": is_desktop_enabled,
@@ -605,7 +819,7 @@ async fn handle_client_connection(
                         }
                         SyncFrame::StatsSync { events } => {
                             if !is_authenticated {
-                                continue;
+                                break;
                             }
                             if let Some(db_state) = app_handle.try_state::<crate::stats::DbState>() {
                                 if let Ok(lock) = db_state.db.lock() {
@@ -620,20 +834,20 @@ async fn handle_client_connection(
                         }
                         SyncFrame::ManifestReq { client_type } => {
                             if !is_authenticated {
-                                continue;
+                                break;
                             }
                             eprintln!("[P2P Sync] Received ManifestReq from {}", client_type);
                             let _ = app_handle.emit("p2p-manifest-req", ());
                         }
                         SyncFrame::ManifestResp { tracks } => {
                             if !is_authenticated {
-                                continue;
+                                break;
                             }
                             let _ = app_handle.emit("p2p-manifest-resp", serde_json::to_value(&tracks).unwrap_or_default());
                         }
                         SyncFrame::TrackNotFound { track_title, track_artist, track_filename } => {
                             if !is_authenticated {
-                                continue;
+                                break;
                             }
                             let _ = app_handle.emit("p2p-track-not-found", serde_json::json!({
                                 "trackTitle": track_title,
@@ -646,12 +860,52 @@ async fn handle_client_connection(
                             chunk_index,
                             total_chunks: _,
                             data_base64,
-                            size_bytes: _,
+                            size_bytes,
                             is_last,
                         } => {
                             if !is_authenticated {
+                                break;
+                            }
+                            // 1. Guard against oversized transfers (DoS protection)
+                            if size_bytes > 250 * 1024 * 1024 || data_base64.len() > 4 * 1024 * 1024 {
+                                eprintln!("[P2P Sync] Security: FileChunk rejected: size exceeds safe threshold (250MB total / 4MB chunk)");
                                 continue;
                             }
+
+                            // 2. Strict filename sanitization - prevent path traversal!
+                            let raw_name = match std::path::Path::new(&file_id).file_name().and_then(|n| n.to_str()) {
+                                Some(n) => n.trim(),
+                                None => {
+                                    eprintln!("[P2P Sync] Security: Invalid file name in FileChunk: {:?}", file_id);
+                                    continue;
+                                }
+                            };
+
+                            if raw_name.is_empty()
+                                || raw_name.contains('/')
+                                || raw_name.contains('\\')
+                                || raw_name.contains("..")
+                                || raw_name.contains('\0')
+                                || raw_name.starts_with('.')
+                            {
+                                eprintln!("[P2P Sync] Security: Rejected FileChunk with illegal path characters: {:?}", file_id);
+                                continue;
+                            }
+
+                            // 3. Strict audio extension whitelist
+                            let ext = std::path::Path::new(raw_name)
+                                .extension()
+                                .and_then(|e| e.to_str())
+                                .map(|e| e.to_lowercase())
+                                .unwrap_or_default();
+
+                            let allowed_audio_exts = ["mp3", "flac", "wav", "m4a", "ogg", "opus", "aac", "alac", "wma", "aiff"];
+                            if !allowed_audio_exts.contains(&ext.as_str()) {
+                                eprintln!("[P2P Sync] Security: Rejected non-audio file transfer attempt: {:?}", raw_name);
+                                continue;
+                            }
+
+                            // 4. Safe destination directory inside Music/Prism only
                             use base64::prelude::*;
                             if let Ok(bytes) = BASE64_STANDARD.decode(&data_base64) {
                                 let music_dir = std::env::var("USERPROFILE")
@@ -659,7 +913,8 @@ async fn handle_client_connection(
                                     .unwrap_or_else(|_| std::path::PathBuf::from("."));
                                 let prism_dir = music_dir.join("Prism");
                                 let _ = std::fs::create_dir_all(&prism_dir);
-                                let tmp_file = prism_dir.join(format!("{}.tmp", file_id));
+
+                                let tmp_file = prism_dir.join(format!("{}.tmp", raw_name));
 
                                 use std::io::Write;
                                 if chunk_index == 0 {
@@ -670,10 +925,10 @@ async fn handle_client_connection(
                                 }
 
                                 if is_last {
-                                    let target_file = prism_dir.join(&file_id);
+                                    let target_file = prism_dir.join(raw_name);
                                     if !target_file.exists() {
                                         let _ = std::fs::rename(&tmp_file, &target_file);
-                                        eprintln!("[P2P Sync] Successfully received file from companion: {:?}", target_file);
+                                        eprintln!("[P2P Sync] Successfully received audio file: {:?}", target_file);
                                         let _ = app_handle.emit("p2p-file-received", target_file.to_string_lossy().to_string());
                                     } else {
                                         let _ = std::fs::remove_file(&tmp_file);
@@ -683,6 +938,9 @@ async fn handle_client_connection(
                         }
                         _ => {}
                     }
+                } else if !is_authenticated {
+                    eprintln!("[P2P Sync] Security: Invalid JSON frame from unauthenticated peer {} (terminating)", peer_addr);
+                    break;
                 }
             }
             Message::Ping(_) => {

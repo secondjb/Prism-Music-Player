@@ -488,18 +488,22 @@ async fn handle_client_connection(
                                 let _ = app_handle.emit("p2p-request-state-sync", ());
 
                                 // Automatically send listening statistics to companion on connect
-                                if let Some(db_state) = app_handle.try_state::<crate::stats::DbState>() {
-                                    if let Ok(lock) = db_state.db.lock() {
-                                        if let Some(conn) = lock.as_ref() {
-                                            if let Ok(events) = crate::stats::fetch_synced_events_internal(conn) {
-                                                if !events.is_empty() {
-                                                    let stats_frame = SyncFrame::StatsSync { events };
-                                                    if let Ok(json) = serde_json::to_string(&stats_frame) {
-                                                        let _ = outgoing_tx.send(json).await;
-                                                        eprintln!("[P2P Sync] Dispatched stats sync to connected companion");
-                                                    }
-                                                }
-                                            }
+                                let events_to_sync: Option<Vec<SyncListeningEvent>> = {
+                                    if let Some(db_state) = app_handle.try_state::<crate::stats::DbState>() {
+                                        if let Ok(lock) = db_state.db.lock() {
+                                            if let Some(conn) = lock.as_ref() {
+                                                crate::stats::fetch_synced_events_internal(conn).ok()
+                                            } else { None }
+                                        } else { None }
+                                    } else { None }
+                                };
+
+                                if let Some(events) = events_to_sync {
+                                    if !events.is_empty() {
+                                        let stats_frame = SyncFrame::StatsSync { events };
+                                        if let Ok(json) = serde_json::to_string(&stats_frame) {
+                                            let _ = outgoing_tx.send(json).await;
+                                            eprintln!("[P2P Sync] Dispatched stats sync to connected companion");
                                         }
                                     }
                                 }

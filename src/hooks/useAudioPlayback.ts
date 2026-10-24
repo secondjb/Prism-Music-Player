@@ -499,6 +499,23 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
         unlistens.push(unlistenFn);
       });
 
+      // P2P Output routing sync (checkboxes & starred queue authority)
+      listen('p2p-routing-sync', (event: any) => {
+        const { isDesktopEnabled, isCompanionEnabled, starredDeviceId } = event.payload || {};
+        const store = usePlayerStore.getState();
+        if (typeof isDesktopEnabled === 'boolean') {
+          store.setIsDesktopAudioEnabled(isDesktopEnabled);
+        }
+        if (typeof isCompanionEnabled === 'boolean') {
+          store.setIsCompanionAudioEnabled(isCompanionEnabled);
+        }
+        if (starredDeviceId) {
+          store.setStarredDeviceId(starredDeviceId);
+        }
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
       // P2P Companion audio output target handoff (desktop vs android companion)
       listen('p2p-swap-device', (event: any) => {
         const { targetDeviceId } = event.payload || {};

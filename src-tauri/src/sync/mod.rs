@@ -120,6 +120,15 @@ pub enum SyncFrame {
         #[serde(rename = "isLast")]
         is_last: bool,
     },
+    #[serde(rename = "routing_sync")]
+    RoutingSync {
+        #[serde(rename = "isDesktopEnabled")]
+        is_desktop_enabled: bool,
+        #[serde(rename = "isCompanionEnabled")]
+        is_companion_enabled: bool,
+        #[serde(rename = "starredDeviceId", default)]
+        starred_device_id: Option<String>,
+    },
 }
 
 fn default_client_type() -> String {
@@ -400,10 +409,17 @@ async fn handle_client_connection(
     let mut is_authenticated = pre_authenticated;
     let (outgoing_tx, mut outgoing_rx) = tokio::sync::mpsc::channel::<String>(128);
 
-    // Outgoing forwarder task
+    // Outgoing forwarder task with 3-second heartbeat ping
     let writer_task = tokio::spawn(async move {
+        let mut ping_interval = tokio::time::interval(tokio::time::Duration::from_secs(3));
+        ping_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
             tokio::select! {
+                _ = ping_interval.tick() => {
+                    if let Err(_) = ws_sender.send(Message::Ping(vec![])).await {
+                        break;
+                    }
+                }
                 Some(direct_msg) = outgoing_rx.recv() => {
                     if let Err(_) = ws_sender.send(Message::Text(direct_msg)).await {
                         break;
@@ -424,8 +440,16 @@ async fn handle_client_connection(
         let _ = app_handle.emit("p2p-request-state-sync", ());
     }
 
-    // Incoming reader loop
-    while let Some(msg_result) = ws_receiver.next().await {
+    // Incoming reader loop with 7-second dead-peer detection
+    loop {
+        let msg_result = match tokio::time::timeout(tokio::time::Duration::from_secs(7), ws_receiver.next()).await {
+            Ok(Some(res)) => res,
+            Ok(None) => break,
+            Err(_) => {
+                eprintln!("[P2P Sync] Activity timeout from {} (companion disconnected/unplugged)", peer_addr);
+                break;
+            }
+        };
         let msg = match msg_result {
             Ok(m) => m,
             Err(e) => {
@@ -504,6 +528,16 @@ async fn handle_client_connection(
                             *sync_state.active_device_id.write() = target_device_id.clone();
                             let _ = app_handle.emit("p2p-swap-device", serde_json::json!({
                                 "targetDeviceId": target_device_id
+                            }));
+                        }
+                        SyncFrame::RoutingSync { is_desktop_enabled, is_companion_enabled, starred_device_id } => {
+                            if !is_authenticated {
+                                continue;
+                            }
+                            let _ = app_handle.emit("p2p-routing-sync", serde_json::json!({
+                                "isDesktopEnabled": is_desktop_enabled,
+                                "isCompanionEnabled": is_companion_enabled,
+                                "starredDeviceId": starred_device_id
                             }));
                         }
                         SyncFrame::StatsSync { events } => {
@@ -590,6 +624,9 @@ async fn handle_client_connection(
             }
             Message::Ping(_) => {
                 // Tungstenite automatically responds with pong
+            }
+            Message::Pong(_) => {
+                // Heartbeat alive
             }
             Message::Close(_) => break,
             _ => {}

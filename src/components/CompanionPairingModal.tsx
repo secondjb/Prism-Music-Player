@@ -8,6 +8,7 @@ import Chip from '@mui/material/Chip';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Smartphone,
+  Star,
   Copy,
   Check,
   RefreshCw,
@@ -47,6 +48,8 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
   const setIsDesktopAudioEnabled = usePlayerStore((s) => s.setIsDesktopAudioEnabled);
   const isCompanionAudioEnabled = usePlayerStore((s) => s.isCompanionAudioEnabled);
   const setIsCompanionAudioEnabled = usePlayerStore((s) => s.setIsCompanionAudioEnabled);
+  const starredDeviceId = usePlayerStore((s) => s.starredDeviceId);
+  const setStarredDeviceId = usePlayerStore((s) => s.setStarredDeviceId);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const togglePlay = usePlayerStore((s) => s.togglePlay);
 
@@ -101,6 +104,7 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
 
   const handleToggleDesktop = (enabled: boolean) => {
     setIsDesktopAudioEnabled(enabled);
+    broadcastRoutingSync(enabled, isCompanionAudioEnabled, starredDeviceId);
     if (!enabled && isPlaying) {
       togglePlay();
     } else if (enabled && !isPlaying) {
@@ -110,6 +114,7 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
 
   const handleToggleCompanion = async (enabled: boolean) => {
     setIsCompanionAudioEnabled(enabled);
+    broadcastRoutingSync(isDesktopAudioEnabled, enabled, starredDeviceId);
     const target = enabled ? (isDesktopAudioEnabled ? 'both' : 'local') : 'desktop';
     setP2pActiveDeviceId(target);
     try {
@@ -369,12 +374,31 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
                     <div className="text-[10px] text-zinc-400">Direct bit-perfect WASAPI output</div>
                   </div>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={isDesktopAudioEnabled}
-                  onChange={(e) => handleToggleDesktop(e.target.checked)}
-                  className="w-4 h-4 rounded text-indigo-500 accent-indigo-500 focus:ring-0 cursor-pointer"
-                />
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      setStarredDeviceId('desktop');
+                      broadcastRoutingSync(isDesktopAudioEnabled, isCompanionAudioEnabled, 'desktop');
+                    }}
+                    className="p-1 rounded hover:bg-white/10 transition-colors"
+                    title={starredDeviceId === 'desktop' ? 'Starred queue authority' : 'Set as queue authority'}
+                  >
+                    <Star
+                      className={`w-4 h-4 ${
+                        starredDeviceId === 'desktop' ? 'text-amber-400 fill-amber-400' : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    />
+                  </button>
+                  <input
+                    type="checkbox"
+                    checked={isDesktopAudioEnabled}
+                    onChange={(e) => handleToggleDesktop(e.target.checked)}
+                    className="w-4 h-4 rounded text-indigo-500 accent-indigo-500 focus:ring-0 cursor-pointer"
+                  />
+                </div>
               </label>
 
               <label className="flex items-center justify-between p-2.5 rounded-lg bg-black/25 border border-white/5 cursor-pointer hover:bg-white/[0.05] transition-colors">
@@ -389,24 +413,52 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
                     </div>
                   </div>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={isCompanionAudioEnabled}
-                  onChange={(e) => handleToggleCompanion(e.target.checked)}
-                  className="w-4 h-4 rounded text-emerald-500 accent-emerald-500 focus:ring-0 cursor-pointer"
-                />
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      setStarredDeviceId('companion');
+                      broadcastRoutingSync(isDesktopAudioEnabled, isCompanionAudioEnabled, 'companion');
+                    }}
+                    className="p-1 rounded hover:bg-white/10 transition-colors"
+                    title={starredDeviceId === 'companion' ? 'Starred queue authority' : 'Set as queue authority'}
+                  >
+                    <Star
+                      className={`w-4 h-4 ${
+                        starredDeviceId === 'companion' ? 'text-amber-400 fill-amber-400' : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    />
+                  </button>
+                  <input
+                    type="checkbox"
+                    checked={isCompanionAudioEnabled}
+                    onChange={(e) => handleToggleCompanion(e.target.checked)}
+                    className="w-4 h-4 rounded text-emerald-500 accent-emerald-500 focus:ring-0 cursor-pointer"
+                  />
+                </div>
               </label>
             </div>
           </div>
 
-          {/* Paired Companion Devices Container (with mb-5 and custom-scrollbar) */}
+          {/* Paired Companion Devices Container (with improved spacing and elegant scrollbar) */}
           {p2pPairedClients.length > 0 && (
-            <div className="w-full bg-white/[0.03] border border-white/10 rounded-xl p-3 mb-5">
-              <div className="text-[12px] font-semibold text-zinc-300 mb-2 flex items-center justify-between">
-                <span>Paired Companion Devices</span>
+            <div className="w-full bg-white/[0.03] border border-white/10 rounded-xl p-3.5 mb-6 shadow-sm">
+              <div className="text-[12px] font-semibold text-zinc-300 mb-2.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Smartphone className="w-3.5 h-3.5 text-zinc-400" />
+                  Paired Companion Devices
+                </span>
                 <span className="text-[10px] text-zinc-500 font-normal">{p2pPairedClients.length} paired</span>
               </div>
-              <div className="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1">
+              <div
+                className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1.5 pb-1"
+                style={{
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: 'var(--color-stop-1, #6366f1) rgba(255, 255, 255, 0.05)',
+                }}
+              >
                 {p2pPairedClients.map((client) => (
                   <div
                     key={client.name}

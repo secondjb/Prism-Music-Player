@@ -146,3 +146,17 @@ export interface AdbReverseResult {
 export async function setupAdbReverse(): Promise<AdbReverseResult> {
   return await invoke<AdbReverseResult>('setup_adb_reverse');
 }
+
+
+export async function broadcastRoutingSync(
+  isDesktopEnabled: boolean,
+  isCompanionEnabled: boolean,
+  starredDeviceId?: string
+): Promise<void> {
+  await broadcastP2pFrame({
+    type: 'routing_sync',
+    isDesktopEnabled,
+    isCompanionEnabled,
+    starredDeviceId,
+  });
+}

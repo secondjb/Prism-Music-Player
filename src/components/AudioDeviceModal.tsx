@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { setP2pActiveDevice, broadcastP2pFrame } from '../utils/p2pSync';
+import { setP2pActiveDevice, broadcastP2pFrame, broadcastRoutingSync } from '../utils/p2pSync';
 import { invoke } from '@tauri-apps/api/core';
 import {
   Speaker,
+  Star,
   X,
   Smartphone,
   Monitor,
@@ -53,6 +54,8 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
   const setIsDesktopAudioEnabled = usePlayerStore((s) => s.setIsDesktopAudioEnabled);
   const isCompanionAudioEnabled = usePlayerStore((s) => s.isCompanionAudioEnabled);
   const setIsCompanionAudioEnabled = usePlayerStore((s) => s.setIsCompanionAudioEnabled);
+  const starredDeviceId = usePlayerStore((s) => s.starredDeviceId);
+  const setStarredDeviceId = usePlayerStore((s) => s.setStarredDeviceId);
   const p2pConnectedClients = usePlayerStore((s) => s.p2pConnectedClients);
   const setP2pActiveDeviceId = usePlayerStore((s) => s.setP2pActiveDeviceId);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
@@ -397,17 +400,37 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
                   <div className="text-[10px] text-zinc-400">Direct bit-perfect WASAPI audio</div>
                 </div>
               </div>
-              <input
-                type="checkbox"
-                checked={isDesktopAudioEnabled}
-                onChange={(e) => {
-                  const en = e.target.checked;
-                  setIsDesktopAudioEnabled(en);
-                  if (!en && isPlaying) togglePlay();
-                  else if (en && !isPlaying) togglePlay();
-                }}
-                className="w-4 h-4 rounded text-indigo-500 accent-indigo-500 cursor-pointer"
-              />
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    setStarredDeviceId('desktop');
+                    broadcastRoutingSync(isDesktopAudioEnabled, isCompanionAudioEnabled, 'desktop');
+                  }}
+                  className="p-1 rounded hover:bg-white/10 transition-colors"
+                  title={starredDeviceId === 'desktop' ? 'Starred queue authority' : 'Set as queue authority'}
+                >
+                  <Star
+                    className={`w-4 h-4 ${
+                      starredDeviceId === 'desktop' ? 'text-amber-400 fill-amber-400' : 'text-zinc-500 hover:text-zinc-300'
+                    }`}
+                  />
+                </button>
+                <input
+                  type="checkbox"
+                  checked={isDesktopAudioEnabled}
+                  onChange={(e) => {
+                    const en = e.target.checked;
+                    setIsDesktopAudioEnabled(en);
+                    broadcastRoutingSync(en, isCompanionAudioEnabled, starredDeviceId);
+                    if (!en && isPlaying) togglePlay();
+                    else if (en && !isPlaying) togglePlay();
+                  }}
+                  className="w-4 h-4 rounded text-indigo-500 accent-indigo-500 cursor-pointer"
+                />
+              </div>
             </label>
 
             <label className="flex items-center justify-between p-2 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer">
@@ -422,26 +445,46 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
                   </div>
                 </div>
               </div>
-              <input
-                type="checkbox"
-                checked={isCompanionAudioEnabled}
-                onChange={async (e) => {
-                  const en = e.target.checked;
-                  setIsCompanionAudioEnabled(en);
-                  const target = en ? (isDesktopAudioEnabled ? 'both' : 'local') : 'desktop';
-                  setP2pActiveDeviceId(target);
-                  try {
-                    await setP2pActiveDevice(target);
-                    await broadcastP2pFrame({
-                      type: 'command',
-                      action: en ? 'PLAY' : 'PAUSE',
-                    });
-                  } catch (err) {
-                    console.error('Failed to set companion target:', err);
-                  }
-                }}
-                className="w-4 h-4 rounded text-emerald-500 accent-emerald-500 cursor-pointer"
-              />
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    setStarredDeviceId('companion');
+                    broadcastRoutingSync(isDesktopAudioEnabled, isCompanionAudioEnabled, 'companion');
+                  }}
+                  className="p-1 rounded hover:bg-white/10 transition-colors"
+                  title={starredDeviceId === 'companion' ? 'Starred queue authority' : 'Set as queue authority'}
+                >
+                  <Star
+                    className={`w-4 h-4 ${
+                      starredDeviceId === 'companion' ? 'text-amber-400 fill-amber-400' : 'text-zinc-500 hover:text-zinc-300'
+                    }`}
+                  />
+                </button>
+                <input
+                  type="checkbox"
+                  checked={isCompanionAudioEnabled}
+                  onChange={async (e) => {
+                    const en = e.target.checked;
+                    setIsCompanionAudioEnabled(en);
+                    broadcastRoutingSync(isDesktopAudioEnabled, en, starredDeviceId);
+                    const target = en ? (isDesktopAudioEnabled ? 'both' : 'local') : 'desktop';
+                    setP2pActiveDeviceId(target);
+                    try {
+                      await setP2pActiveDevice(target);
+                      await broadcastP2pFrame({
+                        type: 'command',
+                        action: en ? 'PLAY' : 'PAUSE',
+                      });
+                    } catch (err) {
+                      console.error('Failed to set companion target:', err);
+                    }
+                  }}
+                  className="w-4 h-4 rounded text-emerald-500 accent-emerald-500 cursor-pointer"
+                />
+              </div>
             </label>
           </div>
         </div>

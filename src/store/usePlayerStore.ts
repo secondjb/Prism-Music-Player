@@ -409,6 +409,8 @@ interface PlayerState {
   p2pPairedClients: Array<{ name: string; version: string; pairedAt: number }>;
   isDesktopAudioEnabled: boolean;
   isCompanionAudioEnabled: boolean;
+  starredDeviceId: string;
+  setStarredDeviceId: (id: string) => void;
   isPairingModalOpen: boolean;
   setIsPairingModalOpen: (open: boolean) => void;
   setP2pSyncInfo: (info: P2pSyncInfo | null) => void;
@@ -1103,6 +1105,8 @@ export const usePlayerStore = create<PlayerState>()(
       p2pPairedClients: [],
       isDesktopAudioEnabled: true,
       isCompanionAudioEnabled: false,
+      starredDeviceId: 'desktop',
+      setStarredDeviceId: (id) => set({ starredDeviceId: id }),
       isPairingModalOpen: false,
       setIsPairingModalOpen: (open) => set({ isPairingModalOpen: open }),
       setP2pSyncInfo: (info) => set({ p2pSyncInfo: info }),

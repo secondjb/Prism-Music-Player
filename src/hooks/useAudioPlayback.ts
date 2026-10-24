@@ -147,7 +147,7 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
           }
 
           // Periodic P2P Companion state sync update
-          if (tickCount % 8 === 0) {
+          if (tickCount % 4 === 0) {
             broadcastStateSync();
           }
           lastPosRef.current = pos;
@@ -431,11 +431,17 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
                 contextTracks = allTracks;
               }
 
-              const queueIdx = (store.queue || []).findIndex((t) => t.id === matchedTrack.id);
-              if (queueIdx !== -1) {
-                store.playIndex(queueIdx);
+              if (store.currentTrack && store.currentTrack.id === matchedTrack.id) {
+                if (!store.isPlaying) {
+                  store.resume();
+                }
               } else {
-                store.playTrack(matchedTrack, contextTracks);
+                const queueIdx = (store.queue || []).findIndex((t) => t.id === matchedTrack.id);
+                if (queueIdx !== -1) {
+                  store.playIndex(queueIdx);
+                } else {
+                  store.playTrack(matchedTrack, contextTracks);
+                }
               }
               broadcastStateSync(true);
             } else {

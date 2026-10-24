@@ -967,7 +967,6 @@ fn run_audio_engine(
     let mut is_playing = false;
     let mut master_volume = 0.8f32;
     let mut last_device_check = std::time::Instant::now();
-    let mut last_stall_check = std::time::Instant::now();
 
     loop {
         // Drain commands (using timeout when idle so device changes are noticed while paused)
@@ -995,6 +994,33 @@ fn run_audio_engine(
                     } => {
                         let fade_s = crossfade_secs.unwrap_or(0.0);
                         configured_crossfade_secs = fade_s;
+
+                        // Fast path: if the requested track is already loaded, seek and resume without reloading
+                        if let Some(ref mut cur) = current_track {
+                            if cur.path == path {
+                                flush_counter.fetch_add(1, Ordering::SeqCst);
+                                cur.ready_samples.clear();
+                                for b in &mut cur.resampler_in_buffer {
+                                    b.clear();
+                                }
+                                cur.replay_gain_db = replay_gain_db;
+                                if let Some(pos) = start_position_secs {
+                                    let _ = cur.seek(pos);
+                                }
+                                if !init_paused {
+                                    is_playing = true;
+                                    state.lock().is_playing.store(true, Ordering::SeqCst);
+                                } else {
+                                    is_playing = false;
+                                    state.lock().is_playing.store(false, Ordering::SeqCst);
+                                }
+                                incoming_track = None;
+                                crossfade_state = None;
+                                pending_next = None;
+                                current_cmd = cmd_rx.try_recv().ok();
+                                continue;
+                            }
+                        }
 
                         // Instant switch: manual skip or play must NEVER crossfade.
                         flush_counter.fetch_add(1, Ordering::SeqCst);
@@ -1037,6 +1063,12 @@ fn run_audio_engine(
                         flush_counter.fetch_add(1, Ordering::SeqCst);
                         is_playing = false;
                         state.lock().is_playing.store(false, Ordering::SeqCst);
+                        if let Some(ref mut cur) = current_track {
+                            cur.ready_samples.clear();
+                            for b in &mut cur.resampler_in_buffer {
+                                b.clear();
+                            }
+                        }
                     }
                     AudioCommand::Resume => {
                         is_playing = true;
@@ -1194,16 +1226,9 @@ fn run_audio_engine(
         let prod = producer.as_mut().unwrap();
         let slots = prod.slots();
         if slots < target_channels * 64 {
-            if last_stall_check.elapsed() > Duration::from_millis(1500) {
-                // Buffer full for >1.5s while playing -> audio stream stalled/dead
-                device_changed.store(true, Ordering::SeqCst);
-                last_stall_check = std::time::Instant::now();
-            }
             // SPSC ring buffer has plenty of headroom; yield gracefully
-            thread::sleep(Duration::from_millis(15));
+            thread::sleep(Duration::from_millis(10));
             continue;
-        } else {
-            last_stall_check = std::time::Instant::now();
         }
 
         let frames_to_generate = (slots / target_channels).min(512);

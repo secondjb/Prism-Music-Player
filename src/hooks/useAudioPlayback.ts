@@ -447,16 +447,55 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
                   store.resume();
                 }
               } else {
-                const queueIdx = (store.queue || []).findIndex((t) => t.id === matchedTrack.id);
-                if (queueIdx !== -1) {
-                  store.playIndex(queueIdx);
-                } else {
+                if (Array.isArray(queueFilenames) && queueFilenames.length > 0) {
                   store.playTrack(matchedTrack, contextTracks);
+                } else {
+                  const queueIdx = (store.queue || []).findIndex((t) => t.id === matchedTrack.id);
+                  if (queueIdx !== -1) {
+                    store.playIndex(queueIdx);
+                  } else {
+                    store.playTrack(matchedTrack, contextTracks);
+                  }
                 }
               }
               broadcastStateSync(true);
             } else {
               broadcastTrackNotFound(trackTitle || '', trackArtist || '', trackFilename || '');
+            }
+            break;
+          }
+          case 'PLAY_NEXT':
+          case 'ADD_TO_QUEUE': {
+            const normalize = (s?: string) => (s || '').toLowerCase().trim();
+            const targetFn = trackFilename ? normalize(trackFilename) : '';
+            const targetTitle = normalize(trackTitle);
+            const targetArtist = normalize(trackArtist);
+
+            const allTracks = store.tracks || [];
+            let matchedTrack = allTracks.find((t) => {
+              if (targetFn) {
+                const fn = normalize(t.path ? t.path.replace(/\\/g, "/").split("/").pop() : "");
+                if (fn && fn === targetFn) return true;
+              }
+              if (targetTitle && normalize(t.title) === targetTitle) {
+                if (!targetArtist || normalize(t.artist).includes(targetArtist) || targetArtist.includes(normalize(t.artist))) {
+                  return true;
+                }
+              }
+              return false;
+            });
+
+            if (!matchedTrack && targetTitle) {
+              matchedTrack = allTracks.find((t) => normalize(t.title) === targetTitle);
+            }
+
+            if (matchedTrack) {
+              if (action === 'PLAY_NEXT') {
+                store.playNext(matchedTrack);
+              } else {
+                store.addToQueue(matchedTrack);
+              }
+              broadcastStateSync(true);
             }
             break;
           }

@@ -40,6 +40,8 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
   const p2pConnectedClients = usePlayerStore((s) => s.p2pConnectedClients);
   const p2pActiveDeviceId = usePlayerStore((s) => s.p2pActiveDeviceId);
   const setP2pActiveDeviceId = usePlayerStore((s) => s.setP2pActiveDeviceId);
+  const p2pPairedClients = usePlayerStore((s) => s.p2pPairedClients);
+  const removeP2pPairedClient = usePlayerStore((s) => s.removeP2pPairedClient);
 
   const [connectionMode, setConnectionMode] = useState<'wifi' | 'usb'>('wifi');
   const [copiedType, setCopiedType] = useState<'uri' | 'string' | null>(null);
@@ -323,6 +325,41 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
               </Tooltip>
             </div>
           </div>
+
+          {/* Paired Companion Devices */}
+          {p2pPairedClients.length > 0 && (
+            <div className="w-full bg-white/[0.03] border border-white/10 rounded-xl p-3">
+              <div className="text-[12px] font-semibold text-zinc-300 mb-2 flex items-center justify-between">
+                <span>Paired Companion Devices</span>
+                <span className="text-[10px] text-zinc-500 font-normal">{p2pPairedClients.length} paired</span>
+              </div>
+              <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                {p2pPairedClients.map((client) => (
+                  <div
+                    key={client.name}
+                    className="flex items-center justify-between p-2 rounded-lg bg-black/20 border border-white/5"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="w-4 h-4 text-emerald-400" />
+                      <div>
+                        <div className="text-xs font-medium text-white">{client.name}</div>
+                        <div className="text-[10px] text-zinc-400">Version {client.version}</div>
+                      </div>
+                    </div>
+                    <Tooltip title="Unpair Device" arrow>
+                      <IconButton
+                        size="small"
+                        onClick={() => removeP2pPairedClient(client.name)}
+                        sx={{ color: '#ef4444', '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.15)' } }}
+                      >
+                        <X size={14} />
+                      </IconButton>
+                    </Tooltip>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Action Row */}
           <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-2.5">

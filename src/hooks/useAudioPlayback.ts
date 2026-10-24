@@ -489,6 +489,18 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
         unlistens.push(unlistenFn);
       });
 
+      // P2P Companion device paired event
+      listen('p2p-client-paired', (event: any) => {
+        const { deviceName, clientVersion } = event.payload || {};
+        usePlayerStore.getState().addP2pPairedClient({
+          name: deviceName || 'Companion Device',
+          version: clientVersion || '1.0.0',
+          pairedAt: Date.now(),
+        });
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
       listen(
         'replaygain-scan-progress',
         (event: {

@@ -406,11 +406,14 @@ interface PlayerState {
   p2pSyncInfo: P2pSyncInfo | null;
   p2pActiveDeviceId: string;
   p2pConnectedClients: number;
+  p2pPairedClients: Array<{ name: string; version: string; pairedAt: number }>;
   isPairingModalOpen: boolean;
   setIsPairingModalOpen: (open: boolean) => void;
   setP2pSyncInfo: (info: P2pSyncInfo | null) => void;
   setP2pConnectedClients: (count: number) => void;
   setP2pActiveDeviceId: (id: string) => void;
+  addP2pPairedClient: (client: { name: string; version: string; pairedAt: number }) => void;
+  removeP2pPairedClient: (name: string) => void;
 
   // Playlists
   playlists: Playlist[];
@@ -1093,11 +1096,23 @@ export const usePlayerStore = create<PlayerState>()(
       p2pSyncInfo: null,
       p2pActiveDeviceId: 'desktop',
       p2pConnectedClients: 0,
+      p2pPairedClients: [],
       isPairingModalOpen: false,
       setIsPairingModalOpen: (open) => set({ isPairingModalOpen: open }),
       setP2pSyncInfo: (info) => set({ p2pSyncInfo: info }),
       setP2pConnectedClients: (count) => set({ p2pConnectedClients: count }),
       setP2pActiveDeviceId: (id) => set({ p2pActiveDeviceId: id }),
+      addP2pPairedClient: (client) =>
+        set((state) => ({
+          p2pPairedClients: [
+            client,
+            ...state.p2pPairedClients.filter((c) => c.name !== client.name),
+          ],
+        })),
+      removeP2pPairedClient: (name) =>
+        set((state) => ({
+          p2pPairedClients: state.p2pPairedClients.filter((c) => c.name !== name),
+        })),
 
       // Playlists
       playlists: [],

@@ -31,6 +31,10 @@
   * [`src/components/SettingsView.tsx`](src/components/SettingsView.tsx): Categorized settings (Library, Audio, Lyrics Typography & Background, Stats, System Reset). Uses custom dark MUI controls.
   * [`src/components/StatsView.tsx`](src/components/StatsView.tsx): Listening analytics, top artists/albums, play count charts.
   * [`src/utils/stats.ts`](src/utils/stats.ts): IPC calls to Rust SQLite stats database.
+* **P2P Companion Sync & Multi-Device Protocol**:
+  * [`src/components/CompanionPairingModal.tsx`](src/components/CompanionPairingModal.tsx): QR code pairing, direct token pairing, USB ADB reverse tunneling, active client management, and secret rotation.
+  * [`src/utils/p2pSync.ts`](src/utils/p2pSync.ts): Client/host DTO mapping, state broadcasting, and stats sync invocation.
+  * [`docs/P2P_SYNC_AND_PAIRING.md`](docs/P2P_SYNC_AND_PAIRING.md): Comprehensive reference guide for the multi-device companion protocol, `SyncFrame` schema, track selection matching, and pairing revocation.
 
 ---
 

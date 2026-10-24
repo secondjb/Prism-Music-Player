@@ -494,6 +494,18 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
             else if (repeatMode === 'ALL') store.setRepeatMode('all');
             else if (repeatMode === 'ONE') store.setRepeatMode('one');
             break;
+          case 'SET_SLEEP_TIMER': {
+            const { sleepTimerMode, sleepTimerValue } = event.payload || {};
+            if (sleepTimerMode && typeof sleepTimerValue === 'number' && sleepTimerValue > 0) {
+              store.startSleepTimer(sleepTimerMode, sleepTimerValue);
+            } else {
+              store.cancelSleepTimer();
+            }
+            break;
+          }
+          case 'CANCEL_SLEEP_TIMER':
+            store.cancelSleepTimer();
+            break;
         }
       }).then((unlistenFn) => {
         unlistens.push(unlistenFn);

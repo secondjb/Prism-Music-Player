@@ -216,7 +216,28 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
         </IconButton>
       </div>
 
-      <DialogContent sx={{ p: { xs: 3, sm: 4 } }}>
+      <DialogContent
+        className="custom-scrollbar"
+        sx={{
+          p: { xs: 3, sm: 4 },
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'var(--color-stop-1, #6366f1) rgba(255, 255, 255, 0.05)',
+          '&::-webkit-scrollbar': {
+            width: '6px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '9999px',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: 'var(--color-stop-1, #6366f1)',
+            borderRadius: '9999px',
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            background: 'var(--color-stop-2, #8b5cf6)',
+          },
+        }}
+      >
         <div className="flex flex-col items-center">
           {/* Status Badges */}
           <div className="w-full flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-white/[0.03] border border-white/5 mb-4 text-xs text-zinc-300">

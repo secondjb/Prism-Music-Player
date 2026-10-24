@@ -119,6 +119,7 @@ export const SettingsView: React.FC = () => {
     if (selectedCategory !== 'all') {
       if (selectedCategory === 'library' && id !== 'library') return false;
       if (selectedCategory === 'audio' && id !== 'audio') return false;
+      if (selectedCategory === 'sync' && id !== 'sync') return false;
       if (
         selectedCategory === 'lyrics' &&
         id !== 'lyrics_bg' &&
@@ -248,7 +249,7 @@ export const SettingsView: React.FC = () => {
           </div>
 
           {/* Category Pills Bar */}
-          <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1 pt-0.5">
+          <div className="flex flex-wrap items-center gap-2 pb-1 pt-0.5">
             {CATEGORIES.map((cat) => {
               const isSelected = selectedCategory === cat.id;
               return (

@@ -782,7 +782,19 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       onTrackTransitioned: () => {
-        const { userQueue, currentIndex, queue, repeatMode, onTrackFinished } = get();
+        const { userQueue, currentIndex, queue, repeatMode, onTrackFinished, sleepTimer, pause } = get();
+        if (sleepTimer.active && ((sleepTimer.mode === 'tracks' && sleepTimer.remainingTracks <= 1) || (sleepTimer.mode === 'time' && sleepTimer.remainingSeconds <= 1))) {
+          pause();
+          set({
+            sleepTimer: {
+              active: false,
+              mode: sleepTimer.mode,
+              remainingSeconds: 0,
+              remainingTracks: 0,
+            },
+          });
+          return;
+        }
         onTrackFinished();
 
         if (userQueue.length > 0) {

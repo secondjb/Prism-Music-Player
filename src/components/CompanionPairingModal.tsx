@@ -28,8 +28,6 @@ import {
   Shuffle,
   Repeat,
   Repeat1,
-  Link,
-  Wifi,
   KeyRound,
   ClipboardPaste,
 } from 'lucide-react';

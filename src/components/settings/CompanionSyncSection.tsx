@@ -9,7 +9,6 @@ import {
   Monitor,
   Check,
   Copy,
-  Laptop,
   ShieldCheck,
   KeyRound,
 } from 'lucide-react';

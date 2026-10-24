@@ -14,6 +14,8 @@ interface UseAudioPlaybackOptions {
  * while managing audio engine polling, track auto-advance, Windows SMTC / MediaSession,
  * sleep timer ticks, and global keyboard shortcuts.
  */
+let lastCompanionConnectTime = 0;
+
 export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
   // Low-frequency subscriptions only
   const currentTrack = usePlayerStore((s) => s.currentTrack);
@@ -528,7 +530,31 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
             break;
           case 'SEEK':
             if (typeof seekPositionMs === 'number') {
-              store.seek(seekPositionMs / 1000);
+              const targetSecs = seekPositionMs / 1000;
+              const currentSecs = store.currentTime || 0;
+              const timeSinceConnect = performance.now() - lastCompanionConnectTime;
+              const delta = Math.abs(currentSecs - targetSecs);
+
+              // Prevent connection-synchronization echo loops:
+              // If a companion recently connected (< 3s) and sends a seek within 3s
+              // of the current playback position, or if actively playing and the delta is tiny (< 0.4s),
+              // ignore it to avoid interrupting the audio stream with buffer flushes / stutters.
+              if (store.isPlaying) {
+                if (timeSinceConnect < 3000 && delta < 3.0) {
+                  console.log(
+                    `[P2P Sync] Ignored redundant connect-sync seek (${targetSecs.toFixed(2)}s vs current ${currentSecs.toFixed(2)}s, delta ${delta.toFixed(2)}s)`
+                  );
+                  break;
+                }
+                if (delta < 0.4) {
+                  console.log(
+                    `[P2P Sync] Ignored micro-seek while playing (${targetSecs.toFixed(2)}s vs current ${currentSecs.toFixed(2)}s)`
+                  );
+                  break;
+                }
+              }
+
+              store.seek(targetSecs);
             }
             break;
           case 'SKIP_NEXT':
@@ -607,6 +633,7 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
 
       // P2P Companion requested instantaneous state sync (e.g. after handshake approval)
       listen('p2p-request-state-sync', () => {
+        lastCompanionConnectTime = performance.now();
         broadcastStateSync(true);
       }).then((unlistenFn) => {
         unlistens.push(unlistenFn);
@@ -644,6 +671,7 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
 
       // P2P Connected companion device count updates
       listen('p2p-client-count-changed', (event: any) => {
+        lastCompanionConnectTime = performance.now();
         const count = typeof event.payload === 'number' ? event.payload : 0;
         usePlayerStore.getState().setP2pConnectedClients(count);
       }).then((unlistenFn) => {
@@ -652,6 +680,7 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
 
       // P2P Companion device paired event
       listen('p2p-client-paired', (event: any) => {
+        lastCompanionConnectTime = performance.now();
         const { deviceName, clientVersion } = event.payload || {};
         usePlayerStore.getState().addP2pPairedClient({
           name: deviceName || 'Companion Device',

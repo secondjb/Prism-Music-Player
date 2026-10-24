@@ -90,6 +90,17 @@ Whenever you are asked to prepare, check, or publish a new release, you **must c
 
 ---
 
-## 🚀 Rule for Agents: Commit & Push
-👉 **Always commit and push your changes to remote (`git add`, `git commit`, and `git push`) before concluding your response or task.** Ensure commit messages are concise, clear, and descriptive.
+## 🚀 Rule for Agents: Commit, Push & Sync Desktop Replica
+👉 **Whenever you edit anything to do with the Windows app, execute this exact sequence before concluding your response or task:**
+1. In `prism-windows` (or the Windows repo root), stage, commit, and push to remote:
+   ```bash
+   git add -A
+   git commit -m "<concise descriptive message>"
+   git push origin master
+   ```
+2. Pull down the updated changes in the standalone Desktop replica (`Desktop/Prism Music Player`):
+   ```bash
+   git -C "C:\Users\b1a7e\Desktop\Prism Music Player" pull origin master
+   ```
+Ensure commit messages are concise, clear, and descriptive.
 

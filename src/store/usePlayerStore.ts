@@ -1724,7 +1724,19 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       nextTrack: async (isUserInitiated = true) => {
-        const { userQueue, currentIndex, queue, repeatMode, playIndex, onTrackFinished, replayCurrentTrack } = get();
+        const { userQueue, currentIndex, queue, repeatMode, playIndex, onTrackFinished, replayCurrentTrack, sleepTimer, pause } = get();
+        if (!isUserInitiated && sleepTimer.active && sleepTimer.mode === 'tracks' && sleepTimer.remainingTracks <= 1) {
+          pause();
+          set({
+            sleepTimer: {
+              active: false,
+              mode: 'tracks',
+              remainingSeconds: 0,
+              remainingTracks: 0,
+            },
+          });
+          return;
+        }
         onTrackFinished();
 
         if (repeatMode === 'one') {

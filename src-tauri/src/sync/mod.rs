@@ -77,6 +77,10 @@ pub enum SyncFrame {
         track_uri: Option<String>,
         #[serde(rename = "queueFilenames", default)]
         queue_filenames: Option<Vec<String>>,
+        #[serde(rename = "sleepTimerMode", default)]
+        sleep_timer_mode: Option<String>,
+        #[serde(rename = "sleepTimerValue", default)]
+        sleep_timer_value: Option<i64>,
     },
     #[serde(rename = "swap_device")]
     SwapDevice {
@@ -505,6 +509,8 @@ async fn handle_client_connection(
                             track_filename,
                             track_uri,
                             queue_filenames,
+                            sleep_timer_mode,
+                            sleep_timer_value,
                         } => {
                             if !is_authenticated {
                                 continue;
@@ -518,7 +524,9 @@ async fn handle_client_connection(
                                 "trackArtist": track_artist,
                                 "trackFilename": track_filename,
                                 "trackUri": track_uri,
-                                "queueFilenames": queue_filenames
+                                "queueFilenames": queue_filenames,
+                                "sleepTimerMode": sleep_timer_mode,
+                                "sleepTimerValue": sleep_timer_value
                             }));
                         }
                         SyncFrame::SwapDevice { target_device_id } => {

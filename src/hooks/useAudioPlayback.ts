@@ -146,6 +146,17 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
             stallCountRef.current = 0;
           }
 
+          // Halt before transition if sleep timer expiring on last track
+          if (sleepTimer.active && sleepTimer.mode === 'tracks' && sleepTimer.remainingTracks <= 1) {
+            if (effectiveDur > 1 && pos >= effectiveDur - 0.7) {
+              usePlayerStore.getState().pause();
+              usePlayerStore.setState({
+                sleepTimer: { active: false, mode: 'tracks', remainingSeconds: 0, remainingTracks: 0 }
+              });
+              broadcastStateSync(true);
+            }
+          }
+
           // Periodic P2P Companion state sync update
           if (tickCount % 4 === 0) {
             broadcastStateSync();

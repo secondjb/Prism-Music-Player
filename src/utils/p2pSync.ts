@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { Track } from '../types/player';
-import { AndroidTrackDto, PlaybackStateDto, P2pSyncInfo } from '../types/sync';
+import { AndroidTrackDto, PlaybackStateDto, P2pSyncInfo, SyncPlaylistDto } from '../types/sync';
 import { usePlayerStore } from '../store/usePlayerStore';
 
 /**
@@ -74,8 +74,13 @@ export async function broadcastStateSync(forceImmediate = false): Promise<void> 
   }
 
   const state = usePlayerStore.getState();
-  const queueDtos: AndroidTrackDto[] = (state.userQueue.length > 0 ? state.userQueue : state.queue)
+  const userQueueDtos: AndroidTrackDto[] = state.userQueue
     .slice(0, 50)
+    .map(trackToSyncDto)
+    .filter((t): t is AndroidTrackDto => t !== null);
+
+  const contextQueueDtos: AndroidTrackDto[] = state.queue
+    .slice(0, 100)
     .map(trackToSyncDto)
     .filter((t): t is AndroidTrackDto => t !== null);
 
@@ -92,7 +97,10 @@ export async function broadcastStateSync(forceImmediate = false): Promise<void> 
     volume: state.volume,
     queueIndex: Math.max(0, state.currentIndex),
     activeDeviceId: state.p2pActiveDeviceId || 'desktop',
-    queue: queueDtos,
+    queue: contextQueueDtos,
+    userQueue: userQueueDtos,
+    activePlaylistId: state.activePlaylistId || null,
+    lastActionTimestampMs: state.lastActionTimestampMs || Date.now(),
   };
 
   const frame = {
@@ -101,6 +109,31 @@ export async function broadcastStateSync(forceImmediate = false): Promise<void> 
   };
 
   await broadcastP2pFrame(frame);
+}
+
+export async function broadcastPlaylistsSync(): Promise<void> {
+  if (!window.__TAURI_INTERNALS__) return;
+  const state = usePlayerStore.getState();
+  const trackMap = new Map<string, Track>(state.tracks.map((t) => [t.id, t]));
+
+  const playlistDtos: SyncPlaylistDto[] = state.playlists.map((pl) => ({
+    id: pl.id,
+    name: pl.name,
+    createdAt: pl.createdAt,
+    tracks: pl.trackIds
+      .map((tid) => trackMap.get(tid))
+      .filter((t): t is Track => !!t)
+      .map((t) => ({
+        title: t.title || '',
+        artist: t.artist || '',
+        filename: (t.path || '').replace(/\\/g, '/').split('/').pop() || '',
+      })),
+  }));
+
+  await broadcastP2pFrame({
+    type: 'playlist_sync',
+    playlists: playlistDtos,
+  });
 }
 
 export async function broadcastTrackNotFound(
@@ -146,7 +179,6 @@ export interface AdbReverseResult {
 export async function setupAdbReverse(): Promise<AdbReverseResult> {
   return await invoke<AdbReverseResult>('setup_adb_reverse');
 }
-
 
 export async function broadcastRoutingSync(
   isDesktopEnabled: boolean,

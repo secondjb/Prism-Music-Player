@@ -37,6 +37,23 @@ export interface PlaybackStateDto {
   queueIndex: number;
   activeDeviceId: string;
   queue: AndroidTrackDto[];
+  userQueue?: AndroidTrackDto[];
+  activePlaylistId?: string | null;
+  lastActionTimestampMs?: number;
+}
+
+export interface SyncTrackKeyDto {
+  title: string;
+  artist: string;
+  filename: string;
+}
+
+export interface SyncPlaylistDto {
+  id: string;
+  name: string;
+  tracks: SyncTrackKeyDto[];
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface SyncCommandPayload {

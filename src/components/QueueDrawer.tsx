@@ -5,7 +5,7 @@ import Typography from '@mui/material/Typography';
 import Drawer from '@mui/material/Drawer';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
-import { ListMusic, X, Trash2 } from 'lucide-react';
+import { ListMusic, X, Trash2, Shuffle } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { usePlayerStore, getEffectiveReplayGain } from '../store/usePlayerStore';
 import { Track } from '../types/player';
@@ -35,6 +35,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
   const reorderUserQueue = usePlayerStore((s) => s.reorderUserQueue);
   const reorderContextQueue = usePlayerStore((s) => s.reorderContextQueue);
   const playIndex = usePlayerStore((s) => s.playIndex);
+  const reshuffleUpcomingContext = usePlayerStore((s) => s.reshuffleUpcomingContext);
   const clearQueue = usePlayerStore((s) => s.clearQueue);
   const playlists = usePlayerStore((s) => s.playlists);
   const addTrackToPlaylist = usePlayerStore((s) => s.addTrackToPlaylist);
@@ -186,6 +187,21 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
         </Stack>
 
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          {upcomingContext.length > 1 && (
+            <Tooltip title="Reshuffle Upcoming Play Queue" arrow>
+              <IconButton
+                size="small"
+                onClick={reshuffleUpcomingContext}
+                sx={{
+                  color: '#a1a1aa',
+                  '&:hover': { color: 'var(--color-stop-1, #6366f1)', bgcolor: 'rgba(99, 102, 241, 0.1)' },
+                }}
+              >
+                <Shuffle size={18} />
+              </IconButton>
+            </Tooltip>
+          )}
+
           {(queue.length > 0 || userQueue.length > 0) && (
             <Tooltip title="Clear Queue" arrow>
               <IconButton

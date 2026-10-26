@@ -420,6 +420,10 @@ interface PlayerState {
   setIsCompanionAudioEnabled: (enabled: boolean) => void;
   addP2pPairedClient: (client: { name: string; version: string; pairedAt: number }) => void;
   removeP2pPairedClient: (name: string) => void;
+  lastActionTimestampMs: number;
+  setLastActionTimestampMs: (ts: number) => void;
+  reshuffleUpcomingContext: () => void;
+  syncIncomingPlaylists: (incomingPlaylists: any[]) => void;
 
   // Playlists
   playlists: Playlist[];
@@ -1137,6 +1141,8 @@ export const usePlayerStore = create<PlayerState>()(
         set((state) => ({
           p2pPairedClients: state.p2pPairedClients.filter((c) => c.name !== name),
         })),
+      lastActionTimestampMs: Date.now(),
+      setLastActionTimestampMs: (ts) => set({ lastActionTimestampMs: ts }),
 
       // Playlists
       playlists: [],
@@ -1869,7 +1875,20 @@ export const usePlayerStore = create<PlayerState>()(
         const updated = [...queue];
         const [moved] = updated.splice(absoluteFrom, 1);
         updated.splice(absoluteTo, 0, moved);
-        set({ queue: updated });
+        set({ queue: updated, lastActionTimestampMs: Date.now() });
+      },
+
+      reshuffleUpcomingContext: () => {
+        const { queue, currentIndex } = get();
+        if (currentIndex < 0 || currentIndex >= queue.length - 1) return;
+        const head = queue.slice(0, currentIndex + 1);
+        const upcoming = queue.slice(currentIndex + 1);
+        const shuffled = [...upcoming];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        set({ queue: [...head, ...shuffled], lastActionTimestampMs: Date.now() });
       },
 
       clearUserQueue: () => set({ userQueue: [] }),
@@ -2168,6 +2187,53 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       setActivePlaylistId: (id) => set({ activePlaylistId: id }),
+
+      syncIncomingPlaylists: (incomingPlaylists: any[]) => {
+        if (!Array.isArray(incomingPlaylists)) return;
+        const allTracks = get().tracks || [];
+        const trackLookup = new Map<string, string>();
+        for (const t of allTracks) {
+          const fn = (t.path || '').replace(/\\/g, '/').split('/').pop()?.toLowerCase();
+          if (fn) trackLookup.set(fn, t.id);
+          const tit = (t.title || '').toLowerCase().trim();
+          if (tit) trackLookup.set(tit, t.id);
+        }
+
+        const currentPlaylists = get().playlists || [];
+        const updated = [...currentPlaylists];
+
+        for (const inc of incomingPlaylists) {
+          const resolvedIds: string[] = [];
+          if (Array.isArray(inc.tracks)) {
+            for (const item of inc.tracks) {
+              const fn = (item.filename || '').toLowerCase().trim();
+              const tit = (item.title || '').toLowerCase().trim();
+              const matchedId = (fn ? trackLookup.get(fn) : null) || (tit ? trackLookup.get(tit) : null);
+              if (matchedId && !resolvedIds.includes(matchedId)) {
+                resolvedIds.push(matchedId);
+              }
+            }
+          }
+          const existingIdx = updated.findIndex(
+            (p) => p.id === inc.id || p.name.toLowerCase() === (inc.name || '').toLowerCase()
+          );
+          if (existingIdx !== -1) {
+            updated[existingIdx] = {
+              ...updated[existingIdx],
+              name: inc.name,
+              trackIds: resolvedIds,
+            };
+          } else {
+            updated.push({
+              id: inc.id || `pl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              name: inc.name,
+              trackIds: resolvedIds,
+              createdAt: inc.createdAt || Date.now(),
+            });
+          }
+        }
+        set({ playlists: updated, lastActionTimestampMs: Date.now() });
+      },
 
       // Track Multi-Selection actions
       setSelectedTrackIds: (ids) => set({ selectedTrackIds: ids }),

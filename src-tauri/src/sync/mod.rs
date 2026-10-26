@@ -232,6 +232,10 @@ pub enum SyncFrame {
         #[serde(rename = "starredDeviceId", default)]
         starred_device_id: Option<String>,
     },
+    #[serde(rename = "playlist_sync")]
+    PlaylistSync {
+        playlists: Vec<serde_json::Value>,
+    },
     #[serde(rename = "enc")]
     Encrypted {
         n: String,
@@ -831,6 +835,14 @@ async fn handle_client_connection(
                                     }
                                 }
                             }
+                        }
+                        SyncFrame::PlaylistSync { playlists } => {
+                            if !is_authenticated {
+                                break;
+                            }
+                            let _ = app_handle.emit("p2p-playlist-sync", serde_json::json!({
+                                "playlists": playlists
+                            }));
                         }
                         SyncFrame::ManifestReq { client_type } => {
                             if !is_authenticated {

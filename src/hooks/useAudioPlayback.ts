@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { broadcastStateSync, broadcastP2pFrame, broadcastTrackNotFound, sendP2pFile } from '../utils/p2pSync';
+import { broadcastStateSync, broadcastPlaylistsSync, broadcastP2pFrame, broadcastTrackNotFound, sendP2pFile } from '../utils/p2pSync';
 
 interface UseAudioPlaybackOptions {
   trackArt?: string | null;
@@ -55,6 +55,10 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
         state.p2pActiveDeviceId !== prevState.p2pActiveDeviceId
       ) {
         broadcastStateSync();
+      }
+
+      if (state.playlists !== prevState.playlists) {
+        broadcastPlaylistsSync();
       }
     });
     return unsub;
@@ -635,6 +639,17 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
       listen('p2p-request-state-sync', () => {
         lastCompanionConnectTime = performance.now();
         broadcastStateSync(true);
+        broadcastPlaylistsSync();
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
+      // P2P Companion playlist synchronization
+      listen('p2p-playlist-sync', (event: any) => {
+        const { playlists } = event.payload || {};
+        if (Array.isArray(playlists)) {
+          usePlayerStore.getState().syncIncomingPlaylists(playlists);
+        }
       }).then((unlistenFn) => {
         unlistens.push(unlistenFn);
       });

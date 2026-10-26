@@ -52,9 +52,10 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
         state.queue !== prevState.queue ||
         state.userQueue !== prevState.userQueue ||
         state.currentIndex !== prevState.currentIndex ||
-        state.p2pActiveDeviceId !== prevState.p2pActiveDeviceId
+        state.p2pActiveDeviceId !== prevState.p2pActiveDeviceId ||
+        state.isPlaying !== prevState.isPlaying
       ) {
-        broadcastStateSync();
+        broadcastStateSync(true);
       }
 
       if (state.playlists !== prevState.playlists) {
@@ -524,13 +525,16 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
             break;
           }
           case 'PLAY':
-            if (!store.isPlaying) store.togglePlay();
+            if (!store.isPlaying) store.resume();
+            setTimeout(() => broadcastStateSync(true), 30);
             break;
           case 'PAUSE':
-            if (store.isPlaying) store.togglePlay();
+            if (store.isPlaying) store.pause();
+            setTimeout(() => broadcastStateSync(true), 30);
             break;
           case 'TOGGLE_PLAY_PAUSE':
             store.togglePlay();
+            setTimeout(() => broadcastStateSync(true), 30);
             break;
           case 'SEEK':
             if (typeof seekPositionMs === 'number') {
@@ -559,13 +563,16 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
               }
 
               store.seek(targetSecs);
+              setTimeout(() => broadcastStateSync(true), 30);
             }
             break;
           case 'SKIP_NEXT':
             store.nextTrack(true);
+            setTimeout(() => broadcastStateSync(true), 30);
             break;
           case 'SKIP_PREVIOUS':
             store.previousTrack();
+            setTimeout(() => broadcastStateSync(true), 30);
             break;
           case 'SET_VOLUME':
             if (typeof volume === 'number') {
@@ -574,11 +581,13 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
             break;
           case 'TOGGLE_SHUFFLE':
             store.toggleShuffle();
+            setTimeout(() => broadcastStateSync(true), 30);
             break;
           case 'SET_REPEAT':
             if (repeatMode === 'OFF') store.setRepeatMode('off');
             else if (repeatMode === 'ALL') store.setRepeatMode('all');
             else if (repeatMode === 'ONE') store.setRepeatMode('one');
+            setTimeout(() => broadcastStateSync(true), 30);
             break;
           case 'SET_SLEEP_TIMER': {
             const { sleepTimerMode, sleepTimerValue } = event.payload || {};

@@ -603,6 +603,11 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
         const store = usePlayerStore.getState();
         if (typeof isDesktopEnabled === 'boolean') {
           store.setIsDesktopAudioEnabled(isDesktopEnabled);
+          if (!isDesktopEnabled && store.isPlaying) {
+            store.togglePlay();
+          } else if (isDesktopEnabled && !isCompanionEnabled && !store.isPlaying) {
+            store.togglePlay();
+          }
         }
         if (typeof isCompanionEnabled === 'boolean') {
           store.setIsCompanionAudioEnabled(isCompanionEnabled);

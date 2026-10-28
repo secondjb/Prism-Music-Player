@@ -1656,7 +1656,19 @@ export const usePlayerStore = create<PlayerState>()(
                 replayGainDb: getEffectiveReplayGain(currentTrack, replayGainMode, tracks),
               });
             } else {
-              await invoke('resume_audio');
+              const [, backendDur] = await invoke<[number, number]>('get_playback_position').catch(() => [0, 0]);
+              if (backendDur > 0) {
+                await invoke('resume_audio');
+              } else {
+                await invoke('play_audio', {
+                  path: currentTrack.path,
+                  replayGainDb: getEffectiveReplayGain(currentTrack, replayGainMode, tracks),
+                });
+                if (currentTime > 0) {
+                  await invoke('seek_audio', { position_secs: currentTime });
+                }
+                get().syncNextTrackToBackend();
+              }
             }
           }
         } catch (e) {
@@ -2578,6 +2590,7 @@ export const usePlayerStore = create<PlayerState>()(
         userQueue: Array.isArray(state.userQueue) ? (state.userQueue.map(sanitizeTrackForStorage) as Track[]) : [],
         currentIndex: state.currentIndex,
         currentTrack: sanitizeTrackForStorage(state.currentTrack),
+        currentTime: state.currentTime,
         shuffleEnabled: state.shuffleEnabled,
         repeatMode: state.repeatMode,
         playlists: state.playlists,

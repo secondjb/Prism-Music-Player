@@ -773,6 +773,7 @@ async fn handle_client_connection(
                                 "REQUEST_FILE_DOWNLOAD",
                                 "SET_SLEEP_TIMER",
                                 "CANCEL_SLEEP_TIMER",
+                                "RESHUFFLE_UPCOMING",
                             ];
 
                             if !ALLOWED_ACTIONS.contains(&action.as_str()) {

@@ -583,6 +583,10 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
             store.toggleShuffle();
             setTimeout(() => broadcastStateSync(true), 30);
             break;
+          case 'RESHUFFLE_UPCOMING':
+            store.reshuffleUpcomingContext();
+            setTimeout(() => broadcastStateSync(true), 30);
+            break;
           case 'SET_REPEAT':
             if (repeatMode === 'OFF') store.setRepeatMode('off');
             else if (repeatMode === 'ALL') store.setRepeatMode('all');

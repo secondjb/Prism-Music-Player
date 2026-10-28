@@ -66,7 +66,8 @@ export interface SyncCommandPayload {
     | 'SKIP_PREVIOUS'
     | 'SET_VOLUME'
     | 'TOGGLE_SHUFFLE'
-    | 'SET_REPEAT';
+    | 'SET_REPEAT'
+    | 'RESHUFFLE_UPCOMING';
   seekPositionMs?: number | null;
   volume?: number | null;
   repeatMode?: 'OFF' | 'ALL' | 'ONE' | null;

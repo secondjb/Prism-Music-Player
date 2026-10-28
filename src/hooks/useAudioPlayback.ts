@@ -450,6 +450,9 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
               }
 
               if (store.currentTrack && store.currentTrack.id === matchedTrack.id) {
+                if (Array.isArray(queueFilenames) && queueFilenames.length > 0 && contextTracks.length > 0) {
+                  usePlayerStore.setState({ queue: contextTracks });
+                }
                 if (!store.isPlaying) {
                   store.resume();
                 }
@@ -464,6 +467,11 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
                     store.playTrack(matchedTrack, contextTracks);
                   }
                 }
+              }
+              if (typeof seekPositionMs === 'number' && seekPositionMs > 0) {
+                setTimeout(() => {
+                  usePlayerStore.getState().seek(seekPositionMs / 1000);
+                }, 80);
               }
               broadcastStateSync(true);
             } else {
@@ -632,7 +640,7 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
         const state = event.payload;
         if (!state) return;
         const store = usePlayerStore.getState();
-        // If desktop itself is not actively outputting audio, reflect remote playback in UI
+        // If desktop itself is not actively outputting audio, reflect remote playback and queue in UI
         if (!store.isPlaying && state.currentTrack) {
           const allTracks = store.tracks || [];
           const remoteTitle = (state.currentTrack.title || '').toLowerCase().trim();
@@ -643,9 +651,26 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
             if (remoteTitle && (t.title || '').toLowerCase().trim() === remoteTitle) return true;
             return false;
           });
-          if (matched && store.currentTrack?.id !== matched.id) {
+          if (matched) {
+            let syncedQueue: any[] = [];
+            if (Array.isArray(state.queue) && state.queue.length > 0) {
+              const mapByFn = new Map<string, any>();
+              for (const t of allTracks) {
+                const fn = (t.path || '').replace(/\\/g, '/').split('/').pop()?.toLowerCase().trim();
+                if (fn) mapByFn.set(fn, t);
+                const tit = (t.title || '').toLowerCase().trim();
+                if (tit) mapByFn.set(tit, t);
+              }
+              for (const qt of state.queue) {
+                const qFn = (qt.uri || qt.filePath || '').replace(/\\/g, '/').split('/').pop()?.toLowerCase().trim();
+                const qTit = (qt.title || '').toLowerCase().trim();
+                const found = (qFn ? mapByFn.get(qFn) : null) || (qTit ? mapByFn.get(qTit) : null);
+                if (found) syncedQueue.push(found);
+              }
+            }
             usePlayerStore.setState({
               currentTrack: matched,
+              queue: syncedQueue.length > 0 ? syncedQueue : store.queue,
               currentTime: (state.positionMs || 0) / 1000,
               duration: (state.durationMs || 0) > 0 ? state.durationMs / 1000 : (matched.duration_secs || store.duration),
             });
@@ -668,7 +693,16 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
         } else if (targetDeviceId === 'desktop') {
           // Playback returned to desktop -> resume if paused
           if (!store.isPlaying) {
-            store.togglePlay();
+            if (store.currentTrack) {
+              store.playTrack(store.currentTrack, store.queue);
+              if (store.currentTime > 0) {
+                setTimeout(() => {
+                  usePlayerStore.getState().seek(store.currentTime);
+                }, 80);
+              }
+            } else {
+              store.togglePlay();
+            }
           }
         }
         broadcastStateSync(true);

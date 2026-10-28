@@ -10,6 +10,7 @@
     "dev:log": "tauri dev 2>&1 | node scripts/tee.js dev-output.log",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "test": "vitest run",
     "tauri": "tauri",
     "postinstall": "node scripts/patch-revogrid.js"
   },
@@ -45,6 +46,7 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "vite": "^7.0.4",
+    "vitest": "^5.0.5"
   }
 }

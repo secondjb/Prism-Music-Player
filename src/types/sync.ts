@@ -54,6 +54,7 @@ export interface SyncPlaylistDto {
   tracks: SyncTrackKeyDto[];
   createdAt?: number;
   updatedAt?: number;
+  customCoverUri?: string;
 }
 
 export interface SyncCommandPayload {

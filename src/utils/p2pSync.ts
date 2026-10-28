@@ -120,6 +120,7 @@ export async function broadcastPlaylistsSync(): Promise<void> {
     id: pl.id,
     name: pl.name,
     createdAt: pl.createdAt,
+    customCoverUri: (pl as any).customCoverUri || (pl as any).coverUrl,
     tracks: pl.trackIds
       .map((tid) => trackMap.get(tid))
       .filter((t): t is Track => !!t)

@@ -124,6 +124,8 @@ export const PlaylistView: React.FC = () => {
           trackCount={playlistTracks.length}
           totalDurationSecs={totalDuration}
           isLikedPlaylist={isLiked}
+          playlist={activePlaylist}
+          firstTrack={playlistTracks[0]}
           onBack={() => {
             setActivePlaylistId(null);
             setShowAddSongs(false);

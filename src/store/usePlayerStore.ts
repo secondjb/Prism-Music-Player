@@ -52,12 +52,18 @@ export function getEffectiveReplayGain(
     if (found) effectiveTrack = found;
   }
 
+  // Fallback for tracks without ReplayGain tags:
+  // ReplayGain 2.0 targets -18 LUFS. Commercial masters average -10 to -12 LUFS.
+  // When an untagged track plays at 0 dB, it is 6 to 9 dB louder than calibrated tracks.
+  // Applying an industry-standard preamp fallback (-6.5 dB) prevents volume spikes.
+  const UNTAGGED_PREAMP_DB = -6.5;
+
   if (mode === 'album') {
     if (typeof effectiveTrack.replay_gain_album_db === 'number') return effectiveTrack.replay_gain_album_db;
     if (typeof effectiveTrack.replay_gain_db === 'number') return effectiveTrack.replay_gain_db;
-    return 0;
+    return UNTAGGED_PREAMP_DB;
   }
-  return typeof effectiveTrack.replay_gain_db === 'number' ? effectiveTrack.replay_gain_db : 0;
+  return typeof effectiveTrack.replay_gain_db === 'number' ? effectiveTrack.replay_gain_db : UNTAGGED_PREAMP_DB;
 }
 
 export function getLinkedChainTracks(
@@ -541,6 +547,7 @@ interface PlayerState {
   createPlaylist: (name: string) => void;
   deletePlaylist: (id: string) => void;
   renamePlaylist: (id: string, name: string) => void;
+  updatePlaylistCover: (id: string, customCoverUri: string | null) => void;
   addTrackToPlaylist: (playlistId: string, trackId: string) => void;
   addTracksToPlaylist: (playlistId: string, trackIds: string[]) => void;
   removeTrackFromPlaylist: (playlistId: string, trackId: string) => void;
@@ -1663,10 +1670,8 @@ export const usePlayerStore = create<PlayerState>()(
                 await invoke('play_audio', {
                   path: currentTrack.path,
                   replayGainDb: getEffectiveReplayGain(currentTrack, replayGainMode, tracks),
+                  startPositionSecs: currentTime > 0 ? currentTime : undefined,
                 });
-                if (currentTime > 0) {
-                  await invoke('seek_audio', { position_secs: currentTime });
-                }
                 get().syncNextTrackToBackend();
               }
             }
@@ -2077,6 +2082,15 @@ export const usePlayerStore = create<PlayerState>()(
         }));
       },
 
+      updatePlaylistCover: (id, customCoverUri) => {
+        set((state) => ({
+          playlists: state.playlists.map((p) =>
+            p.id === id ? { ...p, customCoverUri: customCoverUri || undefined } : p
+          ),
+          lastActionTimestampMs: Date.now(),
+        }));
+      },
+
       addTrackToPlaylist: (playlistId, trackId) => {
         set((state) => {
           const playlist = state.playlists.find((p) => p.id === playlistId);
@@ -2234,6 +2248,7 @@ export const usePlayerStore = create<PlayerState>()(
               ...updated[existingIdx],
               name: inc.name,
               trackIds: resolvedIds,
+              customCoverUri: inc.customCoverUri !== undefined ? (inc.customCoverUri || undefined) : updated[existingIdx]?.customCoverUri,
             };
           } else {
             updated.push({
@@ -2241,6 +2256,7 @@ export const usePlayerStore = create<PlayerState>()(
               name: inc.name,
               trackIds: resolvedIds,
               createdAt: inc.createdAt || Date.now(),
+              customCoverUri: inc.customCoverUri || undefined,
             });
           }
         }

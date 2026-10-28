@@ -183,22 +183,42 @@ impl TrackDecoder {
             .map(|f| f as f64 / input_sample_rate as f64)
             .unwrap_or(0.0);
 
-        let valid_frames_remaining = total_frames.map(|n| n.saturating_sub(delay_frames as u64 + padding_frames));
+        let mut valid_frames_remaining = total_frames.map(|n| n.saturating_sub(delay_frames as u64 + padding_frames));
 
         let dec_opts: DecoderOptions = Default::default();
         let mut decoder = symphonia::default::get_codecs()
             .make(&track.codec_params, &dec_opts)
             .map_err(|e| format!("Decoder creation error: {}", e))?;
 
+        let mut initial_frames_emitted = 0u64;
+        let mut actual_delay_frames = delay_frames;
         if let Some(start_secs) = start_position_secs.filter(|&s| s > 0.0) {
-            let _ = format.seek(
+            let clamped_secs = if total_duration_secs > 0.5 {
+                start_secs.clamp(0.0, total_duration_secs - 0.3)
+            } else {
+                start_secs.max(0.0)
+            };
+            let seek_res = format.seek(
                 symphonia::core::formats::SeekMode::Accurate,
                 symphonia::core::formats::SeekTo::Time {
-                    time: symphonia::core::units::Time::from(start_secs),
+                    time: symphonia::core::units::Time::from(clamped_secs),
                     track_id: Some(track_id),
                 },
-            );
+            ).or_else(|_| {
+                format.seek(
+                    symphonia::core::formats::SeekMode::Coarse,
+                    symphonia::core::formats::SeekTo::Time {
+                        time: symphonia::core::units::Time::from(clamped_secs),
+                        track_id: Some(track_id),
+                    },
+                )
+            });
             decoder.reset();
+            if seek_res.is_ok() {
+                initial_frames_emitted = (clamped_secs * input_sample_rate as f64) as u64;
+                actual_delay_frames = 0;
+                valid_frames_remaining = valid_frames_remaining.map(|n| n.saturating_sub(initial_frames_emitted));
+            }
         }
 
         let chunk_size = 1024;
@@ -242,9 +262,9 @@ impl TrackDecoder {
             resampler_in_buffer,
             resampler_out_buffer,
             ready_samples: VecDeque::with_capacity(8192),
-            delay_frames_remaining: delay_frames,
+            delay_frames_remaining: actual_delay_frames,
             valid_frames_remaining,
-            frames_emitted: 0,
+            frames_emitted: initial_frames_emitted,
             eof: false,
         })
     }

@@ -616,17 +616,40 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
         const store = usePlayerStore.getState();
         if (typeof isDesktopEnabled === 'boolean') {
           store.setIsDesktopAudioEnabled(isDesktopEnabled);
-          if (!isDesktopEnabled && store.isPlaying) {
-            store.togglePlay();
-          } else if (isDesktopEnabled && !isCompanionEnabled && !store.isPlaying) {
-            store.togglePlay();
-          }
         }
         if (typeof isCompanionEnabled === 'boolean') {
           store.setIsCompanionAudioEnabled(isCompanionEnabled);
         }
         if (starredDeviceId) {
           store.setStarredDeviceId(starredDeviceId);
+        }
+      }).then((unlistenFn) => {
+        unlistens.push(unlistenFn);
+      });
+
+      // P2P Companion remote playback state sync (when phone is actively playing)
+      listen('p2p-remote-state-sync', (event: any) => {
+        const state = event.payload;
+        if (!state) return;
+        const store = usePlayerStore.getState();
+        // If desktop itself is not actively outputting audio, reflect remote playback in UI
+        if (!store.isPlaying && state.currentTrack) {
+          const allTracks = store.tracks || [];
+          const remoteTitle = (state.currentTrack.title || '').toLowerCase().trim();
+          const remoteFn = (state.currentTrack.uri || '').replace(/\\/g, '/').split('/').pop()?.toLowerCase().trim();
+          const matched = allTracks.find((t) => {
+            const fn = (t.path || '').replace(/\\/g, '/').split('/').pop()?.toLowerCase().trim();
+            if (remoteFn && fn && fn === remoteFn) return true;
+            if (remoteTitle && (t.title || '').toLowerCase().trim() === remoteTitle) return true;
+            return false;
+          });
+          if (matched && store.currentTrack?.id !== matched.id) {
+            usePlayerStore.setState({
+              currentTrack: matched,
+              currentTime: (state.positionMs || 0) / 1000,
+              duration: (state.durationMs || 0) > 0 ? state.durationMs / 1000 : (matched.duration_secs || store.duration),
+            });
+          }
         }
       }).then((unlistenFn) => {
         unlistens.push(unlistenFn);

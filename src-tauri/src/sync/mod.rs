@@ -803,6 +803,12 @@ async fn handle_client_connection(
                                 "sleepTimerValue": sleep_timer_value
                             }));
                         }
+                        SyncFrame::StateSync { playback_state } => {
+                            if !is_authenticated {
+                                break;
+                            }
+                            let _ = app_handle.emit("p2p-remote-state-sync", playback_state);
+                        }
                         SyncFrame::SwapDevice { target_device_id } => {
                             if !is_authenticated {
                                 break;

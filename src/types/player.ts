@@ -153,6 +153,7 @@ export interface Playlist {
   name: string;
   trackIds: string[];
   createdAt: number;
+  customCoverUri?: string;
 }
 
 export interface SleepTimer {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { Music, Play, Heart } from 'lucide-react';
@@ -30,6 +30,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
   onDragLeave,
   isDragOver,
 }) => {
+  const [imgFailed, setImgFailed] = useState(false);
   const firstTrack = tracks[0] || null;
   const art = useTrackArt(firstTrack, { thumbnail: true, maxSize: 256 });
 
@@ -97,6 +98,30 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
           >
             <Heart size={44} fill="#ffffff" color="#ffffff" />
           </Box>
+        ) : playlist.customCoverUri && !imgFailed ? (
+          playlist.customCoverUri.startsWith('color:') ? (
+            <Box
+              sx={{
+                width: '100%',
+                height: '100%',
+                bgcolor: playlist.customCoverUri.slice(6),
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Music size={40} style={{ color: 'rgba(255, 255, 255, 0.85)' }} />
+            </Box>
+          ) : (
+            <Box
+              component="img"
+              src={playlist.customCoverUri}
+              alt={playlist.name}
+              onError={() => setImgFailed(true)}
+              className="playlist-cover"
+              sx={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.3s ease' }}
+            />
+          )
         ) : art ? (
           <Box
             component="img"

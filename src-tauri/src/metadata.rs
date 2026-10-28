@@ -34,12 +34,15 @@ pub struct TrackMetadata {
 
 
 fn parse_replay_gain_db(gain_str: &str) -> Option<f32> {
-    let clean = gain_str.trim().replace("dB", "").replace("DB", "");
+    let clean = gain_str.trim()
+        .replace("dB", "").replace("db", "").replace("DB", "").replace("Db", "")
+        .replace(",", ".");
     clean.trim().parse::<f32>().ok()
 }
 
 fn parse_replay_gain_peak(peak_str: &str) -> Option<f32> {
-    peak_str.trim().parse::<f32>().ok()
+    let clean = peak_str.trim().replace(",", ".");
+    clean.trim().parse::<f32>().ok()
 }
 
 static ART_CACHE: std::sync::OnceLock<parking_lot::Mutex<std::collections::HashMap<String, Option<String>>>> = std::sync::OnceLock::new();
@@ -290,24 +293,21 @@ pub fn parse_flac_file(path: &Path) -> Option<TrackMetadata> {
     let mut bpm = None;
 
     if let Some(c) = comments {
-        if let Some(gains) = c.get("REPLAYGAIN_TRACK_GAIN") {
-            if let Some(gain_str) = gains.first() {
-                replay_gain_db = parse_replay_gain_db(gain_str);
-            }
-        }
-        if let Some(peaks) = c.get("REPLAYGAIN_TRACK_PEAK") {
-            if let Some(peak_str) = peaks.first() {
-                replay_gain_peak = parse_replay_gain_peak(peak_str);
-            }
-        }
-        if let Some(agains) = c.get("REPLAYGAIN_ALBUM_GAIN") {
-            if let Some(again_str) = agains.first() {
-                replay_gain_album_db = parse_replay_gain_db(again_str);
-            }
-        }
-        if let Some(apeaks) = c.get("REPLAYGAIN_ALBUM_PEAK") {
-            if let Some(apeak_str) = apeaks.first() {
-                replay_gain_album_peak = parse_replay_gain_peak(apeak_str);
+        for (k, v) in c.comments.iter() {
+            let key_upper = k.to_ascii_uppercase();
+            if let Some(val) = v.first() {
+                if replay_gain_db.is_none() && (key_upper == "REPLAYGAIN_TRACK_GAIN" || key_upper == "TRACK_GAIN" || key_upper == "R128_TRACK_GAIN") {
+                    replay_gain_db = parse_replay_gain_db(val);
+                }
+                if replay_gain_peak.is_none() && (key_upper == "REPLAYGAIN_TRACK_PEAK" || key_upper == "TRACK_PEAK") {
+                    replay_gain_peak = parse_replay_gain_peak(val);
+                }
+                if replay_gain_album_db.is_none() && (key_upper == "REPLAYGAIN_ALBUM_GAIN" || key_upper == "ALBUM_GAIN" || key_upper == "R128_ALBUM_GAIN") {
+                    replay_gain_album_db = parse_replay_gain_db(val);
+                }
+                if replay_gain_album_peak.is_none() && (key_upper == "REPLAYGAIN_ALBUM_PEAK" || key_upper == "ALBUM_PEAK") {
+                    replay_gain_album_peak = parse_replay_gain_peak(val);
+                }
             }
         }
 
@@ -665,16 +665,16 @@ pub fn parse_audio_file(path: &Path) -> Option<TrackMetadata> {
                         bpm = Some(b_val as u32);
                     }
                 }
-                if replay_gain_db.is_none() && (k_str.contains("REPLAYGAIN_TRACK_GAIN") || k_str.contains("TRACK_GAIN")) {
+                if replay_gain_db.is_none() && (k_str.contains("REPLAYGAIN_TRACK_GAIN") || k_str.contains("REPLAYGAINTRACKGAIN") || k_str.contains("TRACK_GAIN") || k_str.contains("TRACKGAIN")) {
                     replay_gain_db = parse_replay_gain_db(cleaned);
                 }
-                if replay_gain_peak.is_none() && (k_str.contains("REPLAYGAIN_TRACK_PEAK") || k_str.contains("TRACK_PEAK")) {
+                if replay_gain_peak.is_none() && (k_str.contains("REPLAYGAIN_TRACK_PEAK") || k_str.contains("REPLAYGAINTRACKPEAK") || k_str.contains("TRACK_PEAK") || k_str.contains("TRACKPEAK")) {
                     replay_gain_peak = parse_replay_gain_peak(cleaned);
                 }
-                if replay_gain_album_db.is_none() && (k_str.contains("REPLAYGAIN_ALBUM_GAIN") || k_str.contains("ALBUM_GAIN")) {
+                if replay_gain_album_db.is_none() && (k_str.contains("REPLAYGAIN_ALBUM_GAIN") || k_str.contains("REPLAYGAINALBUMGAIN") || k_str.contains("ALBUM_GAIN") || k_str.contains("ALBUMGAIN")) {
                     replay_gain_album_db = parse_replay_gain_db(cleaned);
                 }
-                if replay_gain_album_peak.is_none() && (k_str.contains("REPLAYGAIN_ALBUM_PEAK") || k_str.contains("ALBUM_PEAK")) {
+                if replay_gain_album_peak.is_none() && (k_str.contains("REPLAYGAIN_ALBUM_PEAK") || k_str.contains("REPLAYGAINALBUMPEAK") || k_str.contains("ALBUM_PEAK") || k_str.contains("ALBUMPEAK")) {
                     replay_gain_album_peak = parse_replay_gain_peak(cleaned);
                 }
             }

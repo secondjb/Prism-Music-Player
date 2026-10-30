@@ -114,6 +114,10 @@ export async function broadcastStateSync(forceImmediate = false): Promise<void> 
 export async function broadcastPlaylistsSync(): Promise<void> {
   if (!window.__TAURI_INTERNALS__) return;
   const state = usePlayerStore.getState();
+  if (!state.tracks || state.tracks.length === 0) {
+    // Local library not loaded yet; avoid sending empty tracks to peers
+    return;
+  }
   const trackMap = new Map<string, Track>(state.tracks.map((t) => [t.id, t]));
 
   const playlistDtos: SyncPlaylistDto[] = state.playlists.map((pl) => ({
@@ -121,7 +125,7 @@ export async function broadcastPlaylistsSync(): Promise<void> {
     name: pl.name,
     createdAt: pl.createdAt,
     customCoverUri: pl.customCoverUri ?? null,
-    tracks: pl.trackIds
+    tracks: (pl.trackIds || [])
       .map((tid) => trackMap.get(tid))
       .filter((t): t is Track => !!t)
       .map((t) => ({

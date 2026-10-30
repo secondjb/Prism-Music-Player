@@ -2263,9 +2263,15 @@ export const usePlayerStore = create<PlayerState>()(
         const trackLookup = new Map<string, string>();
         for (const t of allTracks) {
           const fn = (t.path || '').replace(/\\/g, '/').split('/').pop()?.toLowerCase();
-          if (fn) trackLookup.set(fn, t.id);
+          if (fn) {
+            trackLookup.set(fn, t.id);
+            const fnWithoutExt = fn.substring(0, fn.lastIndexOf('.')) || fn;
+            trackLookup.set(fnWithoutExt, t.id);
+          }
           const tit = (t.title || '').toLowerCase().trim();
           if (tit) trackLookup.set(tit, t.id);
+          const artist = (t.artist || '').toLowerCase().trim();
+          if (tit && artist) trackLookup.set(`${artist} - ${tit}`, t.id);
         }
 
         const currentPlaylists = get().playlists || [];
@@ -2276,22 +2282,43 @@ export const usePlayerStore = create<PlayerState>()(
           if (Array.isArray(inc.tracks)) {
             for (const item of inc.tracks) {
               const fn = (item.filename || '').toLowerCase().trim();
+              const fnWithoutExt = fn.substring(0, fn.lastIndexOf('.')) || fn;
               const tit = (item.title || '').toLowerCase().trim();
-              const matchedId = (fn ? trackLookup.get(fn) : null) || (tit ? trackLookup.get(tit) : null);
+              const artist = (item.artist || '').toLowerCase().trim();
+              const matchedId =
+                (fn ? trackLookup.get(fn) : null) ||
+                (fnWithoutExt ? trackLookup.get(fnWithoutExt) : null) ||
+                (tit && artist ? trackLookup.get(`${artist} - ${tit}`) : null) ||
+                (tit ? trackLookup.get(tit) : null);
               if (matchedId && !resolvedIds.includes(matchedId)) {
                 resolvedIds.push(matchedId);
               }
             }
           }
+
           const existingIdx = updated.findIndex(
             (p) => p.id === inc.id || p.name.toLowerCase() === (inc.name || '').toLowerCase()
           );
+
+          let targetCover: string | undefined =
+            existingIdx !== -1 ? updated[existingIdx]?.customCoverUri : undefined;
+          if (inc.customCoverUri === null) {
+            targetCover = undefined;
+          } else if (typeof inc.customCoverUri === 'string' && inc.customCoverUri.trim() !== '') {
+            targetCover = inc.customCoverUri;
+          }
+
           if (existingIdx !== -1) {
+            const existing = updated[existingIdx];
+            let newTrackIds = existing.trackIds || [];
+            if (resolvedIds.length > 0) {
+              newTrackIds = Array.from(new Set([...newTrackIds, ...resolvedIds]));
+            }
             updated[existingIdx] = {
-              ...updated[existingIdx],
-              name: inc.name,
-              trackIds: resolvedIds,
-              customCoverUri: inc.customCoverUri !== undefined ? (inc.customCoverUri || undefined) : updated[existingIdx]?.customCoverUri,
+              ...existing,
+              name: inc.name || existing.name,
+              trackIds: newTrackIds,
+              customCoverUri: targetCover,
             };
           } else {
             updated.push({
@@ -2299,7 +2326,7 @@ export const usePlayerStore = create<PlayerState>()(
               name: inc.name,
               trackIds: resolvedIds,
               createdAt: inc.createdAt || Date.now(),
-              customCoverUri: inc.customCoverUri || undefined,
+              customCoverUri: targetCover,
             });
           }
         }
@@ -2622,6 +2649,7 @@ export const usePlayerStore = create<PlayerState>()(
         volume: state.volume,
         rememberPerDeviceVolume: state.rememberPerDeviceVolume,
         deviceVolumes: state.deviceVolumes,
+        activeAudioDeviceName: state.activeAudioDeviceName,
         p2pPairedClients: state.p2pPairedClients,
         showAudioSpecs: state.showAudioSpecs,
         showAudioSpecsInLibrary: state.showAudioSpecsInLibrary,

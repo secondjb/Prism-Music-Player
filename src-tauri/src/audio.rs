@@ -1148,6 +1148,10 @@ fn run_audio_engine(
                                 if let Some(ref mut inc) = incoming_track {
                                     let _ = inc.reconfigure_target(target_sample_rate, target_channels);
                                 }
+                            
+                                if let Some(app) = app_handle.lock().as_ref() {
+                                    let _ = app.emit("audio-device-changed", &active_dev_name);
+                                }
                             }
                             Err(e) => eprintln!("Failed to switch output device: {}", e),
                         }
@@ -1197,6 +1201,9 @@ fn run_audio_engine(
                     }
                     if let Some(ref mut inc) = incoming_track {
                         let _ = inc.reconfigure_target(target_sample_rate, target_channels);
+                    }
+                    if let Some(app) = app_handle.lock().as_ref() {
+                        let _ = app.emit("audio-device-changed", &active_dev_name);
                     }
                     println!("Successfully migrated audio stream to device: {}", active_dev_name);
                 }

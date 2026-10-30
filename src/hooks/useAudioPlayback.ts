@@ -65,6 +65,38 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
     return unsub;
   }, []);
 
+  // Listen for audio output device changes from Rust and poll active device
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+    let unlisten: (() => void) | null = null;
+    listen<string>('audio-device-changed', (event) => {
+      if (event.payload) {
+        usePlayerStore.getState().setActiveAudioDeviceName(event.payload);
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+
+    const checkDevice = async () => {
+      try {
+        const details = await invoke<any>('get_audio_output_details', { forceRefresh: false });
+        if (details && details.active_device_name) {
+          usePlayerStore.getState().setActiveAudioDeviceName(details.active_device_name);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    checkDevice();
+    const interval = setInterval(checkDevice, 1500);
+
+    return () => {
+      unlisten?.();
+      clearInterval(interval);
+    };
+  }, []);
+
   const isTransitioningRef = useRef(false);
   const lastPosRef = useRef(-1);
   const stallCountRef = useRef(0);

@@ -180,6 +180,12 @@ pub enum SyncFrame {
         sleep_timer_mode: Option<String>,
         #[serde(rename = "sleepTimerValue", default)]
         sleep_timer_value: Option<i64>,
+        #[serde(default)]
+        index: Option<usize>,
+        #[serde(rename = "fromIndex", default)]
+        from_index: Option<usize>,
+        #[serde(rename = "toIndex", default)]
+        to_index: Option<usize>,
     },
     #[serde(rename = "swap_device")]
     SwapDevice {
@@ -755,6 +761,9 @@ async fn handle_client_connection(
                             queue_filenames,
                             sleep_timer_mode,
                             sleep_timer_value,
+                            index,
+                            from_index,
+                            to_index,
                         } => {
                             if !is_authenticated {
                                 eprintln!("[P2P Sync] Security: Dropping unauthenticated Command frame from {}", peer_addr);
@@ -779,6 +788,11 @@ async fn handle_client_connection(
                                 "SET_SLEEP_TIMER",
                                 "CANCEL_SLEEP_TIMER",
                                 "RESHUFFLE_UPCOMING",
+                                "CLEAR_QUEUE",
+                                "REMOVE_FROM_QUEUE",
+                                "REMOVE_FROM_USER_QUEUE",
+                                "REORDER_USER_QUEUE",
+                                "REORDER_CONTEXT_QUEUE",
                             ];
 
                             if !ALLOWED_ACTIONS.contains(&action.as_str()) {
@@ -805,7 +819,10 @@ async fn handle_client_connection(
                                 "trackUri": track_uri,
                                 "queueFilenames": queue_filenames,
                                 "sleepTimerMode": sleep_timer_mode,
-                                "sleepTimerValue": sleep_timer_value
+                                "sleepTimerValue": sleep_timer_value,
+                                "index": index,
+                                "fromIndex": from_index,
+                                "toIndex": to_index,
                             }));
                         }
                         SyncFrame::StateSync { playback_state } => {

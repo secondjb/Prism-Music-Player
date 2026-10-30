@@ -447,7 +447,13 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
               const currentQ = store.queue || [];
               if (idx < currentQ.length) {
                 const newQ = currentQ.filter((_, i) => i !== idx);
-                usePlayerStore.setState({ queue: newQ });
+                let newIndex = store.currentIndex;
+                if (idx < newIndex) {
+                  newIndex = Math.max(0, newIndex - 1);
+                } else if (idx === newIndex) {
+                  newIndex = Math.min(newIndex, newQ.length - 1);
+                }
+                usePlayerStore.setState({ queue: newQ, currentIndex: newIndex });
                 setTimeout(() => broadcastStateSync(true), 30);
               }
             }

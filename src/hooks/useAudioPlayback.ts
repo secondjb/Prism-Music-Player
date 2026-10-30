@@ -425,9 +425,48 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
 
       // P2P Companion remote command handling
       listen('p2p-command', (event: any) => {
-        const { action, seekPositionMs, volume, repeatMode, trackFilename, trackTitle, trackArtist, queueFilenames } = event.payload || {};
+        const { action, seekPositionMs, volume, repeatMode, trackFilename, trackTitle, trackArtist, queueFilenames, index, fromIndex, toIndex } = event.payload || {};
         const store = usePlayerStore.getState();
         switch (action) {
+          case 'CLEAR_QUEUE': {
+            store.clearQueue();
+            setTimeout(() => broadcastStateSync(true), 30);
+            break;
+          }
+          case 'REMOVE_FROM_USER_QUEUE': {
+            const idx = typeof index === 'number' ? index : fromIndex;
+            if (typeof idx === 'number' && idx >= 0) {
+              store.removeFromUserQueue(idx);
+              setTimeout(() => broadcastStateSync(true), 30);
+            }
+            break;
+          }
+          case 'REMOVE_FROM_QUEUE': {
+            const idx = typeof index === 'number' ? index : fromIndex;
+            if (typeof idx === 'number' && idx >= 0) {
+              const currentQ = store.queue || [];
+              if (idx < currentQ.length) {
+                const newQ = currentQ.filter((_, i) => i !== idx);
+                usePlayerStore.setState({ queue: newQ });
+                setTimeout(() => broadcastStateSync(true), 30);
+              }
+            }
+            break;
+          }
+          case 'REORDER_USER_QUEUE': {
+            if (typeof fromIndex === 'number' && typeof toIndex === 'number') {
+              store.reorderUserQueue(fromIndex, toIndex);
+              setTimeout(() => broadcastStateSync(true), 30);
+            }
+            break;
+          }
+          case 'REORDER_CONTEXT_QUEUE': {
+            if (typeof fromIndex === 'number' && typeof toIndex === 'number') {
+              store.reorderContextQueue(fromIndex, toIndex);
+              setTimeout(() => broadcastStateSync(true), 30);
+            }
+            break;
+          }
           case 'PLAY_TRACK': {
             const normalize = (s?: string) => (s || '').toLowerCase().trim();
             const targetFn = trackFilename ? normalize(trackFilename) : '';

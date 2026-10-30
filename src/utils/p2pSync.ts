@@ -141,6 +141,28 @@ export async function broadcastPlaylistsSync(): Promise<void> {
   });
 }
 
+export async function broadcastLibraryManifest(): Promise<void> {
+  if (!window.__TAURI_INTERNALS__) return;
+  const state = usePlayerStore.getState();
+  if (!state.tracks || state.tracks.length === 0) return;
+
+  const tracks = state.tracks.map((t) => {
+    const fn = t.path ? t.path.replace(/\\/g, '/').split('/').pop() || '' : '';
+    return {
+      filename: fn,
+      title: t.title || '',
+      artist: t.artist || '',
+      sizeBytes: (t as any).size_bytes || 25_000_000,
+      durationSecs: t.duration_secs || 0,
+    };
+  });
+
+  await broadcastP2pFrame({
+    type: 'manifest_resp',
+    tracks,
+  }).catch(console.error);
+}
+
 export async function broadcastTrackNotFound(
   trackTitle: string,
   trackArtist: string,

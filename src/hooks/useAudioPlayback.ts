@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { broadcastStateSync, broadcastPlaylistsSync, broadcastP2pFrame, broadcastTrackNotFound, sendP2pFile } from '../utils/p2pSync';
+import { broadcastStateSync, broadcastPlaylistsSync, broadcastLibraryManifest, broadcastP2pFrame, broadcastTrackNotFound, sendP2pFile } from '../utils/p2pSync';
 
 interface UseAudioPlaybackOptions {
   trackArt?: string | null;
@@ -763,21 +763,7 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
 
       // P2P Companion library manifest diff request
       listen('p2p-manifest-req', () => {
-        const store = usePlayerStore.getState();
-        const tracks = (store.tracks || []).map((t) => {
-          const fn = t.path ? t.path.replace(/\\/g, '/').split('/').pop() || '' : '';
-          return {
-            filename: fn,
-            title: t.title || '',
-            artist: t.artist || '',
-            sizeBytes: (t as any).size_bytes || 25_000_000,
-            durationSecs: t.duration_secs || 0,
-          };
-        });
-        broadcastP2pFrame({
-          type: 'manifest_resp',
-          tracks,
-        }).catch(console.error);
+        broadcastLibraryManifest().catch(console.error);
       }).then((unlistenFn) => {
         unlistens.push(unlistenFn);
       });
@@ -796,6 +782,12 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
         lastCompanionConnectTime = performance.now();
         const count = typeof event.payload === 'number' ? event.payload : 0;
         usePlayerStore.getState().setP2pConnectedClients(count);
+        if (count > 0) {
+          setTimeout(() => {
+            broadcastLibraryManifest().catch(console.error);
+            broadcastPlaylistsSync().catch(console.error);
+          }, 300);
+        }
       }).then((unlistenFn) => {
         unlistens.push(unlistenFn);
       });
@@ -809,6 +801,10 @@ export function useAudioPlayback({ trackArt }: UseAudioPlaybackOptions = {}) {
           version: clientVersion || '1.0.0',
           pairedAt: Date.now(),
         });
+        setTimeout(() => {
+          broadcastLibraryManifest().catch(console.error);
+          broadcastPlaylistsSync().catch(console.error);
+        }, 300);
       }).then((unlistenFn) => {
         unlistens.push(unlistenFn);
       });

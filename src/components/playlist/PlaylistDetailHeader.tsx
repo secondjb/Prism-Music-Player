@@ -412,7 +412,7 @@ export const PlaylistDetailHeader: React.FC<PlaylistDetailHeaderProps> = ({
             px: 2.5,
             py: 1,
             background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1) 0%, var(--color-stop-2, #8b5cf6) 100%)',
-            boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)',
+            boxShadow: 'none',
             '&:hover': {
               background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1) 20%, var(--color-stop-2, #8b5cf6) 120%)',
             },

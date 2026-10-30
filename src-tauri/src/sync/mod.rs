@@ -241,6 +241,11 @@ pub enum SyncFrame {
         n: String,
         d: String,
     },
+    #[serde(rename = "disconnect")]
+    Disconnect {
+        #[serde(default)]
+        reason: String,
+    },
 }
 
 fn default_client_type() -> String {
@@ -874,6 +879,10 @@ async fn handle_client_connection(
                                 "trackFilename": track_filename
                             }));
                         }
+                        SyncFrame::Disconnect { reason } => {
+                            eprintln!("[P2P Sync] Client {} sent disconnect (reason: {}), closing connection", peer_addr, reason);
+                            break;
+                        }
                         SyncFrame::FileChunk {
                             file_id,
                             chunk_index,
@@ -1145,5 +1154,23 @@ pub async fn send_p2p_file(
         tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
     }
 
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn unpair_p2p_device(
+    sync_state: State<'_, Arc<SyncState>>,
+    app_handle: AppHandle,
+    device_name: String,
+) -> Result<(), String> {
+    eprintln!("[P2P Sync] Unpairing device: {}", device_name);
+    let disconnect_frame = SyncFrame::Disconnect {
+        reason: "host_unpaired".to_string(),
+    };
+    if let Ok(json_str) = serde_json::to_string(&disconnect_frame) {
+        let _ = sync_state.broadcast_tx.send(json_str);
+    }
+    sync_state.connected_clients.store(0, Ordering::SeqCst);
+    let _ = app_handle.emit("p2p-client-count-changed", 0);
     Ok(())
 }

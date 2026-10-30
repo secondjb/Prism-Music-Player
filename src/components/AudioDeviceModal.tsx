@@ -120,6 +120,9 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
       if (force) setIsLoading(true);
       const res = await invoke<AudioOutputDetails>('get_audio_output_details', { forceRefresh: force });
       setDetails(res);
+      if (res && res.active_device_name) {
+        usePlayerStore.getState().setActiveAudioDeviceName(res.active_device_name);
+      }
     } catch (e) {
       console.warn('Failed to fetch audio output details:', e);
     } finally {
@@ -141,6 +144,7 @@ export const AudioDeviceModal: React.FC<AudioDeviceModalProps> = ({ isOpen, onCl
 
     const currentSeq = ++activeSwitchSeqRef.current;
     setSwitchingDeviceName(dev.name);
+    usePlayerStore.getState().setActiveAudioDeviceName(dev.name);
 
     // 1. Instant optimistic UI update
     setDetails((prev) => {

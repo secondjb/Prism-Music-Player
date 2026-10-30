@@ -201,6 +201,7 @@ pub fn run() {
             sync::set_p2p_active_device,
             sync::setup_adb_reverse,
             sync::send_p2p_file,
+            sync::unpair_p2p_device,
             log_frontend_message
         ])
         .run(tauri::generate_context!())

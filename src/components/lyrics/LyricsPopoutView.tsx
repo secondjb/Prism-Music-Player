@@ -860,10 +860,10 @@ export const LyricsPopoutView: React.FC = () => {
             style={{
               background:
                 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #818cf8))',
-              boxShadow:
-                '0 4px 16px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+              boxShadow: 'none',
+              border: 'none',
             }}
-            className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3 py-1 rounded-full text-white text-[11px] font-semibold shadow-xl backdrop-blur-md cursor-pointer hover:brightness-110 active:scale-95 transition-all"
+            className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-3 py-1 rounded-full text-white text-[11px] font-semibold backdrop-blur-md cursor-pointer hover:brightness-110 active:scale-95 transition-all"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Re-sync</span>

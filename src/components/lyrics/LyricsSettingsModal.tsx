@@ -140,10 +140,10 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
           initial={{ opacity: 0, scale: 0.95, y: -10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: -10 }}
-          className="absolute right-8 top-20 w-[350px] min-h-[480px] max-h-[82vh] overflow-y-auto custom-scrollbar glass-panel border border-white/15 rounded-2xl shadow-2xl p-4.5 z-50 flex flex-col gap-3.5 text-xs text-zinc-200"
+          className="absolute right-8 top-20 w-[340px] min-h-[420px] max-h-[82vh] overflow-y-auto custom-scrollbar glass-panel border border-white/15 rounded-2xl shadow-2xl p-3 z-50 flex flex-col gap-2.5 text-xs text-zinc-200"
         >
           {/* Header */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'between', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'between', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', pb: 0.75 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'white', display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
               <Settings2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               Lyrics & Visual Settings
@@ -154,7 +154,7 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
           </Box>
 
           {/* Tab Navigation */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, bgcolor: 'rgba(0, 0, 0, 0.4)', p: 0.5, borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, bgcolor: 'rgba(0, 0, 0, 0.4)', p: 0.5, borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
             {(['atmosphere', 'typography', 'sync'] as const).map((tab) => {
               const isActive = settingsTab === tab;
               const labels = {
@@ -169,9 +169,9 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                   onClick={() => setSettingsTab(tab)}
                   sx={{
                     flex: 1,
-                    height: 32,
-                    px: 1,
-                    borderRadius: '8px',
+                    height: 28,
+                    px: 0.75,
+                    borderRadius: '7px',
                     fontSize: '11px',
                     fontWeight: 600,
                     transition: 'all 0.2s',
@@ -198,7 +198,7 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
 
           {/* TAB 1: ATMOSPHERE */}
           {settingsTab === 'atmosphere' && (
-            <Stack spacing={2}>
+            <Stack spacing={1.25}>
               <M3Selector
                 label="Background Theme"
                 icon={<Palette className="w-3.5 h-3.5" />}
@@ -209,7 +209,7 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
 
               {/* Custom Photo Wallpaper */}
               {backgroundType === 'custom_photo' && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 1.5, borderRadius: '12px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, p: 1, borderRadius: '10px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
                     <Typography variant="caption" sx={{ color: 'rgb(212 212 216)', fontWeight: 500 }}>Custom Photo</Typography>
                     <Box
@@ -230,9 +230,9 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                         }
                       }}
                       sx={{
-                        px: 1.25,
-                        py: 0.5,
-                        borderRadius: '8px',
+                        px: 1,
+                        py: 0.35,
+                        borderRadius: '6px',
                         color: 'white',
                         fontSize: '10px',
                         fontWeight: 600,
@@ -254,17 +254,17 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
 
               {/* Solid Color Tint */}
               {backgroundType === 'solid_color' && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 1.5, borderRadius: '12px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, p: 1, borderRadius: '10px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Typography variant="caption" sx={{ color: 'rgb(212 212 216)', fontWeight: 500 }}>Color Tint</Typography>
                     <input
                       type="color"
                       value={customBgColor}
                       onChange={(e) => setCustomBgColor(e.target.value)}
-                      style={{ width: 28, height: 28, borderRadius: 8, cursor: 'pointer', background: 'transparent', border: 0 }}
+                      style={{ width: 24, height: 24, borderRadius: 6, cursor: 'pointer', background: 'transparent', border: 0 }}
                     />
                   </Box>
-                  <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                  <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap' }}>
                     {['#09090b', '#0f172a', '#18181b', '#1e1b4b', '#311042', '#064e3b'].map((hex) => (
                       <Box
                         key={hex}
@@ -272,8 +272,8 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                         type="button"
                         onClick={() => setCustomBgColor(hex)}
                         sx={{
-                          width: 20,
-                          height: 20,
+                          width: 18,
+                          height: 18,
                           borderRadius: '50%',
                           border: customBgColor.toLowerCase() === hex ? '2px solid white' : '1px solid rgba(255, 255, 255, 0.2)',
                           transform: customBgColor.toLowerCase() === hex ? 'scale(1.2)' : 'none',
@@ -289,8 +289,8 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
 
               {/* Blur & Dim Sliders */}
               {(backgroundType === 'album_art_blur' || backgroundType === 'custom_photo') && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, p: 1.5, borderRadius: '12px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 1, borderRadius: '10px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'rgb(212 212 216)' }}>
                       <span>Blur Amount</span>
                       <span style={{ fontFamily: 'monospace' }}>{bgBlurAmount}px</span>
@@ -306,7 +306,7 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                     />
                   </Box>
 
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'rgb(212 212 216)' }}>
                       <span>Dim Tint Overlay</span>
                       <span style={{ fontFamily: 'monospace' }}>{Math.round(bgDimOpacity * 100)}%</span>
@@ -325,9 +325,9 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
               )}
 
               {/* Lyrics Layout Mode */}
-              <Stack spacing={1}>
+              <Stack spacing={0.75}>
                 <Typography variant="caption" sx={{ color: 'rgb(212 212 216)', fontWeight: 600 }}>Screen Layout</Typography>
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.75 }}>
                   {(['centered', 'split'] as const).map((mode) => {
                     const isSel = lyricsLayoutMode === mode;
                     return (
@@ -336,9 +336,9 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                         component="button"
                         onClick={() => setLyricsLayoutMode(mode)}
                         sx={{
-                          py: 1,
-                          px: 1.5,
-                          borderRadius: '10px',
+                          py: 0.75,
+                          px: 1,
+                          borderRadius: '8px',
                           fontSize: '11px',
                           fontWeight: 600,
                           border: isSel ? 'none' : '1px solid rgba(255, 255, 255, 0.05)',
@@ -363,7 +363,7 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
 
           {/* TAB 2: TYPOGRAPHY */}
           {settingsTab === 'typography' && (
-            <Stack spacing={2}>
+            <Stack spacing={1.25}>
               <M3Selector
                 label="Lyric Animation Style"
                 icon={<Activity className="w-3.5 h-3.5" />}
@@ -381,9 +381,9 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
               />
 
               {/* Lyrics Size Presets */}
-              <Stack spacing={1}>
+              <Stack spacing={0.75}>
                 <Typography variant="caption" sx={{ color: 'rgb(212 212 216)', fontWeight: 600 }}>Lyrics Size Preset</Typography>
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.75 }}>
                   {(['normal', 'balanced', 'large', 'maximum'] as const).map((preset) => {
                     const isSel = lyricsFontSizePreset === preset;
                     return (
@@ -392,9 +392,9 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                         component="button"
                         onClick={() => setLyricsFontSizePreset(preset)}
                         sx={{
-                          py: 1,
-                          px: 1.5,
-                          borderRadius: '10px',
+                          py: 0.75,
+                          px: 1,
+                          borderRadius: '8px',
                           fontSize: '11px',
                           fontWeight: 600,
                           textTransform: 'capitalize',
@@ -417,8 +417,8 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
               </Stack>
 
               {/* Manual Font Size Slider */}
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'rgb(212 212 216)' }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, p: 1, borderRadius: '10px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'rgb(212 212 216)' }}>
                   <span>Manual Font Size</span>
                   <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--color-stop-1, #6366f1)' }}>
                     {Math.round(activeFontSize)}px
@@ -444,7 +444,7 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
               </Box>
 
               {/* Checkboxes */}
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.25, borderRadius: '12px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.6, px: 1.25, borderRadius: '10px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Waves className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                   <Typography variant="caption" sx={{ color: 'white', fontWeight: 500 }}>Wavy Seekbar</Typography>
@@ -457,7 +457,7 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                 />
               </Box>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.25, borderRadius: '12px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.6, px: 1.25, borderRadius: '10px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                   <Typography variant="caption" sx={{ color: 'white', fontWeight: 500 }}>Audio Specs Badge</Typography>
                   <Typography variant="caption" sx={{ color: 'rgb(161 161 170)', fontSize: '10px' }}>FLAC sample rate & bit depth</Typography>
@@ -470,7 +470,7 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                 />
               </Box>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.25, borderRadius: '12px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.6, px: 1.25, borderRadius: '10px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                   <Typography variant="caption" sx={{ color: 'white', fontWeight: 500 }}>Auto-hide Controls</Typography>
                   <Typography variant="caption" sx={{ color: 'rgb(161 161 170)', fontSize: '10px' }}>Fade buttons during playback</Typography>
@@ -487,14 +487,14 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
 
           {/* TAB 3: SYNC & LANGUAGES */}
           {settingsTab === 'sync' && (
-            <Stack spacing={2}>
+            <Stack spacing={1.25}>
               {/* Romanization */}
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 1.5, borderRadius: '12px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, p: 1, borderRadius: '10px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Languages className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                   <Typography variant="caption" sx={{ color: 'white', fontWeight: 500 }}>Lyric Romanization</Typography>
                 </Box>
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0.5, bgcolor: 'rgba(0, 0, 0, 0.4)', p: 0.5, borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0.5, bgcolor: 'rgba(0, 0, 0, 0.4)', p: 0.5, borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
                   {(['off', 'below', 'replace'] as const).map((mode) => {
                     const isSel = currentRomanizationState === mode;
                     return (
@@ -503,8 +503,8 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                         component="button"
                         onClick={() => handleRomanizationChange(mode)}
                         sx={{
-                          py: 0.5,
-                          borderRadius: '6px',
+                          py: 0.4,
+                          borderRadius: '5px',
                           fontSize: '10px',
                           fontWeight: 600,
                           textTransform: 'capitalize',
@@ -522,12 +522,12 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
               </Box>
 
               {/* Translation */}
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 1.5, borderRadius: '12px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, p: 1, borderRadius: '10px', bgcolor: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Globe className="w-3.5 h-3.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
                   <Typography variant="caption" sx={{ color: 'white', fontWeight: 500 }}>Lyric Translation</Typography>
                 </Box>
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0.5, bgcolor: 'rgba(0, 0, 0, 0.4)', p: 0.5, borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0.5, bgcolor: 'rgba(0, 0, 0, 0.4)', p: 0.5, borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
                   {(['off', 'below', 'replace'] as const).map((mode) => {
                     const isSel = currentTranslationState === mode;
                     return (
@@ -536,8 +536,8 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                         component="button"
                         onClick={() => handleTranslationChange(mode)}
                         sx={{
-                          py: 0.5,
-                          borderRadius: '6px',
+                          py: 0.4,
+                          borderRadius: '5px',
                           fontSize: '10px',
                           fontWeight: 600,
                           textTransform: 'capitalize',
@@ -555,7 +555,7 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
               </Box>
 
               {/* Sync Options Checkboxes */}
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.25, borderRadius: '12px', bgcolor: 'rgba(255, 255, 255, 0.05)' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.6, px: 1.25, borderRadius: '10px', bgcolor: 'rgba(255, 255, 255, 0.05)' }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                   <Typography variant="caption" sx={{ color: 'white', fontWeight: 500 }}>Prefer Word/Syllable Sync</Typography>
                   <Typography variant="caption" sx={{ color: 'rgb(161 161 170)', fontSize: '10px' }}>Query rich syllable timing</Typography>
@@ -568,7 +568,7 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                 />
               </Box>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.25, borderRadius: '12px', bgcolor: 'rgba(255, 255, 255, 0.05)' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.6, px: 1.25, borderRadius: '10px', bgcolor: 'rgba(255, 255, 255, 0.05)' }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                   <Typography variant="caption" sx={{ color: 'white', fontWeight: 500 }}>Infer Word-by-Word Sync</Typography>
                   <Typography variant="caption" sx={{ color: 'rgb(161 161 170)', fontSize: '10px' }}>Estimate word timing</Typography>
@@ -581,7 +581,7 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                 />
               </Box>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.25, borderRadius: '12px', bgcolor: 'rgba(255, 255, 255, 0.05)' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.6, px: 1.25, borderRadius: '10px', bgcolor: 'rgba(255, 255, 255, 0.05)' }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                   <Typography variant="caption" sx={{ color: 'white', fontWeight: 500 }}>Auto-fetch Online Lyrics</Typography>
                   <Typography variant="caption" sx={{ color: 'rgb(161 161 170)', fontSize: '10px' }}>Search online database</Typography>
@@ -594,7 +594,7 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                 />
               </Box>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.25, borderRadius: '12px', bgcolor: 'rgba(255, 255, 255, 0.05)' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.6, px: 1.25, borderRadius: '10px', bgcolor: 'rgba(255, 255, 255, 0.05)' }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                   <Typography variant="caption" sx={{ color: 'white', fontWeight: 500 }}>Prefer Online Over Embedded</Typography>
                   <Typography variant="caption" sx={{ color: 'rgb(161 161 170)', fontSize: '10px' }}>Prioritize online synced</Typography>
@@ -607,7 +607,7 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                 />
               </Box>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.25, borderRadius: '12px', bgcolor: 'rgba(255, 255, 255, 0.05)' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.6, px: 1.25, borderRadius: '10px', bgcolor: 'rgba(255, 255, 255, 0.05)' }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                   <Typography variant="caption" sx={{ color: 'white', fontWeight: 500 }}>Auto-embed to Audio</Typography>
                   <Typography variant="caption" sx={{ color: 'rgb(161 161 170)', fontSize: '10px' }}>Save fetched lyrics to file</Typography>
@@ -621,7 +621,7 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
               </Box>
 
               {/* Action Buttons */}
-              <Stack spacing={1} sx={{ pt: 1 }}>
+              <Stack spacing={0.75} sx={{ pt: 0.5 }}>
                 <Box
                   component="button"
                   onClick={handleManualRefresh}
@@ -630,10 +630,10 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 1,
-                    py: 1,
+                    py: 0.75,
                     px: 1.5,
-                    borderRadius: '10px',
-                    fontSize: '12px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
                     fontWeight: 600,
                     border: 'none',
                     bgcolor: 'var(--color-stop-1, #6366f1)',
@@ -655,10 +655,10 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 1,
-                    py: 1,
+                    py: 0.75,
                     px: 1.5,
-                    borderRadius: '10px',
-                    fontSize: '12px',
+                    borderRadius: '8px',
+                    fontSize: '11px',
                     fontWeight: 600,
                     border: 'none',
                     bgcolor: embedSuccess ? '#10b981' : 'var(--color-stop-1, #6366f1)',

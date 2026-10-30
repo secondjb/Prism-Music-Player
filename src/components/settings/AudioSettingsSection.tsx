@@ -35,6 +35,8 @@ export const AudioSettingsSection: React.FC<AudioSettingsSectionProps> = ({
   const setCrossfadeDuration = usePlayerStore((s) => s.setCrossfadeDuration);
   const replayGainMode = usePlayerStore((s) => s.replayGainMode);
   const setReplayGainMode = usePlayerStore((s) => s.setReplayGainMode);
+  const rememberPerDeviceVolume = usePlayerStore((s) => s.rememberPerDeviceVolume);
+  const setRememberPerDeviceVolume = usePlayerStore((s) => s.setRememberPerDeviceVolume);
 
   const untaggedOrZeroCount = React.useMemo(
     () =>
@@ -104,6 +106,29 @@ export const AudioSettingsSection: React.FC<AudioSettingsSectionProps> = ({
               <Checkbox
                 checked={isGaplessEnabled}
                 onChange={toggleGaplessEnabled}
+                size="small"
+                sx={{
+                  color: 'var(--color-stop-1, #6366f1)',
+                  '&.Mui-checked': { color: 'var(--color-stop-1, #6366f1)' },
+                  p: 0.5,
+                }}
+              />
+            </div>
+
+            {/* Remember Per-Device Volume */}
+            <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/5">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <Volume2 className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-semibold text-white">Per-Device Volume Memory</span>
+                  <span className="text-[11px] text-zinc-400 leading-tight">
+                    Remembers and restores custom volume levels for earbuds, speakers, and headphones
+                  </span>
+                </div>
+              </div>
+              <Checkbox
+                checked={rememberPerDeviceVolume}
+                onChange={(e) => setRememberPerDeviceVolume(e.target.checked)}
                 size="small"
                 sx={{
                   color: 'var(--color-stop-1, #6366f1)',

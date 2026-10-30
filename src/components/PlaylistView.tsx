@@ -181,7 +181,7 @@ export const PlaylistView: React.FC = () => {
               fontSize: '13px',
               fontWeight: 600,
               textTransform: 'none',
-              boxShadow: '0 4px 16px color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
+              boxShadow: 'none',
               '&:hover': {
                 bgcolor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 85%, #000000)',
               },

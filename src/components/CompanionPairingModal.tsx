@@ -569,7 +569,17 @@ export const CompanionPairingModal: React.FC<CompanionPairingModalProps> = ({
                       <Tooltip title="Unpair Device" arrow>
                         <IconButton
                           size="small"
-                          onClick={() => removeP2pPairedClient(client.name)}
+                          onClick={async () => {
+                            removeP2pPairedClient(client.name);
+                            usePlayerStore.getState().setP2pConnectedClients(0);
+                            try {
+                              if (window.__TAURI_INTERNALS__) {
+                                await invoke('unpair_p2p_device', { deviceName: client.name });
+                              }
+                            } catch (e) {
+                              console.warn('Failed to unpair p2p device:', e);
+                            }
+                          }}
                           sx={{ color: '#ef4444', '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.15)' } }}
                         >
                           <X size={14} />

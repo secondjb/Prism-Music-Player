@@ -241,7 +241,13 @@ export const App: React.FC = () => {
             store.checkAppUpdate(false);
           }
 
-          invoke('get_audio_output_details', { forceRefresh: false }).catch(() => {});
+          invoke<any>('get_audio_output_details', { forceRefresh: false })
+            .then((details) => {
+              if (details && details.active_device_name) {
+                usePlayerStore.getState().setActiveAudioDeviceName(details.active_device_name);
+              }
+            })
+            .catch(() => {});
         }
       } catch (e) {
         console.warn('Auto init load notice:', e);

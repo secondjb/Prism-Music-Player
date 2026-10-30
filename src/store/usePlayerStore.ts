@@ -408,6 +408,13 @@ interface PlayerState {
   shuffleHistory: number[];
   originalQueue: Track[];
 
+  // Per-Device Volume Memory
+  rememberPerDeviceVolume: boolean;
+  deviceVolumes: Record<string, number>;
+  activeAudioDeviceName: string | null;
+  setRememberPerDeviceVolume: (enabled: boolean) => void;
+  setActiveAudioDeviceName: (name: string | null) => void;
+
   // Android Companion P2P Sync
   p2pSyncInfo: P2pSyncInfo | null;
   p2pActiveDeviceId: string;
@@ -1121,7 +1128,32 @@ export const usePlayerStore = create<PlayerState>()(
       shuffleHistory: [],
       originalQueue: [],
 
-      // Android Companion P2P Sync
+      // Per-Device Volume Memory
+      rememberPerDeviceVolume: true,
+      deviceVolumes: {},
+      activeAudioDeviceName: null,
+      setRememberPerDeviceVolume: (enabled) => set({ rememberPerDeviceVolume: enabled }),
+      setActiveAudioDeviceName: (name) => {
+        if (!name) return;
+        const { activeAudioDeviceName, rememberPerDeviceVolume, deviceVolumes, volume } = get();
+        if (name === activeAudioDeviceName) return;
+
+        const updatedMap = { ...deviceVolumes };
+        if (rememberPerDeviceVolume && activeAudioDeviceName) {
+          updatedMap[activeAudioDeviceName] = volume;
+        }
+
+        if (rememberPerDeviceVolume && updatedMap[name] !== undefined) {
+          const targetVol = updatedMap[name];
+          set({ activeAudioDeviceName: name, volume: targetVol, deviceVolumes: updatedMap });
+          sendThrottledVolume(targetVol);
+        } else {
+          updatedMap[name] = volume;
+          set({ activeAudioDeviceName: name, deviceVolumes: updatedMap });
+        }
+      },
+
+  // Android Companion P2P Sync
       p2pSyncInfo: null,
       p2pActiveDeviceId: 'desktop',
       p2pConnectedClients: 0,
@@ -1742,7 +1774,18 @@ export const usePlayerStore = create<PlayerState>()(
 
       setVolume: (vol) => {
         const clamped = Math.max(0, Math.min(1, vol));
-        set({ volume: clamped });
+        const { rememberPerDeviceVolume, activeAudioDeviceName, deviceVolumes } = get();
+        if (rememberPerDeviceVolume && activeAudioDeviceName) {
+          set({
+            volume: clamped,
+            deviceVolumes: {
+              ...deviceVolumes,
+              [activeAudioDeviceName]: clamped,
+            },
+          });
+        } else {
+          set({ volume: clamped });
+        }
         sendThrottledVolume(clamped);
       },
 
@@ -2577,6 +2620,9 @@ export const usePlayerStore = create<PlayerState>()(
       partialize: (state) => ({
         likedTrackIds: state.likedTrackIds,
         volume: state.volume,
+        rememberPerDeviceVolume: state.rememberPerDeviceVolume,
+        deviceVolumes: state.deviceVolumes,
+        p2pPairedClients: state.p2pPairedClients,
         showAudioSpecs: state.showAudioSpecs,
         showAudioSpecsInLibrary: state.showAudioSpecsInLibrary,
         isRomanizationEnabled: state.isRomanizationEnabled,

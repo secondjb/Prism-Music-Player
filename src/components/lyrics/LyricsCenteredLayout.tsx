@@ -166,10 +166,10 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
             }}
             style={{
               background: 'linear-gradient(135deg, var(--color-stop-1, #6366f1), var(--color-stop-2, #818cf8))',
-              borderColor: 'color-mix(in srgb, var(--color-stop-2, #818cf8) 60%, white)',
-              boxShadow: '0 8px 24px -4px color-mix(in srgb, var(--color-stop-1, #6366f1) 50%, transparent)',
+              boxShadow: 'none',
+              border: 'none',
             }}
-            className="fixed bottom-28 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-xs font-semibold shadow-xl backdrop-blur-md transition-all border animate-in fade-in slide-in-from-bottom-3 cursor-pointer hover:brightness-110 active:scale-95"
+            className="fixed bottom-28 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-xs font-semibold backdrop-blur-md transition-all animate-in fade-in slide-in-from-bottom-3 cursor-pointer hover:brightness-110 active:scale-95"
           >
             <Target className="w-4 h-4" />
             <span>Re-sync to music</span>

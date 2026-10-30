@@ -273,6 +273,11 @@ Prism features a native LAN peer-to-peer synchronization engine enabling bi-dire
   - Executes incoming commands from companion (`PLAY`, `PAUSE`, `TOGGLE_PLAY_PAUSE`, `SEEK`, `SKIP_NEXT`, `SKIP_PREVIOUS`, `SET_VOLUME`, `TOGGLE_SHUFFLE`, `SET_REPEAT`).
 - **Device Hand-off (`swap_device`)**:
   - Smoothly transfers audio output between desktop and companion. When transferred to phone, desktop audio automatically pauses; returning to desktop resumes playback seamlessly.
+- **Disconnection & Unpairing Lifecycle (`disconnect`, `unpair_p2p_device`)**:
+  - Bi-directional `disconnect` frame terminates WebSocket sessions cleanly and decrements client count to 0 immediately upon client or desktop cutoff.
+  - `unpair_p2p_device` Tauri command severs companion connection, emits disconnect frames, and resets paired client state.
+- **Per-Device Volume Persistence**:
+  - Remembers volume levels per output endpoint name (`deviceVolumes`), enabled by default with toggle in `AudioSettingsSection`.
 - **QR Code Pairing Modal (`src/components/CompanionPairingModal.tsx`)**:
   - Generates SVG QR code encoding `prism://pair?host=<ip>&port=9876&token=<token>&name=<name>`.
   - Provides direct pairing code fallback string (`<ip>:9876:<token>`), token rotation, manual stats sync, and quick output target handoff.

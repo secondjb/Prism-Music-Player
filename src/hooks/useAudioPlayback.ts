@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { broadcastStateSync, broadcastPlaylistsSync, broadcastLibraryManifest, broadcastP2pFrame, broadcastTrackNotFound, sendP2pFile } from '../utils/p2pSync';
+import { broadcastStateSync, broadcastPlaylistsSync, broadcastLibraryManifest, broadcastTrackNotFound, sendP2pFile } from '../utils/p2pSync';
 
 interface UseAudioPlaybackOptions {
   trackArt?: string | null;

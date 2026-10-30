@@ -47,7 +47,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
 
   const [draggedType, setDraggedType] = useState<'user' | 'context' | null>(null);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [dragOverInfo, setDragOverInfo] = useState<{ idx: number; pos: 'top' | 'bottom' } | null>(null);
 
   const [contextMenu, setContextMenu] = useState<{
     pos: { top: number; left: number };
@@ -92,19 +92,27 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
     setDraggedIdx(idx);
   };
 
-  const handleUserDragEnter = (idx: number) => {
-    if (draggedType === 'user') setDragOverIdx(idx);
+  const handleUserDragOver = (idx: number, pos: 'top' | 'bottom') => {
+    if (draggedType === 'user') setDragOverInfo({ idx, pos });
   };
 
   const handleUserDragEnd = () => {
     setDraggedType(null);
     setDraggedIdx(null);
-    setDragOverIdx(null);
+    setDragOverInfo(null);
   };
 
-  const handleUserDrop = (targetIdx: number) => {
-    if (draggedType === 'user' && draggedIdx !== null && draggedIdx !== targetIdx) {
-      reorderUserQueue(draggedIdx, targetIdx);
+  const handleUserDrop = (targetIdx: number, pos: 'top' | 'bottom') => {
+    if (draggedType === 'user' && draggedIdx !== null) {
+      let finalIdx: number;
+      if (draggedIdx < targetIdx) {
+        finalIdx = pos === 'top' ? targetIdx - 1 : targetIdx;
+      } else {
+        finalIdx = pos === 'top' ? targetIdx : targetIdx + 1;
+      }
+      if (finalIdx !== draggedIdx && finalIdx >= 0 && finalIdx < userQueue.length) {
+        reorderUserQueue(draggedIdx, finalIdx);
+      }
     }
     handleUserDragEnd();
   };
@@ -114,19 +122,27 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
     setDraggedIdx(idx);
   };
 
-  const handleCtxDragEnter = (idx: number) => {
-    if (draggedType === 'context') setDragOverIdx(idx);
+  const handleCtxDragOver = (idx: number, pos: 'top' | 'bottom') => {
+    if (draggedType === 'context') setDragOverInfo({ idx, pos });
   };
 
   const handleCtxDragEnd = () => {
     setDraggedType(null);
     setDraggedIdx(null);
-    setDragOverIdx(null);
+    setDragOverInfo(null);
   };
 
-  const handleCtxDrop = (targetIdx: number) => {
-    if (draggedType === 'context' && draggedIdx !== null && draggedIdx !== targetIdx) {
-      reorderContextQueue(draggedIdx, targetIdx);
+  const handleCtxDrop = (targetIdx: number, pos: 'top' | 'bottom') => {
+    if (draggedType === 'context' && draggedIdx !== null) {
+      let finalIdx: number;
+      if (draggedIdx < targetIdx) {
+        finalIdx = pos === 'top' ? targetIdx - 1 : targetIdx;
+      } else {
+        finalIdx = pos === 'top' ? targetIdx : targetIdx + 1;
+      }
+      if (finalIdx !== draggedIdx && finalIdx >= 0 && finalIdx < upcomingContext.length) {
+        reorderContextQueue(draggedIdx, finalIdx);
+      }
     }
     handleCtxDragEnd();
   };
@@ -289,11 +305,11 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                     });
                   }}
                   onDragStart={handleUserDragStart}
-                  onDragEnter={handleUserDragEnter}
+                  onDragOverRow={handleUserDragOver}
                   onDragEnd={handleUserDragEnd}
                   onDrop={handleUserDrop}
                   isDragging={draggedType === 'user' && draggedIdx === idx}
-                  isDragOver={draggedType === 'user' && dragOverIdx === idx}
+                  dropIndicator={draggedType === 'user' && dragOverInfo?.idx === idx && draggedIdx !== idx ? dragOverInfo.pos : null}
                 />
               ))}
             </Box>
@@ -334,11 +350,11 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
                     });
                   }}
                   onDragStart={handleCtxDragStart}
-                  onDragEnter={handleCtxDragEnter}
+                  onDragOverRow={handleCtxDragOver}
                   onDragEnd={handleCtxDragEnd}
                   onDrop={handleCtxDrop}
                   isDragging={draggedType === 'context' && draggedIdx === idx}
-                  isDragOver={draggedType === 'context' && dragOverIdx === idx}
+                  dropIndicator={draggedType === 'context' && dragOverInfo?.idx === idx && draggedIdx !== idx ? dragOverInfo.pos : null}
                 />
               ))}
             </Box>

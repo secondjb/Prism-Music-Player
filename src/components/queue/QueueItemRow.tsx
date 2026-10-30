@@ -15,11 +15,11 @@ export interface QueueItemRowProps {
   onRemove: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   onDragStart?: (idx: number) => void;
-  onDragEnter?: (idx: number) => void;
+  onDragOverRow?: (idx: number, pos: 'top' | 'bottom') => void;
   onDragEnd?: () => void;
-  onDrop?: (targetIdx: number) => void;
+  onDrop?: (targetIdx: number, pos: 'top' | 'bottom') => void;
   isDragging?: boolean;
-  isDragOver?: boolean;
+  dropIndicator?: 'top' | 'bottom' | null;
 }
 
 const formatDuration = (seconds?: number): string => {
@@ -37,11 +37,11 @@ export const QueueItemRow: React.FC<QueueItemRowProps> = ({
   onRemove,
   onContextMenu,
   onDragStart,
-  onDragEnter,
+  onDragOverRow,
   onDragEnd,
   onDrop,
   isDragging,
-  isDragOver,
+  dropIndicator,
 }) => {
   const art = useTrackArt(track, { thumbnail: true, maxSize: 128 });
   const isDraggable = Boolean(onDragStart);
@@ -74,22 +74,26 @@ export const QueueItemRow: React.FC<QueueItemRowProps> = ({
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (onDragEnter) onDragEnter(idx);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pos = e.clientY > rect.top + rect.height / 2 ? 'bottom' : 'top';
+    if (onDragOverRow) onDragOverRow(idx, pos);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (onDrop) onDrop(idx);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pos = e.clientY > rect.top + rect.height / 2 ? 'bottom' : 'top';
+    if (onDrop) onDrop(idx, pos);
   };
 
   return (
     <Box sx={{ position: 'relative', my: 0.25 }}>
       {/* Insertion line indicator */}
-      {isDragOver && (
+      {dropIndicator && (
         <Box
           sx={{
             position: 'absolute',
-            top: -3,
+            ...(dropIndicator === 'top' ? { top: -2 } : { bottom: -2 }),
             left: 0,
             right: 0,
             height: 3,

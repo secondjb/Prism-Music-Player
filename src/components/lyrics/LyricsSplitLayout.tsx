@@ -9,6 +9,7 @@ import {
   Target,
   RefreshCw,
   PictureInPicture2,
+  Search,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { Track, RepeatMode } from '../../types/player';
@@ -68,6 +69,7 @@ export interface LyricsSplitLayoutProps {
   activeLineRef: React.RefObject<HTMLDivElement | null>;
   handleManualRefresh: () => Promise<void>;
   handleClose: () => void;
+  onOpenSearch?: () => void;
 }
 
 export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
@@ -116,6 +118,7 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
   translationMode,
   activeLineRef,
   handleManualRefresh,
+  onOpenSearch,
 }) => {
   const [artAspectRatio, setArtAspectRatio] = useState<number | null>(null);
 
@@ -430,15 +433,27 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
             <Mic2 className="w-12 h-12 text-zinc-600" />
             <h4 className="text-lg font-bold text-white">No lyrics found</h4>
             <p className="text-xs text-zinc-400">
-              No synced lyrics were found for this song. Click refresh to search online.
+              No synced lyrics were found for this song. Search online databases or search manually.
             </p>
-            <button
-              onClick={handleManualRefresh}
-              style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
-              className="mt-2 px-4 py-2 rounded-xl text-white text-xs font-semibold transition-colors hover:brightness-110"
-            >
-              Search Online
-            </button>
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                onClick={handleManualRefresh}
+                style={{ backgroundColor: 'var(--color-stop-1, #6366f1)' }}
+                className="px-4 py-2 rounded-xl text-white text-xs font-semibold transition-all hover:brightness-110 active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-md"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Auto-Search Online</span>
+              </button>
+              {onOpenSearch && (
+                <button
+                  onClick={onOpenSearch}
+                  className="px-4 py-2 rounded-xl text-white text-xs font-semibold transition-all bg-white/10 hover:bg-white/15 border border-white/15 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>Manual Search</span>
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           lines.map((line, idx) => {

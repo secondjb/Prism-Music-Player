@@ -49,10 +49,14 @@ export class BetterLyricsProvider implements LyricsProvider {
 
           if (!res.ok) continue;
           const data = await res.json();
-          const rawTtml = data?.ttml || data?.lyrics || null;
-          if (rawTtml && isTtmlContent(rawTtml)) {
-            const lrc = convertTtmlToLrc(rawTtml);
-            if (lrc && lrc.trim()) return lrc.trim();
+          const raw = data?.ttml || data?.lyrics || null;
+          if (raw && typeof raw === 'string') {
+            if (isTtmlContent(raw)) {
+              const lrc = convertTtmlToLrc(raw);
+              if (lrc && lrc.trim()) return lrc.trim();
+            } else if (raw.trim().length > 0) {
+              return raw.trim();
+            }
           }
         } catch {
           // continue to next endpoint

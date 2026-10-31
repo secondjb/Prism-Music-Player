@@ -169,14 +169,19 @@ Prism utilizes `@revolist/react-datagrid` (RevoGrid) backed by Stencil web compo
 - **Standard LRC**: Line timestamps `[mm:ss.xx] Line text`.
 - **Modular Strategy Pattern Provider Architecture (`src/utils/lyricsProviders/`)**:
   - Each lyric provider is an isolated component implementing the `LyricsProvider` interface with its own `fetch(query)` and health `ping()` methods:
-    - **Apple Music (`appleMusicProvider.ts`)**: iTunes Search API resolving `trackId` -> Paxsenix/Lyrically aggregator for Apple Music word/syllable TTML (`<span begin end>`). Features a lock-free token bucket request serializer (`acquireItunesSlot`) pacing calls to ~2.5s (staying below Akamai's ~20 req/min limit) and handling 403/429 daiquiri cooldowns with automatic retry to prevent song drops during batch library scans.
-    - **BetterLyrics (`betterLyricsProvider.ts`)**: Cached TTML syllable-synced lyrics (`lyrics-api.boidu.dev`).
+    - **Apple Music (`appleMusicProvider.ts`)**: iTunes Search API resolving `trackId` -> Paxsenix/Lyrically aggregator for Apple Music word/syllable TTML (`<span begin end>`). Supports extracting both `.content` and `.ttml` payloads. Features a lock-free token bucket request serializer (`acquireItunesSlot`) pacing calls to ~2.5s and smart rate-limit bypassing for interactive queries.
+    - **BetterLyrics (`betterLyricsProvider.ts`)**: Cached TTML syllable-synced lyrics (`lyrics-api.boidu.dev`) with standard LRC fallback support.
     - **Kugou Music (`kugouProvider.ts`)**: Real-time decryption of Kugou `.krc` XOR-encrypted and zlib-compressed (`DecompressionStream`) karaoke syllable streams into `<mm:ss.xx>` enhanced word-sync.
     - **Unison (`unisonProvider.ts`)**: Community-backed TTML word-sync and romanizations (`unison.boidu.dev`).
     - **SyncLRC (`syncLrcProvider.ts`)**: Multi-source karaoke word-sync API.
-    - **NetEase Cloud Music (`neteaseProvider.ts`)**: Timestamp-aligned original lyric + CJK translation merging.
-    - **LRCLIB (`lrclibProvider.ts`)**: Millisecond line-synced and plain text fallback.
-  - Providers are orchestrated by `src/utils/lyricsProviders/index.ts` with backward-compatible facades re-exported through `src/utils/lrclibFetcher.ts`.
+    - **NetEase Cloud Music (`neteaseProvider.ts`)**: CloudSearch + lyric endpoints with timestamp-aligned original lyric + CJK translation merging.
+    - **LRCLIB (`lrclibProvider.ts`)**: Millisecond line-synced and plain text fallback with rapid error recovery.
+  - Providers are orchestrated by `src/utils/lyricsProviders/index.ts` with backward-compatible facades re-exported through `src/utils/lrclibFetcher.ts`, including `searchAllLyricSources` for multi-provider parallel searches.
+  - **Online Lyrics Search & Modal (`LyricsSearchModal.tsx`)**:
+    - Interactive Material 3 search dialog accessible from `LyricsHeader`, `LyricsSettingsModal`, and empty lyric state buttons.
+    - Enables manual query refinement (custom song title and artist) with live results from all available providers, provider badges, sync-type chips (Word Synced, Line Synced, Translation), full lyric expander preview, and one-click application to the current track.
+  - **Online Priority (`preferOnlineLyrics`)**:
+    - Prioritizes online synchronized sources across both `LyricsView` and `LyricsPopoutView` over embedded unsynced tags when enabled.
   - **Provider Search Strategies (`ProviderStrategy`)**:
     - `patient-fallback` (Default/Recommended): Guarantees every track attempts Apple Music syllable sync first, pacing requests and waiting out Akamai rate limit cooldowns before falling back to Kugou, BetterLyrics, and LRCLIB if not in Apple's catalog.
     - `apple-only`: Exclusively queries Apple Music for studio-grade syllable TTML. Patiently waits out rate limit windows and never falls back to community or line-synced providers.

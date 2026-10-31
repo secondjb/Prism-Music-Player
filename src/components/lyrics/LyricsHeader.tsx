@@ -14,6 +14,7 @@ import {
   Maximize2,
   Minimize2,
   PictureInPicture2,
+  Search,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { Track } from '../../types/player';
@@ -34,6 +35,7 @@ export interface LyricsHeaderProps {
   isFullscreen: boolean;
   toggleFullscreen: () => void;
   handleClose: () => void;
+  onOpenSearch?: () => void;
 }
 
 export const LyricsHeader: React.FC<LyricsHeaderProps> = ({
@@ -52,6 +54,7 @@ export const LyricsHeader: React.FC<LyricsHeaderProps> = ({
   isFullscreen,
   toggleFullscreen,
   handleClose,
+  onOpenSearch,
 }) => {
   return (
     <motion.div
@@ -175,6 +178,27 @@ export const LyricsHeader: React.FC<LyricsHeaderProps> = ({
             <Globe className="w-5 h-5" />
           </IconButton>
         </Tooltip>
+
+        {/* Search Online Lyrics Button */}
+        {onOpenSearch && (
+          <Tooltip title="Search Lyrics Online (Apple Music, Kugou, etc.)">
+            <IconButton
+              onClick={onOpenSearch}
+              sx={{
+                p: 1.25,
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: 'rgb(161 161 170)',
+                '&:hover': {
+                  bgcolor: 'rgba(255, 255, 255, 0.1)',
+                  color: 'white',
+                },
+              }}
+            >
+              <Search className="w-5 h-5" />
+            </IconButton>
+          </Tooltip>
+        )}
 
         {/* Settings Toggle */}
         <Tooltip title="Lyrics & Visual Settings">

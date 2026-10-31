@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Save,
   Check,
+  Search,
 } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -74,6 +75,7 @@ export interface LyricsSettingsModalProps {
   isEmbedding: boolean;
   embedSuccess: boolean;
   rawLrc: string;
+  onOpenSearch?: () => void;
 }
 
 export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
@@ -127,6 +129,7 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
   isEmbedding,
   embedSuccess,
   rawLrc,
+  onOpenSearch,
 }) => {
   const [settingsTab, setSettingsTab] = useState<'atmosphere' | 'typography' | 'sync'>('atmosphere');
 
@@ -624,6 +627,31 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
 
               {/* Action Buttons */}
               <Stack spacing={0.6} sx={{ pt: 0.5 }}>
+                {onOpenSearch && (
+                  <Box
+                    component="button"
+                    onClick={onOpenSearch}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 0.75,
+                      py: 0.65,
+                      px: 1.25,
+                      borderRadius: '8px',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      bgcolor: 'rgba(255, 255, 255, 0.08)',
+                      color: 'white',
+                      cursor: 'pointer',
+                      '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.14)' },
+                    }}
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    Search Online Sources...
+                  </Box>
+                )}
                 <Box
                   component="button"
                   onClick={handleManualRefresh}

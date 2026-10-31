@@ -52,6 +52,7 @@ export const LyricsPopoutView: React.FC = () => {
   const setPopoutSettings = usePlayerStore((s) => s.setPopoutLyricsSettings);
   const preferWordSyncedLyrics = usePlayerStore((s) => s.preferWordSyncedLyrics);
   const inferWordSyncedLyrics = usePlayerStore((s) => s.inferWordSyncedLyrics);
+  const preferOnlineLyrics = usePlayerStore((s) => s.preferOnlineLyrics);
 
   const isRomanizationEnabled = usePlayerStore((s) => s.isRomanizationEnabled);
   const romanizationMode = usePlayerStore((s) => s.romanizationMode);
@@ -193,7 +194,7 @@ export const LyricsPopoutView: React.FC = () => {
     let isMounted = true;
     const hasLrcTimestamps = (text: string) => /\[\d{1,2}:\d{2}/.test(text);
 
-    if (currentTrack.unsynced_lyrics && hasLrcTimestamps(currentTrack.unsynced_lyrics)) {
+    if (!preferOnlineLyrics && currentTrack.unsynced_lyrics && hasLrcTimestamps(currentTrack.unsynced_lyrics)) {
       setRawLrc(currentTrack.unsynced_lyrics);
       setIsLoadingLyrics(false);
       return;
@@ -201,6 +202,21 @@ export const LyricsPopoutView: React.FC = () => {
 
     const loadLyrics = async () => {
       setIsLoadingLyrics(true);
+
+      if (preferOnlineLyrics) {
+        const online = await fetchLrclibLyrics(
+          currentTrack.title,
+          currentTrack.artist,
+          currentTrack.album,
+          currentTrack.duration_secs,
+          popoutSettings.karaokeMode === 'word' || preferWordSyncedLyrics
+        );
+        if (isMounted && online) {
+          setRawLrc(online);
+          setIsLoadingLyrics(false);
+          return;
+        }
+      }
       if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
         try {
           const lyrics: string | null = await invoke('get_track_lyrics', { path: currentTrack.path });
@@ -231,7 +247,7 @@ export const LyricsPopoutView: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [currentTrack?.id, currentTrack?.path, popoutSettings.karaokeMode, preferWordSyncedLyrics]);
+  }, [currentTrack?.id, currentTrack?.path, popoutSettings.karaokeMode, preferWordSyncedLyrics, preferOnlineLyrics]);
 
   // Reset scroll and re-align lyrics to the top when skipping or advancing tracks
   useEffect(() => {

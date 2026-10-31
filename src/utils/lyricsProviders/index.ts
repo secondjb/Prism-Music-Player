@@ -4,7 +4,7 @@ import { BetterLyricsProvider } from './betterLyricsProvider';
 import { KugouLyricsProvider } from './kugouProvider';
 import { LrclibLyricsProvider } from './lrclibProvider';
 import { NeteaseLyricsProvider } from './neteaseProvider';
-import { hasLrcTimestamps, isWordSyncedLrc } from './providerUtils';
+import { hasLrcTimestamps, isWordSyncedLrc, cleanTitle, cleanArtist } from './providerUtils';
 import type { DiscoveredLyrics, LyricsProvider, LyricsSearchQuery, ProviderStrategy, SearchLyricsOptions } from './types';
 import { UnisonLyricsProvider } from './unisonProvider';
 
@@ -35,10 +35,19 @@ export const LYRIC_PROVIDERS: readonly LyricsProvider[] = [
   new LrclibLyricsProvider(),
 ];
 
+export interface LyricSearchResultItem {
+  provider: string;
+  lyrics: string;
+  isSynced: boolean;
+  hasWordSync: boolean;
+  hasTranslation: boolean;
+  sampleLine?: string;
+}
+
 /**
- * Searches across lyric APIs in cascade order using the registered modular providers.
+ * Searches across all registered lyric APIs in cascade order using the modular providers.
  * Supports configurable strategy ('patient-fallback', 'apple-only', 'fast-cascade')
- * and iTunes rate limit cooldown waiting.
+ * and automatic cleaned-query fallback if initial lookup returns null.
  */
 export async function searchEnhancedLyrics(
   trackName: string,
@@ -86,54 +95,136 @@ export async function searchEnhancedLyrics(
     waitForRateLimit = false;
   }
 
+  const executeCascade = async (tName: string, aName: string): Promise<DiscoveredLyrics | null> => {
+    const query: LyricsSearchQuery = {
+      trackName: tName,
+      artistName: aName,
+      albumName,
+      durationSecs,
+      signal,
+      waitForRateLimit,
+      onRateLimitWait,
+    };
+
+    const providersToQuery =
+      strategy === 'apple-only'
+        ? LYRIC_PROVIDERS.filter((p) => p.name === 'Apple Music')
+        : LYRIC_PROVIDERS;
+
+    for (const provider of providersToQuery) {
+      if (signal?.aborted) return null;
+
+      // If caller specifically requested word-sync only, skip providers that can never produce it
+      if (requireWordSync && !provider.supportsWordSync) {
+        continue;
+      }
+
+      try {
+        const rawLyrics = await provider.fetch(query);
+        if (!rawLyrics || !rawLyrics.trim()) continue;
+
+        const hasWordSync = isWordSyncedLrc(rawLyrics);
+        const hasTranslation = hasTranslationInLyrics(rawLyrics);
+        const isSynced = hasLrcTimestamps(rawLyrics);
+
+        if (hasWordSync || hasTranslation || isSynced || rawLyrics.trim().length > 0) {
+          if (!requireWordSync || hasWordSync) {
+            return {
+              lyrics: rawLyrics.trim(),
+              hasWordSync,
+              hasTranslation,
+              isSynced,
+              source: provider.name,
+            };
+          }
+        }
+      } catch {
+        // Continue to next provider in cascade
+      }
+    }
+    return null;
+  };
+
+  // 1. Initial attempt with current track title & artist
+  const result = await executeCascade(trackName, artistName);
+  if (result || signal?.aborted) return result;
+
+  // 2. Cleaned query fallback if title or artist had formatting/clutter
+  const cleanedT = cleanTitle(trackName);
+  const cleanedA = cleanArtist(artistName);
+  if (cleanedT !== trackName || cleanedA !== artistName) {
+    if (cleanedT && cleanedT.trim()) {
+      const cleanedResult = await executeCascade(cleanedT, cleanedA);
+      if (cleanedResult || signal?.aborted) return cleanedResult;
+    }
+  }
+
+  // 3. Fallback without artist if title is distinctive (>= 4 chars) and initial attempts failed
+  if (cleanedT && cleanedT.length >= 4 && cleanedA) {
+    const titleOnlyResult = await executeCascade(cleanedT, '');
+    if (titleOnlyResult) return titleOnlyResult;
+  }
+
+  return null;
+}
+
+/**
+ * Queries all available providers in parallel to collect multiple lyric sources for user selection.
+ */
+export async function searchAllLyricSources(
+  trackName: string,
+  artistName: string,
+  albumName?: string,
+  durationSecs?: number,
+  signal?: AbortSignal
+): Promise<LyricSearchResultItem[]> {
+  if (!trackName || !trackName.trim()) return [];
+
   const query: LyricsSearchQuery = {
     trackName,
     artistName,
     albumName,
     durationSecs,
     signal,
-    waitForRateLimit,
-    onRateLimitWait,
+    waitForRateLimit: false,
   };
 
-  const providersToQuery =
-    strategy === 'apple-only'
-      ? LYRIC_PROVIDERS.filter((p) => p.name === 'Apple Music')
-      : LYRIC_PROVIDERS;
-
-  for (const provider of providersToQuery) {
+  const tasks = LYRIC_PROVIDERS.map(async (provider): Promise<LyricSearchResultItem | null> => {
     if (signal?.aborted) return null;
-
-    // If caller specifically requested word-sync only, skip providers that can never produce it
-    if (requireWordSync && !provider.supportsWordSync) {
-      continue;
-    }
-
     try {
-      const rawLyrics = await provider.fetch(query);
-      if (!rawLyrics || !rawLyrics.trim()) continue;
+      const raw = await provider.fetch(query);
+      if (!raw || !raw.trim()) return null;
 
-      const hasWordSync = isWordSyncedLrc(rawLyrics);
-      const hasTranslation = hasTranslationInLyrics(rawLyrics);
-      const isSynced = hasLrcTimestamps(rawLyrics);
+      const hasWordSync = isWordSyncedLrc(raw);
+      const isSynced = hasLrcTimestamps(raw);
+      const hasTranslation = hasTranslationInLyrics(raw);
 
-      if (hasWordSync || hasTranslation || isSynced || rawLyrics.trim().length > 0) {
-        if (!requireWordSync || hasWordSync) {
-          return {
-            lyrics: rawLyrics.trim(),
-            hasWordSync,
-            hasTranslation,
-            isSynced,
-            source: provider.name,
-          };
-        }
-      }
+      // Extract a representative non-empty sample line for UI preview
+      const lines = raw.split(/\r?\n/).map((l) => l.replace(/\[\d{1,2}:\d{2}[^\]]*\]/g, '').replace(/<\d{1,2}:\d{2}[^>]*>/g, '').trim()).filter((l) => l.length > 2 && !/^(作词|作曲|by:|ti:|ar:|al:)/i.test(l));
+      const sampleLine = lines.slice(0, 2).join(' / ') || undefined;
+
+      return {
+        provider: provider.name,
+        lyrics: raw.trim(),
+        isSynced,
+        hasWordSync,
+        hasTranslation,
+        sampleLine,
+      };
     } catch {
-      // Continue to next provider in cascade
+      return null;
+    }
+  });
+
+  const settled = await Promise.allSettled(tasks);
+  const results: LyricSearchResultItem[] = [];
+  for (const item of settled) {
+    if (item.status === 'fulfilled' && item.value) {
+      results.push(item.value);
     }
   }
 
-  return null;
+  return results;
 }
 
 /**
@@ -151,7 +242,10 @@ export async function fetchLrclibLyrics(
     artistName,
     albumName,
     durationSecs,
-    undefined,
+    {
+      strategy: 'fast-cascade',
+      waitForRateLimit: false,
+    },
     preferWordSync && false
   );
   return res?.lyrics || null;

@@ -12,6 +12,7 @@ import { LyricsHeader } from './lyrics/LyricsHeader';
 import { LyricsSettingsModal } from './lyrics/LyricsSettingsModal';
 import { LyricsSplitLayout } from './lyrics/LyricsSplitLayout';
 import { LyricsCenteredLayout } from './lyrics/LyricsCenteredLayout';
+import { LyricsSearchModal } from './lyrics/LyricsSearchModal';
 import { InterludeGap, computeActiveLyricState, getLineEndSecs } from './lyrics/types';
 import { calculateBalancedFontSize } from '../utils/lyricsTypography';
 
@@ -159,6 +160,7 @@ export const LyricsView: React.FC = () => {
   const [isEmbedding, setIsEmbedding] = useState(false);
   const [embedSuccess, setEmbedSuccess] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [isUserScrolled, setIsUserScrolled] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -396,7 +398,8 @@ export const LyricsView: React.FC = () => {
     const loadLyrics = async () => {
       setIsLoading(true);
 
-      if (lrclibAutoFetch && preferOnlineLyrics) {
+      // Prioritize online lyrics if preferOnlineLyrics is true
+      if (preferOnlineLyrics) {
         const fetched = await fetchLrclibLyrics(
           currentTrack.title,
           currentTrack.artist,
@@ -813,6 +816,18 @@ export const LyricsView: React.FC = () => {
     setIsLoading(false);
     if (fetched) {
       setRawLrc(fetched);
+    } else {
+      setShowSearchModal(true);
+    }
+  };
+
+  const handleApplyLyrics = (lyrics: string) => {
+    if (!lyrics || !lyrics.trim() || !currentTrack) return;
+    setRawLrc(lyrics);
+    if (autoEmbedLyrics) {
+      setTimeout(() => {
+        handleEmbedLyrics();
+      }, 500);
     }
   };
 
@@ -980,6 +995,7 @@ export const LyricsView: React.FC = () => {
         isFullscreen={isFullscreen}
         toggleFullscreen={toggleFullscreen}
         handleClose={handleClose}
+        onOpenSearch={() => setShowSearchModal(true)}
       />
 
       {/* Settings Modal */}
@@ -1034,6 +1050,10 @@ export const LyricsView: React.FC = () => {
         isEmbedding={isEmbedding}
         embedSuccess={embedSuccess}
         rawLrc={rawLrc}
+        onOpenSearch={() => {
+          setShowSettings(false);
+          setShowSearchModal(true);
+        }}
       />
 
       {/* Main Content Layout */}
@@ -1084,6 +1104,7 @@ export const LyricsView: React.FC = () => {
           activeLineRef={activeLineRef}
           handleManualRefresh={handleManualRefresh}
           handleClose={handleClose}
+          onOpenSearch={() => setShowSearchModal(true)}
         />
       ) : (
         <LyricsCenteredLayout
@@ -1133,8 +1154,15 @@ export const LyricsView: React.FC = () => {
           handleManualRefresh={handleManualRefresh}
           handleClose={handleClose}
           isCompact={isCompact}
+          onOpenSearch={() => setShowSearchModal(true)}
         />
       )}
+      <LyricsSearchModal
+        isOpen={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        currentTrack={currentTrack}
+        onApplyLyrics={handleApplyLyrics}
+      />
     </div>
   );
 };

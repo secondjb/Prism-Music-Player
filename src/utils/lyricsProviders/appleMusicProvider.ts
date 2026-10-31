@@ -63,8 +63,8 @@ async function acquireItunesSlot(
       releaseSlot();
       return false;
     }
-    if (!waitForRateLimit) {
-      // Fast mode: immediately bypass Apple Music
+    if (!waitForRateLimit || itunesCooldownUntil - Date.now() > 3000) {
+      // Immediately bypass Apple Music if waiting is disabled or cooldown is lengthy
       releaseSlot();
       return false;
     }
@@ -140,8 +140,8 @@ export class AppleMusicLyricsProvider implements LyricsProvider {
         itunesCooldownUntil = Date.now() + 65 * 1000;
         console.warn(`[AppleMusicProvider] 403/429 rate limit hit from Apple. Cooldown active for 65s.`);
 
-        if (waitForRateLimit && !signal?.aborted) {
-          // Patiently wait out cooldown so this track is not dropped or skipped
+        if (waitForRateLimit && !signal?.aborted && itunesCooldownUntil - Date.now() <= 3000) {
+          // Patiently wait out cooldown only if very short
           while (Date.now() < itunesCooldownUntil) {
             if (signal?.aborted) return null;
             const remaining = Math.ceil((itunesCooldownUntil - Date.now()) / 1000);
@@ -162,7 +162,7 @@ export class AppleMusicLyricsProvider implements LyricsProvider {
               },
               signal,
             },
-            4500
+            3500
           );
         } else {
           return null;
@@ -219,7 +219,11 @@ export class AppleMusicLyricsProvider implements LyricsProvider {
         if (rawTtml && rawTtml.trim()) {
           try {
             const parsedJson = JSON.parse(rawTtml);
-            if (parsedJson.ttml) rawTtml = parsedJson.ttml;
+            if (parsedJson.content && typeof parsedJson.content === 'string') {
+              rawTtml = parsedJson.content;
+            } else if (parsedJson.ttml && typeof parsedJson.ttml === 'string') {
+              rawTtml = parsedJson.ttml;
+            }
           } catch {
             // Plain text TTML
           }

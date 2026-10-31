@@ -52,9 +52,14 @@ export class LrclibLyricsProvider implements LyricsProvider {
           3500
         );
 
-        if (response.status === 429 || response.status === 503) {
+        if (response.status === 429) {
           await new Promise((r) => setTimeout(r, 1000));
           continue;
+        }
+
+        if (response.status >= 500) {
+          // Cloudflare 502/503/504 Bad Gateway on LRCLIB; return null fast
+          return null;
         }
 
         if (response.ok) {

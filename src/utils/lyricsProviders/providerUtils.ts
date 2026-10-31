@@ -1,13 +1,15 @@
 import { isTtmlContent } from '../lyricsParser';
 
 /**
- * Strips common clutter from track titles (e.g. "feat. X", "Remastered", "Live")
+ * Strips common clutter from track titles (e.g. "feat. X", "Remastered", "Live", leading track numbers)
  */
 export function cleanTitle(title: string): string {
+  if (!title) return '';
   return title
+    .replace(/^\d+[\s.-]+/, '') // Strip leading track numbers like "01. " or "01 - "
     .replace(/\s*[\(\[](feat|ft|with|prod\.)[^\)\]]*[\)\]]/gi, '')
-    .replace(/\s*[\(\[](remaster(ed)?|deluxe|bonus|anniversary|live|explicit)[^\)\]]*[\)\]]/gi, '')
-    .replace(/\s*-\s*(remaster(ed)?|deluxe|bonus|live).*$/gi, '')
+    .replace(/\s*[\(\[](remaster(ed)?|deluxe|bonus|anniversary|live|explicit|official\s*(video|audio|music\s*video)?|mv|lyrics?|audio)[^\)\]]*[\)\]]/gi, '')
+    .replace(/\s*-\s*(remaster(ed)?|deluxe|bonus|live|official\s*(video|audio)?).*$/gi, '')
     .trim();
 }
 
@@ -15,8 +17,10 @@ export function cleanTitle(title: string): string {
  * Cleans artist name to primary artist for searching
  */
 export function cleanArtist(artist: string): string {
+  if (!artist) return '';
   return artist
     .split(/[,&/]|feat\.|ft\./i)[0]
+    .replace(/\s*-\s*topic$/i, '')
     .trim();
 }
 

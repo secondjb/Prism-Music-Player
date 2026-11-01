@@ -9,6 +9,8 @@ import {
   Info,
   Waves,
   ChevronDown,
+  Search,
+  ChevronRight,
 } from 'lucide-react';
 import Checkbox from '@mui/material/Checkbox';
 import { usePlayerStore } from '../../store/usePlayerStore';
@@ -41,6 +43,7 @@ interface LyricsTypographySectionProps {
   onToggleCollapse: () => void;
   shouldShow: boolean;
   toTitleCase: (str: string) => string;
+  onOpenLyricsFinder?: () => void;
 }
 
 export const LyricsTypographySection: React.FC<LyricsTypographySectionProps> = ({
@@ -48,6 +51,7 @@ export const LyricsTypographySection: React.FC<LyricsTypographySectionProps> = (
   onToggleCollapse,
   shouldShow,
   toTitleCase,
+  onOpenLyricsFinder,
 }) => {
   const lyricsFontFamily = usePlayerStore((s) => s.lyricsFontFamily);
   const setLyricsFontFamily = usePlayerStore((s) => s.setLyricsFontFamily);
@@ -406,6 +410,27 @@ export const LyricsTypographySection: React.FC<LyricsTypographySectionProps> = (
                   p: 0.5,
                 }}
               />
+            </div>
+
+            {/* Quick Link to Word-Synced Lyrics Finder Tool */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+              <div className="flex items-center gap-2.5">
+                <Search className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-white">Online Lyrics Finder Tool</span>
+                  <span className="text-[10px] text-zinc-400">Scan & match lyrics from Apple Music, Kugou, Unison & NetEase</span>
+                </div>
+              </div>
+              {onOpenLyricsFinder && (
+                <button
+                  type="button"
+                  onClick={onOpenLyricsFinder}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-white/10 hover:bg-white/15 border border-white/15 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>Open Finder</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-zinc-400" />
+                </button>
+              )}
             </div>
 
             <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">

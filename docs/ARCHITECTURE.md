@@ -178,7 +178,7 @@ Prism utilizes `@revolist/react-datagrid` (RevoGrid) backed by Stencil web compo
     - **LRCLIB (`lrclibProvider.ts`)**: Millisecond line-synced and plain text fallback with rapid error recovery.
   - Providers are orchestrated by `src/utils/lyricsProviders/index.ts` with backward-compatible facades re-exported through `src/utils/lrclibFetcher.ts`, including `searchAllLyricSources` for multi-provider parallel searches.
   - **Online Lyrics Search & Modal (`LyricsSearchModal.tsx`)**:
-    - Interactive Material 3 search dialog accessible from `LyricsHeader`, `LyricsSettingsModal`, and empty lyric state buttons.
+    - Interactive Material 3 search dialog accessible from `LyricsSettingsModal` (modal header icon & Sync & Lang action card), empty lyric state buttons, and linked from `SettingsView`.
     - Enables manual query refinement (custom song title and artist) with live results from all available providers, provider badges, sync-type chips (Word Synced, Line Synced, Translation), full lyric expander preview, and one-click application to the current track.
   - **Online Priority (`preferOnlineLyrics`)**:
     - Prioritizes online synchronized sources across both `LyricsView` and `LyricsPopoutView` over embedded unsynced tags when enabled.

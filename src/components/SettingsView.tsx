@@ -155,6 +155,26 @@ export const SettingsView: React.FC = () => {
     }, 5000);
   };
 
+  const handleOpenLyricsFinder = () => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      next.delete('lyrics_finder');
+      try {
+        localStorage.setItem(SETTINGS_COLLAPSE_STORAGE_KEY, JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
+    if (selectedCategory !== 'all' && selectedCategory !== 'lyrics') {
+      setSelectedCategory('lyrics');
+    }
+    setTimeout(() => {
+      const el = document.getElementById('section-lyrics_finder');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
+
   return (
     <ThemeProvider theme={prismDarkTheme}>
       <div
@@ -342,14 +362,17 @@ export const SettingsView: React.FC = () => {
           onToggleCollapse={() => toggleSection('lyrics_typo')}
           shouldShow={shouldShowSection('lyrics_typo', 'lyrics typography font animation style romanization translation lrclib sync syllable word wavy seekbar specs')}
           toTitleCase={toTitleCase}
+          onOpenLyricsFinder={handleOpenLyricsFinder}
         />
 
         {/* WORD-SYNCED LYRICS FINDER (Tool block) */}
         {shouldShowSection('lyrics_finder', 'word synced lyrics finder tool search download lrclib lyricsplus') && (
-          <WordSyncedLyricsFinder
-            isCollapsed={collapsedSections.has('lyrics_finder')}
-            onToggleCollapse={() => toggleSection('lyrics_finder')}
-          />
+          <div id="section-lyrics_finder">
+            <WordSyncedLyricsFinder
+              isCollapsed={collapsedSections.has('lyrics_finder')}
+              onToggleCollapse={() => toggleSection('lyrics_finder')}
+            />
+          </div>
         )}
 
         {/* SECTION 5: STATS & ANALYTICS */}

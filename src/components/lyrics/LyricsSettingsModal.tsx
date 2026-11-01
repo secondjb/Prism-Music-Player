@@ -4,6 +4,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import Checkbox from '@mui/material/Checkbox';
+import Tooltip from '@mui/material/Tooltip';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Settings2,
@@ -18,6 +19,7 @@ import {
   Save,
   Check,
   Search,
+  ChevronRight,
 } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -151,9 +153,27 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
               <Settings2 className="w-4 h-4" style={{ color: 'var(--color-stop-1, #6366f1)' }} />
               Lyrics & Visual Settings
             </Typography>
-            <IconButton onClick={onClose} size="small" sx={{ color: 'rgb(161 161 170)', p: 0.5, '&:hover': { color: 'white', bgcolor: 'rgba(255, 255, 255, 0.1)' } }}>
-              <X className="w-4 h-4" />
-            </IconButton>
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+              {onOpenSearch && (
+                <Tooltip title="Search Online Lyrics">
+                  <IconButton
+                    onClick={onOpenSearch}
+                    size="small"
+                    sx={{
+                      color: 'rgb(161 161 170)',
+                      p: 0.5,
+                      borderRadius: '8px',
+                      '&:hover': { color: 'white', bgcolor: 'rgba(255, 255, 255, 0.1)' },
+                    }}
+                  >
+                    <Search className="w-4 h-4" />
+                  </IconButton>
+                </Tooltip>
+              )}
+              <IconButton onClick={onClose} size="small" sx={{ color: 'rgb(161 161 170)', p: 0.5, '&:hover': { color: 'white', bgcolor: 'rgba(255, 255, 255, 0.1)' } }}>
+                <X className="w-4 h-4" />
+              </IconButton>
+            </Stack>
           </Box>
 
           {/* Tab Navigation */}
@@ -634,22 +654,47 @@ export const LyricsSettingsModal: React.FC<LyricsSettingsModalProps> = ({
                     sx={{
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 0.75,
-                      py: 0.65,
+                      justifyContent: 'space-between',
+                      width: '100%',
+                      py: 0.85,
                       px: 1.25,
-                      borderRadius: '8px',
-                      fontSize: '11.5px',
-                      fontWeight: 600,
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      bgcolor: 'rgba(255, 255, 255, 0.08)',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      bgcolor: 'rgba(255, 255, 255, 0.06)',
                       color: 'white',
                       cursor: 'pointer',
-                      '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.14)' },
+                      transition: 'all 0.15s ease',
+                      '&:hover': {
+                        bgcolor: 'rgba(255, 255, 255, 0.12)',
+                        borderColor: 'var(--color-stop-1, #6366f1)',
+                      },
                     }}
                   >
-                    <Search className="w-3.5 h-3.5" />
-                    Search Online Sources...
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                      <Box
+                        sx={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: '7px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
+                          color: 'var(--color-stop-1, #6366f1)',
+                        }}
+                      >
+                        <Search className="w-3.5 h-3.5" />
+                      </Box>
+                      <Box sx={{ textAlign: 'left' }}>
+                        <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, fontSize: '11.5px', color: 'white' }}>
+                          Search Online Lyrics
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'rgb(161 161 170)', fontSize: '10px' }}>
+                          Apple Music, Kugou, BetterLyrics, Unison
+                        </Typography>
+                      </Box>
+                    </Stack>
+                    <ChevronRight className="w-4 h-4 text-zinc-400" />
                   </Box>
                 )}
                 <Box

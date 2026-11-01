@@ -995,7 +995,6 @@ export const LyricsView: React.FC = () => {
         isFullscreen={isFullscreen}
         toggleFullscreen={toggleFullscreen}
         handleClose={handleClose}
-        onOpenSearch={() => setShowSearchModal(true)}
       />
 
       {/* Settings Modal */}

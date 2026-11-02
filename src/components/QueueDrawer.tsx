@@ -92,8 +92,11 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
     setDraggedIdx(idx);
   };
 
-  const handleUserDragOver = (idx: number, pos: 'top' | 'bottom') => {
-    if (draggedType === 'user') setDragOverInfo({ idx, pos });
+  const handleUserDragOver = (idx: number) => {
+    if (draggedType === 'user' && draggedIdx !== null && draggedIdx !== idx) {
+      const computedPos = draggedIdx < idx ? 'bottom' : 'top';
+      setDragOverInfo({ idx, pos: computedPos });
+    }
   };
 
   const handleUserDragEnd = () => {
@@ -102,16 +105,10 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
     setDragOverInfo(null);
   };
 
-  const handleUserDrop = (targetIdx: number, pos: 'top' | 'bottom') => {
-    if (draggedType === 'user' && draggedIdx !== null) {
-      let finalIdx: number;
-      if (draggedIdx < targetIdx) {
-        finalIdx = pos === 'top' ? targetIdx - 1 : targetIdx;
-      } else {
-        finalIdx = pos === 'top' ? targetIdx : targetIdx + 1;
-      }
-      if (finalIdx !== draggedIdx && finalIdx >= 0 && finalIdx < userQueue.length) {
-        reorderUserQueue(draggedIdx, finalIdx);
+  const handleUserDrop = (targetIdx: number) => {
+    if (draggedType === 'user' && draggedIdx !== null && draggedIdx !== targetIdx) {
+      if (targetIdx >= 0 && targetIdx < userQueue.length) {
+        reorderUserQueue(draggedIdx, targetIdx);
       }
     }
     handleUserDragEnd();
@@ -122,8 +119,11 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
     setDraggedIdx(idx);
   };
 
-  const handleCtxDragOver = (idx: number, pos: 'top' | 'bottom') => {
-    if (draggedType === 'context') setDragOverInfo({ idx, pos });
+  const handleCtxDragOver = (idx: number) => {
+    if (draggedType === 'context' && draggedIdx !== null && draggedIdx !== idx) {
+      const computedPos = draggedIdx < idx ? 'bottom' : 'top';
+      setDragOverInfo({ idx, pos: computedPos });
+    }
   };
 
   const handleCtxDragEnd = () => {
@@ -132,16 +132,10 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({ isOpen, onClose }) => 
     setDragOverInfo(null);
   };
 
-  const handleCtxDrop = (targetIdx: number, pos: 'top' | 'bottom') => {
-    if (draggedType === 'context' && draggedIdx !== null) {
-      let finalIdx: number;
-      if (draggedIdx < targetIdx) {
-        finalIdx = pos === 'top' ? targetIdx - 1 : targetIdx;
-      } else {
-        finalIdx = pos === 'top' ? targetIdx : targetIdx + 1;
-      }
-      if (finalIdx !== draggedIdx && finalIdx >= 0 && finalIdx < upcomingContext.length) {
-        reorderContextQueue(draggedIdx, finalIdx);
+  const handleCtxDrop = (targetIdx: number) => {
+    if (draggedType === 'context' && draggedIdx !== null && draggedIdx !== targetIdx) {
+      if (targetIdx >= 0 && targetIdx < upcomingContext.length) {
+        reorderContextQueue(draggedIdx, targetIdx);
       }
     }
     handleCtxDragEnd();

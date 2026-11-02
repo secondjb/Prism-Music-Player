@@ -17,7 +17,7 @@ export interface QueueItemRowProps {
   onDragStart?: (idx: number) => void;
   onDragOverRow?: (idx: number, pos: 'top' | 'bottom') => void;
   onDragEnd?: () => void;
-  onDrop?: (targetIdx: number, pos: 'top' | 'bottom') => void;
+  onDrop?: (targetIdx: number) => void;
   isDragging?: boolean;
   dropIndicator?: 'top' | 'bottom' | null;
 }
@@ -81,9 +81,7 @@ export const QueueItemRow: React.FC<QueueItemRowProps> = ({
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pos = e.clientY > rect.top + rect.height / 2 ? 'bottom' : 'top';
-    if (onDrop) onDrop(idx, pos);
+    if (onDrop) onDrop(idx);
   };
 
   return (

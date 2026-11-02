@@ -127,31 +127,49 @@ export const LyricsSearchModal: React.FC<LyricsSearchModalProps> = ({
           alignItems: 'center',
           justifyContent: 'space-between',
           px: 3,
-          pt: 2.5,
-          pb: 1.5,
+          py: 2,
           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          m: 0,
         }}
       >
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+        <Stack direction="row" spacing={1.75} sx={{ alignItems: 'center' }}>
           <Box
             sx={{
-              width: 36,
-              height: 36,
-              borderRadius: '10px',
+              width: 40,
+              height: 40,
+              borderRadius: '12px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               bgcolor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 20%, transparent)',
               color: 'var(--color-stop-1, #6366f1)',
+              flexShrink: 0,
             }}
           >
-            <Search className="w-5 h-5" />
+            <Search size={20} />
           </Box>
-          <Box>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: '1rem', lineHeight: 1.2 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <Typography
+              component="h2"
+              sx={{
+                fontWeight: 700,
+                fontSize: '1.05rem',
+                lineHeight: 1.25,
+                color: 'text.primary',
+                letterSpacing: '-0.01em',
+              }}
+            >
               Search Online Lyrics
             </Typography>
-            <Typography variant="caption" sx={{ color: 'rgb(161 161 170)', fontSize: '0.75rem' }}>
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'text.secondary',
+                fontSize: '0.75rem',
+                lineHeight: 1.3,
+                mt: 0.35,
+              }}
+            >
               Queries Apple Music, Kugou, BetterLyrics, Unison & NetEase
             </Typography>
           </Box>
@@ -159,19 +177,28 @@ export const LyricsSearchModal: React.FC<LyricsSearchModalProps> = ({
         <IconButton
           onClick={onClose}
           size="small"
+          aria-label="close"
           sx={{
-            color: 'rgb(161 161 170)',
-            '&:hover': { color: 'white', bgcolor: 'rgba(255, 255, 255, 0.1)' },
+            color: 'text.secondary',
+            '&:hover': { color: 'text.primary', bgcolor: 'rgba(255, 255, 255, 0.08)' },
           }}
         >
-          <X className="w-5 h-5" />
+          <X size={18} />
         </IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ px: 3, py: 2.5 }}>
+      <DialogContent
+        sx={{
+          px: 3,
+          '&.MuiDialogContent-root': {
+            pt: 2.75,
+            pb: 3,
+          },
+        }}
+      >
         {/* Search Input Form */}
-        <Box component="form" onSubmit={handleSubmit} sx={{ mb: 2.5 }}>
-          <Stack spacing={1.5}>
+        <Box component="form" onSubmit={handleSubmit} sx={{ mb: 2.5, mt: 0.5 }}>
+          <Stack spacing={1.75}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
               <TextField
                 fullWidth
@@ -190,7 +217,7 @@ export const LyricsSearchModal: React.FC<LyricsSearchModalProps> = ({
                     '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.3)' },
                     '&.Mui-focused fieldset': { borderColor: 'var(--color-stop-1, #6366f1)' },
                   },
-                  '& .MuiInputLabel-root': { color: 'rgb(161 161 170)', fontSize: '0.85rem' },
+                  '& .MuiInputLabel-root': { color: 'text.secondary', fontSize: '0.85rem' },
                   '& .MuiInputLabel-root.Mui-focused': { color: 'var(--color-stop-1, #6366f1)' },
                 }}
               />
@@ -210,7 +237,7 @@ export const LyricsSearchModal: React.FC<LyricsSearchModalProps> = ({
                     '&:hover fieldset': { borderColor: 'rgba(255, 255, 255, 0.3)' },
                     '&.Mui-focused fieldset': { borderColor: 'var(--color-stop-1, #6366f1)' },
                   },
-                  '& .MuiInputLabel-root': { color: 'rgb(161 161 170)', fontSize: '0.85rem' },
+                  '& .MuiInputLabel-root': { color: 'text.secondary', fontSize: '0.85rem' },
                   '& .MuiInputLabel-root.Mui-focused': { color: 'var(--color-stop-1, #6366f1)' },
                 }}
               />
@@ -224,11 +251,11 @@ export const LyricsSearchModal: React.FC<LyricsSearchModalProps> = ({
                 isSearching ? (
                   <CircularProgress size={16} sx={{ color: 'inherit' }} />
                 ) : (
-                  <Search className="w-4 h-4" />
+                  <Search size={16} />
                 )
               }
               sx={{
-                py: 1,
+                py: 1.1,
                 borderRadius: '12px',
                 fontWeight: 600,
                 textTransform: 'none',
@@ -236,7 +263,7 @@ export const LyricsSearchModal: React.FC<LyricsSearchModalProps> = ({
                 bgcolor: 'var(--color-stop-1, #6366f1)',
                 color: 'var(--color-stop-1-text, #ffffff)',
                 '&:hover': { filter: 'brightness(1.1)', bgcolor: 'var(--color-stop-1, #6366f1)' },
-                '&:disabled': { opacity: 0.5, bgcolor: 'rgba(255, 255, 255, 0.1)', color: 'rgb(161 161 170)' },
+                '&:disabled': { opacity: 0.5, bgcolor: 'rgba(255, 255, 255, 0.1)', color: 'text.disabled' },
               }}
             >
               {isSearching ? 'Searching Providers...' : 'Search Sources'}
@@ -245,7 +272,19 @@ export const LyricsSearchModal: React.FC<LyricsSearchModalProps> = ({
         </Box>
 
         {/* Results Area */}
-        <Box sx={{ minHeight: 220, maxHeight: 380, overflowY: 'auto', pr: 0.5 }}>
+        <Box
+          sx={{
+            minHeight: 220,
+            maxHeight: 380,
+            overflowY: 'auto',
+            pr: 0.5,
+            '&::-webkit-scrollbar': { width: 6 },
+            '&::-webkit-scrollbar-thumb': {
+              bgcolor: 'rgba(255, 255, 255, 0.15)',
+              borderRadius: 3,
+            },
+          }}
+        >
           {isSearching && results.length === 0 ? (
             <Box
               sx={{
@@ -255,17 +294,27 @@ export const LyricsSearchModal: React.FC<LyricsSearchModalProps> = ({
                 justifyContent: 'center',
                 py: 6,
                 gap: 1.5,
-                color: 'rgb(161 161 170)',
+                color: 'text.secondary',
               }}
             >
               <CircularProgress size={32} sx={{ color: 'var(--color-stop-1, #6366f1)' }} />
-              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+              <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
                 Querying Apple Music, Kugou, BetterLyrics, Unison & NetEase...
               </Typography>
             </Box>
           ) : results.length > 0 ? (
             <Stack spacing={1.5}>
-              <Typography variant="caption" sx={{ color: 'rgb(161 161 170)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'text.secondary',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  display: 'block',
+                  px: 0.5,
+                }}
+              >
                 Found {results.length} Lyric Source{results.length === 1 ? '' : 's'}
               </Typography>
               {results.map((item, idx) => {
@@ -291,33 +340,33 @@ export const LyricsSearchModal: React.FC<LyricsSearchModalProps> = ({
                     }}
                   >
                     <Stack direction="row" sx={{ alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
-                      <Box sx={{ minWidth: 0 }}>
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
                         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 0.75, mb: 0.75 }}>
                           <Chip
                             label={item.provider}
                             size="small"
                             sx={{
-                              height: 22,
+                              height: 24,
                               fontSize: '0.725rem',
                               fontWeight: 700,
                               bgcolor: 'color-mix(in srgb, var(--color-stop-1, #6366f1) 25%, transparent)',
-                              color: 'white',
+                              color: 'text.primary',
                               border: '1px solid color-mix(in srgb, var(--color-stop-1, #6366f1) 40%, transparent)',
                             }}
                           />
                           {item.hasWordSync && (
                             <Chip
-                              icon={<Sparkles className="w-3 h-3" />}
+                              icon={<Sparkles size={12} />}
                               label="Word Synced"
                               size="small"
                               sx={{
-                                height: 22,
+                                height: 24,
                                 fontSize: '0.7rem',
                                 fontWeight: 600,
                                 bgcolor: 'rgba(16, 185, 129, 0.15)',
                                 color: '#34d399',
                                 border: '1px solid rgba(16, 185, 129, 0.3)',
-                                '& .MuiChip-icon': { color: '#34d399', ml: 0.5 },
+                                '& .MuiChip-icon': { color: '#34d399', ml: 0.75 },
                               }}
                             />
                           )}
@@ -326,7 +375,7 @@ export const LyricsSearchModal: React.FC<LyricsSearchModalProps> = ({
                               label="Line Synced"
                               size="small"
                               sx={{
-                                height: 22,
+                                height: 24,
                                 fontSize: '0.7rem',
                                 fontWeight: 600,
                                 bgcolor: 'rgba(59, 130, 246, 0.15)',
@@ -337,17 +386,17 @@ export const LyricsSearchModal: React.FC<LyricsSearchModalProps> = ({
                           )}
                           {item.hasTranslation && (
                             <Chip
-                              icon={<Globe className="w-3 h-3" />}
+                              icon={<Globe size={12} />}
                               label="Translation"
                               size="small"
                               sx={{
-                                height: 22,
+                                height: 24,
                                 fontSize: '0.7rem',
                                 fontWeight: 600,
                                 bgcolor: 'rgba(168, 85, 247, 0.15)',
                                 color: '#c084fc',
                                 border: '1px solid rgba(168, 85, 247, 0.3)',
-                                '& .MuiChip-icon': { color: '#c084fc', ml: 0.5 },
+                                '& .MuiChip-icon': { color: '#c084fc', ml: 0.75 },
                               }}
                             />
                           )}
@@ -357,7 +406,7 @@ export const LyricsSearchModal: React.FC<LyricsSearchModalProps> = ({
                           <Typography
                             variant="body2"
                             sx={{
-                              color: 'rgb(212 212 216)',
+                              color: 'rgba(255, 255, 255, 0.85)',
                               fontSize: '0.8rem',
                               fontStyle: 'italic',
                               lineHeight: 1.4,
@@ -372,33 +421,30 @@ export const LyricsSearchModal: React.FC<LyricsSearchModalProps> = ({
                         )}
                       </Box>
 
-                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', shrink: 0 }}>
-                        <Button
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexShrink: 0 }}>
+                        <IconButton
                           size="small"
                           onClick={() => setExpandedIndex(isExpanded ? null : idx)}
                           sx={{
-                            minWidth: 0,
-                            p: 0.75,
-                            borderRadius: '8px',
-                            color: 'rgb(161 161 170)',
-                            '&:hover': { color: 'white', bgcolor: 'rgba(255, 255, 255, 0.08)' },
+                            color: 'text.secondary',
+                            '&:hover': { color: 'text.primary', bgcolor: 'rgba(255, 255, 255, 0.08)' },
                           }}
                         >
-                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </Button>
+                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </IconButton>
 
                         <Button
                           size="small"
                           variant="contained"
                           onClick={() => handleApply(item, idx)}
-                          startIcon={isApplied ? <Check className="w-3.5 h-3.5" /> : undefined}
+                          startIcon={isApplied ? <Check size={14} /> : undefined}
                           sx={{
                             borderRadius: '10px',
                             textTransform: 'none',
                             fontWeight: 600,
-                            fontSize: '0.775rem',
-                            py: 0.5,
-                            px: 1.5,
+                            fontSize: '0.8rem',
+                            py: 0.6,
+                            px: 1.75,
                             bgcolor: isApplied ? '#10b981' : 'var(--color-stop-1, #6366f1)',
                             color: 'white',
                             '&:hover': {
@@ -430,7 +476,7 @@ export const LyricsSearchModal: React.FC<LyricsSearchModalProps> = ({
                               overflowY: 'auto',
                               fontFamily: 'monospace',
                               fontSize: '0.75rem',
-                              color: 'rgb(212 212 216)',
+                              color: 'text.secondary',
                               lineHeight: 1.6,
                               whiteSpace: 'pre-wrap',
                               bgcolor: 'rgba(0, 0, 0, 0.25)',
@@ -457,15 +503,15 @@ export const LyricsSearchModal: React.FC<LyricsSearchModalProps> = ({
                 justifyContent: 'center',
                 py: 6,
                 textAlign: 'center',
-                color: 'rgb(161 161 170)',
-                gap: 1.25,
+                color: 'text.secondary',
+                gap: 1.5,
               }}
             >
-              <Music2 className="w-10 h-10 text-zinc-600" />
-              <Typography variant="body2" sx={{ fontWeight: 600, color: 'white' }}>
+              <Music2 size={40} style={{ opacity: 0.25 }} />
+              <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
                 No lyrics matched this query
               </Typography>
-              <Typography variant="caption" sx={{ maxWidth: 360, lineHeight: 1.5 }}>
+              <Typography variant="caption" sx={{ maxWidth: 360, lineHeight: 1.5, color: 'text.secondary' }}>
                 Try simplifying the song title (e.g. remove "feat.", remaster tags, or punctuation) or search with title only.
               </Typography>
             </Box>

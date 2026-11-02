@@ -1916,7 +1916,7 @@ export const usePlayerStore = create<PlayerState>()(
           const newUserQueue = [...state.userQueue];
           const [moved] = newUserQueue.splice(fromIndex, 1);
           newUserQueue.splice(toIndex, 0, moved);
-          return { userQueue: newUserQueue };
+          return { userQueue: newUserQueue, lastActionTimestampMs: Date.now() };
         });
       },
 

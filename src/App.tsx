@@ -91,8 +91,12 @@ export const App: React.FC = () => {
 
   // Dynamically extract and update theme gradient colors from album art globally across all views
   useEffect(() => {
-    updateLogoGradientFromImage(trackArt || ambientArt);
-  }, [trackArt, ambientArt]);
+    if (trackArt || ambientArt) {
+      updateLogoGradientFromImage(trackArt || ambientArt);
+    } else if (!currentTrack) {
+      updateLogoGradientFromImage(null);
+    }
+  }, [trackArt, ambientArt, currentTrack]);
 
   // Centralized hardware, MediaSession, and playback lifecycle hook
   useAudioPlayback({ trackArt: trackArt || ambientArt });

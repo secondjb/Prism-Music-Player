@@ -99,20 +99,49 @@ export function getContrastTextColor(color: string): string {
   return yiq >= 145 ? '#09090b' : '#ffffff';
 }
 
-function applyColorStops(stops: string[]): void {
+const STORAGE_KEY = 'prism-last-color-stops';
+
+function applyColorStops(stops: string[], saveToStorage = true): void {
   stops.forEach((color, idx) => {
     const contrastText = getContrastTextColor(color);
     document.documentElement.style.setProperty(`--color-stop-${idx + 1}`, color);
     document.documentElement.style.setProperty(`--color-stop-${idx + 1}-text`, contrastText);
   });
+  if (saveToStorage && typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stops));
+    } catch {}
+  }
 }
+
+export function initSavedColorStops(): void {
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length >= 6) {
+          applyColorStops(parsed, false);
+          return;
+        }
+      }
+    } catch {}
+  }
+  applyColorStops(DEFAULT_COLOR_STOPS, false);
+}
+
+// Immediately apply saved color stops upon module evaluation to prevent default blue flash
+initSavedColorStops();
 
 let currentExtractRequestId = 0;
 
 export function updateLogoGradientFromImage(imageSrc?: string | null): void {
   const requestId = ++currentExtractRequestId;
   if (!imageSrc) {
-    applyColorStops(DEFAULT_COLOR_STOPS);
+    if (typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY)) {
+      return;
+    }
+    applyColorStops(DEFAULT_COLOR_STOPS, false);
     return;
   }
 
@@ -213,7 +242,10 @@ export function updateLogoGradientFromImage(imageSrc?: string | null): void {
   };
   img.onerror = () => {
     if (requestId !== currentExtractRequestId) return;
-    applyColorStops(DEFAULT_COLOR_STOPS);
+    if (typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY)) {
+      return;
+    }
+    applyColorStops(DEFAULT_COLOR_STOPS, false);
   };
   img.src = imageSrc;
 }

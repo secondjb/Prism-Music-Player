@@ -147,6 +147,41 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
     requestTickRef.current?.();
   }, [isPlaying, isDragging, active]);
 
+  const currentTrackId = usePlayerStore((s) => s.currentTrack?.id);
+
+  // Re-draw immediately when current track changes
+  useEffect(() => {
+    requestTickRef.current?.();
+  }, [currentTrackId]);
+
+  // Re-draw immediately when theme colors update or style changes on documentElement
+  useEffect(() => {
+    const onThemeChange = () => {
+      requestTickRef.current?.();
+    };
+
+    window.addEventListener('prism-theme-colors-updated', onThemeChange);
+
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === 'attributes' && m.attributeName === 'style') {
+          onThemeChange();
+          break;
+        }
+      }
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style'],
+    });
+
+    return () => {
+      window.removeEventListener('prism-theme-colors-updated', onThemeChange);
+      observer.disconnect();
+    };
+  }, []);
+
   const thumbRadius = size === 'sm' ? 5.0 : size === 'lg' ? 7.0 : 6.0;
   const paddingX = thumbRadius + 4;
 
@@ -351,17 +386,19 @@ export const WavyAudioSlider: React.FC<WavyAudioSliderProps> = ({
       const thumbX = currentPaddingX + percent * activeTrackWidth;
 
       // Dynamic theme colors
-      let rawColor1 = '#6366f1';
-      let rawColor2 = '#818cf8';
-      try {
-        const rootStyle = getComputedStyle(document.documentElement);
-        const c1 = rootStyle.getPropertyValue('--color-stop-1').trim();
-        const c2 = rootStyle.getPropertyValue('--color-stop-2').trim();
-        if (c1 && !c1.startsWith('var(')) rawColor1 = c1;
-        if (c2 && !c2.startsWith('var(')) rawColor2 = c2;
-      } catch {
-        // fallback
+      let rawColor1 = document.documentElement.style.getPropertyValue('--color-stop-1')?.trim();
+      let rawColor2 = document.documentElement.style.getPropertyValue('--color-stop-2')?.trim();
+      if (!rawColor1 || !rawColor2) {
+        try {
+          const rootStyle = getComputedStyle(document.documentElement);
+          rawColor1 = rawColor1 || rootStyle.getPropertyValue('--color-stop-1').trim();
+          rawColor2 = rawColor2 || rootStyle.getPropertyValue('--color-stop-2').trim();
+        } catch {
+          // fallback
+        }
       }
+      if (!rawColor1 || rawColor1.startsWith('var(')) rawColor1 = '#6366f1';
+      if (!rawColor2 || rawColor2.startsWith('var(')) rawColor2 = '#818cf8';
 
       const primaryRgb = parseRgb(rawColor1, [99, 102, 241]);
       const secondaryRgb = parseRgb(rawColor2, [129, 140, 248]);

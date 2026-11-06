@@ -112,6 +112,9 @@ function applyColorStops(stops: string[], saveToStorage = true): void {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stops));
     } catch {}
   }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('prism-theme-colors-updated', { detail: { stops } }));
+  }
 }
 
 export function initSavedColorStops(): void {

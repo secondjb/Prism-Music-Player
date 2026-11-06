@@ -303,7 +303,7 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                   cursor: 'pointer',
-                  '&:hover': { textDecoration: 'underline', color: 'rgb(129 140 248)' },
+                  '&:hover': { textDecoration: 'underline', color: 'var(--color-stop-1, #6366f1)' },
                 }}
               >
                 {currentTrack.artist}
@@ -325,7 +325,7 @@ export const LyricsSplitLayout: React.FC<LyricsSplitLayoutProps> = ({
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
                     cursor: 'pointer',
-                    '&:hover': { textDecoration: 'underline', color: 'rgb(129 140 248)' },
+                    '&:hover': { textDecoration: 'underline', color: 'var(--color-stop-1, #6366f1)' },
                   }}
                 >
                   {currentTrack.album} {currentTrack.year ? `• ${currentTrack.year}` : ''}

@@ -68,8 +68,8 @@ export const PlayerActions: React.FC = () => {
               p: 1,
               borderRadius: '12px',
               color: sleepTimer.active ? 'var(--color-stop-1, #6366f1)' : '#a1a1aa',
-              bgcolor: sleepTimer.active ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-              border: sleepTimer.active ? '1px solid rgba(255, 255, 255, 0.2)' : 'none',
+              bgcolor: 'transparent',
+              border: 'none',
               '&:hover': {
                 color: '#ffffff',
                 bgcolor: 'rgba(255, 255, 255, 0.08)',

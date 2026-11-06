@@ -357,7 +357,7 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
               }`}
             />
             <span
-              className={`font-medium text-zinc-300 truncate mt-0.5 transition-all cursor-pointer hover:underline hover:text-indigo-400 ${
+              className={`font-medium text-zinc-300 truncate mt-0.5 transition-all cursor-pointer hover:underline hover:text-[var(--color-stop-1,#a5b4fc)] ${
                 artExpanded ? 'text-sm md:text-lg' : 'text-xs md:text-sm'
               }`}
               onClick={(e) => {
@@ -372,7 +372,7 @@ export const LyricsCenteredLayout: React.FC<LyricsCenteredLayoutProps> = ({
             </span>
             {currentTrack.album && (
               <span
-                className={`text-zinc-400 truncate mt-0.5 transition-all cursor-pointer hover:underline hover:text-indigo-400 ${
+                className={`text-zinc-400 truncate mt-0.5 transition-all cursor-pointer hover:underline hover:text-[var(--color-stop-1,#a5b4fc)] ${
                   artExpanded ? 'text-xs md:text-sm' : 'text-[11px]'
                 }`}
                 onClick={(e) => {

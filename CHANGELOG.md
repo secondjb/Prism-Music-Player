@@ -10,18 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0] - 2026-11-11
 
 ### Added
-- Peer-to-peer LAN synchronization server (Tokio WebSocket + mDNS discovery) with dual-port listening (`9876` / `8765`), QR code and `host:port:token` pairing, and 1-click ADB reverse USB forwarding.
-- Hardened pairing security with 32-character cryptographic tokens, constant-time validation, per-IP rate limiting, and SHA-256 CTR pre-shared key stream encryption, plus laptop-to-laptop remote control client.
-- Bidirectional sync with Prism Android for playback state, two-tier queue commands (`PLAY_TRACK`, `PLAY_NEXT`, `ADD_TO_QUEUE`, `REORDER`, `REMOVE_FROM_QUEUE`, `CLEAR_QUEUE`, `RESHUFFLE_UPCOMING`), playlists with custom covers, manifest diffing/file chunk transfer, dual/multi-room output routing, sleep timer state, and full SQLite listening history.
-- Always-on-top pop-out lyrics mini player window (`LyricsPopoutView`) with split layout, seekbar, transport controls, animation style selector, interlude indicators, and 4 background themes (`Frosted Glass`, `Solid Dark`, `Album Art Color`, `Transparent`).
-- Modular lyrics provider strategy pipeline adding Apple Music, BetterLyrics, and Kugou word-synced sources, rate-limit retry queues, provider strategy selector (`patient-fallback`, `apple-only`, `fast-cascade`), and interactive `LyricsSearchModal`.
-- Material 3 (`@mui/material`) theme system (`prismTheme.ts`) across sidebar, header, player bar, queue drawer, album/artist/playlist views, settings, and stats, with stats.fm-style time range filters (`Today`, `7 Days`, `4 Weeks`, `All Time`) and top albums leaderboard.
-- Per-device output volume persistence, playlist cover editing, playback position resumption on restart, and ReplayGain scanning/filtering for untagged or `0.00 dB` tracks.
+- Peer-to-peer LAN synchronization server (Tokio WebSocket and mDNS) with dual-port listening (`9876`, `8765`), QR code and `host:port:token` pairing, and 1-click ADB reverse USB forwarding.
+- 32-character pairing token authentication with constant-time validation, per-IP rate limiting, and SHA-256 CTR stream encryption, plus laptop-to-laptop remote control.
+- Bidirectional sync with Prism Android for playback state, queue commands (`PLAY_TRACK`, `PLAY_NEXT`, `ADD_TO_QUEUE`, `REORDER`, `REMOVE_FROM_QUEUE`, `CLEAR_QUEUE`, `RESHUFFLE_UPCOMING`), playlists with custom covers, manifest diff and file chunk transfer, dual/multi-room output routing, sleep timer state, and SQLite listening history.
+- Always-on-top pop-out lyrics mini player window (`Frosted Glass`, `Solid Dark`, `Album Art Color`, and `Transparent` themes) with album art, seekbar, transport controls, animation style selector, and interlude indicators.
+- Lyrics provider strategy pipeline adding Apple Music, BetterLyrics, and Kugou word-synced sources, rate-limit retry queues, provider strategy selection, and interactive `LyricsSearchModal`.
+- Material 3 theme architecture across player bar, sidebar, header, queue drawer, album/artist/playlist views, settings, and stats (`Today`, `7 Days`, `4 Weeks`, `All Time` ranges and top albums leaderboard).
+- Per-device output volume persistence, custom playlist cover editing, playback position resumption on restart, and ReplayGain scanning/filtering for untagged or `0.00 dB` tracks.
 
 ### Fixed
-- Persisted album-art theme color stops across restarts and synchronized `WavyAudioSlider` canvas theming on startup and pause to eliminate default blue flashes.
-- Implemented headless React sorting in RevoGrid (`TrackTableView`), accurate queue drop-index calculation, and safe queue index adjustment on track removal.
-- Eliminated false CPAL audio stream stall recreations, reopened tracks on pause/resume, isolated Tauri playback events to the main window, and prevented sleep timer echo/desync loops.
+- Persisted album-art color stops across restarts and synchronized wavy seekbar theming on startup and pause.
+- Replaced RevoGrid internal sorting with headless React sorting, fixed queue drop-index calculation, and adjusted current index safely on track removal.
+- Eliminated false CPAL audio stream stall recreations, track reopening on pause/resume, and duplicate event handling across main and pop-out windows.
+- Fixed album artwork rounded corners, transport button hover clipping, and long title/artist ellipsis truncation.
 
 ---
 

@@ -10,7 +10,7 @@
 
 **A fast, local music player and audio workstation built with Tauri v2, Rust, and React 19.**
 
-*Bit-Perfect Direct Hardware Output • Gapless Playback • EBU R128 ReplayGain • Syllable Lyrics & Discovery Cascade • Song Linking • Virtualized Performance Engine*
+*Bit-Perfect Direct Hardware Output • Gapless Playback • EBU R128 ReplayGain • Pop-Out & Multi-Provider Syllable Lyrics • P2P Companion Sync • Virtualized Performance Engine*
 
 </div>
 
@@ -52,9 +52,11 @@
 3. **Song Linking & Linked Suites:** Connect multi-part tracks, concept albums, and continuous movements so they always play together in sequence with drag-and-drop reordering.
 4. **5-Tier Lyrics Discovery & Immersive View:** Automatic lyrics discovery waterfall (Unison, NetEase, LRCLIB, SyncLRC), full-height split immersive lyrics view, customizable animated backgrounds, syllable-level karaoke sync, and in-track lyrics search.
 5. **Multi-Track Selection & Batch Actions:** Shift/Ctrl multi-selection, bulk queueing, and multi-song drag-and-drop directly into playlists.
-6. **Waveform DSP Analysis:** Analyzes raw audio across CPU cores using `stratum-dsp`, `rustfft`, and `rubato` resampling to estimate musical keys and tempo (BPM).
-7. **Virtualized Performance Grid:** Custom data grid (`@revolist/react-datagrid`) with native Stencil metadata cell renderers that handles 50,000+ tracks smoothly with near-zero latency.
-8. **Dynamic Theming & Windows Taskbar Controls:** Dynamically adapts search inputs, borders, and accents to album art colors, with Windows Taskbar thumbnail playback controls.
+6. **Pop-Out Lyrics Mini Player:** Always-on-top, frameless floating lyrics overlay (`Transparent`, `Frosted Glass`, `Solid Dark`, and `Album Art Color` themes) synchronized at 60 FPS via atomic Rust IPC.
+7. **P2P Companion Sync & Multi-Device Handoff:** Pair with [Prism Android](https://github.com/secondjb/Prism-Android-Music-Player) or another desktop over LAN (mDNS, QR code, pairing string) or 1-click USB ADB reverse tunneling with 32-character PSK stream encryption, dual/multi-room output routing, queue/playlist/cover sync, and listening stats sync.
+8. **Waveform DSP Analysis:** Analyzes raw audio across CPU cores using `stratum-dsp`, `rustfft`, and `rubato` resampling to estimate musical keys and tempo (BPM).
+9. **Virtualized Performance Grid:** Custom data grid (`@revolist/react-datagrid`) with headless React sorting and native Stencil metadata cell renderers that handles 50,000+ tracks smoothly with near-zero latency.
+10. **Persistent Dynamic Theming & Windows Taskbar Controls:** Dynamically adapts search inputs, borders, and accents to album art colors (persisted across restarts), with Material 3 controls and Windows Taskbar thumbnail playback controls.
 
 ---
 
@@ -237,15 +239,17 @@ Located in `src-tauri/src/stats.rs`:
 | **EBU R128 ReplayGain Scanner** | Built-in ITU-R BS.1770 / EBU R128 loudness scanner, track & album gain calculation, real-time live adjustment, and database persistence. |
 | **Song Linking & Suites** | Link multi-part tracks and concept album movements into continuous sequences with drag handles and suite headers. |
 | **Multi-Song Selection & Batch** | Multi-select tracks via Shift+Click / Ctrl+Click, perform batch queue actions, and drag multiple tracks directly into playlists. |
-| **5-Tier Lyrics Cascade** | Automated discovery waterfall across Unison, NetEase, LRCLIB, and SyncLRC with fallback sanitization and service status monitor. |
+| **5-Tier Lyrics Cascade** | Automated discovery waterfall across Apple Music, BetterLyrics, Kugou, Unison, NetEase, LRCLIB, and SyncLRC with rate-limit retry queues, interactive search modal, and service status monitor. |
+| **Pop-Out Lyrics Mini Player** | Always-on-top floating overlay window with split album art, seekbar, transport controls, interlude indicators, and 4 customizable background themes. |
 | **Immersive Split Lyrics View** | Side-by-side full-height view with fluid album art, hover controls, centered lyrics column, and customizable background styles. |
 | **Word & Syllable Karaoke** | Word- and syllable-level lyric highlighting with 8 animation styles, dynamic font scaling, and line-based auto-scrolling. |
-| **Lyrics Search & Direct Embedding**| Full-library search by lyric snippets; write synced lyrics directly to audio file tags (`SYNCEDLYRICS`). |
+| **Lyrics Search & Direct Embedding**| Full-library search by lyric snippets plus interactive online search modal; write synced lyrics directly to audio file tags (`SYNCEDLYRICS`). |
 | **Instrumental Interludes** | Displays animated music notes during instrumental breaks, followed by a 3-2-1 countdown ball animation before vocals resume. |
 | **Translations & Romanization** | Dual-line translations, tag cleaning, and phonetic romanization for Japanese (Romaji), Korean (Hangul), and Chinese (Pinyin). |
-| **High-Scale Virtualized Table** | Custom data grid powered by `@revolist/react-datagrid` with native Stencil cells, 6 density presets, draggable reordering, and fluid resizing. |
-| **Adaptive UI Theming** | WCAG-aware dynamic text contrast calculation; search inputs, borders, and accents react dynamically to current album colors. |
-| **System & Taskbar Integration** | Windows System Media Transport Controls (SMTC), thumbnail preview toolbar controls, and hardware media keys. |
+| **P2P Companion & Laptop Sync** | WebSocket server + mDNS discovery, QR/string pairing, 1-click ADB USB reverse bypass, 32-char PSK stream cipher, dual-output routing, playlist/cover/queue sync, and SQLite stats sync. |
+| **High-Scale Virtualized Table** | Custom data grid powered by `@revolist/react-datagrid` with headless React sorting, native Stencil cells, 6 density presets, draggable reordering, and fluid resizing. |
+| **Persistent Adaptive UI Theming** | Material 3 (`@mui/material`) components with WCAG-aware dynamic text contrast and persisted album-art color stops across restarts. |
+| **System & Taskbar Integration** | Windows System Media Transport Controls (SMTC), thumbnail preview toolbar controls, per-device volume persistence, and hardware media keys. |
 | **Output Device Inspector** | Modal showing connected device format, channels, supported sample rates, and cached device switching. |
 | **Dedicated Album & Artist Views** | Dedicated discography and album detail pages with formatted album durations and universal click routing. |
 | **Dynamic Wavy Seekbar** | Optional animated sine-wave canvas seekbar (`WavyAudioSlider`) with hover timestamp preview. |
@@ -323,16 +327,18 @@ Prism Music Player/
 │   │   ├── AudioSlider.tsx            # Custom scrubbing & volume sliders
 │   │   ├── BottomBar.tsx              # Persistent player control bar
 │   │   ├── ColumnConfigModal.tsx      # Table column visibility & ordering
+│   │   ├── CompanionPairingModal.tsx  # QR/string P2P pairing, routing & laptop remote UI
 │   │   ├── CreatePlaylistModal.tsx    # Themed custom playlist creation modal
 │   │   ├── FilterView.tsx             # Multi-parameter faceted filter view
 │   │   ├── Header.tsx                 # Top navigation header with search & status
 │   │   ├── InterludeIndicator.tsx     # 2-phase dancing notes & 3-2-1 countdown
 │   │   ├── LinkTrackModal.tsx         # Track suite linking & sequence organizer
 │   │   ├── LyricsView.tsx             # Immersive split & fullscreen synced lyrics
+│   │   ├── lyrics/                    # Modular lyrics & always-on-top popout overlay
 │   │   ├── M3Selector.tsx             # Material Design 3 segmented pill selector
 │   │   ├── PlaylistView.tsx           # User playlists and track management
 │   │   ├── QueueDrawer.tsx            # Dual-tier contextual & priority queue
-│   │   ├── SettingsView.tsx           # Library paths, ReplayGain scan, DSP tools
+│   │   ├── SettingsView.tsx           # Library paths, ReplayGain scan, DSP & P2P tools
 │   │   ├── Sidebar.tsx                # Collapsible navigation sidebar & playlists
 │   │   ├── SleepTimerModal.tsx        # Time & track count sleep timer
 │   │   ├── SongInfoModal.tsx          # Deep audio metadata & suite inspector
@@ -343,10 +349,12 @@ Prism Music Player/
 │   │   └── WordSyncedLyricsFinder.tsx # Batch syllable-synced lyrics scraper & embedder
 │   ├── hooks/                         # Custom React hooks (useAudioPlayback, table state)
 │   │   ├── useAudioPlayback.ts        # Isolated audio playback & atomic state hook
+│   │   ├── usePopoutSync.ts           # Cross-window BroadcastChannel overlay sync
 │   │   └── useTrackTableState.ts      # Table state and filter hook
 │   ├── store/                         # Zustand global state (usePlayerStore)
-│   ├── types/                         # TypeScript interfaces (Track, Playlist)
-│   ├── utils/                         # Client utilities (color, stats, updateChecker)
+│   ├── theme/                         # Centralized Material 3 dark theme (prismTheme.ts)
+│   ├── types/                         # TypeScript interfaces (Track, Playlist, Sync)
+│   ├── utils/                         # Client utilities (color, stats, lyricsProviders, p2pSync)
 │   ├── App.tsx                        # Root application layout
 │   └── main.tsx                       # Frontend entry point
 ├── src-tauri/                         # Rust Native Core
@@ -359,6 +367,8 @@ Prism Music Player/
 │   │   │   ├── media.rs               # Album artwork and media resolution
 │   │   │   ├── mod.rs                 # Command module dispatcher
 │   │   │   └── playback.rs            # Transport, volume, and seek controls
+│   │   ├── sync/                      # P2P WebSocket server, mDNS & PSK stream cipher
+│   │   │   └── mod.rs
 │   │   ├── audio.rs                   # CPAL engine, WASAPI loop, gapless playback
 │   │   ├── audio_analysis.rs          # Rubato resampling & Stratum-DSP analysis
 │   │   ├── loudness.rs                # ITU-R BS.1770 / EBU R128 loudness scanner
@@ -393,8 +403,8 @@ Ensure the following tools are installed on your workstation:
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-username/prism-music-player.git
-   cd prism-music-player
+   git clone https://github.com/secondjb/Prism-Music-Player.git
+   cd Prism-Music-Player
    ```
 
 2. **Install frontend dependencies:**

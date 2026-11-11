@@ -10,7 +10,7 @@ Prism features a low-latency, bidirectional peer-to-peer (P2P) synchronization p
 1. **mDNS Service Broadcasting**:
    - Primary service: `_prism._tcp.local.` on port `9876` (and fallback `8765`).
    - Secondary service: `_prism-sync._tcp.local.`.
-   - TXT Records: `token=<16-char-secret>`, `name=<device_name>`, `version=1.0.0`.
+   - TXT Records: `name=<device_name>`, `version=1.0.0` (pairing tokens are never broadcast over mDNS).
 2. **Offline Direct Pairing & QR Scanning**:
    - Pairing URI: `prism://pair?host=<ip>&port=<port>&token=<token>&name=<encoded_name>`
    - Direct string fallback: `<host>:<port>:<token>`
@@ -29,7 +29,7 @@ All frames are JSON payloads tagged with `"type"`:
 ```json
 {
   "type": "handshake_req",
-  "clientToken": "16_CHAR_AUTH_TOKEN",
+  "clientToken": "32_CHAR_AUTH_TOKEN",
   "deviceName": "OnePlus 11 / Laptop Companion",
   "clientVersion": "1.0.0"
 }
@@ -115,4 +115,4 @@ Syncs offline scrobbling/listening event records between devices.
 3. **Revoking / Unpairing Devices (Host-Side)**:
    - In `CompanionPairingModal`, the host lists connected and paired clients.
    - Host can click **Unpair** next to any companion device.
-   - Host can click **Rotate Secret** to regenerate a new random 16-character token, immediately rejecting any future handshakes from previous pairing keys.
+   - Host can click **Rotate Secret** to regenerate a new random 32-character token, immediately rejecting any future handshakes from previous pairing keys.

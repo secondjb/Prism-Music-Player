@@ -10,16 +10,16 @@ Before starting the release process, ensure alignment.
 ## 2. Development & Testing
 Ensure the code is stable, secure, and meets quality standards before packaging.
 
-- **Run Frontend Tests & Linter**: Make sure the UI code has no errors.
+- **Run Frontend Build & Tests**: Make sure the TypeScript and UI code compile cleanly and all tests pass.
   ```bash
-  npm run lint
+  npm run build
   npm test
   ```
 - **Run Backend Tests & Linter**: Check the Rust audio engine and commands.
   ```bash
   cd src-tauri
-  cargo clippy -- -D warnings
   cargo test
+  cargo clippy
   cd ..
   ```
 - **Secret Scanning & Security**: Check for accidentally committed passwords, API keys, or sensitive tokens before releasing.
@@ -34,11 +34,11 @@ Ensure the code is stable, secure, and meets quality standards before packaging.
 Finalize the environment and materials needed for the launch.
 
 - **Update Version Numbers**: Match the new version (e.g., `1.2.0`).
-  - Update `version` in `package.json`.
+  - Update `version` in `package.json` and `package-lock.json`.
   - Update `version` in `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`.
+  - Update `CURRENT_APP_VERSION` in `src/utils/updateChecker.ts`.
 - **Update Documentation**:
-  - Update `README.md` with new features or updated screenshots.
-  - Update `docs/ARCHITECTURE.md` if any core pipelines or store states changed.
+  - Update `README.md`, `CHANGELOG.md`, and `docs/ARCHITECTURE.md` if any core pipelines or store states changed.
 - **Build the App**: Create the executable files (`.msi` or `.exe`).
   ```bash
   npm run tauri build
@@ -47,11 +47,11 @@ Finalize the environment and materials needed for the launch.
 ## 4. Release Execution
 Deploy the release to GitHub so users can download it.
 
-1. **Push Changes**: Commit all version and doc updates to `main`.
+1. **Push Changes**: Commit all version and doc updates to `master`.
    ```bash
    git add .
    git commit -m "chore: prep release vX.X.X"
-   git push origin main
+   git push origin master
    ```
 2. **Draft a New Release**: Go to GitHub -> Releases -> "Draft a new release".
 3. **Set Tag**: Create a new tag matching the version (e.g., `vX.X.X`).

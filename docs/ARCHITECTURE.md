@@ -117,7 +117,7 @@ const { volume, setVolume } = usePlayerStore(
 
 ### 3.3 UI Component System & Material 3 Architecture
 - **Component Preference**: Always prefer **Material 3 (MUI / Material Design 3)** UI components, controls, and scaffolding over raw/native custom CSS implementations wherever feasible.
-- **Theme Integration**: Centralized in [`src/theme/prismTheme.ts`](src/theme/prismTheme.ts) via `prismDarkTheme`, providing an accessible base dark palette with concrete hex colors (`primary.main: '#6366f1'`) required by MUI internal color math (`augmentColor`, `getContrastText`), while binding components (Buttons, Sliders, Menus, Modals, Drawers, ToggleButtons) to dynamic album-derived CSS variables (`--color-stop-1` through `--color-stop-6`) via `sx` and `styleOverrides`. Includes full `MuiSlider` theming with custom non-teardrop rounded glass tooltips (`&::before: { display: 'none' }`). An early startup error trap in `index.html` prevents silent black-screen failures on fatal module crashes.
+- **Theme Integration**: Centralized in [`src/theme/prismTheme.ts`](src/theme/prismTheme.ts) via `prismDarkTheme`, providing an accessible base dark palette with concrete hex colors (`primary.main: '#6366f1'`) required by MUI internal color math (`augmentColor`, `getContrastText`), while binding components (Buttons, Sliders, Menus, Modals, Drawers, ToggleButtons) to dynamic album-derived CSS variables (`--color-stop-1` through `--color-stop-6`) via `sx` and `styleOverrides`. Album-derived color stops are persisted across restarts so `WavyAudioSlider` and theme accents restore immediately without a default blue flash. Includes full `MuiSlider` theming with custom non-teardrop rounded glass tooltips (`&::before: { display: 'none' }`). An early startup error trap in `index.html` prevents silent black-screen failures on fatal module crashes.
 - **Sidebar & Responsiveness**:
   - Left navigation sidebar is collapsible/hideable via `isSidebarVisible` (persisted in store), featuring a one-click collapse button in the sidebar header and an unhide button in the header when collapsed.
   - Bottom player bar employs responsive flex-shrink, `overflow: 'hidden'`, and automatic collapsing of auxiliary controls (`Shuffle`, `Repeat`, sleep timer, speaker) on thin window sizes to prevent element collision.
@@ -263,10 +263,11 @@ Prism features a native LAN peer-to-peer synchronization engine enabling bi-dire
 
 ### 8.1 Rust Server & Discovery (`src-tauri/src/sync/mod.rs`)
 - **WebSocket Listener**:
-  - Bound on `0.0.0.0:9876` (`ws://<ip>:9876/prism-sync`) with a dedicated multi-threaded Tokio runtime.
-  - Authenticates connections via the `X-Prism-Auth-Token` HTTP header or immediate `handshake_req` with `clientToken` against the local cryptographic 16-character pairing secret.
+  - Bound on `0.0.0.0:9876` (`ws://<ip>:9876/prism-sync`, with fallback listener on `8765`) with a dedicated multi-threaded Tokio runtime.
+  - Authenticates connections via the `X-Prism-Auth-Token` HTTP header, `?token=` query parameter, or immediate `handshake_req` with `clientToken` against the local cryptographic 32-character pairing secret using constant-time comparison and per-IP brute-force rate limiting.
+  - Encrypts post-handshake payload frames with a SHA-256 CTR stream cipher keyed by the pairing token.
 - **mDNS Service Advertising (`mdns-sd`)**:
-  - Registers `_prism._tcp.local.` (for Android `NsdManager`) and `_prism-sync._tcp.local.` with TXT records containing the pairing secret token, protocol version (`1.0.0`), and host display name.
+  - Registers `_prism._tcp.local.` (for Android `NsdManager`) and `_prism-sync._tcp.local.` with TXT records containing the protocol version (`1.0.0`) and host display name. Pairing tokens are never broadcast over mDNS.
 - **SQLite Stats Sync (`listening_stats.db`)**:
   - Inserts companion listening events idempotently with duplicate prevention (`insert_synced_events`).
   - Broadcasts local play events to paired companions on request.

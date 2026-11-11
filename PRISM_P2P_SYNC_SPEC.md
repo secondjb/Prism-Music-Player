@@ -26,37 +26,43 @@ The synchronization enables:
 
 ## 2. Discovery & Pairing
 
-### A. mDNS Discovery (Automatic Zero-Config)
-* **Service Type**: `_prism-sync._tcp.local.`
+### A. mDNS Discovery (Presence Beacon)
+* **Service Type**: `_prism-sync._tcp.local.` and `_prism._tcp.local.`
 * **Service Name**: `Prism-Windows-<MachineName>`
 * **Port**: Configurable (default `9876`)
 * **TXT Records**:
-  * `token`: Cryptographic 16-character alphanumeric pairing secret.
   * `version`: `1.0.0`
   * `name`: Display name of the desktop machine.
+  * *Note: Pairing tokens are NEVER broadcast over mDNS to prevent LAN snooping.*
 
-### B. Offline QR Code Pairing
-For networks where mDNS / multicast is disabled or blocked by routers:
+### B. Offline QR Code & Manual Pairing
+For networks where mDNS / multicast is disabled, camera-less devices, or connecting two laptops:
 * The Windows app displays a QR code containing the pairing URI:
   ```text
-  prism://pair?host=<local_ip>&port=<port>&token=<pairing_token>
+  prism://pair?host=<local_ip>&port=<port>&token=<pairing_token>&name=<name>
   ```
-* Fallback string format supported:
+* Fallback manual string format supported:
   ```text
   <local_ip>:<port>:<pairing_token>
   ```
-* The Android app opens its built-in camera QR scanner, decodes the URI, and connects directly over LAN.
+* The companion app or client laptop can either:
+  1. Scan the QR code using its camera.
+  2. Paste the manual pairing string / URI in the "Connect to Remote Laptop" tab.
 
 ---
 
-## 3. Transport & WebSocket Connection
+## 3. Transport, Authentication & Security Architecture
 
 * **Protocol**: WebSockets (`ws://<host>:<port>/prism-sync`)
-* **Headers**:
-  ```http
-  X-Prism-Auth-Token: <pairing_token>
-  ```
-* **Heartbeat**: 10-second ping/pong intervals.
+* **Authentication**:
+  * Strong 32-character high-entropy cryptographic token (`[a-zA-Z0-9]`).
+  * Supported in initial HTTP Upgrade via `X-Prism-Auth-Token` header or `?token=<token>` query param.
+  * Sockets unauthenticated at HTTP level must send `handshake_req` within 5 seconds or are forcibly disconnected.
+  * Constant-time comparison prevents timing side-channel attacks.
+* **Brute-Force Lockout**: Rate-limiter locks out IPs exceeding 5 failed authentication attempts for 60 seconds.
+* **Path Traversal Defense**: File transfers (`FileChunk`) are strictly sanitized to filenames without path separators or `..`, whitelisted to audio formats only (`.mp3`, `.flac`, `.wav`, `.m4a`, `.ogg`, `.opus`, etc.), capped at 250MB, and restricted to the `~/Music/Prism/` directory.
+* **Command Sandboxing**: Inbound commands are strictly restricted to playback control actions (`PLAY`, `PAUSE`, `SEEK`, `SKIP_NEXT`, `SET_VOLUME`, etc.) with sanitized and clamped arguments. Arbitrary execution or system modifications are completely impossible.
+* **Heartbeat**: 3-second ping intervals with 7-second dead-peer timeout.
 
 ---
 
